@@ -8,6 +8,10 @@ All notable changes to this project will be documented in this file.
 - **CPU status refresh in GUI**: Added `parse_cpu_status()` to parse the CPU daemon STATUS response and update the CPU tab labels (temperature, load, cores, governor, frequency).
 - **CPU refresh timer**: 5-second auto-refresh timer (`cpu_refresh_timer_callback`) wired into `main()` with proper cleanup in the destroy handler.
 
+### Fixed
+- **CPU tab position**: Moved CPU tab before About tab (correct tab order: Status, Curve Editor, Profiles, Logs, CPU, About).
+- **CPU status refresh not working**: Replaced `strtok` with `strtok_r` in `parse_cpu_status()` to fix buffer corruption on repeated timer callbacks. The destructive `strtok` was leaving null terminators in the response buffer, breaking subsequent parse cycles.
+
 ## [1.3.2] - 2026-11-16
 
 ### Added
