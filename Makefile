@@ -23,6 +23,7 @@ COMMON_HDR = src/dudes-control-center-common.h
 # Targets
 CLI_TARGET = dudes-control-center-fan-cli
 DAEMON_TARGET = dudes-control-center-fan-daemon
+CPU_DAEMON_TARGET = dudes-control-center-cpu-daemon
 GUI_TARGET = dudes-control-center-gui
 
 # Version from VERSION file
@@ -32,15 +33,18 @@ PACKAGE = dudes-control-center
 # Deb build directory
 DEB_BUILD_DIR = build-deb
 
-.PHONY: all clean cli daemon gui install uninstall deb help
+.PHONY: all clean cli daemon cpu-daemon gui install uninstall deb help
 
-all: $(CLI_TARGET) $(DAEMON_TARGET) $(GUI_TARGET)
+all: $(CLI_TARGET) $(DAEMON_TARGET) $(CPU_DAEMON_TARGET) $(GUI_TARGET)
 
 $(CLI_TARGET): $(COMMON_SRC) src/dudes-control-center-fan-cli.c $(COMMON_HDR)
 	$(CC) $(CFLAGS) -o $@ $(COMMON_SRC) src/dudes-control-center-fan-cli.c $(LDFLAGS_COMMON)
 
 $(DAEMON_TARGET): $(COMMON_SRC) src/dudes-control-center-log.c src/dudes-control-center-fan-daemon.c $(COMMON_HDR) VERSION
 	$(CC) $(CFLAGS) $(CJSON_CFLAGS) -o $@ $(COMMON_SRC) src/dudes-control-center-log.c src/dudes-control-center-fan-daemon.c $(LDFLAGS_COMMON) $(CJSON_LIBS)
+
+$(CPU_DAEMON_TARGET): src/dudes-control-center-cpu-common.c src/dudes-control-center-log.c src/dudes-control-center-cpu-daemon.c src/dudes-control-center-cpu-common.h VERSION
+	$(CC) $(CFLAGS) $(CJSON_CFLAGS) -o $@ src/dudes-control-center-cpu-common.c src/dudes-control-center-log.c src/dudes-control-center-cpu-daemon.c $(LDFLAGS_COMMON) $(CJSON_LIBS)
 
 $(GUI_TARGET): $(COMMON_SRC) src/dudes-control-center-log.c src/dudes-control-center-gui.c $(COMMON_HDR) VERSION
 	$(CC) $(CFLAGS) $(GTK_CFLAGS) $(CJSON_CFLAGS) -DAPP_VERSION="\"$(VERSION)\"" -o $@ $(COMMON_SRC) src/dudes-control-center-log.c src/dudes-control-center-gui.c $(LDFLAGS_COMMON) $(GTK_LIBS) $(CJSON_LIBS)
@@ -49,10 +53,12 @@ cli: $(CLI_TARGET)
 
 daemon: $(DAEMON_TARGET)
 
+cpu-daemon: $(CPU_DAEMON_TARGET)
+
 gui: $(GUI_TARGET)
 
 clean:
-	rm -f $(CLI_TARGET) $(DAEMON_TARGET) $(GUI_TARGET)
+	rm -f $(CLI_TARGET) $(DAEMON_TARGET) $(CPU_DAEMON_TARGET) $(GUI_TARGET)
 	rm -f $(DEB_BUILD_DIR)/$(PACKAGE)_*.deb 2>/dev/null || true
 
 # Build .deb package
