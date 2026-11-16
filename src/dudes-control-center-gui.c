@@ -485,14 +485,14 @@ static gboolean cpu_refresh_timer_callback(gpointer user_data) {
     return G_SOURCE_CONTINUE;
 }
 
-/* Load available governors into the CPU combo box */
+/* Load governor profiles into the CPU combo box */
 static void load_cpu_governors(AppData *app) {
     if (!app->cpu_connected) {
         g_print("[GUI] CPU not connected, skipping governor load\n");
         return;
     }
 
-    const char *response = send_cpu_command(app, "GET_AVAILABLE_GOVERNORS");
+    const char *response = send_cpu_command(app, "LIST_GOVERNORS");
     if (response == NULL || strncmp(response, "ERROR", 5) == 0) {
         g_print("[GUI] Failed to load governors: %s\n", response);
         return;
@@ -501,26 +501,68 @@ static void load_cpu_governors(AppData *app) {
     /* Clear existing list */
     gtk_list_store_clear(app->cpu_profile_store);
 
-    /* Parse response: "GOVERNORS OK\nCOUNT=N\ngov1\ngov2\n..." */
+    /* Parse response: "GOVERNORS\n    Name (gov=..., min=..., max=...)\n[*] Name (gov=..., min=..., max=...)\n" */
     char buffer[8192];
     strncpy(buffer, response, sizeof(buffer) - 1);
     buffer[sizeof(buffer) - 1] = '\0';
 
     char *saveptr = NULL;
     char *line = strtok_r(buffer, "\n", &saveptr);
+    int active_idx = 0;
+    int count = 0;
+
     while (line != NULL) {
-        if (strncmp(line, "GOVERNORS", 9) == 0 || strncmp(line, "COUNT=", 6) == 0) {
-            /* Skip header lines */
-        } else {
-            /* Add governor to combo box */
-            GtkTreeIter iter;
-            gtk_list_store_prepend(app->cpu_profile_store, &iter);
-            gtk_list_store_set(app->cpu_profile_store, &iter, 0, line, -1);
+        /* Skip header line */
+        if (strncmp(line, "GOVERNORS", 9) == 0) {
+            line = strtok_r(NULL, "\n", &saveptr);
+            continue;
         }
+
+        /* Skip empty lines */
+        if (line[0] == '\0' || strlen(line) == 0) {
+            line = strtok_r(NULL, "\n", &saveptr);
+            continue;
+        }
+
+        /* Extract profile name: skip leading markers ([*] or spaces), stop at '(' */
+        char *name_start = line;
+        while (*name_start == ' ' || *name_start == '*') {
+            name_start++;
+        }
+
+        char *paren = strchr(name_start, '(');
+        if (paren) {
+            *paren = '\0';
+        }
+
+        /* Trim trailing spaces */
+        int len = strlen(name_start);
+        while (len > 0 && name_start[len - 1] == ' ') {
+            name_start[len - 1] = '\0';
+            len--;
+        }
+
+        if (strlen(name_start) > 0) {
+            /* Check if this is the active profile */
+            if (strstr(line, "[*]") != NULL) {
+                active_idx = count;
+            }
+
+            GtkTreeIter iter;
+            gtk_list_store_append(app->cpu_profile_store, &iter);
+            gtk_list_store_set(app->cpu_profile_store, &iter, 0, name_start, -1);
+            count++;
+        }
+
         line = strtok_r(NULL, "\n", &saveptr);
     }
 
-    g_print("[GUI] Loaded governors into combo box\n");
+    /* Select the active profile */
+    if (active_idx < count) {
+        gtk_combo_box_set_active(GTK_COMBO_BOX(app->cpu_profile_combo), active_idx);
+    }
+
+    g_print("[GUI] Loaded %d governor profiles into combo box (active idx=%d)\n", count, active_idx);
 }
 
 /* Callback: Apply governor from combo box selection */

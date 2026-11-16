@@ -305,11 +305,20 @@ int get_all_governors(char **governor_list, int *count) {
 
     /* Try to read available governors from sysfs */
     char path[512];
-    snprintf(path, sizeof(path), "%s/cpufreq/available_governors", CPUSYSFS);
+    FILE *fp = NULL;
 
-    FILE *fp = fopen(path, "r");
+    /* Try global path first (newer kernels) */
+    snprintf(path, sizeof(path), "%s/cpufreq/available_governors", CPUSYSFS);
+    fp = fopen(path, "r");
+
+    /* Fallback: try per-policy path */
     if (!fp) {
-        LOG_WARN("[CPU] Could not read available governors from %s", path);
+        snprintf(path, sizeof(path), "%s/cpufreq/policy0/scaling_available_governors", CPUSYSFS);
+        fp = fopen(path, "r");
+    }
+
+    if (!fp) {
+        LOG_WARN("[CPU] Could not read available governors from any path");
         return -1;
     }
 
