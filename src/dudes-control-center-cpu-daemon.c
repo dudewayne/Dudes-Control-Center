@@ -588,22 +588,26 @@ static void handle_client(int client_fd) {
     char buffer[BUFFER_SIZE] = {0};
     char response[MAX_RESPONSE_LEN] = {0};
 
-    ssize_t bytes_read = read(client_fd, buffer, sizeof(buffer) - 1);
-    if (bytes_read <= 0) {
-        LOG_INFO("[DAEMON] Client connection closed or error");
-        close(client_fd);
-        return;
+    while (1) {
+        memset(buffer, 0, sizeof(buffer));
+        ssize_t bytes_read = read(client_fd, buffer, sizeof(buffer) - 1);
+        if (bytes_read <= 0) {
+            LOG_INFO("[DAEMON] Client connection closed or error");
+            close(client_fd);
+            break;
+        }
+
+        buffer[bytes_read] = '\0';
+        memset(response, 0, sizeof(response));
+        handle_command(buffer, response, sizeof(response));
+
+        ssize_t bytes_written = write(client_fd, response, strlen(response));
+        if (bytes_written < 0) {
+            LOG_ERROR("[DAEMON] Error writing to client: %s", strerror(errno));
+            close(client_fd);
+            break;
+        }
     }
-
-    buffer[bytes_read] = '\0';
-    handle_command(buffer, response, sizeof(response));
-
-    ssize_t bytes_written = write(client_fd, response, strlen(response));
-    if (bytes_written < 0) {
-        LOG_ERROR("[DAEMON] Error writing to client: %s", strerror(errno));
-    }
-
-    close(client_fd);
 }
 
 /* --- Create Unix socket server --- */
