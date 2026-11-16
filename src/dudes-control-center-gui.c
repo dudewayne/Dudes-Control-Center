@@ -208,6 +208,9 @@ static void disconnect_from_daemon(AppData *app);
 /* Forward declarations for CPU daemon connection */
 static void connect_to_cpu_daemon(AppData *app);
 static void disconnect_from_cpu_daemon(AppData *app);
+static const char *send_cpu_command(AppData *app, const char *cmd);
+static void parse_cpu_status(AppData *app, const char *response);
+static gboolean cpu_refresh_timer_callback(gpointer user_data);
 
 /* Forward declarations for profile and curve management */
 static void refresh_profile_list(AppData *app);
@@ -418,6 +421,65 @@ static const char *send_cpu_command(AppData *app, const char *cmd) {
     }
 
     return response;
+}
+
+/* Parse CPU STATUS response and update UI */
+static void parse_cpu_status(AppData *app, const char *response) {
+    char buffer[8192];
+    strncpy(buffer, response, sizeof(buffer) - 1);
+    buffer[sizeof(buffer) - 1] = '\0';
+
+    int cpu_temp = 0;
+    float cpu_load = 0.0f;
+    int num_cpus = 0;
+    char active_governor[64] = "N/A";
+    char freq_values[256] = "N/A";
+    char min_max_freq[128] = "N/A";
+
+    char *line = strtok(buffer, "\n");
+    while (line != NULL) {
+        if (strncmp(line, "CPU_TEMP=", 9) == 0) {
+            cpu_temp = atoi(line + 9);
+        } else if (strncmp(line, "CPU_LOAD=", 9) == 0) {
+            cpu_load = atof(line + 9);
+        } else if (strncmp(line, "NUM_CPUS=", 9) == 0) {
+            num_cpus = atoi(line + 9);
+        } else if (strncmp(line, "ACTIVE_GOVERNOR=", 16) == 0) {
+            strncpy(active_governor, line + 16, sizeof(active_governor) - 1);
+        } else if (strncmp(line, "CPU_0_FREQ=", 11) == 0) {
+            strncpy(freq_values, line + 11, sizeof(freq_values) - 1);
+        }
+        line = strtok(NULL, "\n");
+    }
+
+    /* Update labels */
+    char temp_text[32], load_text[32], num_text[32];
+    snprintf(temp_text, sizeof(temp_text), "%d°C", cpu_temp);
+    snprintf(load_text, sizeof(load_text), "%.1f%%", cpu_load);
+    snprintf(num_text, sizeof(num_text), "%d", num_cpus);
+
+    gtk_label_set_text(GTK_LABEL(app->cpu_page_temp_label), temp_text);
+    gtk_label_set_text(GTK_LABEL(app->cpu_page_load_label), load_text);
+    gtk_label_set_text(GTK_LABEL(app->cpu_page_num_label), num_text);
+    gtk_label_set_text(GTK_LABEL(app->cpu_page_governor_label), active_governor);
+    gtk_label_set_text(GTK_LABEL(app->cpu_page_freq_label), freq_values);
+    gtk_label_set_text(GTK_LABEL(app->cpu_page_min_max_freq_label), min_max_freq);
+}
+
+/* CPU refresh timer callback - fetch CPU STATUS and update UI every 5 seconds */
+static gboolean cpu_refresh_timer_callback(gpointer user_data) {
+    AppData *app = (AppData *)user_data;
+
+    if (!app->cpu_connected) {
+        return G_SOURCE_CONTINUE;
+    }
+
+    const char *response = send_cpu_command(app, "STATUS");
+    if (response != NULL && strncmp(response, "ERROR", 5) != 0) {
+        parse_cpu_status(app, response);
+    }
+
+    return G_SOURCE_CONTINUE;
 }
 
 
@@ -1403,7 +1465,12 @@ static void on_window_destroy(GtkWidget *widget, gpointer user_data) {
     if (app->log_refresh_timer_id > 0) {
         g_source_remove(app->log_refresh_timer_id);
     }
-    
+
+    /* Stop CPU refresh timer */
+    if (app->cpu_refresh_timer_id > 0) {
+        g_source_remove(app->cpu_refresh_timer_id);
+    }
+
     /* Free profile names */
     if (app->profile_names) {
         for (int i = 0; i < app->num_profiles; i++) {
@@ -3556,7 +3623,13 @@ int main(int argc, char *argv[]) {
     
     /* Start refresh timer (every 2 seconds) */
     app.refresh_timer_id = g_timeout_add_seconds(2, refresh_timer_callback, &app);
-    
+
+    /* Start CPU refresh timer (every 5 seconds) if connected */
+    if (app.cpu_connected) {
+        app.cpu_refresh_timer_id = g_timeout_add_seconds(5, cpu_refresh_timer_callback, &app);
+        g_print("[GUI] CPU refresh timer started (5s interval)\n");
+    }
+
     /* Create system tray icon */
     create_system_tray(&app);
     
