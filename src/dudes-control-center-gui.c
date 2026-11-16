@@ -356,6 +356,70 @@ static const char *send_command(AppData *app, const char *cmd) {
     return response;
 }
 
+/* Send command to CPU daemon via its own socket */
+static const char *send_cpu_command(AppData *app, const char *cmd) {
+    static char response[8192];
+
+    if (!app->cpu_connected || app->cpu_socket_fd < 0) {
+        strcpy(response, "ERROR Not connected to CPU daemon");
+        return response;
+    }
+
+    char cmd_with_newline[256];
+    snprintf(cmd_with_newline, sizeof(cmd_with_newline), "%s\n", cmd);
+
+    if (strcmp(cmd, "STATUS") != 0) {
+        char ts[32];
+        get_timestamp(ts, sizeof(ts));
+        g_print("%s [GUI] CPU Sending: %s\n", ts, cmd);
+    }
+
+    ssize_t sent = write(app->cpu_socket_fd, cmd_with_newline, strlen(cmd_with_newline));
+    if (sent < 0) {
+        char ts[32];
+        get_timestamp(ts, sizeof(ts));
+        g_print("%s [GUI] CPU ERROR: Failed to send command (%s), marking disconnected\n", ts, strerror(errno));
+        app->cpu_connected = 0;
+        if (app->cpu_socket_fd >= 0) {
+            close(app->cpu_socket_fd);
+            app->cpu_socket_fd = -1;
+        }
+        strcpy(response, "ERROR Failed to send CPU command");
+        return response;
+    }
+
+    memset(response, 0, sizeof(response));
+    ssize_t received = read(app->cpu_socket_fd, response, sizeof(response) - 1);
+    if (received < 0) {
+        char ts[32];
+        get_timestamp(ts, sizeof(ts));
+        g_print("%s [GUI] CPU ERROR: Failed to receive response (%s), marking disconnected\n", ts, strerror(errno));
+        app->cpu_connected = 0;
+        if (app->cpu_socket_fd >= 0) {
+            close(app->cpu_socket_fd);
+            app->cpu_socket_fd = -1;
+        }
+        strcpy(response, "ERROR Failed to receive CPU response");
+        return response;
+    }
+    if (received == 0) {
+        char ts[32];
+        get_timestamp(ts, sizeof(ts));
+        g_print("%s [GUI] CPU ERROR: Connection closed by daemon (EOF)\n", ts);
+        strcpy(response, "ERROR CPU connection closed");
+        app->cpu_connected = 0;
+        return response;
+    }
+
+    if (strcmp(cmd, "STATUS") != 0) {
+        char ts[32];
+        get_timestamp(ts, sizeof(ts));
+        g_print("%s [GUI] CPU Received (%zd bytes): %s...\n", ts, received, response);
+    }
+
+    return response;
+}
+
 
 
 /* Callback: Manual mode switch toggled */
