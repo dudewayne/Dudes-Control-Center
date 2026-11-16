@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.3.3] - 2026-11-16
+
+### Added
+- **CPU status refresh in GUI**: Added `parse_cpu_status()` to parse the CPU daemon STATUS response and update the CPU tab labels (temperature, load, cores, governor, frequency).
+- **CPU refresh timer**: 5-second auto-refresh timer (`cpu_refresh_timer_callback`) wired into `main()` with proper cleanup in the destroy handler.
+
 ## [1.3.2] - 2026-11-16
 
 ### Added
