@@ -436,7 +436,8 @@ static void parse_cpu_status(AppData *app, const char *response) {
     char freq_values[256] = "N/A";
     char min_max_freq[128] = "N/A";
 
-    char *line = strtok(buffer, "\n");
+    char *saveptr = NULL;
+    char *line = strtok_r(buffer, "\n", &saveptr);
     while (line != NULL) {
         if (strncmp(line, "CPU_TEMP=", 9) == 0) {
             cpu_temp = atoi(line + 9);
@@ -449,7 +450,7 @@ static void parse_cpu_status(AppData *app, const char *response) {
         } else if (strncmp(line, "CPU_0_FREQ=", 11) == 0) {
             strncpy(freq_values, line + 11, sizeof(freq_values) - 1);
         }
-        line = strtok(NULL, "\n");
+        line = strtok_r(NULL, "\n", &saveptr);
     }
 
     /* Update labels */
@@ -2522,7 +2523,7 @@ static gboolean refresh_logs_timer(gpointer user_data) {
     
     /* Check if we're on the log page before refreshing to save resources */
     gint current_page = gtk_notebook_get_current_page(GTK_NOTEBOOK(app->notebook));
-    if (current_page == 3) {  /* Log page is index 3 (0-based: Status=0, Curve=1, Profiles=2, Logs=3, About=4) */
+    if (current_page == 3) {  /* Log page is index 3 (0-based: Status=0, Curve=1, Profiles=2, Logs=3, CPU=4, About=5) */
         load_gui_logs(app);
         load_daemon_logs(app);
     }
@@ -3031,17 +3032,15 @@ static GtkWidget *create_main_window(AppData *app) {
     GtkWidget *page2 = create_curve_editor_page(app);
     GtkWidget *page3 = create_profile_list_page(app);
     GtkWidget *page4 = create_log_page(app);
-    GtkWidget *page5 = create_about_page();
-    
+    GtkWidget *page5 = create_cpu_page(app);
+    GtkWidget *page6 = create_about_page();
+
     gtk_notebook_append_page(GTK_NOTEBOOK(app->notebook), page1, gtk_label_new("Status"));
     gtk_notebook_append_page(GTK_NOTEBOOK(app->notebook), page2, gtk_label_new("Curve Editor"));
     gtk_notebook_append_page(GTK_NOTEBOOK(app->notebook), page3, gtk_label_new("Profiles"));
     gtk_notebook_append_page(GTK_NOTEBOOK(app->notebook), page4, gtk_label_new("Logs"));
-    gtk_notebook_append_page(GTK_NOTEBOOK(app->notebook), page5, gtk_label_new("About"));
-    
-    /* Page 6: CPU Control */
-    GtkWidget *page6 = create_cpu_page(app);
-    gtk_notebook_append_page(GTK_NOTEBOOK(app->notebook), page6, gtk_label_new("CPU"));
+    gtk_notebook_append_page(GTK_NOTEBOOK(app->notebook), page5, gtk_label_new("CPU"));
+    gtk_notebook_append_page(GTK_NOTEBOOK(app->notebook), page6, gtk_label_new("About"));
     
     /* Connect notebook page-switch signal to update profile tab when switching to it */
     app->page_switched_handler_id = g_signal_connect(app->notebook, "switch-page", G_CALLBACK(on_notebook_page_switched), app);
