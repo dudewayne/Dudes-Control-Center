@@ -1,0 +1,12 @@
+[Unit]
+Description=Dudes Control Center CPU Daemon
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=/usr/local/bin/dudes-control-center-cpu-daemon --foreground
+Restart=always
+User=root
+
+[Install]
+WantedBy=multi-user.target

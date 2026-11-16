@@ -1,5 +1,5 @@
 # Makefile for Dudes Control Center Applications
-# Builds: dudes-control-center-fan-cli, dudes-control-center-fan-daemon, dudes-control-center-gui
+# Builds: dudes-control-center-fan-cli, dudes-control-center-fan-daemon, dudes-control-center-cpu-daemon, dudes-control-center-gui
 
 # Rule 8: Use all CPU cores for compilation
 MAKEFLAGS += -j$(shell nproc)
@@ -73,22 +73,24 @@ deb: all
 	@mkdir -p $(DEB_BUILD_DIR)/$(PACKAGE)-$(VERSION)/DEBIAN
 	@cp $(CLI_TARGET) $(DEB_BUILD_DIR)/$(PACKAGE)-$(VERSION)/usr/local/bin/
 	@cp $(DAEMON_TARGET) $(DEB_BUILD_DIR)/$(PACKAGE)-$(VERSION)/usr/local/bin/
+	@cp $(CPU_DAEMON_TARGET) $(DEB_BUILD_DIR)/$(PACKAGE)-$(VERSION)/usr/local/bin/
 	@cp $(GUI_TARGET) $(DEB_BUILD_DIR)/$(PACKAGE)-$(VERSION)/usr/local/bin/
 	@cp dudes-control-center.desktop $(DEB_BUILD_DIR)/$(PACKAGE)-$(VERSION)/usr/share/applications/
 	@cp DudesControlCenter.png $(DEB_BUILD_DIR)/$(PACKAGE)-$(VERSION)/usr/share/pixmaps/ 2>/dev/null || true
 	@cp DudesControlCenter.png $(DEB_BUILD_DIR)/$(PACKAGE)-$(VERSION)/usr/share/icons/hicolor/256x256/apps/dudes-control-center.png 2>/dev/null || true
 	@cp dudes-control-center-fan-daemon.service $(DEB_BUILD_DIR)/$(PACKAGE)-$(VERSION)/etc/systemd/system/
+	@cp dudes-control-center-cpu-daemon.service $(DEB_BUILD_DIR)/$(PACKAGE)-$(VERSION)/etc/systemd/system/
 	@echo 'Package: $(PACKAGE)' > $(DEB_BUILD_DIR)/$(PACKAGE)-$(VERSION)/DEBIAN/control
 	@echo 'Version: $(VERSION)' >> $(DEB_BUILD_DIR)/$(PACKAGE)-$(VERSION)/DEBIAN/control
 	@echo 'Architecture: amd64' >> $(DEB_BUILD_DIR)/$(PACKAGE)-$(VERSION)/DEBIAN/control
 	@echo 'Maintainer: Dudes Control Center' >> $(DEB_BUILD_DIR)/$(PACKAGE)-$(VERSION)/DEBIAN/control
-	@echo 'Description: Dudes Control Center - Monitor and control notebook fan speed' >> $(DEB_BUILD_DIR)/$(PACKAGE)-$(VERSION)/DEBIAN/control
+	@echo 'Description: Dudes Control Center - Monitor and control notebook fan speed and CPU frequency' >> $(DEB_BUILD_DIR)/$(PACKAGE)-$(VERSION)/DEBIAN/control
 	@echo 'Section: admin' >> $(DEB_BUILD_DIR)/$(PACKAGE)-$(VERSION)/DEBIAN/control
 	@echo 'Priority: optional' >> $(DEB_BUILD_DIR)/$(PACKAGE)-$(VERSION)/DEBIAN/control
 	@echo 'Depends: libgtk-3-0, libcjson1' >> $(DEB_BUILD_DIR)/$(PACKAGE)-$(VERSION)/DEBIAN/control
-	@printf '#!/bin/sh\nset -e\nif [ "$$1" = "configure" ]; then\n    systemctl daemon-reload\n    systemctl enable dudes-control-center-fan-daemon\n    systemctl restart dudes-control-center-fan-daemon || systemctl start dudes-control-center-fan-daemon\n    update-desktop-database >/dev/null 2>&1 || true\nfi\nexit 0\n' > $(DEB_BUILD_DIR)/$(PACKAGE)-$(VERSION)/DEBIAN/postinst
+	@printf '#!/bin/sh\nset -e\nif [ "$$1" = "configure" ]; then\n    systemctl daemon-reload\n    systemctl enable dudes-control-center-fan-daemon\n    systemctl restart dudes-control-center-fan-daemon || systemctl start dudes-control-center-fan-daemon\n    systemctl enable dudes-control-center-cpu-daemon\n    systemctl restart dudes-control-center-cpu-daemon || systemctl start dudes-control-center-cpu-daemon\n    update-desktop-database >/dev/null 2>&1 || true\nfi\nexit 0\n' > $(DEB_BUILD_DIR)/$(PACKAGE)-$(VERSION)/DEBIAN/postinst
 	@chmod 755 $(DEB_BUILD_DIR)/$(PACKAGE)-$(VERSION)/DEBIAN/postinst
-	@printf '#!/bin/sh\nset -e\nif [ "$$1" = "remove" ]; then\n    systemctl stop dudes-control-center-fan-daemon 2>/dev/null || true\n    systemctl disable dudes-control-center-fan-daemon 2>/dev/null || true\n    systemctl daemon-reload\nfi\nexit 0\n' > $(DEB_BUILD_DIR)/$(PACKAGE)-$(VERSION)/DEBIAN/prerm
+	@printf '#!/bin/sh\nset -e\nif [ "$$1" = "remove" ]; then\n    systemctl stop dudes-control-center-fan-daemon 2>/dev/null || true\n    systemctl disable dudes-control-center-fan-daemon 2>/dev/null || true\n    systemctl stop dudes-control-center-cpu-daemon 2>/dev/null || true\n    systemctl disable dudes-control-center-cpu-daemon 2>/dev/null || true\n    systemctl daemon-reload\nfi\nexit 0\n' > $(DEB_BUILD_DIR)/$(PACKAGE)-$(VERSION)/DEBIAN/prerm
 	@chmod 755 $(DEB_BUILD_DIR)/$(PACKAGE)-$(VERSION)/DEBIAN/prerm
 	@cd $(DEB_BUILD_DIR) && dpkg-deb --build $(PACKAGE)-$(VERSION) $(PACKAGE)_$(VERSION)_amd64.deb
 	@echo "Built: $(DEB_BUILD_DIR)/$(PACKAGE)_$(VERSION)_amd64.deb"
@@ -97,14 +99,18 @@ install: all
 	@echo "Installing applications..."
 	install -m 755 $(CLI_TARGET) /usr/local/bin/
 	install -m 755 $(DAEMON_TARGET) /usr/local/bin/
+	install -m 755 $(CPU_DAEMON_TARGET) /usr/local/bin/
 	install -m 755 $(GUI_TARGET) /usr/local/bin/
 	@echo "Creating systemd service for daemon..."
 	install -d /etc/systemd/system
 	cp dudes-control-center-fan-daemon.service /etc/systemd/system/
+	cp dudes-control-center-cpu-daemon.service /etc/systemd/system/
 	systemctl daemon-reload
 	systemctl enable dudes-control-center-fan-daemon
-	@echo "Restarting daemon..."
+	systemctl enable dudes-control-center-cpu-daemon
+	@echo "Restarting daemons..."
 	systemctl restart dudes-control-center-fan-daemon || systemctl start dudes-control-center-fan-daemon
+	systemctl restart dudes-control-center-cpu-daemon || systemctl start dudes-control-center-cpu-daemon
 	@echo "Installing desktop launcher..."
 	install -m 644 dudes-control-center.desktop /usr/share/applications/
 	update-desktop-database >/dev/null 2>&1 || true
@@ -114,10 +120,14 @@ uninstall:
 	@echo "Uninstalling applications..."
 	systemctl stop dudes-control-center-fan-daemon 2>/dev/null || true
 	systemctl disable dudes-control-center-fan-daemon 2>/dev/null || true
+	systemctl stop dudes-control-center-cpu-daemon 2>/dev/null || true
+	systemctl disable dudes-control-center-cpu-daemon 2>/dev/null || true
 	rm -f /usr/local/bin/$(CLI_TARGET)
 	rm -f /usr/local/bin/$(DAEMON_TARGET)
+	rm -f /usr/local/bin/$(CPU_DAEMON_TARGET)
 	rm -f /usr/local/bin/$(GUI_TARGET)
 	rm -f /etc/systemd/system/dudes-control-center-fan-daemon.service
+	rm -f /etc/systemd/system/dudes-control-center-cpu-daemon.service
 	rm -f /usr/share/applications/dudes-control-center.desktop
 	systemctl daemon-reload
 	update-desktop-database >/dev/null 2>&1 || true
