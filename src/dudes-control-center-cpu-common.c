@@ -1003,3 +1003,120 @@ int cpu_profile_set_last_used(const char *name) {
     return 0;
 }
 
+/* --- Custom profile management (in-memory) --- */
+
+/* Create a new custom profile */
+int cpu_custom_profile_create(const char *name, CpuGovernor governor,
+                              uint32_t default_max_freq_hz, int apply_all_cores) {
+    if (!name || g_cpu_state.num_custom_profiles >= MAX_CPU_CUSTOM_PROFILES) {
+        return -1;
+    }
+
+    /* Check for duplicate name */
+    for (int i = 0; i < g_cpu_state.num_custom_profiles; i++) {
+        if (strcmp(g_cpu_state.custom_profiles[i].name, name) == 0) {
+            LOG_WARN("[CPU] Custom profile '%s' already exists", name);
+            return -1;
+        }
+    }
+
+    /* Apply safety limit */
+    if (default_max_freq_hz > HARD_MAX_FREQ_HZ) {
+        default_max_freq_hz = HARD_MAX_FREQ_HZ;
+    }
+
+    CpuCustomProfile *p = &g_cpu_state.custom_profiles[g_cpu_state.num_custom_profiles];
+    memset(p, 0, sizeof(CpuCustomProfile));
+    strncpy(p->name, name, CPU_PROFILE_NAME_MAX - 1);
+    p->governor = governor;
+    p->apply_all_cores = apply_all_cores;
+    p->num_cores = get_cpu_count();
+
+    /* Set default frequencies for all cores */
+    for (int i = 0; i < p->num_cores && i < MAX_CPUS; i++) {
+        p->per_core_max_freq_hz[i] = default_max_freq_hz;
+        p->per_core_min_freq_hz[i] = 0;  /* 0 = default */
+    }
+
+    g_cpu_state.num_custom_profiles++;
+    LOG_INFO("[CPU] Created custom profile '%s' (cores=%d, gov=%s)",
+             name, p->num_cores, enum_to_governor(governor));
+    return 0;
+}
+
+/* Delete a custom profile by index */
+int cpu_custom_profile_delete(int idx) {
+    if (idx < 0 || idx >= g_cpu_state.num_custom_profiles) return -1;
+
+    /* Shift remaining profiles down */
+    for (int i = idx; i < g_cpu_state.num_custom_profiles - 1; i++) {
+        g_cpu_state.custom_profiles[i] = g_cpu_state.custom_profiles[i + 1];
+    }
+    g_cpu_state.num_custom_profiles--;
+
+    /* Reset active index if needed */
+    if (g_cpu_state.active_custom_profile_idx >= g_cpu_state.num_custom_profiles) {
+        g_cpu_state.active_custom_profile_idx = g_cpu_state.num_custom_profiles - 1;
+    }
+
+    LOG_INFO("[CPU] Deleted custom profile at index %d", idx);
+    return 0;
+}
+
+/* Set per-core frequency in a custom profile */
+int cpu_custom_profile_set_core_freq(int profile_idx, int cpu_id,
+                                     uint32_t max_freq_hz, uint32_t min_freq_hz) {
+    if (profile_idx < 0 || profile_idx >= g_cpu_state.num_custom_profiles) return -1;
+    if (cpu_id < 0 || cpu_id >= MAX_CPUS) return -1;
+
+    CpuCustomProfile *p = &g_cpu_state.custom_profiles[profile_idx];
+
+    /* Apply safety limit */
+    if (max_freq_hz > HARD_MAX_FREQ_HZ) max_freq_hz = HARD_MAX_FREQ_HZ;
+
+    p->per_core_max_freq_hz[cpu_id] = max_freq_hz;
+    p->per_core_min_freq_hz[cpu_id] = min_freq_hz;
+
+    LOG_INFO("[CPU] Set core %d freq in profile '%s': max=%u Hz, min=%u Hz",
+             cpu_id, p->name, max_freq_hz, min_freq_hz);
+    return 0;
+}
+
+/* Get custom profile by index */
+const CpuCustomProfile* cpu_custom_profile_get(int idx) {
+    if (idx < 0 || idx >= g_cpu_state.num_custom_profiles) return NULL;
+    return &g_cpu_state.custom_profiles[idx];
+}
+
+/* Set active custom profile (in memory only) */
+int cpu_custom_profile_set_active(int idx) {
+    if (idx < 0 || idx >= g_cpu_state.num_custom_profiles) return -1;
+
+    g_cpu_state.active_custom_profile_idx = idx;
+    LOG_INFO("[CPU] Active custom profile set to index %d ('%s')",
+             idx, g_cpu_state.custom_profiles[idx].name);
+    return 0;
+}
+
+/* List all custom profiles */
+int cpu_custom_profile_list(char *buffer, size_t buf_size) {
+    if (!buffer || buf_size == 0) return -1;
+
+    int offset = 0;
+    for (int i = 0; i < g_cpu_state.num_custom_profiles; i++) {
+        const CpuCustomProfile *p = &g_cpu_state.custom_profiles[i];
+        char entry[256];
+        const char *marker = (i == g_cpu_state.active_custom_profile_idx) ? " [*]" : "    ";
+
+        int written = snprintf(entry, sizeof(entry), "%s %s (gov=%s, cores=%d, all_cores=%d)\n",
+                              marker, p->name, enum_to_governor(p->governor),
+                              p->num_cores, p->apply_all_cores);
+
+        if (offset + written >= (int)buf_size) break;
+        memcpy(buffer + offset, entry, (size_t)written);
+        offset += written;
+    }
+
+    return offset;
+}
+
