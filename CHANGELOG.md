@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.3.4] - 2026-11-16
+
+### Fixed
+- **CPU status refresh not updating after first load**: The CPU daemon closed the client connection after every response, so subsequent timer refreshes read from a dead socket. Fixed by wrapping the read/process/write loop in `handle_client()` to keep the connection alive, matching the fan daemon's behavior.
+
 ## [1.3.3] - 2026-11-16
 
 ### Added
