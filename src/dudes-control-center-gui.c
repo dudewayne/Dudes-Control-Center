@@ -129,6 +129,7 @@ typedef struct {
     /* Signal IDs for blocking/unblocking callbacks */
     guint manual_mode_signal_id;
     guint profile_combo_signal_id;
+    guint cpu_profile_combo_signal_id;
     
     /* Statusbar */
     GtkWidget *statusbar;
@@ -526,7 +527,7 @@ static void load_cpu_governors(AppData *app) {
 
         /* Extract profile name: skip leading markers ([*] or spaces), stop at '(' */
         char *name_start = line;
-        while (*name_start == ' ' || *name_start == '*') {
+        while (*name_start == ' ' || *name_start == '[' || *name_start == ']' || *name_start == '*') {
             name_start++;
         }
 
@@ -557,9 +558,11 @@ static void load_cpu_governors(AppData *app) {
         line = strtok_r(NULL, "\n", &saveptr);
     }
 
-    /* Select the active profile */
+    /* Select the active profile (block signal to prevent callback during init) */
     if (active_idx < count) {
+        g_signal_handler_block(app->cpu_profile_combo, app->cpu_profile_combo_signal_id);
         gtk_combo_box_set_active(GTK_COMBO_BOX(app->cpu_profile_combo), active_idx);
+        g_signal_handler_unblock(app->cpu_profile_combo, app->cpu_profile_combo_signal_id);
     }
 
     g_print("[GUI] Loaded %d governor profiles into combo box (active idx=%d)\n", count, active_idx);
@@ -3110,8 +3113,8 @@ static GtkWidget *create_cpu_page(AppData *app) {
         gtk_box_pack_start(GTK_BOX(row), app->cpu_profile_combo, TRUE, TRUE, 0);
         gtk_box_pack_start(GTK_BOX(profile_box), row, FALSE, FALSE, 0);
 
-        /* Connect combo box changed signal */
-        g_signal_connect(app->cpu_profile_combo, "changed", G_CALLBACK(on_cpu_governor_changed), app);
+        /* Connect combo box changed signal and store handler ID */
+        app->cpu_profile_combo_signal_id = g_signal_connect(app->cpu_profile_combo, "changed", G_CALLBACK(on_cpu_governor_changed), app);
     }
 
     return vbox;
