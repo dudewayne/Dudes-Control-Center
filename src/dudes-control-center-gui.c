@@ -2523,7 +2523,7 @@ static gboolean refresh_logs_timer(gpointer user_data) {
     
     /* Check if we're on the log page before refreshing to save resources */
     gint current_page = gtk_notebook_get_current_page(GTK_NOTEBOOK(app->notebook));
-    if (current_page == 3) {  /* Log page is index 3 (0-based: Status=0, Curve=1, Profiles=2, Logs=3, CPU=4, About=5) */
+    if (current_page == 4) {  /* Log page is index 4 (0-based: Status=0, Curve=1, Profiles=2, CPU=3, Logs=4, About=5) */
         load_gui_logs(app);
         load_daemon_logs(app);
     }
@@ -3038,8 +3038,8 @@ static GtkWidget *create_main_window(AppData *app) {
     gtk_notebook_append_page(GTK_NOTEBOOK(app->notebook), page1, gtk_label_new("Status"));
     gtk_notebook_append_page(GTK_NOTEBOOK(app->notebook), page2, gtk_label_new("Curve Editor"));
     gtk_notebook_append_page(GTK_NOTEBOOK(app->notebook), page3, gtk_label_new("Profiles"));
-    gtk_notebook_append_page(GTK_NOTEBOOK(app->notebook), page4, gtk_label_new("Logs"));
     gtk_notebook_append_page(GTK_NOTEBOOK(app->notebook), page5, gtk_label_new("CPU"));
+    gtk_notebook_append_page(GTK_NOTEBOOK(app->notebook), page4, gtk_label_new("Logs"));
     gtk_notebook_append_page(GTK_NOTEBOOK(app->notebook), page6, gtk_label_new("About"));
     
     /* Connect notebook page-switch signal to update profile tab when switching to it */
