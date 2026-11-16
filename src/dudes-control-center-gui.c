@@ -211,6 +211,8 @@ static void disconnect_from_cpu_daemon(AppData *app);
 static const char *send_cpu_command(AppData *app, const char *cmd);
 static void parse_cpu_status(AppData *app, const char *response);
 static gboolean cpu_refresh_timer_callback(gpointer user_data);
+static void load_cpu_governors(AppData *app);
+static void on_cpu_governor_changed(GtkWidget *widget, gpointer user_data);
 
 /* Forward declarations for profile and curve management */
 static void refresh_profile_list(AppData *app);
@@ -481,6 +483,77 @@ static gboolean cpu_refresh_timer_callback(gpointer user_data) {
     }
 
     return G_SOURCE_CONTINUE;
+}
+
+/* Load available governors into the CPU combo box */
+static void load_cpu_governors(AppData *app) {
+    if (!app->cpu_connected) {
+        g_print("[GUI] CPU not connected, skipping governor load\n");
+        return;
+    }
+
+    const char *response = send_cpu_command(app, "GET_AVAILABLE_GOVERNORS");
+    if (response == NULL || strncmp(response, "ERROR", 5) == 0) {
+        g_print("[GUI] Failed to load governors: %s\n", response);
+        return;
+    }
+
+    /* Clear existing list */
+    gtk_list_store_clear(app->cpu_profile_store);
+
+    /* Parse response: "GOVERNORS OK\nCOUNT=N\ngov1\ngov2\n..." */
+    char buffer[8192];
+    strncpy(buffer, response, sizeof(buffer) - 1);
+    buffer[sizeof(buffer) - 1] = '\0';
+
+    char *saveptr = NULL;
+    char *line = strtok_r(buffer, "\n", &saveptr);
+    while (line != NULL) {
+        if (strncmp(line, "GOVERNORS", 9) == 0 || strncmp(line, "COUNT=", 6) == 0) {
+            /* Skip header lines */
+        } else {
+            /* Add governor to combo box */
+            GtkTreeIter iter;
+            gtk_list_store_prepend(app->cpu_profile_store, &iter);
+            gtk_list_store_set(app->cpu_profile_store, &iter, 0, line, -1);
+        }
+        line = strtok_r(NULL, "\n", &saveptr);
+    }
+
+    g_print("[GUI] Loaded governors into combo box\n");
+}
+
+/* Callback: Apply governor from combo box selection */
+static void on_cpu_governor_changed(GtkWidget *widget, gpointer user_data) {
+    AppData *app = (AppData *)user_data;
+
+    GtkTreeIter iter;
+    if (!gtk_combo_box_get_active_iter(GTK_COMBO_BOX(widget), &iter)) {
+        return;
+    }
+
+    gchar *governor_name = NULL;
+    gtk_tree_model_get(GTK_TREE_MODEL(app->cpu_profile_store), &iter, 0, &governor_name, -1);
+    if (!governor_name) {
+        return;
+    }
+
+    g_print("[GUI] Applying governor: %s\n", governor_name);
+
+    /* Build command: APPLY_GOVERNOR <name> */
+    char command[256];
+    snprintf(command, sizeof(command), "APPLY_GOVERNOR %s", governor_name);
+
+    const char *response = send_cpu_command(app, command);
+    if (response && strncmp(response, "OK", 2) == 0) {
+        show_status(app, "Governor applied successfully");
+        g_print("[GUI] Governor '%s' applied successfully\n", governor_name);
+    } else {
+        show_status(app, "Failed to apply governor");
+        g_print("[GUI] Failed to apply governor: %s\n", response);
+    }
+
+    g_free(governor_name);
 }
 
 
@@ -2994,14 +3067,9 @@ static GtkWidget *create_cpu_page(AppData *app) {
         gtk_widget_set_hexpand(app->cpu_profile_combo, TRUE);
         gtk_box_pack_start(GTK_BOX(row), app->cpu_profile_combo, TRUE, TRUE, 0);
         gtk_box_pack_start(GTK_BOX(profile_box), row, FALSE, FALSE, 0);
-    }
 
-    /* Placeholder text */
-    {
-        GtkWidget *placeholder = gtk_label_new("CPU tab initialized. Status refresh coming soon.");
-        gtk_widget_set_halign(placeholder, GTK_ALIGN_CENTER);
-        gtk_label_set_markup(GTK_LABEL(placeholder), "<i>CPU tab initialized. Status refresh coming soon.</i>");
-        gtk_box_pack_start(GTK_BOX(vbox), placeholder, TRUE, TRUE, 0);
+        /* Connect combo box changed signal */
+        g_signal_connect(app->cpu_profile_combo, "changed", G_CALLBACK(on_cpu_governor_changed), app);
     }
 
     return vbox;
@@ -3627,6 +3695,9 @@ int main(int argc, char *argv[]) {
     if (app.cpu_connected) {
         app.cpu_refresh_timer_id = g_timeout_add_seconds(5, cpu_refresh_timer_callback, &app);
         g_print("[GUI] CPU refresh timer started (5s interval)\n");
+
+        /* Load governors into combo box */
+        load_cpu_governors(&app);
     }
 
     /* Create system tray icon */
