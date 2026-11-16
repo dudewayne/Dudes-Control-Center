@@ -1120,3 +1120,217 @@ int cpu_custom_profile_list(char *buffer, size_t buf_size) {
     return offset;
 }
 
+/* --- Custom profile JSON persistence --- */
+
+/* Save all custom profiles to JSON file */
+int cpu_custom_profile_save_json(void) {
+    if (ensure_cpu_config_dir() != 0) return -1;
+
+    cJSON *root = cJSON_CreateObject();
+    if (!root) return -1;
+
+    cJSON_AddStringToObject(root, "version", "1.0");
+    cJSON_AddNumberToObject(root, "active_custom_profile_index", g_cpu_state.active_custom_profile_idx);
+
+    cJSON *profiles_array = cJSON_CreateArray();
+    for (int i = 0; i < g_cpu_state.num_custom_profiles; i++) {
+        CpuCustomProfile *p = &g_cpu_state.custom_profiles[i];
+        cJSON *profile_obj = cJSON_CreateObject();
+        cJSON_AddStringToObject(profile_obj, "name", p->name);
+        cJSON_AddStringToObject(profile_obj, "governor", enum_to_governor(p->governor));
+        cJSON_AddNumberToObject(profile_obj, "apply_all_cores", p->apply_all_cores);
+        cJSON_AddNumberToObject(profile_obj, "num_cores", p->num_cores);
+
+        /* Per-core max frequencies */
+        cJSON *max_freq_array = cJSON_CreateArray();
+        for (int j = 0; j < p->num_cores && j < MAX_CPUS; j++) {
+            cJSON_AddItemToArray(max_freq_array, cJSON_CreateNumber(p->per_core_max_freq_hz[j]));
+        }
+        cJSON_AddItemToObject(profile_obj, "per_core_max_freq_hz", max_freq_array);
+
+        /* Per-core min frequencies */
+        cJSON *min_freq_array = cJSON_CreateArray();
+        for (int j = 0; j < p->num_cores && j < MAX_CPUS; j++) {
+            cJSON_AddItemToArray(min_freq_array, cJSON_CreateNumber(p->per_core_min_freq_hz[j]));
+        }
+        cJSON_AddItemToObject(profile_obj, "per_core_min_freq_hz", min_freq_array);
+
+        cJSON_AddItemToArray(profiles_array, profile_obj);
+    }
+    cJSON_AddItemToObject(root, "custom_profiles", profiles_array);
+
+    /* Write to file */
+    char *json_str = cJSON_Print(root);
+    if (!json_str) {
+        cJSON_Delete(root);
+        return -1;
+    }
+
+    const char *path = get_cpu_custom_profiles_path();
+    FILE *f = fopen(path, "w");
+    if (f) {
+        fprintf(f, "%s\n", json_str);
+        fclose(f);
+        LOG_INFO("[CPU] Saved %d custom profiles to %s", g_cpu_state.num_custom_profiles, path);
+    } else {
+        LOG_ERROR("[CPU] Failed to write custom profiles to %s: %s", path, strerror(errno));
+        cJSON_free(json_str);
+        cJSON_Delete(root);
+        return -1;
+    }
+
+    cJSON_free(json_str);
+    cJSON_Delete(root);
+    return 0;
+}
+
+/* Load all custom profiles from JSON file */
+int cpu_custom_profile_load_json(void) {
+    const char *path = get_cpu_custom_profiles_path();
+
+    FILE *f = fopen(path, "r");
+    if (!f) {
+        LOG_INFO("[CPU] No saved custom profiles found at %s", path);
+        return -1;
+    }
+
+    /* Read file contents */
+    fseek(f, 0, SEEK_END);
+    long file_size = ftell(f);
+    fseek(f, 0, SEEK_SET);
+
+    if (file_size <= 0 || file_size > 1024 * 1024) {
+        fclose(f);
+        return -1;
+    }
+
+    char *file_content = (char *)malloc(file_size + 1);
+    if (!file_content) {
+        fclose(f);
+        return -1;
+    }
+
+    size_t bytes_read = fread(file_content, 1, file_size, f);
+    file_content[bytes_read] = '\0';
+    fclose(f);
+
+    cJSON *root = cJSON_Parse(file_content);
+    free(file_content);
+
+    if (!root) {
+        LOG_ERROR("[CPU] Failed to parse custom profiles JSON from %s", path);
+        return -1;
+    }
+
+    /* Read active index */
+    cJSON *active_item = cJSON_GetObjectItem(root, "active_custom_profile_index");
+    if (active_item) {
+        g_cpu_state.active_custom_profile_idx = active_item->valueint;
+    }
+
+    /* Load profiles */
+    cJSON *profiles_array = cJSON_GetObjectItem(root, "custom_profiles");
+    if (profiles_array) {
+        int count = cJSON_GetArraySize(profiles_array);
+        for (int i = 0; i < count && i < MAX_CPU_CUSTOM_PROFILES; i++) {
+            cJSON *profile_obj = cJSON_GetArrayItem(profiles_array, i);
+            if (!profile_obj) continue;
+
+            CpuCustomProfile p = {0};
+
+            cJSON *name_item = cJSON_GetObjectItem(profile_obj, "name");
+            if (name_item && name_item->valuestring) {
+                strncpy(p.name, name_item->valuestring, CPU_PROFILE_NAME_MAX - 1);
+            } else {
+                continue;
+            }
+
+            cJSON *gov_item = cJSON_GetObjectItem(profile_obj, "governor");
+            if (gov_item && gov_item->valuestring) {
+                governor_to_enum(gov_item->valuestring, &p.governor);
+            }
+
+            cJSON *apply_all_item = cJSON_GetObjectItem(profile_obj, "apply_all_cores");
+            if (apply_all_item) p.apply_all_cores = apply_all_item->valueint;
+
+            cJSON *num_cores_item = cJSON_GetObjectItem(profile_obj, "num_cores");
+            if (num_cores_item) p.num_cores = num_cores_item->valueint;
+
+            /* Load per-core max frequencies */
+            cJSON *max_freq_array = cJSON_GetObjectItem(profile_obj, "per_core_max_freq_hz");
+            if (max_freq_array) {
+                int max_count = cJSON_GetArraySize(max_freq_array);
+                for (int j = 0; j < max_count && j < MAX_CPUS; j++) {
+                    cJSON *freq_item = cJSON_GetArrayItem(max_freq_array, j);
+                    if (freq_item) {
+                        p.per_core_max_freq_hz[j] = freq_item->valueint;
+                    }
+                }
+            }
+
+            /* Load per-core min frequencies */
+            cJSON *min_freq_array = cJSON_GetObjectItem(profile_obj, "per_core_min_freq_hz");
+            if (min_freq_array) {
+                int min_count = cJSON_GetArraySize(min_freq_array);
+                for (int j = 0; j < min_count && j < MAX_CPUS; j++) {
+                    cJSON *freq_item = cJSON_GetArrayItem(min_freq_array, j);
+                    if (freq_item) {
+                        p.per_core_min_freq_hz[j] = freq_item->valueint;
+                    }
+                }
+            }
+
+            g_cpu_state.custom_profiles[g_cpu_state.num_custom_profiles] = p;
+            g_cpu_state.num_custom_profiles++;
+        }
+    }
+
+    cJSON_Delete(root);
+    LOG_INFO("[CPU] Loaded %d custom profiles from %s", g_cpu_state.num_custom_profiles, path);
+    return 0;
+}
+
+/* Apply a custom profile by index (set per-core frequencies) */
+int cpu_custom_profile_apply(int idx) {
+    if (idx < 0 || idx >= g_cpu_state.num_custom_profiles) return -1;
+
+    CpuCustomProfile *p = &g_cpu_state.custom_profiles[idx];
+    LOG_INFO("[CPU] Applying custom profile '%s' (index %d)", p->name, idx);
+
+    /* Set governor first */
+    const char *gov_str = enum_to_governor(p->governor);
+    if (set_all_cpus_governor(gov_str) != 0) {
+        LOG_ERROR("[CPU] Failed to set governor '%s' for custom profile", gov_str);
+        return -1;
+    }
+
+    /* Set per-core frequencies */
+    int errors = 0;
+    for (int i = 0; i < p->num_cores && i < MAX_CPUS; i++) {
+        if (p->per_core_max_freq_hz[i] > 0) {
+            uint32_t max_freq = p->per_core_max_freq_hz[i];
+            if (max_freq > HARD_MAX_FREQ_HZ) max_freq = HARD_MAX_FREQ_HZ;
+            if (set_cpu_max_freq(i, max_freq) != 0) {
+                errors++;
+            }
+        }
+
+        if (p->per_core_min_freq_hz[i] > 0) {
+            if (set_cpu_min_freq(i, p->per_core_min_freq_hz[i]) != 0) {
+                errors++;
+            }
+        }
+    }
+
+    /* Set as active */
+    cpu_custom_profile_set_active(idx);
+
+    if (errors > 0) {
+        LOG_WARN("[CPU] Applied custom profile '%s' with %d errors", p->name, errors);
+    } else {
+        LOG_INFO("[CPU] Successfully applied custom profile '%s'", p->name);
+    }
+
+    return (errors == 0) ? 0 : -1;
+}
+
