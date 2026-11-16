@@ -2,22 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
-## [1.3.4] - 2026-11-16
+## [1.4.1] - 2026-11-16
 
 ### Fixed
 - **CPU status refresh not updating after first load**: The CPU daemon closed the client connection after every response, so subsequent timer refreshes read from a dead socket. Fixed by wrapping the read/process/write loop in `handle_client()` to keep the connection alive, matching the fan daemon's behavior.
 
-## [1.3.3] - 2026-11-16
-
-### Added
-- **CPU status refresh in GUI**: Added `parse_cpu_status()` to parse the CPU daemon STATUS response and update the CPU tab labels (temperature, load, cores, governor, frequency).
-- **CPU refresh timer**: 5-second auto-refresh timer (`cpu_refresh_timer_callback`) wired into `main()` with proper cleanup in the destroy handler.
-
-### Fixed
-- **CPU tab position**: Moved CPU tab before About tab (correct tab order: Status, Curve Editor, Profiles, Logs, CPU, About).
-- **CPU status refresh not working**: Replaced `strtok` with `strtok_r` in `parse_cpu_status()` to fix buffer corruption on repeated timer callbacks. The destructive `strtok` was leaving null terminators in the response buffer, breaking subsequent parse cycles.
-
-## [1.3.2] - 2026-11-16
+## [1.4.0] - 2026-11-16
 
 ### Added
 - **CPU Speed/Frequency Control daemon (`dudes-control-center-cpu-daemon`)**: A separate daemon for CPU speed control has been integrated. This is the first step toward a full Control Center architecture with multiple subsystems, each running its own daemon for fault isolation.
@@ -29,6 +19,9 @@ All notable changes to this project will be documented in this file.
   - Hard safety limit: 3.6 GHz (`HARD_MAX_FREQ_HZ`)
   - Auto-check interval: 5 seconds
   - Supports all governor and frequency commands from the reference project
+
+### Changed
+- **Version numbering corrected**: CPU daemon integration is a feature, so the minor version was bumped from 1.3.x to 1.4.0.
 
 ## [1.3.1] - 2026-11-16
 
