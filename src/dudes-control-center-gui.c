@@ -30,6 +30,7 @@
 #include "dudes-control-center-log.h"
 
 #define SOCKET_PATH "/run/dudes-control-center-fan.sock"
+#define CPU_SOCKET_PATH "/run/dudes-control-center-cpu.sock"
 #define BUFFER_SIZE 4096
 #define MAX_CURVE_POINTS 50
 
@@ -203,6 +204,10 @@ static void on_window_destroy(GtkWidget *widget, gpointer user_data);
 /* Forward declarations for daemon connection */
 static void connect_to_daemon(AppData *app);
 static void disconnect_from_daemon(AppData *app);
+
+/* Forward declarations for CPU daemon connection */
+static void connect_to_cpu_daemon(AppData *app);
+static void disconnect_from_cpu_daemon(AppData *app);
 
 /* Forward declarations for profile and curve management */
 static void refresh_profile_list(AppData *app);
@@ -1351,7 +1356,10 @@ static void on_window_destroy(GtkWidget *widget, gpointer user_data) {
     
     /* Disconnect from daemon */
     disconnect_from_daemon(app);
-    
+
+    /* Disconnect from CPU daemon */
+    disconnect_from_cpu_daemon(app);
+
     gtk_main_quit();
 }
 
@@ -1426,6 +1434,48 @@ static void disconnect_from_daemon(AppData *app) {
         close(app->socket_fd);
         app->socket_fd = -1;
         app->connected = 0;
+    }
+}
+
+/* Connect to CPU daemon */
+static void connect_to_cpu_daemon(AppData *app) {
+    /* Check if socket file exists first */
+    struct stat st;
+    if (stat(CPU_SOCKET_PATH, &st) != 0) {
+        g_print("[GUI] CPU daemon socket not found at %s. CPU tab will be unavailable.\n", CPU_SOCKET_PATH);
+        app->cpu_socket_fd = -1;
+        app->cpu_connected = 0;
+        return;
+    }
+
+    app->cpu_socket_fd = socket(AF_UNIX, SOCK_STREAM, 0);
+    if (app->cpu_socket_fd < 0) {
+        g_print("[GUI] Failed to create CPU socket: %s\n", strerror(errno));
+        return;
+    }
+
+    struct sockaddr_un addr;
+    memset(&addr, 0, sizeof(addr));
+    addr.sun_family = AF_UNIX;
+    strncpy(addr.sun_path, CPU_SOCKET_PATH, sizeof(addr.sun_path) - 1);
+
+    if (connect(app->cpu_socket_fd, (struct sockaddr*)&addr, sizeof(addr)) < 0) {
+        g_print("[GUI] Failed to connect to CPU daemon: %s\n", strerror(errno));
+        close(app->cpu_socket_fd);
+        app->cpu_socket_fd = -1;
+        return;
+    }
+
+    app->cpu_connected = 1;
+    g_print("[GUI] Connected to CPU daemon successfully!\n");
+}
+
+/* Disconnect from CPU daemon */
+static void disconnect_from_cpu_daemon(AppData *app) {
+    if (app->cpu_socket_fd >= 0) {
+        close(app->cpu_socket_fd);
+        app->cpu_socket_fd = -1;
+        app->cpu_connected = 0;
     }
 }
 
@@ -3425,7 +3475,10 @@ int main(int argc, char *argv[]) {
     
     /* Connect to daemon */
     connect_to_daemon(&app);
-    
+
+    /* Connect to CPU daemon */
+    connect_to_cpu_daemon(&app);
+
     /* Initialize pending selection to current active profile */
     app.pending_active_profile_idx = app.active_profile_idx;
     
