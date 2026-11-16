@@ -414,6 +414,207 @@ int set_all_cpus_max_freq(uint32_t freq_hz) {
     return (errors == 0) ? 0 : -1;
 }
 
+/* --- Profile management functions --- */
+
+/* Create a new profile */
+int cpu_profile_create(const char *name, CpuGovernor governor,
+                       uint32_t min_freq, uint32_t max_freq) {
+    if (!name || g_cpu_state.num_profiles >= MAX_CPU_PROFILES) {
+        return -1;
+    }
+
+    /* Check for duplicate name */
+    for (int i = 0; i < g_cpu_state.num_profiles; i++) {
+        if (strcmp(g_cpu_state.profiles[i].name, name) == 0) {
+            LOG_WARN("[CPU] Profile '%s' already exists", name);
+            return -1;
+        }
+    }
+
+    /* Apply safety limit to max_freq if set */
+    if (max_freq > HARD_MAX_FREQ_HZ) {
+        max_freq = HARD_MAX_FREQ_HZ;
+    }
+
+    CpuProfile *p = &g_cpu_state.profiles[g_cpu_state.num_profiles];
+    strncpy(p->name, name, CPU_PROFILE_NAME_MAX - 1);
+    p->name[CPU_PROFILE_NAME_MAX - 1] = '\0';
+    p->governor = governor;
+    p->min_freq_hz = min_freq;
+    p->max_freq_hz = max_freq;
+    p->condition_type = CONDITION_NONE;
+    p->condition_threshold = 0;
+    p->is_auto_switchable = 1;
+
+    g_cpu_state.num_profiles++;
+    LOG_INFO("[CPU] Created profile '%s' (governor=%s)", name, enum_to_governor(governor));
+    return 0;
+}
+
+/* Delete a profile by name */
+int cpu_profile_delete(const char *name) {
+    if (!name) return -1;
+
+    int idx = -1;
+    for (int i = 0; i < g_cpu_state.num_profiles; i++) {
+        if (strcmp(g_cpu_state.profiles[i].name, name) == 0) {
+            idx = i;
+            break;
+        }
+    }
+
+    if (idx < 0) return -1;
+
+    /* Shift remaining profiles down */
+    for (int i = idx; i < g_cpu_state.num_profiles - 1; i++) {
+        g_cpu_state.profiles[i] = g_cpu_state.profiles[i + 1];
+    }
+    g_cpu_state.num_profiles--;
+
+    /* Reset active index if needed */
+    if (g_cpu_state.active_profile_idx >= g_cpu_state.num_profiles) {
+        g_cpu_state.active_profile_idx = g_cpu_state.num_profiles - 1;
+    }
+
+    LOG_INFO("[CPU] Deleted profile '%s'", name);
+    return 0;
+}
+
+/* Apply a profile to all CPUs */
+int cpu_profile_apply(const char *name) {
+    if (!name) return -1;
+
+    const CpuProfile *p = cpu_profile_get(name);
+    if (!p) {
+        LOG_ERROR("[CPU] Profile '%s' not found", name);
+        return -1;
+    }
+
+    const char *gov_str = enum_to_governor(p->governor);
+    LOG_INFO("[CPU] Applying profile '%s' (governor=%s)", name, gov_str);
+
+    /* Set governor */
+    if (set_all_cpus_governor(gov_str) != 0) {
+        LOG_ERROR("[CPU] Failed to set governor '%s'", gov_str);
+        return -1;
+    }
+
+    /* Set min freq if specified */
+    if (p->min_freq_hz > 0) {
+        if (set_all_cpus_min_freq(p->min_freq_hz) != 0) {
+            LOG_WARN("[CPU] Failed to set min freq to %u Hz", p->min_freq_hz);
+        }
+    }
+
+    /* Set max freq if specified (always apply safety limit) */
+    uint32_t max_freq = p->max_freq_hz > 0 ? p->max_freq_hz : HARD_MAX_FREQ_HZ;
+    if (max_freq > HARD_MAX_FREQ_HZ) max_freq = HARD_MAX_FREQ_HZ;
+    if (set_all_cpus_max_freq(max_freq) != 0) {
+        LOG_WARN("[CPU] Failed to set max freq to %u Hz", max_freq);
+    }
+
+    /* Set as active */
+    cpu_profile_set_active(name);
+
+    return 0;
+}
+
+/* Set active profile (in memory only) */
+int cpu_profile_set_active(const char *name) {
+    if (!name) return -1;
+
+    for (int i = 0; i < g_cpu_state.num_profiles; i++) {
+        if (strcmp(g_cpu_state.profiles[i].name, name) == 0) {
+            g_cpu_state.active_profile_idx = i;
+            strncpy(g_cpu_state.last_used_profile, name, CPU_PROFILE_NAME_MAX - 1);
+            g_cpu_state.last_used_profile[CPU_PROFILE_NAME_MAX - 1] = '\0';
+            LOG_INFO("[CPU] Active profile set to '%s'", name);
+            return 0;
+        }
+    }
+
+    LOG_ERROR("[CPU] Cannot set active profile '%s': not found", name);
+    return -1;
+}
+
+/* Get profile by name */
+const CpuProfile* cpu_profile_get(const char *name) {
+    if (!name) return NULL;
+
+    for (int i = 0; i < g_cpu_state.num_profiles; i++) {
+        if (strcmp(g_cpu_state.profiles[i].name, name) == 0) {
+            return &g_cpu_state.profiles[i];
+        }
+    }
+    return NULL;
+}
+
+/* Get currently active profile */
+const CpuProfile* cpu_profile_get_active(void) {
+    if (g_cpu_state.active_profile_idx < 0 ||
+        g_cpu_state.active_profile_idx >= g_cpu_state.num_profiles) {
+        return NULL;
+    }
+    return &g_cpu_state.profiles[g_cpu_state.active_profile_idx];
+}
+
+/* List all profiles */
+int cpu_profile_list(char *buffer, size_t buf_size) {
+    if (!buffer || buf_size == 0) return -1;
+
+    int offset = 0;
+    const CpuProfile *active = cpu_profile_get_active();
+
+    for (int i = 0; i < g_cpu_state.num_profiles; i++) {
+        const CpuProfile *p = &g_cpu_state.profiles[i];
+        char entry[256];
+        const char *marker = (active && strcmp(active->name, p->name) == 0) ? " [*]" : "    ";
+
+        int written = snprintf(entry, sizeof(entry), "%s %s (gov=%s, min=%u Hz, max=%u Hz)\n",
+                              marker, p->name, enum_to_governor(p->governor),
+                              p->min_freq_hz, p->max_freq_hz);
+
+        if (offset + written >= (int)buf_size) break;
+        memcpy(buffer + offset, entry, written);
+        offset += written;
+    }
+
+    return offset;
+}
+
+/* Set condition for auto-switching */
+int cpu_profile_set_condition(const char *name, ConditionType type, int threshold) {
+    /* Find profile directly to avoid const cast issues */
+    if (!name) return -1;
+
+    for (int i = 0; i < g_cpu_state.num_profiles; i++) {
+        if (strcmp(g_cpu_state.profiles[i].name, name) == 0) {
+            g_cpu_state.profiles[i].condition_type = type;
+            g_cpu_state.profiles[i].condition_threshold = threshold;
+            g_cpu_state.profiles[i].is_auto_switchable = 1;
+            LOG_INFO("[CPU] Set condition for profile '%s': type=%d, threshold=%d",
+                     name, type, threshold);
+            return 0;
+        }
+    }
+    return -1;
+}
+
+/* Clear condition from profile */
+void cpu_profile_clear_condition(const char *name) {
+    if (!name) return;
+
+    for (int i = 0; i < g_cpu_state.num_profiles; i++) {
+        if (strcmp(g_cpu_state.profiles[i].name, name) == 0) {
+            g_cpu_state.profiles[i].condition_type = CONDITION_NONE;
+            g_cpu_state.profiles[i].condition_threshold = 0;
+            g_cpu_state.profiles[i].is_auto_switchable = 0;
+            LOG_INFO("[CPU] Cleared condition for profile '%s'", name);
+            return;
+        }
+    }
+}
+
 /* --- System status functions --- */
 
 /* Check if system is on AC power */
