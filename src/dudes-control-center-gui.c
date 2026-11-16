@@ -157,13 +157,12 @@ typedef struct {
     /* Page 6: CPU Control widgets */
     int cpu_socket_fd;
     int cpu_connected;
-    GtkWidget *cpu_temp_label;
-    GtkWidget *cpu_load_label;
-    GtkWidget *cpu_governor_label;
-    GtkWidget *cpu_freq_label;
-    GtkWidget *cpu_num_label;
-    GtkWidget *cpu_min_freq_label;
-    GtkWidget *cpu_max_freq_label;
+    GtkWidget *cpu_page_temp_label;
+    GtkWidget *cpu_page_load_label;
+    GtkWidget *cpu_page_governor_label;
+    GtkWidget *cpu_page_freq_label;
+    GtkWidget *cpu_page_num_label;
+    GtkWidget *cpu_page_min_max_freq_label;
     GtkWidget *cpu_profile_combo;
     GtkListStore *cpu_profile_store;
     guint cpu_refresh_timer_id;
@@ -2703,14 +2702,14 @@ static GtkWidget *create_about_page(void) {
 static GtkWidget *create_cpu_page(AppData *app) {
     GtkWidget *vbox = gtk_box_new(GTK_ORIENTATION_VERTICAL, 15);
     gtk_container_set_border_width(GTK_CONTAINER(vbox), 20);
-    
+
     /* Section: CPU Info */
     GtkWidget *info_frame = gtk_frame_new("CPU Information");
     GtkWidget *info_box = gtk_box_new(GTK_ORIENTATION_VERTICAL, 5);
     gtk_container_set_border_width(GTK_CONTAINER(info_box), 10);
     gtk_container_add(GTK_CONTAINER(info_frame), info_box);
     gtk_box_pack_start(GTK_BOX(vbox), info_frame, FALSE, FALSE, 0);
-    
+
     /* CPU Temperature */
     {
         GtkWidget *row = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 10);
@@ -2718,12 +2717,12 @@ static GtkWidget *create_cpu_page(AppData *app) {
         gtk_widget_set_halign(label, GTK_ALIGN_END);
         gtk_label_set_width_chars(GTK_LABEL(label), 20);
         gtk_box_pack_start(GTK_BOX(row), label, FALSE, FALSE, 0);
-        app->cpu_temp_label = gtk_label_new("N/A");
-        gtk_widget_set_halign(app->cpu_temp_label, GTK_ALIGN_START);
-        gtk_box_pack_start(GTK_BOX(row), app->cpu_temp_label, TRUE, TRUE, 0);
+        app->cpu_page_temp_label = gtk_label_new("N/A");
+        gtk_widget_set_halign(app->cpu_page_temp_label, GTK_ALIGN_START);
+        gtk_box_pack_start(GTK_BOX(row), app->cpu_page_temp_label, TRUE, TRUE, 0);
         gtk_box_pack_start(GTK_BOX(info_box), row, FALSE, FALSE, 0);
     }
-    
+
     /* CPU Load */
     {
         GtkWidget *row = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 10);
@@ -2731,12 +2730,12 @@ static GtkWidget *create_cpu_page(AppData *app) {
         gtk_widget_set_halign(label, GTK_ALIGN_END);
         gtk_label_set_width_chars(GTK_LABEL(label), 20);
         gtk_box_pack_start(GTK_BOX(row), label, FALSE, FALSE, 0);
-        app->cpu_load_label = gtk_label_new("N/A");
-        gtk_widget_set_halign(app->cpu_load_label, GTK_ALIGN_START);
-        gtk_box_pack_start(GTK_BOX(row), app->cpu_load_label, TRUE, TRUE, 0);
+        app->cpu_page_load_label = gtk_label_new("N/A");
+        gtk_widget_set_halign(app->cpu_page_load_label, GTK_ALIGN_START);
+        gtk_box_pack_start(GTK_BOX(row), app->cpu_page_load_label, TRUE, TRUE, 0);
         gtk_box_pack_start(GTK_BOX(info_box), row, FALSE, FALSE, 0);
     }
-    
+
     /* Number of CPUs */
     {
         GtkWidget *row = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 10);
@@ -2744,12 +2743,12 @@ static GtkWidget *create_cpu_page(AppData *app) {
         gtk_widget_set_halign(label, GTK_ALIGN_END);
         gtk_label_set_width_chars(GTK_LABEL(label), 20);
         gtk_box_pack_start(GTK_BOX(row), label, FALSE, FALSE, 0);
-        app->cpu_num_label = gtk_label_new("N/A");
-        gtk_widget_set_halign(app->cpu_num_label, GTK_ALIGN_START);
-        gtk_box_pack_start(GTK_BOX(row), app->cpu_num_label, TRUE, TRUE, 0);
+        app->cpu_page_num_label = gtk_label_new("N/A");
+        gtk_widget_set_halign(app->cpu_page_num_label, GTK_ALIGN_START);
+        gtk_box_pack_start(GTK_BOX(row), app->cpu_page_num_label, TRUE, TRUE, 0);
         gtk_box_pack_start(GTK_BOX(info_box), row, FALSE, FALSE, 0);
     }
-    
+
     /* Current Frequency */
     {
         GtkWidget *row = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 10);
@@ -2757,12 +2756,12 @@ static GtkWidget *create_cpu_page(AppData *app) {
         gtk_widget_set_halign(label, GTK_ALIGN_END);
         gtk_label_set_width_chars(GTK_LABEL(label), 20);
         gtk_box_pack_start(GTK_BOX(row), label, FALSE, FALSE, 0);
-        app->cpu_freq_label = gtk_label_new("N/A");
-        gtk_widget_set_halign(app->cpu_freq_label, GTK_ALIGN_START);
-        gtk_box_pack_start(GTK_BOX(row), app->cpu_freq_label, TRUE, TRUE, 0);
+        app->cpu_page_freq_label = gtk_label_new("N/A");
+        gtk_widget_set_halign(app->cpu_page_freq_label, GTK_ALIGN_START);
+        gtk_box_pack_start(GTK_BOX(row), app->cpu_page_freq_label, TRUE, TRUE, 0);
         gtk_box_pack_start(GTK_BOX(info_box), row, FALSE, FALSE, 0);
     }
-    
+
     /* Min/Max Frequency */
     {
         GtkWidget *row = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 10);
@@ -2770,12 +2769,12 @@ static GtkWidget *create_cpu_page(AppData *app) {
         gtk_widget_set_halign(label, GTK_ALIGN_END);
         gtk_label_set_width_chars(GTK_LABEL(label), 20);
         gtk_box_pack_start(GTK_BOX(row), label, FALSE, FALSE, 0);
-        app->cpu_min_freq_label = gtk_label_new("N/A");
-        gtk_widget_set_halign(app->cpu_min_freq_label, GTK_ALIGN_START);
-        gtk_box_pack_start(GTK_BOX(row), app->cpu_min_freq_label, TRUE, TRUE, 0);
+        app->cpu_page_min_max_freq_label = gtk_label_new("N/A");
+        gtk_widget_set_halign(app->cpu_page_min_max_freq_label, GTK_ALIGN_START);
+        gtk_box_pack_start(GTK_BOX(row), app->cpu_page_min_max_freq_label, TRUE, TRUE, 0);
         gtk_box_pack_start(GTK_BOX(info_box), row, FALSE, FALSE, 0);
     }
-    
+
     /* Active Governor */
     {
         GtkWidget *row = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 10);
@@ -2783,19 +2782,19 @@ static GtkWidget *create_cpu_page(AppData *app) {
         gtk_widget_set_halign(label, GTK_ALIGN_END);
         gtk_label_set_width_chars(GTK_LABEL(label), 20);
         gtk_box_pack_start(GTK_BOX(row), label, FALSE, FALSE, 0);
-        app->cpu_governor_label = gtk_label_new("N/A");
-        gtk_widget_set_halign(app->cpu_governor_label, GTK_ALIGN_START);
-        gtk_box_pack_start(GTK_BOX(row), app->cpu_governor_label, TRUE, TRUE, 0);
+        app->cpu_page_governor_label = gtk_label_new("N/A");
+        gtk_widget_set_halign(app->cpu_page_governor_label, GTK_ALIGN_START);
+        gtk_box_pack_start(GTK_BOX(row), app->cpu_page_governor_label, TRUE, TRUE, 0);
         gtk_box_pack_start(GTK_BOX(info_box), row, FALSE, FALSE, 0);
     }
-    
+
     /* Section: Governor Profiles */
     GtkWidget *profile_frame = gtk_frame_new("Governor Profiles");
     GtkWidget *profile_box = gtk_box_new(GTK_ORIENTATION_VERTICAL, 5);
     gtk_container_set_border_width(GTK_CONTAINER(profile_box), 10);
     gtk_container_add(GTK_CONTAINER(profile_frame), profile_box);
     gtk_box_pack_start(GTK_BOX(vbox), profile_frame, FALSE, FALSE, 0);
-    
+
     /* Profile combo box */
     {
         GtkWidget *row = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 10);
@@ -2803,17 +2802,18 @@ static GtkWidget *create_cpu_page(AppData *app) {
         gtk_widget_set_halign(label, GTK_ALIGN_END);
         gtk_label_set_width_chars(GTK_LABEL(label), 20);
         gtk_box_pack_start(GTK_BOX(row), label, FALSE, FALSE, 0);
-        
+
         app->cpu_profile_store = gtk_list_store_new(1, G_TYPE_STRING);
-        app->cpu_profile_combo = gtk_combo_box_new_from_model(GTK_TREE_MODEL(app->cpu_profile_store));
-        GtkWidget *renderer = gtk_cell_renderer_text_new();
+        app->cpu_profile_combo = gtk_combo_box_new();
+        gtk_combo_box_set_model(GTK_COMBO_BOX(app->cpu_profile_combo), GTK_TREE_MODEL(app->cpu_profile_store));
+        GtkCellRenderer *renderer = gtk_cell_renderer_text_new();
         gtk_cell_layout_pack_start(GTK_CELL_LAYOUT(app->cpu_profile_combo), renderer, TRUE);
         gtk_cell_layout_set_attributes(GTK_CELL_LAYOUT(app->cpu_profile_combo), renderer, "text", 0, NULL);
         gtk_widget_set_hexpand(app->cpu_profile_combo, TRUE);
         gtk_box_pack_start(GTK_BOX(row), app->cpu_profile_combo, TRUE, TRUE, 0);
         gtk_box_pack_start(GTK_BOX(profile_box), row, FALSE, FALSE, 0);
     }
-    
+
     /* Placeholder text */
     {
         GtkWidget *placeholder = gtk_label_new("CPU tab initialized. Status refresh coming soon.");
@@ -2821,7 +2821,7 @@ static GtkWidget *create_cpu_page(AppData *app) {
         gtk_label_set_markup(GTK_LABEL(placeholder), "<i>CPU tab initialized. Status refresh coming soon.</i>");
         gtk_box_pack_start(GTK_BOX(vbox), placeholder, TRUE, TRUE, 0);
     }
-    
+
     return vbox;
 }
 
