@@ -193,18 +193,34 @@ static void handle_command(const char *cmd, char *response, size_t resp_size) {
     }
 
     /* --- APPLY_GOVERNOR <name> --- */
+    /* Extract full profile name (may contain spaces like "Power Save") from original command */
     if (strcmp(action, "APPLY_GOVERNOR") == 0) {
-        if (!arg1[0]) {
+        const char *profile_name = strstr(cmd, "APPLY_GOVERNOR ");
+        if (profile_name) {
+            profile_name += strlen("APPLY_GOVERNOR ");
+        } else {
+            profile_name = "";
+        }
+        /* Strip trailing newline */
+        size_t pname_len = strlen(profile_name);
+        char profile_buf[256];
+        strncpy(profile_buf, profile_name, sizeof(profile_buf) - 1);
+        profile_buf[sizeof(profile_buf) - 1] = '\0';
+        while (pname_len > 0 && (profile_buf[pname_len - 1] == '\n' || profile_buf[pname_len - 1] == '\r')) {
+            profile_buf[--pname_len] = '\0';
+        }
+
+        if (pname_len == 0) {
             snprintf(response, resp_size, "ERROR No governor policy name specified\n");
             return;
         }
 
-        if (cpu_profile_apply(arg1) == 0) {
-            snprintf(response, resp_size, "OK Governor Policy '%s' applied successfully\n", arg1);
-            LOG_INFO("[DAEMON] Governor Policy '%s' applied successfully", arg1);
+        if (cpu_profile_apply(profile_buf) == 0) {
+            snprintf(response, resp_size, "OK Governor Policy '%s' applied successfully\n", profile_buf);
+            LOG_INFO("[DAEMON] Governor Policy '%s' applied successfully", profile_buf);
             cpu_profiles_save_all();
         } else {
-            snprintf(response, resp_size, "ERROR Failed to apply governor policy '%s'\n", arg1);
+            snprintf(response, resp_size, "ERROR Failed to apply governor policy '%s'\n", profile_buf);
         }
         return;
     }
