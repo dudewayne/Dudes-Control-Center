@@ -649,6 +649,11 @@ int main(int argc, char *argv[]) {
         }
     }
 
+    /* Initialize logging */
+    if (log_init("CPU_DAEMON", LOG_LEVEL_INFO, "/var/log/dudes-control-center") != 0) {
+        fprintf(stderr, "Failed to initialize logging system\n");
+    }
+
     LOG_INFO("[DAEMON] Starting %s", PROGRAM_NAME);
     LOG_INFO("[DAEMON] Foreground mode: %s", foreground ? "yes" : "no");
 
@@ -716,6 +721,7 @@ int main(int argc, char *argv[]) {
     cpu_control_cleanup();
 
     LOG_INFO("[DAEMON] Daemon exited cleanly");
+    log_cleanup();
 
     return 0;
 }

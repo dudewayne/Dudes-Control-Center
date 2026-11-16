@@ -2,6 +2,19 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.3.2] - 2026-11-16
+
+### Added
+- **CPU Speed/Frequency Control daemon (`dudes-control-center-cpu-daemon`)**: A separate daemon for CPU speed control has been integrated. This is the first step toward a full Control Center architecture with multiple subsystems, each running its own daemon for fault isolation.
+  - New daemon binary: `dudes-control-center-cpu-daemon`
+  - New systemd service: `dudes-control-center-cpu-daemon.service`
+  - Unix socket: `/run/dudes-control-center-cpu.sock`
+  - Config directory: `~/.config/dudes-control-center/cpu/`
+  - CPU common module (`dudes-control-center-cpu-common.c/.h`) for all CPU control functions
+  - Hard safety limit: 3.6 GHz (`HARD_MAX_FREQ_HZ`)
+  - Auto-check interval: 5 seconds
+  - Supports all governor and frequency commands from the reference project
+
 ## [1.3.1] - 2026-11-16
 
 ### Changed

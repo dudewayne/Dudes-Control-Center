@@ -1,6 +1,7 @@
 # Compiled binaries
 dudes-control-center-fan-cli
 dudes-control-center-fan-daemon
+dudes-control-center-cpu-daemon
 dudes-control-center-gui
 dudes-control-center-cli
 dudes-control-center-daemon
