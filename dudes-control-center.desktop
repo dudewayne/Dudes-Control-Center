@@ -1,0 +1,11 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=Dudes Control Center
+Comment=Control your notebook fan speed and monitor temperatures
+Exec=/usr/local/bin/dudes-control-center-gui
+Icon=dudes-control-center
+Terminal=false
+Categories=System;HardwareSettings;
+Keywords=fan;temperature;hardware;control;
+StartupNotify=true

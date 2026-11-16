@@ -1,0 +1,24 @@
+# Compiled binaries
+dudes-control-center-fan-cli
+dudes-control-center-fan-daemon
+dudes-control-center-gui
+dudes-control-center-cli
+dudes-control-center-daemon
+
+# Build artifacts
+build-deb/
+
+# Backup folders
+backup/
+backup_archive/
+
+# IDE / editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
