@@ -153,6 +153,20 @@ typedef struct {
     GtkTextBuffer *gui_log_buffer;
     GtkTextBuffer *daemon_log_buffer;
     guint log_refresh_timer_id;
+    
+    /* Page 6: CPU Control widgets */
+    int cpu_socket_fd;
+    int cpu_connected;
+    GtkWidget *cpu_temp_label;
+    GtkWidget *cpu_load_label;
+    GtkWidget *cpu_governor_label;
+    GtkWidget *cpu_freq_label;
+    GtkWidget *cpu_num_label;
+    GtkWidget *cpu_min_freq_label;
+    GtkWidget *cpu_max_freq_label;
+    GtkWidget *cpu_profile_combo;
+    GtkListStore *cpu_profile_store;
+    guint cpu_refresh_timer_id;
 } AppData;
 
 /* Forward declarations for callbacks */
@@ -167,6 +181,7 @@ static GtkWidget *create_curve_editor_page(AppData *app);
 static GtkWidget *create_profile_list_page(AppData *app);
 static GtkWidget *create_log_page(AppData *app);
 static GtkWidget *create_about_page(void);
+static GtkWidget *create_cpu_page(AppData *app);
 
 /* Helper function to create clickable link label */
 static GtkWidget *create_clickable_link(const char *url);
@@ -2684,6 +2699,132 @@ static GtkWidget *create_about_page(void) {
     return vbox;
 }
 
+/* Create Page 6: CPU Control */
+static GtkWidget *create_cpu_page(AppData *app) {
+    GtkWidget *vbox = gtk_box_new(GTK_ORIENTATION_VERTICAL, 15);
+    gtk_container_set_border_width(GTK_CONTAINER(vbox), 20);
+    
+    /* Section: CPU Info */
+    GtkWidget *info_frame = gtk_frame_new("CPU Information");
+    GtkWidget *info_box = gtk_box_new(GTK_ORIENTATION_VERTICAL, 5);
+    gtk_container_set_border_width(GTK_CONTAINER(info_box), 10);
+    gtk_container_add(GTK_CONTAINER(info_frame), info_box);
+    gtk_box_pack_start(GTK_BOX(vbox), info_frame, FALSE, FALSE, 0);
+    
+    /* CPU Temperature */
+    {
+        GtkWidget *row = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 10);
+        GtkWidget *label = gtk_label_new("CPU Temperature:");
+        gtk_widget_set_halign(label, GTK_ALIGN_END);
+        gtk_label_set_width_chars(GTK_LABEL(label), 20);
+        gtk_box_pack_start(GTK_BOX(row), label, FALSE, FALSE, 0);
+        app->cpu_temp_label = gtk_label_new("N/A");
+        gtk_widget_set_halign(app->cpu_temp_label, GTK_ALIGN_START);
+        gtk_box_pack_start(GTK_BOX(row), app->cpu_temp_label, TRUE, TRUE, 0);
+        gtk_box_pack_start(GTK_BOX(info_box), row, FALSE, FALSE, 0);
+    }
+    
+    /* CPU Load */
+    {
+        GtkWidget *row = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 10);
+        GtkWidget *label = gtk_label_new("CPU Load:");
+        gtk_widget_set_halign(label, GTK_ALIGN_END);
+        gtk_label_set_width_chars(GTK_LABEL(label), 20);
+        gtk_box_pack_start(GTK_BOX(row), label, FALSE, FALSE, 0);
+        app->cpu_load_label = gtk_label_new("N/A");
+        gtk_widget_set_halign(app->cpu_load_label, GTK_ALIGN_START);
+        gtk_box_pack_start(GTK_BOX(row), app->cpu_load_label, TRUE, TRUE, 0);
+        gtk_box_pack_start(GTK_BOX(info_box), row, FALSE, FALSE, 0);
+    }
+    
+    /* Number of CPUs */
+    {
+        GtkWidget *row = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 10);
+        GtkWidget *label = gtk_label_new("Number of CPUs:");
+        gtk_widget_set_halign(label, GTK_ALIGN_END);
+        gtk_label_set_width_chars(GTK_LABEL(label), 20);
+        gtk_box_pack_start(GTK_BOX(row), label, FALSE, FALSE, 0);
+        app->cpu_num_label = gtk_label_new("N/A");
+        gtk_widget_set_halign(app->cpu_num_label, GTK_ALIGN_START);
+        gtk_box_pack_start(GTK_BOX(row), app->cpu_num_label, TRUE, TRUE, 0);
+        gtk_box_pack_start(GTK_BOX(info_box), row, FALSE, FALSE, 0);
+    }
+    
+    /* Current Frequency */
+    {
+        GtkWidget *row = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 10);
+        GtkWidget *label = gtk_label_new("Current Frequency:");
+        gtk_widget_set_halign(label, GTK_ALIGN_END);
+        gtk_label_set_width_chars(GTK_LABEL(label), 20);
+        gtk_box_pack_start(GTK_BOX(row), label, FALSE, FALSE, 0);
+        app->cpu_freq_label = gtk_label_new("N/A");
+        gtk_widget_set_halign(app->cpu_freq_label, GTK_ALIGN_START);
+        gtk_box_pack_start(GTK_BOX(row), app->cpu_freq_label, TRUE, TRUE, 0);
+        gtk_box_pack_start(GTK_BOX(info_box), row, FALSE, FALSE, 0);
+    }
+    
+    /* Min/Max Frequency */
+    {
+        GtkWidget *row = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 10);
+        GtkWidget *label = gtk_label_new("Min / Max Frequency:");
+        gtk_widget_set_halign(label, GTK_ALIGN_END);
+        gtk_label_set_width_chars(GTK_LABEL(label), 20);
+        gtk_box_pack_start(GTK_BOX(row), label, FALSE, FALSE, 0);
+        app->cpu_min_freq_label = gtk_label_new("N/A");
+        gtk_widget_set_halign(app->cpu_min_freq_label, GTK_ALIGN_START);
+        gtk_box_pack_start(GTK_BOX(row), app->cpu_min_freq_label, TRUE, TRUE, 0);
+        gtk_box_pack_start(GTK_BOX(info_box), row, FALSE, FALSE, 0);
+    }
+    
+    /* Active Governor */
+    {
+        GtkWidget *row = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 10);
+        GtkWidget *label = gtk_label_new("Active Governor:");
+        gtk_widget_set_halign(label, GTK_ALIGN_END);
+        gtk_label_set_width_chars(GTK_LABEL(label), 20);
+        gtk_box_pack_start(GTK_BOX(row), label, FALSE, FALSE, 0);
+        app->cpu_governor_label = gtk_label_new("N/A");
+        gtk_widget_set_halign(app->cpu_governor_label, GTK_ALIGN_START);
+        gtk_box_pack_start(GTK_BOX(row), app->cpu_governor_label, TRUE, TRUE, 0);
+        gtk_box_pack_start(GTK_BOX(info_box), row, FALSE, FALSE, 0);
+    }
+    
+    /* Section: Governor Profiles */
+    GtkWidget *profile_frame = gtk_frame_new("Governor Profiles");
+    GtkWidget *profile_box = gtk_box_new(GTK_ORIENTATION_VERTICAL, 5);
+    gtk_container_set_border_width(GTK_CONTAINER(profile_box), 10);
+    gtk_container_add(GTK_CONTAINER(profile_frame), profile_box);
+    gtk_box_pack_start(GTK_BOX(vbox), profile_frame, FALSE, FALSE, 0);
+    
+    /* Profile combo box */
+    {
+        GtkWidget *row = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 10);
+        GtkWidget *label = gtk_label_new("Select Profile:");
+        gtk_widget_set_halign(label, GTK_ALIGN_END);
+        gtk_label_set_width_chars(GTK_LABEL(label), 20);
+        gtk_box_pack_start(GTK_BOX(row), label, FALSE, FALSE, 0);
+        
+        app->cpu_profile_store = gtk_list_store_new(1, G_TYPE_STRING);
+        app->cpu_profile_combo = gtk_combo_box_new_from_model(GTK_TREE_MODEL(app->cpu_profile_store));
+        GtkWidget *renderer = gtk_cell_renderer_text_new();
+        gtk_cell_layout_pack_start(GTK_CELL_LAYOUT(app->cpu_profile_combo), renderer, TRUE);
+        gtk_cell_layout_set_attributes(GTK_CELL_LAYOUT(app->cpu_profile_combo), renderer, "text", 0, NULL);
+        gtk_widget_set_hexpand(app->cpu_profile_combo, TRUE);
+        gtk_box_pack_start(GTK_BOX(row), app->cpu_profile_combo, TRUE, TRUE, 0);
+        gtk_box_pack_start(GTK_BOX(profile_box), row, FALSE, FALSE, 0);
+    }
+    
+    /* Placeholder text */
+    {
+        GtkWidget *placeholder = gtk_label_new("CPU tab initialized. Status refresh coming soon.");
+        gtk_widget_set_halign(placeholder, GTK_ALIGN_CENTER);
+        gtk_label_set_markup(GTK_LABEL(placeholder), "<i>CPU tab initialized. Status refresh coming soon.</i>");
+        gtk_box_pack_start(GTK_BOX(vbox), placeholder, TRUE, TRUE, 0);
+    }
+    
+    return vbox;
+}
+
 /* Create main window */
 static GtkWidget *create_main_window(AppData *app) {
     app->window = gtk_window_new(GTK_WINDOW_TOPLEVEL);
@@ -2716,6 +2857,10 @@ static GtkWidget *create_main_window(AppData *app) {
     gtk_notebook_append_page(GTK_NOTEBOOK(app->notebook), page3, gtk_label_new("Profiles"));
     gtk_notebook_append_page(GTK_NOTEBOOK(app->notebook), page4, gtk_label_new("Logs"));
     gtk_notebook_append_page(GTK_NOTEBOOK(app->notebook), page5, gtk_label_new("About"));
+    
+    /* Page 6: CPU Control */
+    GtkWidget *page6 = create_cpu_page(app);
+    gtk_notebook_append_page(GTK_NOTEBOOK(app->notebook), page6, gtk_label_new("CPU"));
     
     /* Connect notebook page-switch signal to update profile tab when switching to it */
     app->page_switched_handler_id = g_signal_connect(app->notebook, "switch-page", G_CALLBACK(on_notebook_page_switched), app);
