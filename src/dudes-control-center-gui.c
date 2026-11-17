@@ -2024,6 +2024,29 @@ static GtkWidget *create_status_page(AppData *app) {
     gtk_container_add(GTK_CONTAINER(manual_frame), manual_vbox);
     gtk_box_pack_start(GTK_BOX(vbox), manual_frame, FALSE, FALSE, 0);
     
+    /* Per-Core CPU Frequencies */
+    {
+        GtkWidget *core_frame = gtk_frame_new("Per-Core CPU Frequencies");
+        GtkWidget *core_scrolled = gtk_scrolled_window_new(NULL, NULL);
+        gtk_scrolled_window_set_policy(GTK_SCROLLED_WINDOW(core_scrolled), GTK_POLICY_NEVER, GTK_POLICY_AUTOMATIC);
+        gtk_scrolled_window_set_max_content_height(GTK_SCROLLED_WINDOW(core_scrolled), 200);
+        gtk_container_set_border_width(GTK_CONTAINER(core_scrolled), 5);
+        gtk_container_add(GTK_CONTAINER(core_frame), core_scrolled);
+        gtk_box_pack_start(GTK_BOX(vbox), core_frame, FALSE, FALSE, 0);
+        
+        /* 4-column grid for compact display */
+        app->cpu_core_grid = gtk_grid_new();
+        gtk_grid_set_row_spacing(GTK_GRID(app->cpu_core_grid), 2);
+        gtk_grid_set_column_spacing(GTK_GRID(app->cpu_core_grid), 10);
+        gtk_container_add(GTK_CONTAINER(core_scrolled), app->cpu_core_grid);
+        
+        /* Initialize labels to NULL */
+        app->cpu_core_count = 0;
+        for (int i = 0; i < 32; i++) {
+            app->cpu_core_freq_labels[i] = NULL;
+        }
+    }
+    
     return vbox;
 }
 
@@ -3237,29 +3260,6 @@ static GtkWidget *create_cpu_page(AppData *app) {
 
         app->cpu_auto_mode_signal_id = g_signal_connect(app->cpu_auto_mode_switch, "state-set",
                         G_CALLBACK(on_cpu_auto_mode_toggled), app);
-    }
-
-    /* Section: Per-Core Frequencies */
-    {
-        GtkWidget *core_frame = gtk_frame_new("Per-Core Frequencies");
-        GtkWidget *core_scrolled = gtk_scrolled_window_new(NULL, NULL);
-        gtk_scrolled_window_set_policy(GTK_SCROLLED_WINDOW(core_scrolled), GTK_POLICY_NEVER, GTK_POLICY_AUTOMATIC);
-        gtk_scrolled_window_set_max_content_height(GTK_SCROLLED_WINDOW(core_scrolled), 200);
-        gtk_container_set_border_width(GTK_CONTAINER(core_scrolled), 5);
-        gtk_container_add(GTK_CONTAINER(core_frame), core_scrolled);
-        gtk_box_pack_start(GTK_BOX(vbox), core_frame, FALSE, FALSE, 0);
-
-        /* Grid: 4 columns for compact display */
-        app->cpu_core_grid = gtk_grid_new();
-        gtk_grid_set_row_spacing(GTK_GRID(app->cpu_core_grid), 2);
-        gtk_grid_set_column_spacing(GTK_GRID(app->cpu_core_grid), 10);
-        gtk_container_add(GTK_CONTAINER(core_scrolled), app->cpu_core_grid);
-
-        /* Initialize all 32 labels to N/A (will be populated at runtime) */
-        app->cpu_core_count = 0;
-        for (int i = 0; i < 32; i++) {
-            app->cpu_core_freq_labels[i] = NULL;
-        }
     }
 
     return vbox;
