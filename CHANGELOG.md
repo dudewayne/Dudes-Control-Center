@@ -2,6 +2,15 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.5.0] - 2026-11-17
+
+### Added
+- **Per-core frequency live view on Status tab**: Added a 4-column grid display showing real-time frequency values for all 24 CPU cores, updating every 5 seconds alongside other status data.
+
+### Fixed
+- **Per-core frequency display empty on Status tab**: Labels were created but not shown. Added `gtk_widget_show()` per label and `gtk_widget_show_all()` on grid.
+- **Current Frequency label on CPU tab showed "N/A"**: Reconnected to first core's frequency after per-core parser replaced old single-core parse.
+
 ## [1.4.5] - 2026-11-17
 
 ### Fixed
