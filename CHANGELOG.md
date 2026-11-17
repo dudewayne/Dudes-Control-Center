@@ -2,6 +2,20 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.4.3] - 2026-11-17
+
+### Fixed
+- **CPU auto-switch toggle crash**: The `state-set` signal callback on `GtkSwitch` was missing the `gboolean` parameter, causing a segfault at offset `0x159`. Fixed the callback signature and added proper signal blocking/unblocking to prevent infinite recursion.
+- **CPU auto-switch toggle non-functional**: Added connection check before sending commands, proper error handling with switch revert on failure, and sync of switch state with daemon via `parse_cpu_status`.
+
+## [1.4.2] - 2026-11-16
+
+### Added
+- **CPU auto-switch toggle**: Added a toggle switch on the CPU tab to enable/disable automatic governor switching based on temperature/load conditions.
+
+### Fixed
+- **CPU auto-switch toggle signal handler**: Initial implementation with correct `GtkSwitch` signal callback signature.
+
 ## [1.4.1] - 2026-11-16
 
 ### Fixed
