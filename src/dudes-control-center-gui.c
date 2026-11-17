@@ -926,10 +926,61 @@ static void on_cpu_create_freq_profile_clicked(GtkWidget *widget, gpointer user_
 
 /* Callback: Delete selected frequency profile */
 static void on_cpu_delete_freq_profile_clicked(GtkWidget *widget, gpointer user_data) {
+    (void)widget;
     AppData *app = (AppData *)user_data;
     g_print("[GUI] Delete frequency profile clicked\n");
-    /* TODO: Delete profile via daemon */
-    gtk_label_set_text(GTK_LABEL(app->cpu_freq_profile_status_label), "Delete not yet implemented");
+
+    int idx = gtk_combo_box_get_active(GTK_COMBO_BOX(app->cpu_custom_profile_combo));
+    if (idx < 0) {
+        gtk_label_set_text(GTK_LABEL(app->cpu_freq_profile_status_label), "No profile selected");
+        return;
+    }
+
+    /* Get profile name for confirmation */
+    gchar *profile_name = NULL;
+    GtkTreeIter iter;
+    if (gtk_combo_box_get_active_iter(GTK_COMBO_BOX(app->cpu_custom_profile_combo), &iter)) {
+        gtk_tree_model_get(GTK_TREE_MODEL(app->cpu_custom_profile_store), &iter, 0, &profile_name, -1);
+    }
+
+    if (profile_name == NULL) {
+        gtk_label_set_text(GTK_LABEL(app->cpu_freq_profile_status_label), "Could not read profile name");
+        return;
+    }
+
+    /* Show confirmation dialog */
+    GtkWidget *dialog = gtk_message_dialog_new(GTK_WINDOW(app->window),
+                                               GTK_DIALOG_MODAL | GTK_DIALOG_DESTROY_WITH_PARENT,
+                                               GTK_MESSAGE_QUESTION,
+                                               GTK_BUTTONS_YES_NO,
+                                               "Are you sure you want to delete the CPU frequency profile '%s'?",
+                                               profile_name);
+
+    if (gtk_dialog_run(GTK_DIALOG(dialog)) == GTK_RESPONSE_YES) {
+        /* Send DELETE_CUSTOM_PROFILE command */
+        char cmd[64];
+        snprintf(cmd, sizeof(cmd), "DELETE_CUSTOM_PROFILE %d", idx);
+        const char *response = send_cpu_command(app, cmd);
+        g_print("[GUI] DELETE_CUSTOM_PROFILE response: %s\n", response ? response : "NULL");
+
+        /* Reload the profile list */
+        load_cpu_custom_profiles(app);
+
+        /* Clear the grid */
+        GList *children = gtk_container_get_children(GTK_CONTAINER(app->cpu_core_freq_grid));
+        GList *child = children;
+        while (child != NULL) {
+            gtk_widget_destroy(GTK_WIDGET(child->data));
+            child = child->next;
+        }
+        g_list_free(children);
+
+        gtk_label_set_text(GTK_LABEL(app->cpu_freq_profile_status_label),
+                          g_strconcat("Deleted profile: ", profile_name, NULL));
+    }
+
+    g_free(profile_name);
+    gtk_widget_destroy(dialog);
 }
 
 /* Callback: Apply selected frequency profile */
