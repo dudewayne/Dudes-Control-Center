@@ -104,7 +104,7 @@ Full-featured GTK4 graphical interface for fan control with profile management, 
 - Contact information:
   - Dudemeister
   - Email: wayne.dude@proton.me (clickable mailto link)
-  - GitHub: [wayne-the-dude](https://github.com/wayne-the-dude) (clickable link)
+  - GitHub: [dudewayne](https://github.com/dudewayne) (clickable link)
 
 #### System Tray Integration
 - **Minimize to tray**: Close button minimizes to system tray instead of quitting
@@ -403,7 +403,7 @@ This application was **completely coded by AI** using [Bionic AI Agent](https://
 ### Author
 **Dudemeister**
 - Email: [wayne.dude@proton.me](mailto:wayne.dude@proton.me)
-- GitHub: [wayne-the-dude](https://github.com/wayne-the-dude)
+- GitHub: [dudewayne](https://github.com/dudewayne)
 
 ## License
 
