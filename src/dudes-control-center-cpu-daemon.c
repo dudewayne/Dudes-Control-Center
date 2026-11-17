@@ -515,10 +515,43 @@ static void handle_command(const char *cmd, char *response, size_t resp_size) {
         int cpu_id = atoi(arg2);
         uint32_t max_freq = (uint32_t)strtoul(arg3, NULL, 10);
 
-        if (cpu_custom_profile_set_core_freq(profile_idx, cpu_id, max_freq, 0) == 0) {
-            snprintf(response, resp_size, "OK Core %d frequency set to %u Hz\n", cpu_id, max_freq);
+        /* Read current min freq so we don't overwrite it */
+        uint32_t current_min = 0;
+        const CpuCustomProfile *tmp = cpu_custom_profile_get(profile_idx);
+        if (tmp && cpu_id < tmp->num_cores && cpu_id < MAX_CPUS) {
+            current_min = tmp->per_core_min_freq_hz[cpu_id];
+        }
+
+        if (cpu_custom_profile_set_core_freq(profile_idx, cpu_id, max_freq, current_min) == 0) {
+            snprintf(response, resp_size, "OK Core %d max frequency set to %u Hz\n", cpu_id, max_freq);
         } else {
             snprintf(response, resp_size, "ERROR Failed to set core frequency\n");
+        }
+        return;
+    }
+
+    /* --- SET_CORE_MIN_FREQ <profile_idx> <cpu_id> <min_freq_hz> --- */
+    if (strcmp(action, "SET_CORE_MIN_FREQ") == 0) {
+        if (!arg1[0] || !arg2[0] || !arg3[0]) {
+            snprintf(response, resp_size, "ERROR Usage: SET_CORE_MIN_FREQ <profile_idx> <cpu_id> <min_freq_hz>\n");
+            return;
+        }
+
+        int profile_idx = atoi(arg1);
+        int cpu_id = atoi(arg2);
+        uint32_t min_freq = (uint32_t)strtoul(arg3, NULL, 10);
+
+        /* Read current max freq so we don't overwrite it */
+        uint32_t current_max = 0;
+        const CpuCustomProfile *tmp2 = cpu_custom_profile_get(profile_idx);
+        if (tmp2 && cpu_id < tmp2->num_cores && cpu_id < MAX_CPUS) {
+            current_max = tmp2->per_core_max_freq_hz[cpu_id];
+        }
+
+        if (cpu_custom_profile_set_core_freq(profile_idx, cpu_id, current_max, min_freq) == 0) {
+            snprintf(response, resp_size, "OK Core %d min frequency set to %u Hz\n", cpu_id, min_freq);
+        } else {
+            snprintf(response, resp_size, "ERROR Failed to set core min frequency\n");
         }
         return;
     }
@@ -543,8 +576,9 @@ static void handle_command(const char *cmd, char *response, size_t resp_size) {
         pos += snprintf(response + pos, resp_size - pos, "APPLY_ALL:%d\n", cp->apply_all_cores);
         pos += snprintf(response + pos, resp_size - pos, "NUM_CORES:%d\n", cp->num_cores);
 
-        for (int c = 0; c < cp->num_cores && c < MAX_CPUS && pos < resp_size - 64; c++) {
+        for (int c = 0; c < cp->num_cores && c < MAX_CPUS && pos < resp_size - 128; c++) {
             pos += snprintf(response + pos, resp_size - pos, "CORE_%d_MAX:%u\n", c, cp->per_core_max_freq_hz[c]);
+            pos += snprintf(response + pos, resp_size - pos, "CORE_%d_MIN:%u\n", c, cp->per_core_min_freq_hz[c]);
         }
         return;
     }
