@@ -2,6 +2,15 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.6.0] - 2026-11-17
+
+### Added
+- **Per-core frequency profile management**: Full UI for creating, deleting, and applying per-core min/max frequency profiles on the CPU Profiles tab.
+- **Per-core frequency grid**: 3-column grid (Core | Min MHz | Max MHz) with spinners (800–3600 MHz, step 100) for each core.
+- **Apply to All Cores checkbox**: Copies first core's min/max values to all cores for quick uniform configuration.
+- **Profile creation dialog**: Modal dialog with duplicate-name detection and confirmation message box.
+- **Profile deletion with confirmation**: Yes/No dialog before deleting a frequency profile.
+
 ## [1.5.0] - 2026-11-17
 
 ### Added

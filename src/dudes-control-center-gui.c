@@ -1002,7 +1002,7 @@ static void on_cpu_apply_freq_profile_clicked(GtkWidget *widget, gpointer user_d
         return;
     }
 
-    char cmd[128];
+    char cmd[256];
     int success_count = 0;
     for (int i = 0; i < num_cores && i < 32; i++) {
         double min_mhz = gtk_adjustment_get_value(app->cpu_core_min_adjustments[i]);
