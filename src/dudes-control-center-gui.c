@@ -439,6 +439,8 @@ static void parse_cpu_status(AppData *app, const char *response) {
     char buffer[8192];
     strncpy(buffer, response, sizeof(buffer) - 1);
     buffer[sizeof(buffer) - 1] = '\0';
+    
+
 
     int cpu_temp = 0;
     float cpu_load = 0.0f;
@@ -478,6 +480,7 @@ static void parse_cpu_status(AppData *app, const char *response) {
                 if (core_idx >= core_count) {
                     core_count = core_idx + 1;
                 }
+
             }
         }
         line = strtok_r(NULL, "\n", &saveptr);
@@ -497,9 +500,11 @@ static void parse_cpu_status(AppData *app, const char *response) {
     gtk_label_set_text(GTK_LABEL(app->cpu_page_min_max_freq_label), min_max_freq);
 
     /* Populate per-core frequency labels on first call, update on subsequent calls */
+
     if (app->cpu_core_count == 0 && core_count > 0) {
         /* First time: create labels in a 4-column grid */
         app->cpu_core_count = core_count;
+
         for (int i = 0; i < core_count && i < 32; i++) {
             char label_text[128];
             snprintf(label_text, sizeof(label_text), "Core %d: %s", i, core_freqs[i]);
@@ -511,7 +516,10 @@ static void parse_cpu_status(AppData *app, const char *response) {
             int row = i / 4;
             int col = i % 4;
             gtk_grid_attach(GTK_GRID(app->cpu_core_grid), app->cpu_core_freq_labels[i], col, row, 1, 1);
+            gtk_widget_show(app->cpu_core_freq_labels[i]);
         }
+        gtk_widget_show_all(GTK_WIDGET(app->cpu_core_grid));
+
     } else if (app->cpu_core_count > 0) {
         /* Subsequent calls: just update label text */
         for (int i = 0; i < app->cpu_core_count && i < 32; i++) {
@@ -2029,10 +2037,10 @@ static GtkWidget *create_status_page(AppData *app) {
         GtkWidget *core_frame = gtk_frame_new("Per-Core CPU Frequencies");
         GtkWidget *core_scrolled = gtk_scrolled_window_new(NULL, NULL);
         gtk_scrolled_window_set_policy(GTK_SCROLLED_WINDOW(core_scrolled), GTK_POLICY_NEVER, GTK_POLICY_AUTOMATIC);
-        gtk_scrolled_window_set_max_content_height(GTK_SCROLLED_WINDOW(core_scrolled), 200);
+        gtk_scrolled_window_set_max_content_height(GTK_SCROLLED_WINDOW(core_scrolled), 400);
         gtk_container_set_border_width(GTK_CONTAINER(core_scrolled), 5);
         gtk_container_add(GTK_CONTAINER(core_frame), core_scrolled);
-        gtk_box_pack_start(GTK_BOX(vbox), core_frame, FALSE, FALSE, 0);
+        gtk_box_pack_start(GTK_BOX(vbox), core_frame, TRUE, TRUE, 0);
         
         /* 4-column grid for compact display */
         app->cpu_core_grid = gtk_grid_new();

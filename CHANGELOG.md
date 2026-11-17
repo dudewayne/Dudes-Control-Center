@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.4.4] - 2026-11-17
+
+### Fixed
+- **Per-core frequency display empty on Status tab**: The per-core labels were created but not shown. Added `gtk_widget_show()` for each label and `gtk_widget_show_all()` on the grid after creation. Increased section height and made it expandable.
+
 ## [1.4.3] - 2026-11-17
 
 ### Fixed
