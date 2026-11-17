@@ -1038,7 +1038,22 @@ static void on_cpu_apply_all_cores_toggled(GtkCheckButton *checkbox, gpointer us
     AppData *app = (AppData *)user_data;
     int active = gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(checkbox));
     g_print("[GUI] Apply to All Cores: %s\n", active ? "ON" : "OFF");
-    /* TODO: When checked, copy first core value to all cores */
+
+    if (!active) return;
+
+    /* Copy first core's min/max values to all cores */
+    if (app->cpu_core_count <= 0) return;
+
+    double first_min = gtk_adjustment_get_value(app->cpu_core_min_adjustments[0]);
+    double first_max = gtk_adjustment_get_value(app->cpu_core_max_adjustments[0]);
+
+    for (int i = 1; i < app->cpu_core_count && i < 32; i++) {
+        gtk_adjustment_set_value(app->cpu_core_min_adjustments[i], first_min);
+        gtk_adjustment_set_value(app->cpu_core_max_adjustments[i], first_max);
+    }
+
+    g_print("[GUI] Copied core 0 values (min=%.0f MHz, max=%.0f MHz) to all %d cores\n",
+            first_min, first_max, app->cpu_core_count);
 }
 
 /* Build the per-core frequency grid with spinners */
