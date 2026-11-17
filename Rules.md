@@ -13,3 +13,4 @@ Before we start with the project, let me define some basic rules
 11. If we succesfully implemented a new feature, create a full backup of the project in the folder backup_archive. Use subfolders for each full backup you make. Naming convention: fullbackup_versionnumber_LastFeature (e.g., fullbackup_v1.1.0_rename_to_control_center)
 12. Make small steps, don't try to change too much at the same time.
 13. Use git for version control. Commit changes after each meaningful step with clear commit messages. Push changes to the remote repository after successful commits.
+14. Create a GitHub release for every new version. Tag the release with the version number (e.g., v1.5.1), include release notes, and attach the built .deb file.
