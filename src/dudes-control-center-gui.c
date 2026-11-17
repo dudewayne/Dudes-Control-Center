@@ -28,6 +28,7 @@
 #endif
 
 #include "dudes-control-center-log.h"
+#include "dudes-control-center-cpu-common.h"
 
 #define SOCKET_PATH "/run/dudes-control-center-fan.sock"
 #define CPU_SOCKET_PATH "/run/dudes-control-center-cpu.sock"
@@ -852,7 +853,60 @@ static void on_cpu_apply_all_cores_toggled(GtkCheckButton *checkbox, gpointer us
 /* Build the per-core frequency grid with spinners */
 static void build_cpu_core_freq_grid(AppData *app, int num_cores) {
     g_print("[GUI] build_cpu_core_freq_grid called with %d cores\n", num_cores);
-    /* TODO: Create grid with min/max spinners for each core */
+
+    /* Clear existing grid contents */
+    GList *children = gtk_container_get_children(GTK_CONTAINER(app->cpu_core_freq_grid));
+    GList *child = children;
+    while (child != NULL) {
+        gtk_widget_destroy(GTK_WIDGET(child->data));
+        child = child->next;
+    }
+    g_list_free(children);
+
+    /* Grid columns: Core Label | Min Freq (MHz) | Max Freq (MHz) */
+    int col_label = 0;
+    int col_min = 1;
+    int col_max = 2;
+
+    for (int i = 0; i < num_cores && i < MAX_CPUS; i++) {
+        int row = i;
+
+        /* Core label */
+        char core_name[32];
+        snprintf(core_name, sizeof(core_name), "Core %d", i);
+        GtkWidget *core_label = gtk_label_new(core_name);
+        gtk_widget_set_halign(core_label, GTK_ALIGN_END);
+        gtk_grid_attach(GTK_GRID(app->cpu_core_freq_grid), core_label, col_label, row, 1, 1);
+        gtk_widget_set_margin_end(core_label, 5);
+
+        /* Min freq spinner (800-3600 MHz, step 100) */
+        app->cpu_core_min_adjustments[i] = gtk_adjustment_new(800, 800, 3600, 100, 100, 0);
+        app->cpu_core_min_spinners[i] = gtk_spin_button_new(GTK_ADJUSTMENT(app->cpu_core_min_adjustments[i]), 100, 0);
+        gtk_spin_button_set_units(GTK_SPIN_BUTTON(app->cpu_core_min_spinners[i]), 100);
+        gtk_widget_set_hexpand(app->cpu_core_min_spinners[i], TRUE);
+        gtk_grid_attach(GTK_GRID(app->cpu_core_freq_grid), app->cpu_core_min_spinners[i], col_min, row, 1, 1);
+        gtk_widget_set_margin_end(app->cpu_core_min_spinners[i], 5);
+
+        /* Max freq spinner (800-3600 MHz, step 100) */
+        app->cpu_core_max_adjustments[i] = gtk_adjustment_new(3600, 800, 3600, 100, 100, 0);
+        app->cpu_core_max_spinners[i] = gtk_spin_button_new(GTK_ADJUSTMENT(app->cpu_core_max_adjustments[i]), 100, 0);
+        gtk_spin_button_set_units(GTK_SPIN_BUTTON(app->cpu_core_max_spinners[i]), 100);
+        gtk_widget_set_hexpand(app->cpu_core_max_spinners[i], TRUE);
+        gtk_grid_attach(GTK_GRID(app->cpu_core_freq_grid), app->cpu_core_max_spinners[i], col_max, row, 1, 1);
+    }
+
+    /* Add header labels */
+    GtkWidget *min_header = gtk_label_new("Min (MHz)");
+    gtk_widget_set_halign(min_header, GTK_ALIGN_CENTER);
+    gtk_widget_set_margin_bottom(min_header, 2);
+    gtk_grid_attach(GTK_GRID(app->cpu_core_freq_grid), min_header, col_min, num_cores, 1, 1);
+
+    GtkWidget *max_header = gtk_label_new("Max (MHz)");
+    gtk_widget_set_halign(max_header, GTK_ALIGN_CENTER);
+    gtk_widget_set_margin_bottom(max_header, 2);
+    gtk_grid_attach(GTK_GRID(app->cpu_core_freq_grid), max_header, col_max, num_cores, 1, 1);
+
+    gtk_widget_show_all(app->cpu_core_freq_grid);
 }
 
 /* Update spinner values from profile data */
