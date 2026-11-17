@@ -124,7 +124,7 @@ int log_init(const char* app_name, LogLevel min_level, const char* custom_path) 
         /* Use custom path (e.g., /var/log for daemon) */
         strncpy(g_log_dir, custom_path, sizeof(g_log_dir) - 1);
         g_log_dir[sizeof(g_log_dir) - 1] = '\0';
-    } else if (!strcmp(app_name, "DAEMON")) {
+    } else if (!strcmp(app_name, "DAEMON") || !strcmp(app_name, "FAN_DAEMON")) {
         /* Daemon uses /var/log by default */
         strncpy(g_log_dir, "/var/log/dudes-control-center", sizeof(g_log_dir) - 1);
         g_log_dir[sizeof(g_log_dir) - 1] = '\0';

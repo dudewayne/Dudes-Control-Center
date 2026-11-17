@@ -31,7 +31,7 @@ extern char g_log_dir[256];
 
 /**
  * Initialize logging system
- * @param app_name Name of the application (e.g., "GUI", "DAEMON")
+ * @param app_name Name of the application (e.g., "GUI", "FAN_DAEMON", "CPU_DAEMON")
  * @param min_level Minimum log level to output (default: LOG_LEVEL_INFO)
  * @param custom_path Optional custom log directory path. If NULL:
  *                    - DAEMON uses /var/log/dudes-control-center

@@ -2904,7 +2904,7 @@ static void load_gui_logs(AppData *app) {
 
 /* Load daemon logs from file */
 static void load_daemon_logs(AppData *app) {
-    char log_path[] = "/var/log/dudes-control-center/DAEMON.log";
+    char log_path[] = "/var/log/dudes-control-center/FAN_DAEMON.log";
     
     static long last_file_size = 0;
     static gboolean initial_load_done = FALSE;

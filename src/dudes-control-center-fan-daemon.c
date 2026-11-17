@@ -1019,7 +1019,7 @@ int main(int argc, char *argv[]) {
     printf("%s starting...\n", PROGRAM_NAME);
     
     /* Initialize logging (NULL = use /var/log for daemon) */
-    if (log_init("DAEMON", debug_mode ? LOG_LEVEL_DEBUG : LOG_LEVEL_INFO, NULL) != 0) {
+    if (log_init("FAN_DAEMON", debug_mode ? LOG_LEVEL_DEBUG : LOG_LEVEL_INFO, NULL) != 0) {
         fprintf(stderr, "Failed to initialize logging system\n");
     }
     
