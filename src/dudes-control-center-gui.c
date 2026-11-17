@@ -814,7 +814,14 @@ static void on_cpu_custom_profile_changed(GtkWidget *widget, gpointer user_data)
     gtk_widget_set_sensitive(app->cpu_freq_profile_apply_btn, TRUE);
     gtk_widget_set_sensitive(app->cpu_apply_all_cores_checkbox, TRUE);
 
-    /* TODO: Load profile data and populate spinners */
+    /* Build the per-core freq grid if we have core count info */
+    if (app->cpu_core_count > 0) {
+        build_cpu_core_freq_grid(app, app->cpu_core_count);
+        update_cpu_core_freq_spinners(app, active);
+    } else {
+        g_print("[GUI] Core count not yet available, skipping grid build\n");
+    }
+
     gtk_label_set_text(GTK_LABEL(app->cpu_freq_profile_status_label), "Profile selected - click Apply to activate");
 }
 
@@ -882,7 +889,6 @@ static void build_cpu_core_freq_grid(AppData *app, int num_cores) {
         /* Min freq spinner (800-3600 MHz, step 100) */
         app->cpu_core_min_adjustments[i] = gtk_adjustment_new(800, 800, 3600, 100, 100, 0);
         app->cpu_core_min_spinners[i] = gtk_spin_button_new(GTK_ADJUSTMENT(app->cpu_core_min_adjustments[i]), 100, 0);
-        gtk_spin_button_set_units(GTK_SPIN_BUTTON(app->cpu_core_min_spinners[i]), 100);
         gtk_widget_set_hexpand(app->cpu_core_min_spinners[i], TRUE);
         gtk_grid_attach(GTK_GRID(app->cpu_core_freq_grid), app->cpu_core_min_spinners[i], col_min, row, 1, 1);
         gtk_widget_set_margin_end(app->cpu_core_min_spinners[i], 5);
@@ -890,7 +896,6 @@ static void build_cpu_core_freq_grid(AppData *app, int num_cores) {
         /* Max freq spinner (800-3600 MHz, step 100) */
         app->cpu_core_max_adjustments[i] = gtk_adjustment_new(3600, 800, 3600, 100, 100, 0);
         app->cpu_core_max_spinners[i] = gtk_spin_button_new(GTK_ADJUSTMENT(app->cpu_core_max_adjustments[i]), 100, 0);
-        gtk_spin_button_set_units(GTK_SPIN_BUTTON(app->cpu_core_max_spinners[i]), 100);
         gtk_widget_set_hexpand(app->cpu_core_max_spinners[i], TRUE);
         gtk_grid_attach(GTK_GRID(app->cpu_core_freq_grid), app->cpu_core_max_spinners[i], col_max, row, 1, 1);
     }
@@ -921,7 +926,7 @@ static void update_cpu_core_freq_spinners(AppData *app, int profile_idx) {
     /* Send GET_CUSTOM_PROFILE_INFO command */
     char cmd[64];
     snprintf(cmd, sizeof(cmd), "GET_CUSTOM_PROFILE_INFO %d", profile_idx);
-    const char *response = send_command_cpu(app, cmd);
+    const char *response = send_cpu_command(app, cmd);
 
     if (response == NULL || strstr(response, "ERROR")) {
         g_print("[GUI] Failed to get custom profile info: %s\n", response ? response : "NULL");
