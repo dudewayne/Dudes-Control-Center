@@ -170,7 +170,7 @@ All notable changes to this project will be documented in this file.
   - All documentation, build system, and scripts updated
   - DEBSRC legacy build structure updated with new naming
 
-## [1.0.0] - 2026-11-24
+## [1.0.0] - 2026-11-14
 
 ### Initial Release
 - Fan Control daemon with EC (Embedded Controller) communication
