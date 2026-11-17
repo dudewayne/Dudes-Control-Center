@@ -92,6 +92,8 @@ deb: all
 	@chmod 755 $(DEB_BUILD_DIR)/$(PACKAGE)-$(VERSION)/DEBIAN/postinst
 	@printf '#!/bin/sh\nset -e\nif [ "$$1" = "remove" ]; then\n    systemctl stop dudes-control-center-fan-daemon 2>/dev/null || true\n    systemctl disable dudes-control-center-fan-daemon 2>/dev/null || true\n    systemctl stop dudes-control-center-cpu-daemon 2>/dev/null || true\n    systemctl disable dudes-control-center-cpu-daemon 2>/dev/null || true\n    systemctl daemon-reload\nfi\nexit 0\n' > $(DEB_BUILD_DIR)/$(PACKAGE)-$(VERSION)/DEBIAN/prerm
 	@chmod 755 $(DEB_BUILD_DIR)/$(PACKAGE)-$(VERSION)/DEBIAN/prerm
+	@printf '#!/bin/sh\nset -e\nif [ "$$1" = "purge" ]; then\n    rm -rf /home/*/.config/dudes-control-center/ 2>/dev/null || true\n    rm -rf /var/log/dudes-control-center/ 2>/dev/null || true\n    rm -f /etc/systemd/system/dudes-control-center-fan-daemon.service 2>/dev/null || true\n    rm -f /etc/systemd/system/dudes-control-center-cpu-daemon.service 2>/dev/null || true\n    systemctl daemon-reload 2>/dev/null || true\nfi\nexit 0\n' > $(DEB_BUILD_DIR)/$(PACKAGE)-$(VERSION)/DEBIAN/postrm
+	@chmod 755 $(DEB_BUILD_DIR)/$(PACKAGE)-$(VERSION)/DEBIAN/postrm
 	@cd $(DEB_BUILD_DIR) && dpkg-deb --build $(PACKAGE)-$(VERSION) $(PACKAGE)_$(VERSION)_amd64.deb
 	@echo "Built: $(DEB_BUILD_DIR)/$(PACKAGE)_$(VERSION)_amd64.deb"
 

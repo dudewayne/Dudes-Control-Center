@@ -2712,92 +2712,63 @@ static void load_cpu_daemon_logs(AppData *app);
 
 /* Create Page 4: Log Viewer */
 static GtkWidget *create_log_page(AppData *app) {
-    GtkWidget *vbox = gtk_box_new(GTK_ORIENTATION_VERTICAL, 50);
-    gtk_container_set_border_width(GTK_CONTAINER(vbox), 5);
+    /* Create a notebook for tabbed daemon logs */
+    GtkWidget *notebook = gtk_notebook_new();
+    gtk_container_set_border_width(GTK_CONTAINER(notebook), 5);
     
-    /* Top section: GUI Logs */
-    GtkWidget *gui_logs_frame = gtk_frame_new(NULL);
-    GtkWidget *gui_label = gtk_label_new("<b>GUI Application Log</b>");
-    gtk_label_set_use_markup(GTK_LABEL(gui_label), TRUE);
-    gtk_frame_set_label_widget(GTK_FRAME(gui_logs_frame), gui_label);
-    gtk_widget_set_halign(gui_logs_frame, GTK_ALIGN_FILL);
-    gtk_widget_set_valign(gui_logs_frame, GTK_ALIGN_START);
-    gtk_box_pack_start(GTK_BOX(vbox), gui_logs_frame, TRUE, TRUE, 0);
+    /* Tab 1: GUI Log */
+    {
+        GtkWidget *scrolled = gtk_scrolled_window_new(NULL, NULL);
+        gtk_scrolled_window_set_policy(GTK_SCROLLED_WINDOW(scrolled), GTK_POLICY_AUTOMATIC, GTK_POLICY_ALWAYS);
+        gtk_scrolled_window_set_min_content_height(GTK_SCROLLED_WINDOW(scrolled), 300);
+        
+        app->gui_log_view = gtk_text_view_new();
+        gtk_text_view_set_editable(GTK_TEXT_VIEW(app->gui_log_view), FALSE);
+        gtk_text_view_set_wrap_mode(GTK_TEXT_VIEW(app->gui_log_view), GTK_WRAP_WORD_CHAR);
+        gtk_text_view_set_left_margin(GTK_TEXT_VIEW(app->gui_log_view), 5);
+        gtk_text_view_set_right_margin(GTK_TEXT_VIEW(app->gui_log_view), 5);
+        gtk_style_context_add_class(gtk_widget_get_style_context(app->gui_log_view), "monospace-log-view");
+        app->gui_log_buffer = gtk_text_view_get_buffer(GTK_TEXT_VIEW(app->gui_log_view));
+        gtk_container_add(GTK_CONTAINER(scrolled), app->gui_log_view);
+        
+        gtk_notebook_append_page(GTK_NOTEBOOK(notebook), scrolled, gtk_label_new("GUI Log"));
+    }
     
-    /* Create scrolled window for GUI logs */
-    GtkWidget *gui_scrolled = gtk_scrolled_window_new(NULL, NULL);
-    gtk_scrolled_window_set_policy(GTK_SCROLLED_WINDOW(gui_scrolled), GTK_POLICY_AUTOMATIC, GTK_POLICY_ALWAYS);
-    gtk_scrolled_window_set_min_content_height(GTK_SCROLLED_WINDOW(gui_scrolled), 300);
-    gtk_container_add(GTK_CONTAINER(gui_logs_frame), gui_scrolled);
+    /* Tab 2: Fan Daemon Log */
+    {
+        GtkWidget *scrolled = gtk_scrolled_window_new(NULL, NULL);
+        gtk_scrolled_window_set_policy(GTK_SCROLLED_WINDOW(scrolled), GTK_POLICY_AUTOMATIC, GTK_POLICY_ALWAYS);
+        gtk_scrolled_window_set_min_content_height(GTK_SCROLLED_WINDOW(scrolled), 300);
+        
+        app->daemon_log_view = gtk_text_view_new();
+        gtk_text_view_set_editable(GTK_TEXT_VIEW(app->daemon_log_view), FALSE);
+        gtk_text_view_set_wrap_mode(GTK_TEXT_VIEW(app->daemon_log_view), GTK_WRAP_WORD_CHAR);
+        gtk_text_view_set_left_margin(GTK_TEXT_VIEW(app->daemon_log_view), 5);
+        gtk_text_view_set_right_margin(GTK_TEXT_VIEW(app->daemon_log_view), 5);
+        gtk_style_context_add_class(gtk_widget_get_style_context(app->daemon_log_view), "monospace-log-view");
+        app->daemon_log_buffer = gtk_text_view_get_buffer(GTK_TEXT_VIEW(app->daemon_log_view));
+        gtk_container_add(GTK_CONTAINER(scrolled), app->daemon_log_view);
+        
+        gtk_notebook_append_page(GTK_NOTEBOOK(notebook), scrolled, gtk_label_new("Fan Daemon Log"));
+    }
     
-    /* Create text view for GUI logs */
-    app->gui_log_view = gtk_text_view_new();
-    gtk_text_view_set_editable(GTK_TEXT_VIEW(app->gui_log_view), FALSE);
-    gtk_text_view_set_wrap_mode(GTK_TEXT_VIEW(app->gui_log_view), GTK_WRAP_WORD_CHAR);
-    gtk_text_view_set_left_margin(GTK_TEXT_VIEW(app->gui_log_view), 5);
-    gtk_text_view_set_right_margin(GTK_TEXT_VIEW(app->gui_log_view), 5);
-    
-    /* Use monospace font for logs */
-    GtkStyleContext *style_context = gtk_widget_get_style_context(app->gui_log_view);
-    gtk_style_context_add_class(style_context, "monospace-log-view");
-    
-    app->gui_log_buffer = gtk_text_view_get_buffer(GTK_TEXT_VIEW(app->gui_log_view));
-    gtk_container_add(GTK_CONTAINER(gui_scrolled), app->gui_log_view);
-    
-    /* Bottom section: Daemon Logs */
-    GtkWidget *daemon_logs_frame = gtk_frame_new(NULL);
-    GtkWidget *daemon_label = gtk_label_new("<b>Daemon Log</b>");
-    gtk_label_set_use_markup(GTK_LABEL(daemon_label), TRUE);
-    gtk_frame_set_label_widget(GTK_FRAME(daemon_logs_frame), daemon_label);
-    gtk_widget_set_halign(daemon_logs_frame, GTK_ALIGN_FILL);
-    gtk_widget_set_valign(daemon_logs_frame, GTK_ALIGN_START);
-    gtk_box_pack_start(GTK_BOX(vbox), daemon_logs_frame, TRUE, TRUE, 0);
-    
-    /* Create scrolled window for daemon logs */
-    GtkWidget *daemon_scrolled = gtk_scrolled_window_new(NULL, NULL);
-    gtk_scrolled_window_set_policy(GTK_SCROLLED_WINDOW(daemon_scrolled), GTK_POLICY_AUTOMATIC, GTK_POLICY_ALWAYS);
-    gtk_scrolled_window_set_min_content_height(GTK_SCROLLED_WINDOW(daemon_scrolled), 300);
-    gtk_container_add(GTK_CONTAINER(daemon_logs_frame), daemon_scrolled);
-    
-    /* Create text view for daemon logs */
-    app->daemon_log_view = gtk_text_view_new();
-    gtk_text_view_set_editable(GTK_TEXT_VIEW(app->daemon_log_view), FALSE);
-    gtk_text_view_set_wrap_mode(GTK_TEXT_VIEW(app->daemon_log_view), GTK_WRAP_WORD_CHAR);
-    gtk_text_view_set_left_margin(GTK_TEXT_VIEW(app->daemon_log_view), 5);
-    gtk_text_view_set_right_margin(GTK_TEXT_VIEW(app->daemon_log_view), 5);
-    
-    /* Use monospace font for logs */
-    style_context = gtk_widget_get_style_context(app->daemon_log_view);
-    gtk_style_context_add_class(style_context, "monospace-log-view");
-    
-    app->daemon_log_buffer = gtk_text_view_get_buffer(GTK_TEXT_VIEW(app->daemon_log_view));
-    gtk_container_add(GTK_CONTAINER(daemon_scrolled), app->daemon_log_view);
-    
-    /* Bottom section: CPU Daemon Logs */
-    GtkWidget *cpu_daemon_logs_frame = gtk_frame_new(NULL);
-    GtkWidget *cpu_daemon_label = gtk_label_new("<b>CPU Daemon Log</b>");
-    gtk_label_set_use_markup(GTK_LABEL(cpu_daemon_label), TRUE);
-    gtk_frame_set_label_widget(GTK_FRAME(cpu_daemon_logs_frame), cpu_daemon_label);
-    gtk_widget_set_halign(cpu_daemon_logs_frame, GTK_ALIGN_FILL);
-    gtk_widget_set_valign(cpu_daemon_logs_frame, GTK_ALIGN_START);
-    gtk_box_pack_start(GTK_BOX(vbox), cpu_daemon_logs_frame, TRUE, TRUE, 0);
-    
-    GtkWidget *cpu_daemon_scrolled = gtk_scrolled_window_new(NULL, NULL);
-    gtk_scrolled_window_set_policy(GTK_SCROLLED_WINDOW(cpu_daemon_scrolled), GTK_POLICY_AUTOMATIC, GTK_POLICY_ALWAYS);
-    gtk_scrolled_window_set_min_content_height(GTK_SCROLLED_WINDOW(cpu_daemon_scrolled), 300);
-    gtk_container_add(GTK_CONTAINER(cpu_daemon_logs_frame), cpu_daemon_scrolled);
-    
-    app->cpu_daemon_log_view = gtk_text_view_new();
-    gtk_text_view_set_editable(GTK_TEXT_VIEW(app->cpu_daemon_log_view), FALSE);
-    gtk_text_view_set_wrap_mode(GTK_TEXT_VIEW(app->cpu_daemon_log_view), GTK_WRAP_WORD_CHAR);
-    gtk_text_view_set_left_margin(GTK_TEXT_VIEW(app->cpu_daemon_log_view), 5);
-    gtk_text_view_set_right_margin(GTK_TEXT_VIEW(app->cpu_daemon_log_view), 5);
-    
-    style_context = gtk_widget_get_style_context(app->cpu_daemon_log_view);
-    gtk_style_context_add_class(style_context, "monospace-log-view");
-    
-    app->cpu_daemon_log_buffer = gtk_text_view_get_buffer(GTK_TEXT_VIEW(app->cpu_daemon_log_view));
-    gtk_container_add(GTK_CONTAINER(cpu_daemon_scrolled), app->cpu_daemon_log_view);
+    /* Tab 3: CPU Daemon Log */
+    {
+        GtkWidget *scrolled = gtk_scrolled_window_new(NULL, NULL);
+        gtk_scrolled_window_set_policy(GTK_SCROLLED_WINDOW(scrolled), GTK_POLICY_AUTOMATIC, GTK_POLICY_ALWAYS);
+        gtk_scrolled_window_set_min_content_height(GTK_SCROLLED_WINDOW(scrolled), 300);
+        
+        app->cpu_daemon_log_view = gtk_text_view_new();
+        gtk_text_view_set_editable(GTK_TEXT_VIEW(app->cpu_daemon_log_view), FALSE);
+        gtk_text_view_set_wrap_mode(GTK_TEXT_VIEW(app->cpu_daemon_log_view), GTK_WRAP_WORD_CHAR);
+        gtk_text_view_set_left_margin(GTK_TEXT_VIEW(app->cpu_daemon_log_view), 5);
+        gtk_text_view_set_right_margin(GTK_TEXT_VIEW(app->cpu_daemon_log_view), 5);
+        gtk_style_context_add_class(gtk_widget_get_style_context(app->cpu_daemon_log_view), "monospace-log-view");
+        app->cpu_daemon_log_buffer = gtk_text_view_get_buffer(GTK_TEXT_VIEW(app->cpu_daemon_log_view));
+        gtk_container_add(GTK_CONTAINER(scrolled), app->cpu_daemon_log_view);
+        
+        gtk_notebook_append_page(GTK_NOTEBOOK(notebook), scrolled, gtk_label_new("CPU Daemon Log"));
+    }
     
     /* Start the log refresh timer (every 500ms) */
     app->log_refresh_timer_id = g_timeout_add(500, refresh_logs_timer, app);
@@ -2807,7 +2778,7 @@ static GtkWidget *create_log_page(AppData *app) {
     load_daemon_logs(app);
     load_cpu_daemon_logs(app);
     
-    return vbox;
+    return notebook;
 }
 
 /* Timer callback to refresh logs periodically */

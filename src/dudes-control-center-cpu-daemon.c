@@ -146,8 +146,17 @@ static void handle_command(const char *cmd, char *response, size_t resp_size) {
 
     parse_command(cmd, action, arg1, arg2, arg3, arg4);
 
-    LOG_INFO("[DAEMON] Received command: %s args=[%s] [%s] [%s] [%s]",
-             action, arg1, arg2, arg3, arg4);
+    if (arg1[0] != '\0' && arg2[0] != '\0' && arg3[0] != '\0' && arg4[0] != '\0') {
+        LOG_INFO("[DAEMON] Received command: %s args=[%s] [%s] [%s] [%s]", action, arg1, arg2, arg3, arg4);
+    } else if (arg1[0] != '\0' && arg2[0] != '\0' && arg3[0] != '\0') {
+        LOG_INFO("[DAEMON] Received command: %s args=[%s] [%s] [%s]", action, arg1, arg2, arg3);
+    } else if (arg1[0] != '\0' && arg2[0] != '\0') {
+        LOG_INFO("[DAEMON] Received command: %s args=[%s] [%s]", action, arg1, arg2);
+    } else if (arg1[0] != '\0') {
+        LOG_INFO("[DAEMON] Received command: %s args=[%s]", action, arg1);
+    } else {
+        LOG_INFO("[DAEMON] Received command: %s args=", action);
+    }
 
     /* --- STATUS --- */
     if (strcmp(action, "STATUS") == 0) {
