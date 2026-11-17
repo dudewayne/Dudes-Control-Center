@@ -152,8 +152,10 @@ typedef struct {
     /* Page 4: Log viewer widgets */
     GtkWidget *gui_log_view;
     GtkWidget *daemon_log_view;
+    GtkWidget *cpu_daemon_log_view;
     GtkTextBuffer *gui_log_buffer;
     GtkTextBuffer *daemon_log_buffer;
+    GtkTextBuffer *cpu_daemon_log_buffer;
     guint log_refresh_timer_id;
     
     /* Page 6: CPU Control widgets */
@@ -2706,6 +2708,7 @@ static GtkWidget *create_clickable_link(const char *url) {
 static gboolean refresh_logs_timer(gpointer user_data);
 static void load_gui_logs(AppData *app);
 static void load_daemon_logs(AppData *app);
+static void load_cpu_daemon_logs(AppData *app);
 
 /* Create Page 4: Log Viewer */
 static GtkWidget *create_log_page(AppData *app) {
@@ -2770,12 +2773,39 @@ static GtkWidget *create_log_page(AppData *app) {
     app->daemon_log_buffer = gtk_text_view_get_buffer(GTK_TEXT_VIEW(app->daemon_log_view));
     gtk_container_add(GTK_CONTAINER(daemon_scrolled), app->daemon_log_view);
     
+    /* Bottom section: CPU Daemon Logs */
+    GtkWidget *cpu_daemon_logs_frame = gtk_frame_new(NULL);
+    GtkWidget *cpu_daemon_label = gtk_label_new("<b>CPU Daemon Log</b>");
+    gtk_label_set_use_markup(GTK_LABEL(cpu_daemon_label), TRUE);
+    gtk_frame_set_label_widget(GTK_FRAME(cpu_daemon_logs_frame), cpu_daemon_label);
+    gtk_widget_set_halign(cpu_daemon_logs_frame, GTK_ALIGN_FILL);
+    gtk_widget_set_valign(cpu_daemon_logs_frame, GTK_ALIGN_START);
+    gtk_box_pack_start(GTK_BOX(vbox), cpu_daemon_logs_frame, TRUE, TRUE, 0);
+    
+    GtkWidget *cpu_daemon_scrolled = gtk_scrolled_window_new(NULL, NULL);
+    gtk_scrolled_window_set_policy(GTK_SCROLLED_WINDOW(cpu_daemon_scrolled), GTK_POLICY_AUTOMATIC, GTK_POLICY_ALWAYS);
+    gtk_scrolled_window_set_min_content_height(GTK_SCROLLED_WINDOW(cpu_daemon_scrolled), 300);
+    gtk_container_add(GTK_CONTAINER(cpu_daemon_logs_frame), cpu_daemon_scrolled);
+    
+    app->cpu_daemon_log_view = gtk_text_view_new();
+    gtk_text_view_set_editable(GTK_TEXT_VIEW(app->cpu_daemon_log_view), FALSE);
+    gtk_text_view_set_wrap_mode(GTK_TEXT_VIEW(app->cpu_daemon_log_view), GTK_WRAP_WORD_CHAR);
+    gtk_text_view_set_left_margin(GTK_TEXT_VIEW(app->cpu_daemon_log_view), 5);
+    gtk_text_view_set_right_margin(GTK_TEXT_VIEW(app->cpu_daemon_log_view), 5);
+    
+    style_context = gtk_widget_get_style_context(app->cpu_daemon_log_view);
+    gtk_style_context_add_class(style_context, "monospace-log-view");
+    
+    app->cpu_daemon_log_buffer = gtk_text_view_get_buffer(GTK_TEXT_VIEW(app->cpu_daemon_log_view));
+    gtk_container_add(GTK_CONTAINER(cpu_daemon_scrolled), app->cpu_daemon_log_view);
+    
     /* Start the log refresh timer (every 500ms) */
     app->log_refresh_timer_id = g_timeout_add(500, refresh_logs_timer, app);
     
     /* Initial load of logs */
     load_gui_logs(app);
     load_daemon_logs(app);
+    load_cpu_daemon_logs(app);
     
     return vbox;
 }
@@ -2789,6 +2819,7 @@ static gboolean refresh_logs_timer(gpointer user_data) {
     if (current_page == 4) {  /* Log page is index 4 (0-based: Status=0, Curve=1, Profiles=2, CPU=3, Logs=4, About=5) */
         load_gui_logs(app);
         load_daemon_logs(app);
+        load_cpu_daemon_logs(app);
     }
     
     return G_SOURCE_CONTINUE;  /* Keep the timer running */
@@ -3026,6 +3057,114 @@ static void load_daemon_logs(AppData *app) {
     /* Scroll to top */
     gtk_text_buffer_get_start_iter(app->daemon_log_buffer, &start_iter);
     gtk_text_view_scroll_to_iter(GTK_TEXT_VIEW(app->daemon_log_view), &start_iter, 0.0, FALSE, 0.0, 0.0);
+}
+
+/* Load CPU daemon logs from file */
+static void load_cpu_daemon_logs(AppData *app) {
+    char log_path[] = "/var/log/dudes-control-center/CPU_DAEMON.log";
+    
+    static long last_file_size = 0;
+    static gboolean initial_load_done = FALSE;
+    
+    FILE *f = fopen(log_path, "r");
+    if (!f) {
+        GtkTextIter start_iter;
+        gtk_text_buffer_get_start_iter(app->cpu_daemon_log_buffer, &start_iter);
+        gsize current_length = gtk_text_buffer_get_char_count(app->cpu_daemon_log_buffer);
+        
+        if (current_length == 0) {
+            gtk_text_buffer_insert_markup(app->cpu_daemon_log_buffer, &start_iter,
+                "<span foreground='#e74c3c'>Unable to read CPU daemon log. Check permissions or ensure the daemon is running.</span>\n", -1);
+        }
+        return;
+    }
+    
+    fseek(f, 0, SEEK_END);
+    long file_size = ftell(f);
+    fseek(f, 0, SEEK_SET);
+    
+    if (file_size == last_file_size) {
+        fclose(f);
+        return;
+    }
+    
+    if (file_size < last_file_size) {
+        last_file_size = 0;
+        initial_load_done = FALSE;
+        gtk_text_buffer_set_text(app->cpu_daemon_log_buffer, "", 0);
+    }
+    
+    if (!initial_load_done) {
+        if (file_size > 10000) {
+            last_file_size = file_size - 10000;
+        }
+        initial_load_done = TRUE;
+    }
+    
+    const long MAX_NEW_CONTENT = 65536;
+    long new_size = file_size - last_file_size;
+    
+    if (new_size > MAX_NEW_CONTENT) {
+        new_size = MAX_NEW_CONTENT;
+        last_file_size = file_size - new_size;
+    }
+    
+    char *new_content = malloc(new_size + 1);
+    if (!new_content) {
+        fclose(f);
+        return;
+    }
+    
+    fseek(f, last_file_size, SEEK_SET);
+    size_t bytes_read = fread(new_content, 1, new_size, f);
+    new_content[bytes_read] = '\0';
+    fclose(f);
+    
+    GSList *lines = NULL;
+    char *saveptr = NULL;
+    char *line = strtok_r(new_content, "\n", &saveptr);
+    while (line != NULL) {
+        lines = g_slist_append(lines, g_strdup(line));
+        line = strtok_r(NULL, "\n", &saveptr);
+    }
+    free(new_content);
+    
+    lines = g_slist_reverse(lines);
+    
+    GString *reversed = g_string_new(NULL);
+    GSList *first = lines;
+    for (GSList *l = first; l != NULL; l = l->next) {
+        if (l != first) {
+            g_string_append_c(reversed, '\n');
+        }
+        g_string_append(reversed, (gchar *)l->data);
+    }
+    g_string_append_c(reversed, '\n');
+    
+    GtkTextIter start_iter;
+    gtk_text_buffer_get_start_iter(app->cpu_daemon_log_buffer, &start_iter);
+    gtk_text_buffer_insert(app->cpu_daemon_log_buffer, &start_iter, reversed->str, -1);
+    
+    const gsize MAX_BUFFER_CHARS = 10000;
+    gsize current_length = gtk_text_buffer_get_char_count(app->cpu_daemon_log_buffer);
+    if (current_length > MAX_BUFFER_CHARS) {
+        GtkTextIter end_iter;
+        gtk_text_buffer_get_end_iter(app->cpu_daemon_log_buffer, &end_iter);
+        GtkTextIter trim_iter;
+        gtk_text_buffer_get_iter_at_offset(app->cpu_daemon_log_buffer, &trim_iter, MAX_BUFFER_CHARS);
+        gtk_text_buffer_delete(app->cpu_daemon_log_buffer, &trim_iter, &end_iter);
+    }
+    
+    g_string_free(reversed, TRUE);
+    for (GSList *l = lines; l != NULL; l = l->next) {
+        g_free(l->data);
+    }
+    g_slist_free(lines);
+    
+    last_file_size = file_size;
+    
+    gtk_text_buffer_get_start_iter(app->cpu_daemon_log_buffer, &start_iter);
+    gtk_text_view_scroll_to_iter(GTK_TEXT_VIEW(app->cpu_daemon_log_view), &start_iter, 0.0, FALSE, 0.0, 0.0);
 }
 
 /* Create Page 5: About */
