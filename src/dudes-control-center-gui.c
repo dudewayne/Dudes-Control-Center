@@ -912,7 +912,53 @@ static void build_cpu_core_freq_grid(AppData *app, int num_cores) {
 /* Update spinner values from profile data */
 static void update_cpu_core_freq_spinners(AppData *app, int profile_idx) {
     g_print("[GUI] update_cpu_core_freq_spinners called for profile %d\n", profile_idx);
-    /* TODO: Fetch profile data and update spinners */
+
+    if (!app->cpu_connected || app->cpu_socket_fd < 0) {
+        g_print("[GUI] CPU daemon not connected, cannot update spinners\n");
+        return;
+    }
+
+    /* Send GET_CUSTOM_PROFILE_INFO command */
+    char cmd[64];
+    snprintf(cmd, sizeof(cmd), "GET_CUSTOM_PROFILE_INFO %d", profile_idx);
+    const char *response = send_command_cpu(app, cmd);
+
+    if (response == NULL || strstr(response, "ERROR")) {
+        g_print("[GUI] Failed to get custom profile info: %s\n", response ? response : "NULL");
+        return;
+    }
+
+    /* Parse response: lines like CORE_0_MAX:3600000000 and CORE_0_MIN:800000000 */
+    char response_copy[BUFFER_SIZE];
+    strncpy(response_copy, response, sizeof(response_copy) - 1);
+    response_copy[sizeof(response_copy) - 1] = '\0';
+
+    char *line = strtok(response_copy, "\n");
+    while (line != NULL) {
+        /* Trim leading/trailing whitespace */
+        char *p = line;
+        while (*p == ' ' || *p == '\t') p++;
+
+        int core_id = -1;
+        unsigned int freq_hz = 0;
+
+        if (sscanf(p, "CORE_%d_MAX:%u", &core_id, &freq_hz) == 2) {
+            if (core_id >= 0 && core_id < MAX_CPUS && app->cpu_core_max_adjustments[core_id] != NULL) {
+                /* Convert Hz to MHz for spinner */
+                double freq_mhz = (double)freq_hz / 1000000.0;
+                gtk_adjustment_set_value(GTK_ADJUSTMENT(app->cpu_core_max_adjustments[core_id]), freq_mhz);
+            }
+        } else if (sscanf(p, "CORE_%d_MIN:%u", &core_id, &freq_hz) == 2) {
+            if (core_id >= 0 && core_id < MAX_CPUS && app->cpu_core_min_adjustments[core_id] != NULL) {
+                double freq_mhz = (double)freq_hz / 1000000.0;
+                gtk_adjustment_set_value(GTK_ADJUSTMENT(app->cpu_core_min_adjustments[core_id]), freq_mhz);
+            }
+        }
+
+        line = strtok(NULL, "\n");
+    }
+
+    g_print("[GUI] Spinner values updated from profile %d\n", profile_idx);
 }
 
 /* Mark that frequency profiles have been modified */
