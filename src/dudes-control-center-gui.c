@@ -985,10 +985,52 @@ static void on_cpu_delete_freq_profile_clicked(GtkWidget *widget, gpointer user_
 
 /* Callback: Apply selected frequency profile */
 static void on_cpu_apply_freq_profile_clicked(GtkWidget *widget, gpointer user_data) {
+    (void)widget;
     AppData *app = (AppData *)user_data;
     g_print("[GUI] Apply frequency profile clicked\n");
-    /* TODO: Save spinner values and apply profile via daemon */
-    gtk_label_set_text(GTK_LABEL(app->cpu_freq_profile_status_label), "Apply not yet implemented");
+
+    int idx = gtk_combo_box_get_active(GTK_COMBO_BOX(app->cpu_custom_profile_combo));
+    if (idx < 0) {
+        gtk_label_set_text(GTK_LABEL(app->cpu_freq_profile_status_label), "No profile selected");
+        return;
+    }
+
+    /* Read spinner values and send per-core freq commands */
+    int num_cores = app->cpu_core_count;
+    if (num_cores <= 0) {
+        gtk_label_set_text(GTK_LABEL(app->cpu_freq_profile_status_label), "Core count not available");
+        return;
+    }
+
+    char cmd[128];
+    int success_count = 0;
+    for (int i = 0; i < num_cores && i < 32; i++) {
+        double min_mhz = gtk_adjustment_get_value(app->cpu_core_min_adjustments[i]);
+        double max_mhz = gtk_adjustment_get_value(app->cpu_core_max_adjustments[i]);
+
+        gulong min_hz = (gulong)(min_mhz * 1000000);
+        gulong max_hz = (gulong)(max_mhz * 1000000);
+
+        snprintf(cmd, sizeof(cmd), "SET_CORE_MIN_FREQ %d %d %lu", idx, i, min_hz);
+        send_cpu_command(app, cmd);
+
+        snprintf(cmd, sizeof(cmd), "SET_CORE_MAX_FREQ %d %d %lu", idx, i, max_hz);
+        send_cpu_command(app, cmd);
+
+        success_count++;
+    }
+
+    /* Now apply the profile */
+    snprintf(cmd, sizeof(cmd), "APPLY_CUSTOM_PROFILE %d", idx);
+    const char *response = send_cpu_command(app, cmd);
+    g_print("[GUI] APPLY_CUSTOM_PROFILE response: %s\n", response ? response : "NULL");
+
+    char status_msg[128];
+    snprintf(status_msg, sizeof(status_msg), "Applied profile to %d cores", num_cores);
+    gtk_label_set_text(GTK_LABEL(app->cpu_freq_profile_status_label), status_msg);
+
+    /* Mark profiles as modified so we show the * indicator */
+    mark_cpu_freq_profiles_modified(app);
 }
 
 /* Callback: Apply to All Cores checkbox toggled */
