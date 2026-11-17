@@ -2565,6 +2565,11 @@ static void on_notebook_page_switched(GtkNotebook *notebook, GtkWidget *page, gi
         }
     }
     
+    /* Clear profile-specific status messages when leaving the Profiles tab (page 2) */
+    if (current_page == 2 && page_num != 2) {
+        show_status(app, "");
+    }
+
     /* Page 2 is the Curve Editor tab (0-indexed: Status=0, Curve Editor=1, Profiles=2) */
     if (page_num == 1) {
         char ts[32];
