@@ -103,7 +103,6 @@ Full-featured GTK4 graphical interface for fan control with profile management, 
   - [Clevo](https://www.clevo.com.tw/) for awesome laptops
 - Contact information:
   - Dudemeister
-  - Email: wayne.dude@proton.me (clickable mailto link)
   - GitHub: [Dudes-Control-Center](https://github.com/dudewayne/Dudes-Control-Center) (clickable link)
 
 #### System Tray Integration
@@ -402,7 +401,6 @@ This application was **completely coded by AI** using [Bionic AI Agent](https://
 
 ### Author
 **Dudemeister**
-- Email: [wayne.dude@proton.me](mailto:wayne.dude@proton.me)
 - GitHub: [Dudes-Control-Center](https://github.com/dudewayne/Dudes-Control-Center)
 
 ## License

@@ -3687,9 +3687,6 @@ static GtkWidget *create_about_page(void) {
     gtk_widget_set_halign(contact_name, GTK_ALIGN_CENTER);
     gtk_box_pack_start(GTK_BOX(thanks_vbox), contact_name, TRUE, FALSE, 5);
     
-    GtkWidget *contact_email = create_clickable_link("mailto:wayne.dude@proton.me");
-    gtk_box_pack_start(GTK_BOX(thanks_vbox), contact_email, TRUE, FALSE, 0);
-    
     GtkWidget *contact_github_text = gtk_label_new(NULL);
     gtk_label_set_markup(GTK_LABEL(contact_github_text), "<span size='small'>GitHub:</span>");
     gtk_widget_set_halign(contact_github_text, GTK_ALIGN_CENTER);
