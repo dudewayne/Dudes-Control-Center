@@ -2625,7 +2625,7 @@ static GtkWidget *create_profile_list_page(AppData *app) {
     gtk_box_pack_start(GTK_BOX(vbox), app->disable_manual_mode_btn, FALSE, FALSE, 0);
     
     /* Profile list frame */
-    GtkWidget *frame = gtk_frame_new("Available Profiles");
+    GtkWidget *frame = gtk_frame_new("Available Fan Profiles");
     GtkWidget *scrolled = gtk_scrolled_window_new(NULL, NULL);
     gtk_scrolled_window_set_policy(GTK_SCROLLED_WINDOW(scrolled), GTK_POLICY_AUTOMATIC, GTK_POLICY_NEVER);
     
@@ -3308,7 +3308,7 @@ static GtkWidget *create_main_window(AppData *app) {
 
     gtk_notebook_append_page(GTK_NOTEBOOK(app->notebook), page1, gtk_label_new("Status"));
     gtk_notebook_append_page(GTK_NOTEBOOK(app->notebook), page2, gtk_label_new("Curve Editor"));
-    gtk_notebook_append_page(GTK_NOTEBOOK(app->notebook), page3, gtk_label_new("Profiles"));
+    gtk_notebook_append_page(GTK_NOTEBOOK(app->notebook), page3, gtk_label_new("Fan Profiles"));
     gtk_notebook_append_page(GTK_NOTEBOOK(app->notebook), page5, gtk_label_new("CPU"));
     gtk_notebook_append_page(GTK_NOTEBOOK(app->notebook), page4, gtk_label_new("Logs"));
     gtk_notebook_append_page(GTK_NOTEBOOK(app->notebook), page6, gtk_label_new("About"));
@@ -3402,8 +3402,8 @@ static GtkWidget* create_tray_menu(AppData *app) {
     gtk_container_add(GTK_CONTAINER(menu), separator1);
     gtk_widget_show(separator1);
     
-    /* Profiles submenu */
-    GtkWidget *profiles_menuitem = gtk_menu_item_new_with_label("Profiles");
+    /* Fan Profiles submenu */
+    GtkWidget *profiles_menuitem = gtk_menu_item_new_with_label("Fan Profiles");
     GtkWidget *profiles_submenu = gtk_menu_new();
     gtk_menu_item_set_submenu(GTK_MENU_ITEM(profiles_menuitem), profiles_submenu);
     gtk_container_add(GTK_CONTAINER(menu), profiles_menuitem);
