@@ -556,6 +556,32 @@ static void handle_command(const char *cmd, char *response, size_t resp_size) {
         return;
     }
 
+    /* --- SET_CORE_MAX_FREQ <profile_idx> <cpu_id> <max_freq_hz> --- */
+    if (strcmp(action, "SET_CORE_MAX_FREQ") == 0) {
+        if (!arg1[0] || !arg2[0] || !arg3[0]) {
+            snprintf(response, resp_size, "ERROR Usage: SET_CORE_MAX_FREQ <profile_idx> <cpu_id> <max_freq_hz>\n");
+            return;
+        }
+
+        int profile_idx = atoi(arg1);
+        int cpu_id = atoi(arg2);
+        uint32_t max_freq = (uint32_t)strtoul(arg3, NULL, 10);
+
+        /* Read current min freq so we don't overwrite it */
+        uint32_t current_min = 0;
+        const CpuCustomProfile *tmp3 = cpu_custom_profile_get(profile_idx);
+        if (tmp3 && cpu_id < tmp3->num_cores && cpu_id < MAX_CPUS) {
+            current_min = tmp3->per_core_min_freq_hz[cpu_id];
+        }
+
+        if (cpu_custom_profile_set_core_freq(profile_idx, cpu_id, max_freq, current_min) == 0) {
+            snprintf(response, resp_size, "OK Core %d max frequency set to %u Hz\n", cpu_id, max_freq);
+        } else {
+            snprintf(response, resp_size, "ERROR Failed to set core max frequency\n");
+        }
+        return;
+    }
+
     /* --- GET_CUSTOM_PROFILE_INFO <index> --- */
     if (strcmp(action, "GET_CUSTOM_PROFILE_INFO") == 0) {
         if (!arg1[0]) {
