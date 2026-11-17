@@ -170,6 +170,11 @@ typedef struct {
     GtkWidget *cpu_auto_mode_switch;
     guint cpu_auto_mode_signal_id;
     guint cpu_refresh_timer_id;
+    
+    /* Per-core frequency display */
+    GtkWidget *cpu_core_grid;
+    GtkWidget *cpu_core_freq_labels[32];
+    int cpu_core_count;
 } AppData;
 
 /* Forward declarations for callbacks */
@@ -442,6 +447,14 @@ static void parse_cpu_status(AppData *app, const char *response) {
     char active_governor[64] = "N/A";
     char freq_values[256] = "N/A";
     char min_max_freq[128] = "N/A";
+    
+    /* Per-core frequency storage */
+    char core_freqs[32][64];
+    int core_count = 0;
+    for (int i = 0; i < 32; i++) {
+        strncpy(core_freqs[i], "N/A", sizeof(core_freqs[i]) - 1);
+        core_freqs[i][sizeof(core_freqs[i]) - 1] = '\0';
+    }
 
     char *saveptr = NULL;
     char *line = strtok_r(buffer, "\n", &saveptr);
@@ -454,10 +467,18 @@ static void parse_cpu_status(AppData *app, const char *response) {
             num_cpus = atoi(line + 9);
         } else if (strncmp(line, "ACTIVE_GOVERNOR=", 16) == 0) {
             strncpy(active_governor, line + 16, sizeof(active_governor) - 1);
-        } else if (strncmp(line, "CPU_0_FREQ=", 11) == 0) {
-            strncpy(freq_values, line + 11, sizeof(freq_values) - 1);
         } else if (strncmp(line, "AUTO_MODE=", 10) == 0) {
             auto_mode = atoi(line + 10);
+        } else {
+            /* Parse per-core frequencies: CPU_N_FREQ=value */
+            int core_idx = -1;
+            char freq_tmp[64] = {0};
+            if (sscanf(line, "CPU_%d_FREQ=%63s", &core_idx, freq_tmp) == 2 && core_idx >= 0 && core_idx < 32) {
+                strncpy(core_freqs[core_idx], freq_tmp, sizeof(core_freqs[core_idx]) - 1);
+                if (core_idx >= core_count) {
+                    core_count = core_idx + 1;
+                }
+            }
         }
         line = strtok_r(NULL, "\n", &saveptr);
     }
@@ -474,6 +495,33 @@ static void parse_cpu_status(AppData *app, const char *response) {
     gtk_label_set_text(GTK_LABEL(app->cpu_page_governor_label), active_governor);
     gtk_label_set_text(GTK_LABEL(app->cpu_page_freq_label), freq_values);
     gtk_label_set_text(GTK_LABEL(app->cpu_page_min_max_freq_label), min_max_freq);
+
+    /* Populate per-core frequency labels on first call, update on subsequent calls */
+    if (app->cpu_core_count == 0 && core_count > 0) {
+        /* First time: create labels in a 4-column grid */
+        app->cpu_core_count = core_count;
+        for (int i = 0; i < core_count && i < 32; i++) {
+            char label_text[128];
+            snprintf(label_text, sizeof(label_text), "Core %d: %s", i, core_freqs[i]);
+            
+            app->cpu_core_freq_labels[i] = gtk_label_new(label_text);
+            gtk_label_set_xalign(GTK_LABEL(app->cpu_core_freq_labels[i]), 0.0);
+            
+            /* 4 columns layout: row = i / 4, col = i % 4 */
+            int row = i / 4;
+            int col = i % 4;
+            gtk_grid_attach(GTK_GRID(app->cpu_core_grid), app->cpu_core_freq_labels[i], col, row, 1, 1);
+        }
+    } else if (app->cpu_core_count > 0) {
+        /* Subsequent calls: just update label text */
+        for (int i = 0; i < app->cpu_core_count && i < 32; i++) {
+            if (app->cpu_core_freq_labels[i] != NULL) {
+                char label_text[128];
+                snprintf(label_text, sizeof(label_text), "Core %d: %s", i, core_freqs[i]);
+                gtk_label_set_text(GTK_LABEL(app->cpu_core_freq_labels[i]), label_text);
+            }
+        }
+    }
 
     /* Sync auto-mode switch state with daemon */
     if (app->cpu_auto_mode_switch) {
@@ -3189,6 +3237,29 @@ static GtkWidget *create_cpu_page(AppData *app) {
 
         app->cpu_auto_mode_signal_id = g_signal_connect(app->cpu_auto_mode_switch, "state-set",
                         G_CALLBACK(on_cpu_auto_mode_toggled), app);
+    }
+
+    /* Section: Per-Core Frequencies */
+    {
+        GtkWidget *core_frame = gtk_frame_new("Per-Core Frequencies");
+        GtkWidget *core_scrolled = gtk_scrolled_window_new(NULL, NULL);
+        gtk_scrolled_window_set_policy(GTK_SCROLLED_WINDOW(core_scrolled), GTK_POLICY_NEVER, GTK_POLICY_AUTOMATIC);
+        gtk_scrolled_window_set_max_content_height(GTK_SCROLLED_WINDOW(core_scrolled), 200);
+        gtk_container_set_border_width(GTK_CONTAINER(core_scrolled), 5);
+        gtk_container_add(GTK_CONTAINER(core_frame), core_scrolled);
+        gtk_box_pack_start(GTK_BOX(vbox), core_frame, FALSE, FALSE, 0);
+
+        /* Grid: 4 columns for compact display */
+        app->cpu_core_grid = gtk_grid_new();
+        gtk_grid_set_row_spacing(GTK_GRID(app->cpu_core_grid), 2);
+        gtk_grid_set_column_spacing(GTK_GRID(app->cpu_core_grid), 10);
+        gtk_container_add(GTK_CONTAINER(core_scrolled), app->cpu_core_grid);
+
+        /* Initialize all 32 labels to N/A (will be populated at runtime) */
+        app->cpu_core_count = 0;
+        for (int i = 0; i < 32; i++) {
+            app->cpu_core_freq_labels[i] = NULL;
+        }
     }
 
     return vbox;
