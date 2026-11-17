@@ -827,10 +827,101 @@ static void on_cpu_custom_profile_changed(GtkWidget *widget, gpointer user_data)
 
 /* Callback: Create new frequency profile */
 static void on_cpu_create_freq_profile_clicked(GtkWidget *widget, gpointer user_data) {
+    (void)widget;
     AppData *app = (AppData *)user_data;
     g_print("[GUI] Create frequency profile clicked\n");
-    /* TODO: Show dialog to enter profile name */
-    gtk_label_set_text(GTK_LABEL(app->cpu_freq_profile_status_label), "Create not yet implemented");
+
+    /* Show dialog to enter profile name */
+    GtkWidget *dialog = gtk_dialog_new_with_buttons("Create CPU Frequency Profile",
+                                                    GTK_WINDOW(app->window),
+                                                    GTK_DIALOG_MODAL | GTK_DIALOG_DESTROY_WITH_PARENT,
+                                                    "_Cancel", GTK_RESPONSE_CANCEL,
+                                                    "_Create", GTK_RESPONSE_ACCEPT,
+                                                    NULL);
+    gtk_window_set_resizable(GTK_WINDOW(dialog), FALSE);
+    gtk_window_set_default_size(GTK_WINDOW(dialog), 350, -1);
+
+    GtkWidget *content = gtk_dialog_get_content_area(GTK_DIALOG(dialog));
+    gtk_container_set_border_width(GTK_CONTAINER(content), 10);
+
+    GtkWidget *label = gtk_label_new("Enter profile name:");
+    gtk_box_pack_start(GTK_BOX(content), label, FALSE, FALSE, 0);
+
+    GtkWidget *entry = gtk_entry_new();
+    gtk_box_pack_start(GTK_BOX(content), entry, TRUE, TRUE, 0);
+
+    gtk_widget_show_all(content);
+
+    if (gtk_dialog_run(GTK_DIALOG(dialog)) == GTK_RESPONSE_ACCEPT) {
+        const gchar *name = gtk_entry_get_text(GTK_ENTRY(entry));
+
+        if (strlen(name) > 0) {
+            /* Check for duplicate profile name */
+            int duplicate = 0;
+            GtkTreeIter iter;
+            if (gtk_tree_model_get_iter_first(GTK_TREE_MODEL(app->cpu_custom_profile_store), &iter)) {
+                do {
+                    gchar *existing_name = NULL;
+                    gtk_tree_model_get(GTK_TREE_MODEL(app->cpu_custom_profile_store), &iter, 0, &existing_name, -1);
+                    if (existing_name && strcmp(existing_name, name) == 0) {
+                        duplicate = 1;
+                        g_free(existing_name);
+                        break;
+                    }
+                    g_free(existing_name);
+                } while (gtk_tree_model_iter_next(GTK_TREE_MODEL(app->cpu_custom_profile_store), &iter));
+            }
+
+            if (duplicate) {
+                GtkWidget *error_dialog = gtk_message_dialog_new(GTK_WINDOW(app->window),
+                                                                 GTK_DIALOG_MODAL | GTK_DIALOG_DESTROY_WITH_PARENT,
+                                                                 GTK_MESSAGE_ERROR,
+                                                                 GTK_BUTTONS_OK,
+                                                                 "A CPU frequency profile with the name '%s' already exists.",
+                                                                 name);
+                gtk_dialog_run(GTK_DIALOG(error_dialog));
+                gtk_widget_destroy(error_dialog);
+                gtk_widget_destroy(dialog);
+                return;
+            }
+
+            /* Send CREATE_CUSTOM_PROFILE command to daemon */
+            char cmd[256];
+            snprintf(cmd, sizeof(cmd), "CREATE_CUSTOM_PROFILE %s schedutil %u 0", name, HARD_MAX_FREQ_HZ);
+            const char *response = send_cpu_command(app, cmd);
+            g_print("[GUI] CREATE_CUSTOM_PROFILE response: %s\n", response ? response : "NULL");
+
+            /* Reload the profile list */
+            load_cpu_custom_profiles(app);
+
+            /* Find and select the newly created profile */
+            int new_idx = -1;
+            if (gtk_tree_model_get_iter_first(GTK_TREE_MODEL(app->cpu_custom_profile_store), &iter)) {
+                int i = 0;
+                do {
+                    gchar *existing_name = NULL;
+                    gtk_tree_model_get(GTK_TREE_MODEL(app->cpu_custom_profile_store), &iter, 0, &existing_name, -1);
+                    if (existing_name && strcmp(existing_name, name) == 0) {
+                        new_idx = i;
+                        g_free(existing_name);
+                        break;
+                    }
+                    g_free(existing_name);
+                    i++;
+                } while (gtk_tree_model_iter_next(GTK_TREE_MODEL(app->cpu_custom_profile_store), &iter));
+            }
+
+            if (new_idx >= 0) {
+                gtk_combo_box_set_active(GTK_COMBO_BOX(app->cpu_custom_profile_combo), new_idx);
+                app->cpu_active_custom_profile_idx = new_idx;
+            }
+
+            gtk_label_set_text(GTK_LABEL(app->cpu_freq_profile_status_label),
+                              g_strconcat("Created profile: ", name, NULL));
+        }
+    }
+
+    gtk_widget_destroy(dialog);
 }
 
 /* Callback: Delete selected frequency profile */
