@@ -3453,7 +3453,7 @@ static GtkWidget *create_main_window(AppData *app) {
     gtk_notebook_append_page(GTK_NOTEBOOK(app->notebook), page1, gtk_label_new("Status"));
     gtk_notebook_append_page(GTK_NOTEBOOK(app->notebook), page2, gtk_label_new("Curve Editor"));
     gtk_notebook_append_page(GTK_NOTEBOOK(app->notebook), page3, gtk_label_new("Fan Profiles"));
-    gtk_notebook_append_page(GTK_NOTEBOOK(app->notebook), page5, gtk_label_new("CPU"));
+    gtk_notebook_append_page(GTK_NOTEBOOK(app->notebook), page5, gtk_label_new("CPU Profiles"));
     gtk_notebook_append_page(GTK_NOTEBOOK(app->notebook), page4, gtk_label_new("Logs"));
     gtk_notebook_append_page(GTK_NOTEBOOK(app->notebook), page6, gtk_label_new("About"));
     
