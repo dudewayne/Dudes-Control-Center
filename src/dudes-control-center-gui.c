@@ -3132,7 +3132,7 @@ static GtkWidget *create_about_page(void) {
     gtk_widget_set_halign(contact_github_text, GTK_ALIGN_CENTER);
     gtk_box_pack_start(GTK_BOX(thanks_vbox), contact_github_text, TRUE, FALSE, 2);
     
-    GtkWidget *contact_github = create_clickable_link("https://github.com/dudewayne");
+    GtkWidget *contact_github = create_clickable_link("https://github.com/dudewayne/Dudes-Control-Center");
     gtk_box_pack_start(GTK_BOX(thanks_vbox), contact_github, TRUE, FALSE, 0);
     
     return vbox;
