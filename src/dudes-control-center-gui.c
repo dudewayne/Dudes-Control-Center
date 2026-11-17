@@ -177,6 +177,22 @@ typedef struct {
     GtkWidget *cpu_core_grid;
     GtkWidget *cpu_core_freq_labels[32];
     int cpu_core_count;
+    
+    /* Per-core frequency profile management UI */
+    GtkWidget *cpu_custom_profile_combo;
+    GtkListStore *cpu_custom_profile_store;
+    GtkWidget *cpu_apply_all_cores_checkbox;
+    GtkWidget *cpu_freq_profile_create_btn;
+    GtkWidget *cpu_freq_profile_delete_btn;
+    GtkWidget *cpu_freq_profile_apply_btn;
+    GtkWidget *cpu_freq_profile_status_label;
+    GtkWidget *cpu_core_freq_grid; /* Grid for per-core min/max spinners */
+    GtkWidget *cpu_core_max_spinners[32]; /* Spinners for max freq per core */
+    GtkWidget *cpu_core_min_spinners[32]; /* Spinners for min freq per core */
+    GtkAdjustment *cpu_core_max_adjustments[32];
+    GtkAdjustment *cpu_core_min_adjustments[32];
+    int cpu_active_custom_profile_idx;
+    int cpu_freq_profiles_modified; /* Track unsaved changes */
 } AppData;
 
 /* Forward declarations for callbacks */
@@ -224,6 +240,17 @@ static gboolean cpu_refresh_timer_callback(gpointer user_data);
 static void load_cpu_governors(AppData *app);
 static void on_cpu_governor_changed(GtkWidget *widget, gpointer user_data);
 static void on_cpu_auto_mode_toggled(GtkSwitch *switch_widget, gboolean is_on, gpointer user_data);
+
+/* Forward declarations for CPU custom frequency profile management */
+static void load_cpu_custom_profiles(AppData *app);
+static void on_cpu_custom_profile_changed(GtkWidget *widget, gpointer user_data);
+static void on_cpu_create_freq_profile_clicked(GtkWidget *widget, gpointer user_data);
+static void on_cpu_delete_freq_profile_clicked(GtkWidget *widget, gpointer user_data);
+static void on_cpu_apply_freq_profile_clicked(GtkWidget *widget, gpointer user_data);
+static void on_cpu_apply_all_cores_toggled(GtkCheckButton *checkbox, gpointer user_data);
+static void build_cpu_core_freq_grid(AppData *app, int num_cores);
+static void update_cpu_core_freq_spinners(AppData *app, int profile_idx);
+static void mark_cpu_freq_profiles_modified(AppData *app);
 
 /* Forward declarations for profile and curve management */
 static void refresh_profile_list(AppData *app);
@@ -720,6 +747,123 @@ static void on_cpu_auto_mode_toggled(GtkSwitch *switch_widget, gboolean is_on, g
             g_signal_handler_unblock(switch_widget, app->cpu_auto_mode_signal_id);
         }
     }
+}
+
+/* ============================================================
+ * CPU Custom Frequency Profile Management callbacks
+ * ============================================================ */
+
+/* Load custom frequency profiles from daemon into combo box */
+static void load_cpu_custom_profiles(AppData *app) {
+    if (!app->cpu_connected) {
+        g_print("[GUI] CPU not connected, skipping custom profile load\n");
+        return;
+    }
+
+    const char *response = send_cpu_command(app, "LIST_CUSTOM_PROFILES");
+    if (response == NULL || strncmp(response, "ERROR", 5) == 0) {
+        g_print("[GUI] Failed to load custom profiles: %s\n", response ? response : "(null)");
+        return;
+    }
+
+    gtk_list_store_clear(app->cpu_custom_profile_store);
+
+    /* Parse response: lines like " [*] ProfileName (gov=schedutil, cores=24, all_cores=0)"
+     * or "     ProfileName (gov=performance, cores=24, all_cores=1)" */
+    char *resp_copy = g_strdup(response);
+    char *line = strtok(resp_copy, "\n");
+    int profile_count = 0;
+    while (line != NULL) {
+        /* Skip empty lines */
+        if (strlen(line) == 0) {
+            line = strtok(NULL, "\n");
+            continue;
+        }
+
+        /* Find the profile name: skip leading spaces/marker, extract name before " (" */
+        char *name_start = line + strspn(line, " ");  /* Skip leading whitespace */
+        char *paren_pos = strstr(name_start, " (");
+        if (paren_pos != NULL) {
+            /* Truncate name at the opening paren */
+            *paren_pos = '\0';
+
+            GtkTreeIter iter;
+            gtk_list_store_append(app->cpu_custom_profile_store, &iter);
+            gtk_list_store_set(app->cpu_custom_profile_store, &iter, 0, name_start, -1);
+            profile_count++;
+        }
+        line = strtok(NULL, "\n");
+    }
+    g_free(resp_copy);
+
+    g_print("[GUI] Loaded %d custom frequency profiles\n", profile_count);
+}
+
+/* Callback: Custom profile combo box changed */
+static void on_cpu_custom_profile_changed(GtkWidget *widget, gpointer user_data) {
+    AppData *app = (AppData *)user_data;
+    int active = gtk_combo_box_get_active(GTK_COMBO_BOX(widget));
+    if (active < 0) return;
+
+    app->cpu_active_custom_profile_idx = active;
+    g_print("[GUI] Selected custom profile index %d\n", active);
+
+    /* Enable delete and apply buttons */
+    gtk_widget_set_sensitive(app->cpu_freq_profile_delete_btn, TRUE);
+    gtk_widget_set_sensitive(app->cpu_freq_profile_apply_btn, TRUE);
+    gtk_widget_set_sensitive(app->cpu_apply_all_cores_checkbox, TRUE);
+
+    /* TODO: Load profile data and populate spinners */
+    gtk_label_set_text(GTK_LABEL(app->cpu_freq_profile_status_label), "Profile selected - click Apply to activate");
+}
+
+/* Callback: Create new frequency profile */
+static void on_cpu_create_freq_profile_clicked(GtkWidget *widget, gpointer user_data) {
+    AppData *app = (AppData *)user_data;
+    g_print("[GUI] Create frequency profile clicked\n");
+    /* TODO: Show dialog to enter profile name */
+    gtk_label_set_text(GTK_LABEL(app->cpu_freq_profile_status_label), "Create not yet implemented");
+}
+
+/* Callback: Delete selected frequency profile */
+static void on_cpu_delete_freq_profile_clicked(GtkWidget *widget, gpointer user_data) {
+    AppData *app = (AppData *)user_data;
+    g_print("[GUI] Delete frequency profile clicked\n");
+    /* TODO: Delete profile via daemon */
+    gtk_label_set_text(GTK_LABEL(app->cpu_freq_profile_status_label), "Delete not yet implemented");
+}
+
+/* Callback: Apply selected frequency profile */
+static void on_cpu_apply_freq_profile_clicked(GtkWidget *widget, gpointer user_data) {
+    AppData *app = (AppData *)user_data;
+    g_print("[GUI] Apply frequency profile clicked\n");
+    /* TODO: Save spinner values and apply profile via daemon */
+    gtk_label_set_text(GTK_LABEL(app->cpu_freq_profile_status_label), "Apply not yet implemented");
+}
+
+/* Callback: Apply to All Cores checkbox toggled */
+static void on_cpu_apply_all_cores_toggled(GtkCheckButton *checkbox, gpointer user_data) {
+    AppData *app = (AppData *)user_data;
+    int active = gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(checkbox));
+    g_print("[GUI] Apply to All Cores: %s\n", active ? "ON" : "OFF");
+    /* TODO: When checked, copy first core value to all cores */
+}
+
+/* Build the per-core frequency grid with spinners */
+static void build_cpu_core_freq_grid(AppData *app, int num_cores) {
+    g_print("[GUI] build_cpu_core_freq_grid called with %d cores\n", num_cores);
+    /* TODO: Create grid with min/max spinners for each core */
+}
+
+/* Update spinner values from profile data */
+static void update_cpu_core_freq_spinners(AppData *app, int profile_idx) {
+    g_print("[GUI] update_cpu_core_freq_spinners called for profile %d\n", profile_idx);
+    /* TODO: Fetch profile data and update spinners */
+}
+
+/* Mark that frequency profiles have been modified */
+static void mark_cpu_freq_profiles_modified(AppData *app) {
+    app->cpu_freq_profiles_modified = 1;
 }
 
 /* Callback: Manual mode switch toggled */
@@ -3390,6 +3534,84 @@ static GtkWidget *create_cpu_page(AppData *app) {
                         G_CALLBACK(on_cpu_auto_mode_toggled), app);
     }
 
+    /* Section: Per-Core Frequency Profiles */
+    {
+        GtkWidget *freq_frame = gtk_frame_new("Per-Core Frequency Profiles");
+        GtkWidget *freq_box = gtk_box_new(GTK_ORIENTATION_VERTICAL, 5);
+        gtk_container_set_border_width(GTK_CONTAINER(freq_box), 10);
+        gtk_container_add(GTK_CONTAINER(freq_frame), freq_box);
+        gtk_box_pack_start(GTK_BOX(vbox), freq_frame, FALSE, FALSE, 0);
+
+        /* Profile combo box */
+        {
+            GtkWidget *row = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 10);
+            GtkWidget *label = gtk_label_new("Frequency Profile:");
+            gtk_widget_set_halign(label, GTK_ALIGN_END);
+            gtk_label_set_width_chars(GTK_LABEL(label), 20);
+            gtk_box_pack_start(GTK_BOX(row), label, FALSE, FALSE, 0);
+
+            app->cpu_custom_profile_store = gtk_list_store_new(1, G_TYPE_STRING);
+            app->cpu_custom_profile_combo = gtk_combo_box_new();
+            gtk_combo_box_set_model(GTK_COMBO_BOX(app->cpu_custom_profile_combo), GTK_TREE_MODEL(app->cpu_custom_profile_store));
+            GtkCellRenderer *renderer = gtk_cell_renderer_text_new();
+            gtk_cell_layout_pack_start(GTK_CELL_LAYOUT(app->cpu_custom_profile_combo), renderer, TRUE);
+            gtk_cell_layout_set_attributes(GTK_CELL_LAYOUT(app->cpu_custom_profile_combo), renderer, "text", 0, NULL);
+            gtk_widget_set_hexpand(app->cpu_custom_profile_combo, TRUE);
+            gtk_box_pack_start(GTK_BOX(row), app->cpu_custom_profile_combo, TRUE, TRUE, 0);
+            gtk_box_pack_start(GTK_BOX(freq_box), row, FALSE, FALSE, 0);
+
+            g_signal_connect(app->cpu_custom_profile_combo, "changed", G_CALLBACK(on_cpu_custom_profile_changed), app);
+        }
+
+        /* Apply to All Cores checkbox */
+        {
+            app->cpu_apply_all_cores_checkbox = gtk_check_button_new_with_label("Apply values to all cores");
+            gtk_box_pack_start(GTK_BOX(freq_box), app->cpu_apply_all_cores_checkbox, FALSE, FALSE, 0);
+            gtk_widget_set_sensitive(app->cpu_apply_all_cores_checkbox, FALSE); /* Disabled until profile selected */
+            g_signal_connect(app->cpu_apply_all_cores_checkbox, "toggled", G_CALLBACK(on_cpu_apply_all_cores_toggled), app);
+        }
+
+        /* Scrollable area for per-core min/max spinners */
+        {
+            GtkWidget *scroll = gtk_scrolled_window_new(NULL, NULL);
+            gtk_scrolled_window_set_policy(GTK_SCROLLED_WINDOW(scroll), GTK_POLICY_NEVER, GTK_POLICY_AUTOMATIC);
+            gtk_container_set_border_width(GTK_CONTAINER(scroll), 5);
+            gtk_widget_set_size_request(scroll, -1, 200); /* Fixed height for the scroll area */
+            gtk_box_pack_start(GTK_BOX(freq_box), scroll, FALSE, FALSE, 0);
+
+            app->cpu_core_freq_grid = gtk_grid_new();
+            gtk_container_add(GTK_CONTAINER(scroll), app->cpu_core_freq_grid);
+            /* Grid will be populated when a profile is selected */
+        }
+
+        /* Create/Delete/Apply buttons */
+        {
+            GtkWidget *btn_box = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 10);
+            gtk_box_pack_start(GTK_BOX(freq_box), btn_box, FALSE, FALSE, 0);
+
+            app->cpu_freq_profile_create_btn = gtk_button_new_with_label("Create Profile");
+            gtk_box_pack_start(GTK_BOX(btn_box), app->cpu_freq_profile_create_btn, FALSE, FALSE, 0);
+            g_signal_connect(app->cpu_freq_profile_create_btn, "clicked", G_CALLBACK(on_cpu_create_freq_profile_clicked), app);
+
+            app->cpu_freq_profile_delete_btn = gtk_button_new_with_label("Delete Profile");
+            gtk_box_pack_start(GTK_BOX(btn_box), app->cpu_freq_profile_delete_btn, FALSE, FALSE, 0);
+            g_signal_connect(app->cpu_freq_profile_delete_btn, "clicked", G_CALLBACK(on_cpu_delete_freq_profile_clicked), app);
+            gtk_widget_set_sensitive(app->cpu_freq_profile_delete_btn, FALSE); /* Disabled until profile selected */
+
+            app->cpu_freq_profile_apply_btn = gtk_button_new_with_label("Apply Profile");
+            gtk_box_pack_start(GTK_BOX(btn_box), app->cpu_freq_profile_apply_btn, FALSE, FALSE, 0);
+            g_signal_connect(app->cpu_freq_profile_apply_btn, "clicked", G_CALLBACK(on_cpu_apply_freq_profile_clicked), app);
+            gtk_widget_set_sensitive(app->cpu_freq_profile_apply_btn, FALSE); /* Disabled until profile selected */
+        }
+
+        /* Status label */
+        {
+            app->cpu_freq_profile_status_label = gtk_label_new("");
+            gtk_widget_set_halign(app->cpu_freq_profile_status_label, GTK_ALIGN_START);
+            gtk_box_pack_start(GTK_BOX(freq_box), app->cpu_freq_profile_status_label, FALSE, FALSE, 0);
+        }
+    }
+
     return vbox;
 }
 
@@ -4016,6 +4238,9 @@ int main(int argc, char *argv[]) {
 
         /* Load governors into combo box */
         load_cpu_governors(&app);
+
+        /* Load custom frequency profiles into combo box */
+        load_cpu_custom_profiles(&app);
     }
 
     /* Create system tray icon */
