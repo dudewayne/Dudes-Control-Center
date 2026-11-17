@@ -486,6 +486,11 @@ static void parse_cpu_status(AppData *app, const char *response) {
         line = strtok_r(NULL, "\n", &saveptr);
     }
 
+    /* Set current frequency from first core if available */
+    if (core_count > 0) {
+        strncpy(freq_values, core_freqs[0], sizeof(freq_values) - 1);
+    }
+
     /* Update labels */
     char temp_text[32], load_text[32], num_text[32];
     snprintf(temp_text, sizeof(temp_text), "%d°C", cpu_temp);

@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.4.5] - 2026-11-17
+
+### Fixed
+- **Current Frequency label on CPU tab showed "N/A"**: The per-core parser replaced the old single-core frequency parse but never populated the `freq_values` label. Now connected to the first core's frequency.
+
 ## [1.4.4] - 2026-11-17
 
 ### Fixed
