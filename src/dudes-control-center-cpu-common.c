@@ -1083,6 +1083,31 @@ int cpu_custom_profile_delete(int idx) {
     return 0;
 }
 
+/* Rename a custom profile by index */
+int cpu_custom_profile_rename(int idx, const char *new_name) {
+    if (idx < 0 || idx >= g_cpu_state.num_custom_profiles) return -1;
+    if (new_name == NULL || strlen(new_name) == 0) return -1;
+
+    /* Check for duplicate name */
+    for (int i = 0; i < g_cpu_state.num_custom_profiles; i++) {
+        if (i != idx && strcmp(g_cpu_state.custom_profiles[i].name, new_name) == 0) {
+            LOG_WARN("[CPU] Rename failed: profile '%s' already exists", new_name);
+            return -1;
+        }
+    }
+
+    CpuCustomProfile *p = &g_cpu_state.custom_profiles[idx];
+    char old_name[64];
+    strncpy(old_name, p->name, sizeof(old_name) - 1);
+    old_name[sizeof(old_name) - 1] = '\0';
+
+    strncpy(p->name, new_name, CPU_PROFILE_NAME_MAX - 1);
+    p->name[CPU_PROFILE_NAME_MAX - 1] = '\0';
+
+    LOG_INFO("[CPU] Renamed custom profile '%s' to '%s'", old_name, p->name);
+    return 0;
+}
+
 /* Set per-core frequency in a custom profile */
 int cpu_custom_profile_set_core_freq(int profile_idx, int cpu_id,
                                      uint32_t max_freq_hz, uint32_t min_freq_hz) {

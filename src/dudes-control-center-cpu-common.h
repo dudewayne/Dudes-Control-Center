@@ -163,6 +163,7 @@ int cpu_profile_set_last_used(const char *name);        /* Set last used profile
 int cpu_custom_profile_create(const char *name, CpuGovernor governor,
                               uint32_t default_max_freq_hz, int apply_all_cores);  /* Create new custom profile */
 int cpu_custom_profile_delete(int idx);                  /* Delete a custom profile by index */
+int cpu_custom_profile_rename(int idx, const char *new_name);  /* Rename a custom profile by index */
 int cpu_custom_profile_save_json(void);                  /* Save all custom profiles to JSON file */
 int cpu_custom_profile_load_json(void);                  /* Load all custom profiles from JSON file */
 int cpu_custom_profile_apply(int idx);                   /* Apply a custom profile by index (set per-core frequencies) */

@@ -494,6 +494,27 @@ static void handle_command(const char *cmd, char *response, size_t resp_size) {
         return;
     }
 
+    /* --- RENAME_CUSTOM_PROFILE <index> <new_name> --- */
+    if (strcmp(action, "RENAME_CUSTOM_PROFILE") == 0) {
+        if (!arg1[0] || !arg2[0]) {
+            snprintf(response, resp_size, "ERROR Usage: RENAME_CUSTOM_PROFILE <index> <new_name>\n");
+            return;
+        }
+
+        /* Reconstruct full name from arg2+arg3+arg4 (names can contain spaces) */
+        char new_name[256] = {0};
+        snprintf(new_name, sizeof(new_name), "%s%s%s%s%s", arg2, arg3[0] ? " " : "", arg3, arg4[0] ? " " : "", arg4);
+
+        int idx = atoi(arg1);
+        if (cpu_custom_profile_rename(idx, new_name) == 0) {
+            cpu_custom_profile_save_json();
+            snprintf(response, resp_size, "OK Custom profile renamed to '%s'\n", new_name);
+        } else {
+            snprintf(response, resp_size, "ERROR Failed to rename custom profile (name may already exist)\n");
+        }
+        return;
+    }
+
     /* --- SAVE_CUSTOM_PROFILES --- */
     if (strcmp(action, "SAVE_CUSTOM_PROFILES") == 0) {
         if (cpu_custom_profile_save_json() == 0) {

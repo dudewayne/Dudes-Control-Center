@@ -185,6 +185,7 @@ typedef struct {
     GtkWidget *cpu_apply_all_cores_checkbox;
     GtkWidget *cpu_freq_profile_create_btn;
     GtkWidget *cpu_freq_profile_delete_btn;
+    GtkWidget *cpu_freq_profile_rename_btn;
     GtkWidget *cpu_freq_profile_apply_btn;
     GtkWidget *cpu_freq_profile_status_label;
     GtkWidget *cpu_core_freq_grid; /* Grid for per-core min/max spinners */
@@ -809,8 +810,9 @@ static void on_cpu_custom_profile_changed(GtkWidget *widget, gpointer user_data)
     app->cpu_active_custom_profile_idx = active;
     g_print("[GUI] Selected custom profile index %d\n", active);
 
-    /* Enable delete and apply buttons */
+    /* Enable delete, rename, and apply buttons */
     gtk_widget_set_sensitive(app->cpu_freq_profile_delete_btn, TRUE);
+    gtk_widget_set_sensitive(app->cpu_freq_profile_rename_btn, TRUE);
     gtk_widget_set_sensitive(app->cpu_freq_profile_apply_btn, TRUE);
     gtk_widget_set_sensitive(app->cpu_apply_all_cores_checkbox, TRUE);
 
@@ -980,6 +982,83 @@ static void on_cpu_delete_freq_profile_clicked(GtkWidget *widget, gpointer user_
     }
 
     g_free(profile_name);
+    gtk_widget_destroy(dialog);
+}
+
+/* Callback: Rename selected frequency profile */
+static void on_cpu_rename_freq_profile_clicked(GtkWidget *widget, gpointer user_data) {
+    (void)widget;
+    AppData *app = (AppData *)user_data;
+    g_print("[GUI] Rename frequency profile clicked\n");
+
+    int idx = gtk_combo_box_get_active(GTK_COMBO_BOX(app->cpu_custom_profile_combo));
+    if (idx < 0) {
+        gtk_label_set_text(GTK_LABEL(app->cpu_freq_profile_status_label), "No profile selected");
+        return;
+    }
+
+    /* Get current profile name */
+    gchar *current_name = NULL;
+    GtkTreeIter iter;
+    if (gtk_combo_box_get_active_iter(GTK_COMBO_BOX(app->cpu_custom_profile_combo), &iter)) {
+        gtk_tree_model_get(GTK_TREE_MODEL(app->cpu_custom_profile_store), &iter, 0, &current_name, -1);
+    }
+
+    if (current_name == NULL) {
+        gtk_label_set_text(GTK_LABEL(app->cpu_freq_profile_status_label), "Could not read profile name");
+        return;
+    }
+
+    /* Strip * indicator from display name for the entry default */
+    gchar *clean_name = g_strdup(current_name);
+    char *star = strchr(clean_name, '*');
+    if (star) *star = '\0';
+    g_strchomp(clean_name);
+
+    /* Show dialog to enter new name */
+    GtkWidget *dialog = gtk_dialog_new_with_buttons("Rename CPU Frequency Profile",
+                                                    GTK_WINDOW(app->window),
+                                                    GTK_DIALOG_MODAL | GTK_DIALOG_DESTROY_WITH_PARENT,
+                                                    "_Cancel", GTK_RESPONSE_CANCEL,
+                                                    "_Rename", GTK_RESPONSE_ACCEPT,
+                                                    NULL);
+    gtk_window_set_resizable(GTK_WINDOW(dialog), FALSE);
+    gtk_window_set_default_size(GTK_WINDOW(dialog), 350, -1);
+
+    GtkWidget *content = gtk_dialog_get_content_area(GTK_DIALOG(dialog));
+    gtk_container_set_border_width(GTK_CONTAINER(content), 10);
+
+    GtkWidget *label = gtk_label_new("Enter new profile name:");
+    gtk_box_pack_start(GTK_BOX(content), label, FALSE, FALSE, 0);
+
+    GtkWidget *entry = gtk_entry_new();
+    gtk_entry_set_text(GTK_ENTRY(entry), clean_name);
+    gtk_box_pack_start(GTK_BOX(content), entry, TRUE, TRUE, 0);
+
+    gtk_widget_show_all(content);
+
+    if (gtk_dialog_run(GTK_DIALOG(dialog)) == GTK_RESPONSE_ACCEPT) {
+        const gchar *new_name = gtk_entry_get_text(GTK_ENTRY(entry));
+
+        if (strlen(new_name) > 0) {
+            /* Send RENAME_CUSTOM_PROFILE command */
+            char cmd[256];
+            snprintf(cmd, sizeof(cmd), "RENAME_CUSTOM_PROFILE %d %s", idx, new_name);
+            const char *response = send_cpu_command(app, cmd);
+            g_print("[GUI] RENAME_CUSTOM_PROFILE response: %s\n", response ? response : "NULL");
+
+            /* Reload the profile list */
+            load_cpu_custom_profiles(app);
+
+            gtk_label_set_text(GTK_LABEL(app->cpu_freq_profile_status_label),
+                              g_strconcat("Renamed profile to: ", new_name, NULL));
+        } else {
+            gtk_label_set_text(GTK_LABEL(app->cpu_freq_profile_status_label), "Name cannot be empty");
+        }
+    }
+
+    g_free(clean_name);
+    g_free(current_name);
     gtk_widget_destroy(dialog);
 }
 
@@ -3898,6 +3977,11 @@ static GtkWidget *create_cpu_page(AppData *app) {
             gtk_box_pack_start(GTK_BOX(btn_box), app->cpu_freq_profile_delete_btn, FALSE, FALSE, 0);
             g_signal_connect(app->cpu_freq_profile_delete_btn, "clicked", G_CALLBACK(on_cpu_delete_freq_profile_clicked), app);
             gtk_widget_set_sensitive(app->cpu_freq_profile_delete_btn, FALSE); /* Disabled until profile selected */
+
+            app->cpu_freq_profile_rename_btn = gtk_button_new_with_label("Rename Profile");
+            gtk_box_pack_start(GTK_BOX(btn_box), app->cpu_freq_profile_rename_btn, FALSE, FALSE, 0);
+            g_signal_connect(app->cpu_freq_profile_rename_btn, "clicked", G_CALLBACK(on_cpu_rename_freq_profile_clicked), app);
+            gtk_widget_set_sensitive(app->cpu_freq_profile_rename_btn, FALSE); /* Disabled until profile selected */
 
             app->cpu_freq_profile_apply_btn = gtk_button_new_with_label("Apply Profile");
             gtk_box_pack_start(GTK_BOX(btn_box), app->cpu_freq_profile_apply_btn, FALSE, FALSE, 0);
