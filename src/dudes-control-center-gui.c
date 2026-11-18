@@ -774,7 +774,8 @@ static void load_cpu_custom_profiles(AppData *app) {
     gtk_list_store_clear(app->cpu_custom_profile_store);
 
     /* Parse response: lines like " [*] ProfileName (gov=schedutil, cores=24, all_cores=0)"
-     * or "     ProfileName (gov=performance, cores=24, all_cores=1)" */
+     * or "     ProfileName (gov=performance, cores=24, all_cores=1)"
+     * Keep the full line (including [*] marker) as the display name, like fan profiles do. */
     char *resp_copy = g_strdup(response);
     char *line = strtok(resp_copy, "\n");
     int profile_count = 0;
@@ -789,27 +790,15 @@ static void load_cpu_custom_profiles(AppData *app) {
         /* Check for active marker "[*]" */
         int is_active = (strstr(line, "[*]") != NULL);
 
-        /* Find the profile name: skip leading spaces/marker, extract name before " (" */
-        char *name_start = line + strspn(line, " ");  /* Skip leading whitespace */
-        /* If the line starts with "[*]", skip the marker */
+        /* Use the full line as display name (includes [*] marker for active profile) */
+        GtkTreeIter iter;
+        gtk_list_store_append(app->cpu_custom_profile_store, &iter);
+        gtk_list_store_set(app->cpu_custom_profile_store, &iter, 0, line, -1);
         if (is_active) {
-            name_start = strchr(name_start, ']');
-            if (name_start) name_start += 1;
-            name_start += strspn(name_start, " ");
+            active_idx = profile_count;
         }
-        char *paren_pos = strstr(name_start, " (");
-        if (paren_pos != NULL) {
-            /* Truncate name at the opening paren */
-            *paren_pos = '\0';
+        profile_count++;
 
-            GtkTreeIter iter;
-            gtk_list_store_append(app->cpu_custom_profile_store, &iter);
-            gtk_list_store_set(app->cpu_custom_profile_store, &iter, 0, name_start, -1);
-            if (is_active) {
-                active_idx = profile_count;
-            }
-            profile_count++;
-        }
         line = strtok(NULL, "\n");
     }
     g_free(resp_copy);
