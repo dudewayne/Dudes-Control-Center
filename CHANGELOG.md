@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.6.7] - 2026-11-18
+
+### Fixed
+- **CPU core frequency grid not populated on tab switch or after delete**: The grid remained empty on first visit to the CPU Profiles tab and after deleting a profile. Root cause: GTK3 lazy-realizes notebook pages, so building the grid during the `switch-page` callback failed silently. Grid population is now deferred via `g_idle_add` until widgets are fully realized.
+
 ## [1.6.6] - 2026-11-18
 
 ### Fixed
