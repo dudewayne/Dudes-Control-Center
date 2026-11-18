@@ -4783,8 +4783,7 @@ int main(int argc, char *argv[]) {
         /* Load governors into combo box */
         load_cpu_governors(&app);
 
-        /* Load custom frequency profiles into combo box */
-        load_cpu_custom_profiles(&app);
+        /* CPU custom profiles are loaded on page switch via on_notebook_page_switched */
     }
 
     /* Create system tray icon */
