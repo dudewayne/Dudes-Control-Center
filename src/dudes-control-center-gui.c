@@ -246,6 +246,7 @@ static void on_cpu_governor_changed(GtkWidget *widget, gpointer user_data);
 static void on_cpu_auto_mode_toggled(GtkSwitch *switch_widget, gboolean is_on, gpointer user_data);
 
 /* Forward declarations for CPU custom frequency profile management */
+static gboolean populate_cpu_core_grid_idle(gpointer data);
 static void load_cpu_custom_profiles(AppData *app);
 static void on_cpu_custom_profile_changed(GtkWidget *widget, gpointer user_data);
 static void on_cpu_create_freq_profile_clicked(GtkWidget *widget, gpointer user_data);
@@ -286,6 +287,19 @@ static gboolean refresh_profile_tab_idle(gpointer data) {
     AppData *app = (AppData *)data;
     refresh_profile_list(app);
     update_profile_tab_for_manual_mode(app, app->in_manual_mode);
+    return FALSE; /* Don't repeat */
+}
+
+/* Idle callback: populate CPU core frequency grid (defer until GTK realizes widgets on the page) */
+static gboolean populate_cpu_core_grid_idle(gpointer data) {
+    AppData *app = (AppData *)data;
+    g_print("[GUI] populate_cpu_core_grid_idle: cpu_core_count=%d, active_idx=%d\n",
+            app->cpu_core_count, app->cpu_active_custom_profile_idx);
+
+    if (app->cpu_core_count > 0 && app->cpu_active_custom_profile_idx >= 0) {
+        build_cpu_core_freq_grid(app, app->cpu_core_count);
+        update_cpu_core_freq_spinners(app, app->cpu_active_custom_profile_idx);
+    }
     return FALSE; /* Don't repeat */
 }
 
@@ -1009,10 +1023,10 @@ static void on_cpu_delete_freq_profile_clicked(GtkWidget *widget, gpointer user_
         /* Save profiles to disk (GUI writes directly) */
         gui_save_profiles_to_disk(app);
 
-        /* Rebuild the grid with the new active profile's data */
+        /* Defer grid rebuild until the next main loop iteration so the widget
+         * hierarchy is stable after the profile list reload. */
         if (app->cpu_core_count > 0 && app->cpu_active_custom_profile_idx >= 0) {
-            build_cpu_core_freq_grid(app, app->cpu_core_count);
-            update_cpu_core_freq_spinners(app, app->cpu_active_custom_profile_idx);
+            g_idle_add(populate_cpu_core_grid_idle, app);
         } else {
             /* No profiles left, clear the grid */
             GList *children = gtk_container_get_children(GTK_CONTAINER(app->cpu_core_freq_grid));
@@ -3316,11 +3330,12 @@ static void on_notebook_page_switched(GtkNotebook *notebook, GtkWidget *page, gi
         /* Load CPU custom profiles and select the active one */
         load_cpu_custom_profiles(app);
 
-        /* Populate the core frequency grid with the active profile's data */
-        if (app->cpu_core_count > 0 && app->cpu_active_custom_profile_idx >= 0) {
-            build_cpu_core_freq_grid(app, app->cpu_core_count);
-            update_cpu_core_freq_spinners(app, app->cpu_active_custom_profile_idx);
-        }
+        /* Defer grid population until GTK has realized the widgets on this page.
+         * GTK3 lazy-realizes notebook pages: the page is only realized after
+         * the first switch-page signal fires. By using g_idle_add, we ensure
+         * the widgets are fully realized before building the grid.
+         * This fixes the bug where the core frequency grid is empty on first visit. */
+        g_idle_add(populate_cpu_core_grid_idle, app);
     }
 }
 
