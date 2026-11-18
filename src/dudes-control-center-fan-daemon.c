@@ -232,7 +232,7 @@ static void load_profiles(void) {
     }
     
     /* Read profiles array */
-    cJSON *profiles_array = cJSON_GetObjectItem(root, "profiles");
+    cJSON *profiles_array = cJSON_GetObjectItem(root, "fan_profiles");
     if (!cJSON_IsArray(profiles_array)) {
         LOG_WARN("Missing profiles array in %s, using defaults", PROFILE_PATH);
         cJSON_Delete(root);

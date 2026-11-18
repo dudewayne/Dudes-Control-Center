@@ -901,108 +901,12 @@ int cpu_profiles_save_all(void) {
     return 0;
 }
 
-/* Load all profiles from disk as JSON */
+/* CPU governor profiles (Performance, Balanced, Power Save) are hardcoded defaults.
+ * They are no longer loaded from the shared profiles.json file.
+ * Return -1 so the caller creates the defaults. */
 int cpu_profiles_load_all(void) {
-    const char *path = get_cpu_profiles_path();
-
-    FILE *f = fopen(path, "r");
-    if (!f) {
-        LOG_INFO("[CPU] No saved profiles found at %s", path);
-        return -1;
-    }
-
-    /* Read file contents */
-    fseek(f, 0, SEEK_END);
-    long file_size = ftell(f);
-    fseek(f, 0, SEEK_SET);
-
-    if (file_size <= 0 || file_size > 1024 * 1024) {
-        fclose(f);
-        return -1;
-    }
-
-    char *file_content = (char *)malloc(file_size + 1);
-    if (!file_content) {
-        fclose(f);
-        return -1;
-    }
-
-    size_t bytes_read = fread(file_content, 1, file_size, f);
-    file_content[bytes_read] = '\0';
-    fclose(f);
-
-    cJSON *root = cJSON_Parse(file_content);
-    free(file_content);
-
-    if (!root) {
-        LOG_ERROR("[CPU] Failed to parse profiles JSON from %s", path);
-        return -1;
-    }
-
-    /* Read state */
-    cJSON *active_item = cJSON_GetObjectItem(root, "active_profile_index");
-    if (active_item) {
-        g_cpu_state.active_profile_idx = active_item->valueint;
-    }
-
-    cJSON *last_used_item = cJSON_GetObjectItem(root, "last_used_profile");
-    if (last_used_item && last_used_item->valuestring) {
-        strncpy(g_cpu_state.last_used_profile, last_used_item->valuestring,
-                CPU_PROFILE_NAME_MAX - 1);
-    }
-
-    cJSON *auto_mode_item = cJSON_GetObjectItem(root, "auto_mode_enabled");
-    if (auto_mode_item) {
-        g_cpu_state.auto_mode_enabled = auto_mode_item->valueint;
-    }
-
-    /* Load profiles */
-    cJSON *profiles_array = cJSON_GetObjectItem(root, "profiles");
-    if (profiles_array) {
-        int count = cJSON_GetArraySize(profiles_array);
-        for (int i = 0; i < count && i < MAX_CPU_PROFILES; i++) {
-            cJSON *profile_obj = cJSON_GetArrayItem(profiles_array, i);
-            if (!profile_obj) continue;
-
-            CpuProfile p = {0};
-
-            cJSON *name_item = cJSON_GetObjectItem(profile_obj, "name");
-            if (name_item && name_item->valuestring) {
-                strncpy(p.name, name_item->valuestring, CPU_PROFILE_NAME_MAX - 1);
-            } else {
-                continue;
-            }
-
-            cJSON *gov_item = cJSON_GetObjectItem(profile_obj, "governor");
-            if (gov_item && gov_item->valuestring) {
-                governor_to_enum(gov_item->valuestring, &p.governor);
-            }
-
-            cJSON *min_freq_item = cJSON_GetObjectItem(profile_obj, "min_freq_hz");
-            if (min_freq_item) p.min_freq_hz = min_freq_item->valueint;
-
-            cJSON *max_freq_item = cJSON_GetObjectItem(profile_obj, "max_freq_hz");
-            if (max_freq_item) p.max_freq_hz = max_freq_item->valueint;
-
-            cJSON *cond_type_item = cJSON_GetObjectItem(profile_obj, "condition_type");
-            if (cond_type_item && cond_type_item->valuestring) {
-                p.condition_type = condition_type_from_string(cond_type_item->valuestring);
-            }
-
-            cJSON *cond_thresh_item = cJSON_GetObjectItem(profile_obj, "condition_threshold");
-            if (cond_thresh_item) p.condition_threshold = cond_thresh_item->valueint;
-
-            cJSON *auto_switch_item = cJSON_GetObjectItem(profile_obj, "is_auto_switchable");
-            if (auto_switch_item) p.is_auto_switchable = auto_switch_item->valueint;
-
-            g_cpu_state.profiles[g_cpu_state.num_profiles] = p;
-            g_cpu_state.num_profiles++;
-        }
-    }
-
-    cJSON_Delete(root);
-    LOG_INFO("[CPU] Loaded %d profiles from %s", g_cpu_state.num_profiles, path);
-    return 0;
+    LOG_INFO("[CPU] Governor profiles are hardcoded, skipping disk load");
+    return -1;
 }
 
 /* Set last used profile marker */

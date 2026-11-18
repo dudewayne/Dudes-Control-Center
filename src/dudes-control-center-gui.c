@@ -2251,7 +2251,7 @@ static void gui_save_profiles_to_disk(AppData *app) {
         cJSON_AddItemToObject(profile_obj, "curve_points", curve_array);
         cJSON_AddItemToArray(profiles_array, profile_obj);
     }
-    cJSON_AddItemToObject(root, "profiles", profiles_array);
+    cJSON_AddItemToObject(root, "fan_profiles", profiles_array);
 
     /* Query CPU daemon for custom profiles */
     if (app->cpu_connected) {
