@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.6.5] - 2026-11-18
+
+### Fixed
+- **CPU profile name comparison failed with stored display names**: The combo box stored display names with markers (`[*] ProfileName` or `     ProfileName`), but duplicate checks and profile lookups compared against raw names. Added `cpu_profile_name_from_display()` helper to strip markers and whitespace before comparison. Also fixed the rename dialog which showed incorrect default text.
+
 ## [1.6.4] - 2026-11-18
 
 ### Fixed

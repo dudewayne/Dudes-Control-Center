@@ -844,6 +844,18 @@ static void on_cpu_custom_profile_changed(GtkWidget *widget, gpointer user_data)
     gtk_label_set_text(GTK_LABEL(app->cpu_freq_profile_status_label), "Profile selected - click Apply to activate");
 }
 
+/* Extract clean profile name from stored display string.
+ * Stored format: " [*] ProfileName" or "     ProfileName"
+ * Returns: pointer into display_name (not a new allocation). */
+static const char *cpu_profile_name_from_display(const char *display_name) {
+    const char *p = display_name;
+    /* Skip leading whitespace */
+    while (*p == ' ' || *p == '\t') p++;
+    /* Skip "[*] " marker if present */
+    if (strncmp(p, "[*] ", 4) == 0) p += 4;
+    return p;
+}
+
 /* Callback: Create new frequency profile */
 static void on_cpu_create_freq_profile_clicked(GtkWidget *widget, gpointer user_data) {
     (void)widget;
@@ -882,7 +894,7 @@ static void on_cpu_create_freq_profile_clicked(GtkWidget *widget, gpointer user_
                 do {
                     gchar *existing_name = NULL;
                     gtk_tree_model_get(GTK_TREE_MODEL(app->cpu_custom_profile_store), &iter, 0, &existing_name, -1);
-                    if (existing_name && strcmp(existing_name, name) == 0) {
+                    if (existing_name && strcmp(cpu_profile_name_from_display(existing_name), name) == 0) {
                         duplicate = 1;
                         g_free(existing_name);
                         break;
@@ -923,7 +935,7 @@ static void on_cpu_create_freq_profile_clicked(GtkWidget *widget, gpointer user_
                 do {
                     gchar *existing_name = NULL;
                     gtk_tree_model_get(GTK_TREE_MODEL(app->cpu_custom_profile_store), &iter, 0, &existing_name, -1);
-                    if (existing_name && strcmp(existing_name, name) == 0) {
+                    if (existing_name && strcmp(cpu_profile_name_from_display(existing_name), name) == 0) {
                         new_idx = i;
                         g_free(existing_name);
                         break;
@@ -1038,11 +1050,8 @@ static void on_cpu_rename_freq_profile_clicked(GtkWidget *widget, gpointer user_
         return;
     }
 
-    /* Strip * indicator from display name for the entry default */
-    gchar *clean_name = g_strdup(current_name);
-    char *star = strchr(clean_name, '*');
-    if (star) *star = '\0';
-    g_strchomp(clean_name);
+    /* Extract clean profile name from display string */
+    const char *clean_name = cpu_profile_name_from_display(current_name);
 
     /* Show dialog to enter new name */
     GtkWidget *dialog = gtk_dialog_new_with_buttons("Rename CPU Frequency Profile",
@@ -1089,7 +1098,6 @@ static void on_cpu_rename_freq_profile_clicked(GtkWidget *widget, gpointer user_
         }
     }
 
-    g_free(clean_name);
     g_free(current_name);
     gtk_widget_destroy(dialog);
 }
