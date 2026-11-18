@@ -936,6 +936,12 @@ static void on_cpu_create_freq_profile_clicked(GtkWidget *widget, gpointer user_
             if (new_idx >= 0) {
                 gtk_combo_box_set_active(GTK_COMBO_BOX(app->cpu_custom_profile_combo), new_idx);
                 app->cpu_active_custom_profile_idx = new_idx;
+
+                /* Load the new profile data into the editor grid */
+                if (app->cpu_core_count > 0) {
+                    build_cpu_core_freq_grid(app, app->cpu_core_count);
+                    update_cpu_core_freq_spinners(app, new_idx);
+                }
             }
 
             gtk_label_set_text(GTK_LABEL(app->cpu_freq_profile_status_label),

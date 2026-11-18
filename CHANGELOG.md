@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.6.4] - 2026-11-18
+
+### Fixed
+- **CPU profile editor not loaded after creation**: When creating a new CPU frequency profile, the per-core frequency grid was not populated with the profile's data. The editor now automatically loads the newly created profile's min/max values.
+
 ## [1.6.3] - 2026-11-18
 
 ### Fixed
