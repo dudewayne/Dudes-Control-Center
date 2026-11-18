@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.6.2] - 2026-11-18
+
+### Fixed
+- **CPU custom profiles not selected on tab switch**: When switching to the CPU Profiles tab, the active CPU profile was not loaded or selected in the profile list. The `load_cpu_custom_profiles()` function now detects the `[*]` active marker and selects the correct profile.
+
 ## [1.6.1] - 2026-11-18
 
 ### Fixed

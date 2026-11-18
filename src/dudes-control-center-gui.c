@@ -132,6 +132,7 @@ typedef struct {
     guint manual_mode_signal_id;
     guint profile_combo_signal_id;
     guint cpu_profile_combo_signal_id;
+    guint cpu_custom_profile_combo_signal_id;
     
     /* Statusbar */
     GtkWidget *statusbar;
@@ -777,6 +778,7 @@ static void load_cpu_custom_profiles(AppData *app) {
     char *resp_copy = g_strdup(response);
     char *line = strtok(resp_copy, "\n");
     int profile_count = 0;
+    int active_idx = -1;
     while (line != NULL) {
         /* Skip empty lines */
         if (strlen(line) == 0) {
@@ -784,8 +786,17 @@ static void load_cpu_custom_profiles(AppData *app) {
             continue;
         }
 
+        /* Check for active marker "[*]" */
+        int is_active = (strstr(line, "[*]") != NULL);
+
         /* Find the profile name: skip leading spaces/marker, extract name before " (" */
         char *name_start = line + strspn(line, " ");  /* Skip leading whitespace */
+        /* If the line starts with "[*]", skip the marker */
+        if (is_active) {
+            name_start = strchr(name_start, ']');
+            if (name_start) name_start += 1;
+            name_start += strspn(name_start, " ");
+        }
         char *paren_pos = strstr(name_start, " (");
         if (paren_pos != NULL) {
             /* Truncate name at the opening paren */
@@ -794,13 +805,24 @@ static void load_cpu_custom_profiles(AppData *app) {
             GtkTreeIter iter;
             gtk_list_store_append(app->cpu_custom_profile_store, &iter);
             gtk_list_store_set(app->cpu_custom_profile_store, &iter, 0, name_start, -1);
+            if (is_active) {
+                active_idx = profile_count;
+            }
             profile_count++;
         }
         line = strtok(NULL, "\n");
     }
     g_free(resp_copy);
 
-    g_print("[GUI] Loaded %d custom frequency profiles\n", profile_count);
+    /* Select the active profile */
+    if (active_idx >= 0) {
+        g_signal_handler_block(app->cpu_custom_profile_combo, app->cpu_custom_profile_combo_signal_id);
+        gtk_combo_box_set_active(GTK_COMBO_BOX(app->cpu_custom_profile_combo), active_idx);
+        g_signal_handler_unblock(app->cpu_custom_profile_combo, app->cpu_custom_profile_combo_signal_id);
+        app->cpu_active_custom_profile_idx = active_idx;
+    }
+
+    g_print("[GUI] Loaded %d custom frequency profiles (active idx=%d)\n", profile_count, active_idx);
 }
 
 /* Callback: Custom profile combo box changed */
@@ -3265,6 +3287,16 @@ static void on_notebook_page_switched(GtkNotebook *notebook, GtkWidget *page, gi
          * This fixes the bug where profiles appear empty on first visit. */
         g_idle_add(refresh_profile_tab_idle, app);
     }
+
+    /* Page 3 is the CPU Profiles tab (0-indexed: Status=0, Curve Editor=1, Profiles=2, CPU Profiles=3) */
+    if (page_num == 3) {
+        char ts[32];
+        get_timestamp(ts, sizeof(ts));
+        g_print("%s [GUI] Switching to CPU Profiles tab\n", ts);
+        
+        /* Load CPU custom profiles and select the active one */
+        load_cpu_custom_profiles(app);
+    }
 }
 
 /* Create Page 3: Profile List */
@@ -4078,7 +4110,7 @@ static GtkWidget *create_cpu_page(AppData *app) {
             gtk_box_pack_start(GTK_BOX(row), app->cpu_custom_profile_combo, TRUE, TRUE, 0);
             gtk_box_pack_start(GTK_BOX(freq_box), row, FALSE, FALSE, 0);
 
-            g_signal_connect(app->cpu_custom_profile_combo, "changed", G_CALLBACK(on_cpu_custom_profile_changed), app);
+            app->cpu_custom_profile_combo_signal_id = g_signal_connect(app->cpu_custom_profile_combo, "changed", G_CALLBACK(on_cpu_custom_profile_changed), app);
         }
 
         /* Apply to All Cores checkbox */
