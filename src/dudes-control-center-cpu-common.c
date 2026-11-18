@@ -1179,6 +1179,9 @@ int cpu_custom_profile_save_json(void) {
 
 /* Load all custom profiles from the main profiles.json (cpu_freq_profiles section) */
 int cpu_custom_profile_load_json(void) {
+    /* Clear any existing profiles to avoid duplicates on reload/restart */
+    g_cpu_state.num_custom_profiles = 0;
+
     const char *path = get_main_profiles_path();
 
     FILE *f = fopen(path, "r");
