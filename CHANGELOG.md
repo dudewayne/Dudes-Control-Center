@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.6.8] - 2026-11-18
+
+### Fixed
+- **CPU profile max frequency truncated to 2147 MHz**: Any max frequency above ~2147 MHz (2,147,483,647 Hz) was stored correctly but read back as a truncated value due to signed 32-bit integer overflow when parsing JSON. Root cause: cJSON `valueint` is `int32_t` (max 2,147,483,647), so values like 2,400,000,000 Hz overflowed. Fixed by using `valuedouble` instead, which can represent these values exactly.
+
 ## [1.6.7] - 2026-11-18
 
 ### Fixed

@@ -1278,7 +1278,7 @@ int cpu_custom_profile_load_json(void) {
                 for (int j = 0; j < max_count && j < MAX_CPUS; j++) {
                     cJSON *freq_item = cJSON_GetArrayItem(max_freq_array, j);
                     if (freq_item) {
-                        p.per_core_max_freq_hz[j] = freq_item->valueint;
+                        p.per_core_max_freq_hz[j] = (uint32_t)freq_item->valuedouble;
                     }
                 }
             }
@@ -1290,7 +1290,7 @@ int cpu_custom_profile_load_json(void) {
                 for (int j = 0; j < min_count && j < MAX_CPUS; j++) {
                     cJSON *freq_item = cJSON_GetArrayItem(min_freq_array, j);
                     if (freq_item) {
-                        p.per_core_min_freq_hz[j] = freq_item->valueint;
+                        p.per_core_min_freq_hz[j] = (uint32_t)freq_item->valuedouble;
                     }
                 }
             }
