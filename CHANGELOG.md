@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.6.1] - 2026-11-18
+
+### Fixed
+- **CPU custom profiles not loading after fan_profiles rename**: The `cpu_custom_profile_load_json()` function only handled the nested JSON format, but the GUI writes `cpu_freq_profiles` as a flat array. The loader now handles both flat and nested formats to ensure compatibility.
+
 ## [1.6.0] - 2026-11-17
 
 ### Added
