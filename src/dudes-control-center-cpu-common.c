@@ -1223,15 +1223,26 @@ int cpu_custom_profile_load_json(void) {
         return -1;
     }
 
-    /* Read active index from cpu_freq_profiles section */
-    cJSON *active_item = cJSON_GetObjectItem(cpu_section, "active_custom_profile_index");
-    if (active_item) {
-        g_cpu_state.active_custom_profile_idx = active_item->valueint;
+    /* Read active index from cpu_freq_profiles section (nested format only) */
+    if (cJSON_IsObject(cpu_section)) {
+        cJSON *active_item = cJSON_GetObjectItem(cpu_section, "active_custom_profile_index");
+        if (active_item) {
+            g_cpu_state.active_custom_profile_idx = active_item->valueint;
+        }
     }
 
-    /* Load profiles from cpu_freq_profiles array */
-    cJSON *profiles_array = cJSON_GetObjectItem(cpu_section, "cpu_freq_profiles");
-    if (profiles_array) {
+    /* Load profiles from cpu_freq_profiles array
+     * Support both nested format (object with inner array) and flat format (direct array) */
+    cJSON *profiles_array = NULL;
+    if (cJSON_IsArray(cpu_section)) {
+        /* Flat format: cpu_freq_profiles is directly an array */
+        profiles_array = cpu_section;
+        LOG_INFO("[CPU] Using flat cpu_freq_profiles format");
+    } else if (cJSON_IsObject(cpu_section)) {
+        /* Nested format: cpu_freq_profiles contains an inner cpu_freq_profiles array */
+        profiles_array = cJSON_GetObjectItem(cpu_section, "cpu_freq_profiles");
+    }
+    if (profiles_array && cJSON_IsArray(profiles_array)) {
         int count = cJSON_GetArraySize(profiles_array);
         for (int i = 0; i < count && i < MAX_CPU_CUSTOM_PROFILES; i++) {
             cJSON *profile_obj = cJSON_GetArrayItem(profiles_array, i);
