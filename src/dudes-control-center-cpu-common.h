@@ -172,6 +172,7 @@ int cpu_custom_profile_set_core_freq(int profile_idx, int cpu_id,
 int cpu_custom_profile_list(char *buffer, size_t buf_size);  /* List all custom profiles */
 const CpuCustomProfile* cpu_custom_profile_get(int idx); /* Get custom profile by index */
 int cpu_custom_profile_set_active(int idx);              /* Set active custom profile (in memory) */
+char* cpu_custom_profile_list_json(void);                /* Return all custom profiles as JSON string */
 
 /* Utility functions */
 int governor_to_enum(const char *governor_str, CpuGovernor *gov);  /* Convert governor string to enum */

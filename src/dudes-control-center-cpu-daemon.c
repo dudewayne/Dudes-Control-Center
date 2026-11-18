@@ -227,7 +227,6 @@ static void handle_command(const char *cmd, char *response, size_t resp_size) {
         if (cpu_profile_apply(profile_buf) == 0) {
             snprintf(response, resp_size, "OK Governor Policy '%s' applied successfully\n", profile_buf);
             LOG_INFO("[DAEMON] Governor Policy '%s' applied successfully", profile_buf);
-            cpu_profiles_save_all();
         } else {
             snprintf(response, resp_size, "ERROR Failed to apply governor policy '%s'\n", profile_buf);
         }
@@ -255,7 +254,6 @@ static void handle_command(const char *cmd, char *response, size_t resp_size) {
 
         if (cpu_profile_create(arg1, governor, min_freq, max_freq) == 0) {
             snprintf(response, resp_size, "OK Governor Policy '%s' created\n", arg1);
-            cpu_profiles_save_all();
         } else {
             snprintf(response, resp_size, "ERROR Failed to create governor policy '%s'\n", arg1);
         }
@@ -271,7 +269,6 @@ static void handle_command(const char *cmd, char *response, size_t resp_size) {
 
         if (cpu_profile_delete(arg1) == 0) {
             snprintf(response, resp_size, "OK Governor Policy '%s' deleted\n", arg1);
-            cpu_profiles_save_all();
         } else {
             snprintf(response, resp_size, "ERROR Failed to delete governor policy '%s'\n", arg1);
         }
@@ -403,7 +400,6 @@ static void handle_command(const char *cmd, char *response, size_t resp_size) {
 
         if (cpu_profile_set_condition(arg1, condition, threshold) == 0) {
             snprintf(response, resp_size, "OK Condition set for policy '%s'\n", arg1);
-            cpu_profiles_save_all();
         } else {
             snprintf(response, resp_size, "ERROR Failed to set condition\n");
         }
@@ -418,7 +414,6 @@ static void handle_command(const char *cmd, char *response, size_t resp_size) {
         }
 
         cpu_profile_clear_condition(arg1);
-        cpu_profiles_save_all();
         snprintf(response, resp_size, "OK Condition cleared for policy '%s'\n", arg1);
         return;
     }
@@ -428,6 +423,18 @@ static void handle_command(const char *cmd, char *response, size_t resp_size) {
         char profiles_buf[4096] = {0};
         cpu_custom_profile_list(profiles_buf, sizeof(profiles_buf));
         snprintf(response, resp_size, "%s", profiles_buf[0] ? profiles_buf : "No custom profiles saved\n");
+        return;
+    }
+
+    /* --- LIST_CUSTOM_PROFILES_JSON --- */
+    if (strcmp(action, "LIST_CUSTOM_PROFILES_JSON") == 0) {
+        char *json_str = cpu_custom_profile_list_json();
+        if (json_str) {
+            snprintf(response, resp_size, "%s", json_str);
+            free(json_str);
+        } else {
+            snprintf(response, resp_size, "[]");
+        }
         return;
     }
 
@@ -452,7 +459,6 @@ static void handle_command(const char *cmd, char *response, size_t resp_size) {
         }
 
         if (cpu_custom_profile_create(arg1, gov, max_freq, apply_all) == 0) {
-            cpu_custom_profile_save_json();
             snprintf(response, resp_size, "OK Custom profile '%s' created\n", arg1);
         } else {
             snprintf(response, resp_size, "ERROR Failed to create custom profile '%s'\n", arg1);
@@ -486,7 +492,6 @@ static void handle_command(const char *cmd, char *response, size_t resp_size) {
 
         int idx = atoi(arg1);
         if (cpu_custom_profile_delete(idx) == 0) {
-            cpu_custom_profile_save_json();
             snprintf(response, resp_size, "OK Custom profile deleted\n");
         } else {
             snprintf(response, resp_size, "ERROR Failed to delete custom profile index %d\n", idx);
@@ -507,7 +512,6 @@ static void handle_command(const char *cmd, char *response, size_t resp_size) {
 
         int idx = atoi(arg1);
         if (cpu_custom_profile_rename(idx, new_name) == 0) {
-            cpu_custom_profile_save_json();
             snprintf(response, resp_size, "OK Custom profile renamed to '%s'\n", new_name);
         } else {
             snprintf(response, resp_size, "ERROR Failed to rename custom profile (name may already exist)\n");
@@ -517,11 +521,7 @@ static void handle_command(const char *cmd, char *response, size_t resp_size) {
 
     /* --- SAVE_CUSTOM_PROFILES --- */
     if (strcmp(action, "SAVE_CUSTOM_PROFILES") == 0) {
-        if (cpu_custom_profile_save_json() == 0) {
-            snprintf(response, resp_size, "OK Custom profiles saved\n");
-        } else {
-            snprintf(response, resp_size, "ERROR Failed to save custom profiles\n");
-        }
+        snprintf(response, resp_size, "OK Custom profiles saved (by GUI)\n");
         return;
     }
 

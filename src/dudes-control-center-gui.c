@@ -17,6 +17,7 @@
 #include <time.h>
 #include <sys/time.h>
 #include <math.h>
+#include <stdbool.h>
 #include <cjson/cJSON.h>
 
 /* Define M_PI if not already defined */
@@ -257,6 +258,7 @@ static void mark_cpu_freq_profiles_modified(AppData *app);
 /* Forward declarations for profile and curve management */
 static void refresh_profile_list(AppData *app);
 static void load_curve_points_for_profile(AppData *app, int profile_idx);
+static void gui_save_profiles_to_disk(AppData *app);
 static void on_profile_radio_toggled(GtkWidget *widget, gpointer user_data);
 static void on_apply_profile_clicked(GtkWidget *widget, gpointer user_data);
 static void on_cancel_profile_clicked(GtkWidget *widget, gpointer user_data);
@@ -896,6 +898,9 @@ static void on_cpu_create_freq_profile_clicked(GtkWidget *widget, gpointer user_
             /* Reload the profile list */
             load_cpu_custom_profiles(app);
 
+            /* Save profiles to disk (GUI writes directly) */
+            gui_save_profiles_to_disk(app);
+
             /* Find and select the newly created profile */
             int new_idx = -1;
             if (gtk_tree_model_get_iter_first(GTK_TREE_MODEL(app->cpu_custom_profile_store), &iter)) {
@@ -967,6 +972,9 @@ static void on_cpu_delete_freq_profile_clicked(GtkWidget *widget, gpointer user_
 
         /* Reload the profile list */
         load_cpu_custom_profiles(app);
+
+        /* Save profiles to disk (GUI writes directly) */
+        gui_save_profiles_to_disk(app);
 
         /* Clear the grid */
         GList *children = gtk_container_get_children(GTK_CONTAINER(app->cpu_core_freq_grid));
@@ -1049,6 +1057,9 @@ static void on_cpu_rename_freq_profile_clicked(GtkWidget *widget, gpointer user_
 
             /* Reload the profile list */
             load_cpu_custom_profiles(app);
+
+            /* Save profiles to disk (GUI writes directly) */
+            gui_save_profiles_to_disk(app);
 
             gtk_label_set_text(GTK_LABEL(app->cpu_freq_profile_status_label),
                               g_strconcat("Renamed profile to: ", new_name, NULL));
@@ -1428,8 +1439,8 @@ static void on_apply_clicked(GtkWidget *widget, gpointer user_data) {
     const char *response = send_command(app, cmd);
     show_status(app, response);
     
-    /* Also save profiles to disk */
-    send_command(app, "SAVE_PROFILES");
+    /* Also save profiles to disk (GUI writes directly) */
+    gui_save_profiles_to_disk(app);
     
     /* Clear the modified flag since changes are now saved */
     app->curve_points_modified = 0;
@@ -2143,6 +2154,133 @@ static void on_profile_combo_changed(GtkWidget *widget, gpointer user_data) {
     }
     
     g_print("%s [GUI] -> on_profile_combo_changed completed normally\n", ts);
+}
+
+/* Save all profiles (fan + CPU custom) to profiles.json directly from the GUI */
+static void gui_save_profiles_to_disk(AppData *app) {
+    char profiles_path[512];
+    const char *home = getenv("HOME");
+    if (!home) {
+        g_print("[GUI] WARNING: Cannot determine HOME, skipping profile save\n");
+        return;
+    }
+    snprintf(profiles_path, sizeof(profiles_path), "%s/.config/dudes-control-center/profiles.json", home);
+
+    /* Ensure directory exists */
+    char dir_path[512];
+    snprintf(dir_path, sizeof(dir_path), "%s/.config/dudes-control-center", home);
+    mkdir(dir_path, 0755);
+
+    /* Build JSON root */
+    cJSON *root = cJSON_CreateObject();
+    if (!root) {
+        g_print("[GUI] ERROR: Failed to create JSON root for profile save\n");
+        return;
+    }
+    cJSON_AddStringToObject(root, "version", "1.0");
+    cJSON_AddNumberToObject(root, "active_profile_index", app->active_profile_idx);
+
+    /* Query fan daemon for all profiles */
+    cJSON *profiles_array = cJSON_CreateArray();
+    for (int i = 0; i < app->num_profiles; i++) {
+        char cmd[64];
+        snprintf(cmd, sizeof(cmd), "GET_PROFILE %d", i);
+        const char *response = send_command(app, cmd);
+        if (!response || strncmp(response, "ERROR", 5) == 0) {
+            continue;
+        }
+
+        /* Parse PROFILE_INFO line: "PROFILE_INFO name=XXX points=N active=N" */
+        char *resp_copy = g_strdup(response);
+        char *line = strtok(resp_copy, "\n");
+        char profile_name[256] = "";
+        int is_active = 0;
+
+        while (line) {
+            if (strncmp(line, "PROFILE_INFO", 12) == 0) {
+                char *name_ptr = strstr(line, "name=");
+                if (name_ptr) {
+                    name_ptr += 5;
+                    char *space = strchr(name_ptr, ' ');
+                    if (space) {
+                        int len = space - name_ptr;
+                        if (len > 0 && len < sizeof(profile_name)) {
+                            strncpy(profile_name, name_ptr, len);
+                            profile_name[len] = '\0';
+                        } else {
+                            strncpy(profile_name, name_ptr, sizeof(profile_name) - 1);
+                        }
+                    } else {
+                        strncpy(profile_name, name_ptr, sizeof(profile_name) - 1);
+                    }
+                }
+                char *active_ptr = strstr(line, "active=");
+                if (active_ptr) {
+                    is_active = atoi(active_ptr + 7);
+                }
+            }
+            line = strtok(NULL, "\n");
+        }
+
+        /* Parse CURVE_POINT lines */
+        cJSON *curve_array = cJSON_CreateArray();
+        g_free(resp_copy);
+        resp_copy = g_strdup(response);
+        line = strtok(resp_copy, "\n");
+        while (line) {
+            if (strncmp(line, "CURVE_POINT", 11) == 0) {
+                int temp = 0, fan_pct = 0;
+                char *temp_ptr = strstr(line, "temp=");
+                char *fan_ptr = strstr(line, "fan_pct=");
+                if (temp_ptr) temp = atoi(temp_ptr + 5);
+                if (fan_ptr) fan_pct = atoi(fan_ptr + 8);
+
+                cJSON *point = cJSON_CreateObject();
+                cJSON_AddNumberToObject(point, "temperature", temp);
+                cJSON_AddNumberToObject(point, "fan_percent", fan_pct);
+                cJSON_AddItemToArray(curve_array, point);
+            }
+            line = strtok(NULL, "\n");
+        }
+        g_free(resp_copy);
+
+        /* Build profile object */
+        cJSON *profile_obj = cJSON_CreateObject();
+        cJSON_AddStringToObject(profile_obj, "name", profile_name);
+        cJSON_AddBoolToObject(profile_obj, "is_active", is_active ? true : false);
+        cJSON_AddItemToObject(profile_obj, "curve_points", curve_array);
+        cJSON_AddItemToArray(profiles_array, profile_obj);
+    }
+    cJSON_AddItemToObject(root, "profiles", profiles_array);
+
+    /* Query CPU daemon for custom profiles */
+    if (app->cpu_connected) {
+        const char *cpu_response = send_cpu_command(app, "LIST_CUSTOM_PROFILES_JSON");
+        if (cpu_response && strncmp(cpu_response, "ERROR", 5) != 0) {
+            /* The daemon returns raw JSON for cpu_freq_profiles */
+            cJSON *cpu_json = cJSON_Parse(cpu_response);
+            if (cpu_json) {
+                cJSON_AddItemToObject(root, "cpu_freq_profiles", cpu_json);
+            } else {
+                g_print("[GUI] WARNING: Failed to parse CPU profiles JSON\n");
+            }
+        }
+    }
+
+    /* Write to file */
+    char *json_str = cJSON_Print(root);
+    if (json_str) {
+        FILE *fp = fopen(profiles_path, "w");
+        if (fp) {
+            fprintf(fp, "%s\n", json_str);
+            fclose(fp);
+            g_print("[GUI] Saved profiles to %s\n", profiles_path);
+        } else {
+            g_print("[GUI] ERROR: Could not write %s: %s\n", profiles_path, strerror(errno));
+        }
+        cJSON_free(json_str);
+    }
+    cJSON_Delete(root);
 }
 
 /* Load curve points for a specific profile into the tree view */

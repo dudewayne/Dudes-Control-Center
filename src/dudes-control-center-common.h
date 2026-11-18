@@ -55,6 +55,10 @@ int set_fan_duty(int pct);        /* Set fan duty 0-100%, returns 0 on success, 
 int rpm_to_percentage(int rpm, int is_gpu);  /* Convert RPM to percentage (0-100), is_gpu=1 for GPU fan */
 int clamp(int v, int lo, int hi);
 
+/* --- Shared config path (used by all daemons and GUI) --- */
+#define MAIN_PROFILES_PATH "/home/dude/.config/dudes-control-center/profiles.json"
+#define CPU_CONFIG_DIR "dudes-control-center/cpu"
+
 /* --- Daemon socket communication --- */
 /* Send a command to the daemon and receive a response.
  * Returns 0 on success, -1 on failure.

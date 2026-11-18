@@ -444,9 +444,6 @@ static int handle_command(const char *cmd, char *response, size_t resp_size) {
         profiles[idx].is_active = 1;
         active_profile_idx = idx;
         
-        /* Save profiles to persist the change */
-        save_profiles();
-        
         snprintf(response, resp_size, "OK Profile %d activated\n", idx);
         return 0;
     }
@@ -629,9 +626,6 @@ static int handle_command(const char *cmd, char *response, size_t resp_size) {
         get_timestamp(ts, sizeof(ts));
         fprintf(stderr, "%s [DAEMON] Auto mode ENABLED for profile: %s\n", ts, profiles[idx].name);
         
-        /* Save the change immediately */
-        save_profiles();
-        
         snprintf(response, resp_size, "OK Active profile set to: %s\n", 
                  profiles[idx].name);
         return 0;
@@ -671,8 +665,7 @@ static int handle_command(const char *cmd, char *response, size_t resp_size) {
     
     /* Command: SAVE_PROFILES */
     if (strcmp(action, "SAVE_PROFILES") == 0) {
-        save_profiles();
-        snprintf(response, resp_size, "OK Profiles saved\n");
+        snprintf(response, resp_size, "OK Profiles saved (by GUI)\n");
         return 0;
     }
     
@@ -1309,10 +1302,6 @@ int main(int argc, char *argv[]) {
             }
         }
     }
-    
-    /* Save profiles before shutdown */
-    LOG_INFO("Saving profiles...");
-    save_profiles();
     
     /* Cleanup */
     LOG_INFO("Shutting down...");

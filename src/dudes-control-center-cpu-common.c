@@ -25,15 +25,13 @@ CpuControlState g_cpu_state = {0};
 #define CPUFREQ_SUBDIR "cpufreq"
 
 /* --- Config path helpers --- */
+/* Daemons run as root, so HOME=/root. Use the GUI user's config path directly. */
+#define CONTROL_CENTER_CONFIG_DIR "/home/dude/.config/dudes-control-center"
+
 static const char* get_cpu_config_dir(void) {
     static char path[512] = {0};
     if (path[0] == '\0') {
-        const char *home = getenv("HOME");
-        if (home) {
-            snprintf(path, sizeof(path), "%s/.config/%s", home, CPU_CONFIG_DIR);
-        } else {
-            snprintf(path, sizeof(path), "/tmp/%s", CPU_CONFIG_DIR);
-        }
+        snprintf(path, sizeof(path), "%s", CONTROL_CENTER_CONFIG_DIR);
     }
     return path;
 }
@@ -50,12 +48,7 @@ static const char* get_cpu_profiles_path(void) {
 static const char* get_main_profiles_path(void) {
     static char path[512] = {0};
     if (path[0] == '\0') {
-        const char *home = getenv("HOME");
-        if (home) {
-            snprintf(path, sizeof(path), "%s/.config/dudes-control-center/profiles.json", home);
-        } else {
-            snprintf(path, sizeof(path), "/tmp/dudes-control-center/profiles.json");
-        }
+        snprintf(path, sizeof(path), "%s/profiles.json", CONTROL_CENTER_CONFIG_DIR);
     }
     return path;
 }
@@ -258,8 +251,7 @@ int cpu_control_init(void) {
 /* --- Cleanup CPU control subsystem --- */
 void cpu_control_cleanup(void) {
     LOG_INFO("[CPU] Cleaning up CPU control subsystem");
-    cpu_profiles_save_all();
-    cpu_custom_profile_save_json();
+    /* Profiles are saved by the GUI, not the daemon */
 }
 
 /* --- Get number of online CPUs --- */
@@ -1163,6 +1155,22 @@ int cpu_custom_profile_list(char *buffer, size_t buf_size) {
     }
 
     return offset;
+}
+
+/* Forward declaration for helper below */
+static cJSON* cpu_custom_profile_to_json(const CpuCustomProfile *p);
+
+/* Return all custom profiles as a JSON array string */
+char* cpu_custom_profile_list_json(void) {
+    cJSON *array = cJSON_CreateArray();
+    for (int i = 0; i < g_cpu_state.num_custom_profiles; i++) {
+        const CpuCustomProfile *p = &g_cpu_state.custom_profiles[i];
+        cJSON *profile_obj = cpu_custom_profile_to_json(p);
+        cJSON_AddItemToArray(array, profile_obj);
+    }
+    char *json_str = cJSON_Print(array);
+    cJSON_Delete(array);
+    return json_str; /* Caller must free */
 }
 
 /* --- Custom profile JSON persistence (merged into main profiles.json) --- */
