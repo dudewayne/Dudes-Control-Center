@@ -6,6 +6,7 @@ All notable changes to this project will be documented in this file.
 
 ### Fixed
 - **CPU core frequency grid not populated on tab switch or after delete**: When switching to the CPU Profiles tab, the per-core frequency grid was empty until the user manually switched profiles. After deleting a profile, the grid was only cleared but not repopulated with the new active profile. The page-switch callback and delete handler now rebuild the grid with the active profile's data.
+- **CPU core grid empty on GUI startup**: On fresh GUI launch, the per-core frequency grid remained empty because the first CPU refresh timer (5s interval) hadn't fired yet. Added an immediate STATUS query on CPU daemon connection so core data is available before the user switches tabs.
 
 ## [1.6.5] - 2026-11-18
 

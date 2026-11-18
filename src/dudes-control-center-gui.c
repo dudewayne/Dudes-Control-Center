@@ -4820,7 +4820,15 @@ int main(int argc, char *argv[]) {
         load_cpu_governors(&app);
 
         /* CPU custom profiles are loaded on page switch via on_notebook_page_switched */
-    }
+
+        /* Send an immediate STATUS query so cpu_core_count is available before the user switches tabs */
+        {
+            const char *immediate_status = send_cpu_command(&app, "STATUS");
+            if (immediate_status != NULL && strncmp(immediate_status, "ERROR", 5) != 0) {
+                parse_cpu_status(&app, immediate_status);
+            }
+        }
+    } 
 
     /* Create system tray icon */
     create_system_tray(&app);
