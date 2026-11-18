@@ -772,11 +772,10 @@ static void load_cpu_custom_profiles(AppData *app) {
     }
 
     gtk_list_store_clear(app->cpu_custom_profile_store);
-    LOG_INFO("load_cpu_custom_profiles: response = '%s'", response);
 
     /* Parse response: lines like " [*] ProfileName (gov=schedutil, cores=24, all_cores=0)"
      * or "     ProfileName (gov=performance, cores=24, all_cores=1)"
-     * Keep the full line (including [*] marker) as the display name, like fan profiles do. */
+     * Strip the metadata in parentheses, keep marker + profile name as display name. */
     char *resp_copy = g_strdup(response);
     char *line = strtok(resp_copy, "\n");
     int profile_count = 0;
@@ -791,7 +790,11 @@ static void load_cpu_custom_profiles(AppData *app) {
         /* Check for active marker "[*]" */
         int is_active = (strstr(line, "[*]") != NULL);
 
-        /* Use the full line as display name (includes [*] marker for active profile) */
+        /* Strip metadata: truncate at '(' to remove "(gov=..., cores=..., all_cores=...)" */
+        char *paren = strchr(line, '(');
+        if (paren) *paren = '\0';
+        g_strchomp(line);  /* Remove trailing whitespace */
+
         GtkTreeIter iter;
         gtk_list_store_append(app->cpu_custom_profile_store, &iter);
         gtk_list_store_set(app->cpu_custom_profile_store, &iter, 0, line, -1);
@@ -813,7 +816,6 @@ static void load_cpu_custom_profiles(AppData *app) {
     }
 
     g_print("[GUI] Loaded %d custom frequency profiles (active idx=%d)\n", profile_count, active_idx);
-    LOG_INFO("Loaded %d custom frequency profiles (active idx=%d)", profile_count, active_idx);
 }
 
 /* Callback: Custom profile combo box changed */
@@ -3290,7 +3292,6 @@ static void on_notebook_page_switched(GtkNotebook *notebook, GtkWidget *page, gi
         char ts[32];
         get_timestamp(ts, sizeof(ts));
         g_print("%s [GUI] Switching to CPU Profiles tab\n", ts);
-        LOG_INFO("Page switch: CPU Profiles tab (page_num=%d)", page_num);
 
         /* Load CPU custom profiles and select the active one */
         load_cpu_custom_profiles(app);

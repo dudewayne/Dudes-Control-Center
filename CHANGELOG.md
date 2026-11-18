@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.6.3] - 2026-11-18
+
+### Fixed
+- **CPU profile names included metadata**: The profile names in the combo box included daemon metadata like `(gov=schedutil, cores=24, all_cores=0)`. The `load_cpu_custom_profiles()` function now strips the parenthesized metadata before displaying, so only the marker and profile name are shown.
+
 ## [1.6.2] - 2026-11-18
 
 ### Fixed
