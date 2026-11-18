@@ -1134,6 +1134,12 @@ static void on_cpu_apply_freq_profile_clicked(GtkWidget *widget, gpointer user_d
 
     /* Mark profiles as modified so we show the * indicator */
     mark_cpu_freq_profiles_modified(app);
+
+    /* Save profiles to disk */
+    gui_save_profiles_to_disk(app);
+
+    /* Reload profile list so the [*] marker updates to the newly active profile */
+    load_cpu_custom_profiles(app);
 }
 
 /* Callback: Apply to All Cores checkbox toggled */
