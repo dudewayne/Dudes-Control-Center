@@ -1009,14 +1009,20 @@ static void on_cpu_delete_freq_profile_clicked(GtkWidget *widget, gpointer user_
         /* Save profiles to disk (GUI writes directly) */
         gui_save_profiles_to_disk(app);
 
-        /* Clear the grid */
-        GList *children = gtk_container_get_children(GTK_CONTAINER(app->cpu_core_freq_grid));
-        GList *child = children;
-        while (child != NULL) {
-            gtk_widget_destroy(GTK_WIDGET(child->data));
-            child = child->next;
+        /* Rebuild the grid with the new active profile's data */
+        if (app->cpu_core_count > 0 && app->cpu_active_custom_profile_idx >= 0) {
+            build_cpu_core_freq_grid(app, app->cpu_core_count);
+            update_cpu_core_freq_spinners(app, app->cpu_active_custom_profile_idx);
+        } else {
+            /* No profiles left, clear the grid */
+            GList *children = gtk_container_get_children(GTK_CONTAINER(app->cpu_core_freq_grid));
+            GList *child = children;
+            while (child != NULL) {
+                gtk_widget_destroy(GTK_WIDGET(child->data));
+                child = child->next;
+            }
+            g_list_free(children);
         }
-        g_list_free(children);
 
         gtk_label_set_text(GTK_LABEL(app->cpu_freq_profile_status_label),
                           g_strconcat("Deleted profile: ", profile_name, NULL));
@@ -3309,6 +3315,12 @@ static void on_notebook_page_switched(GtkNotebook *notebook, GtkWidget *page, gi
 
         /* Load CPU custom profiles and select the active one */
         load_cpu_custom_profiles(app);
+
+        /* Populate the core frequency grid with the active profile's data */
+        if (app->cpu_core_count > 0 && app->cpu_active_custom_profile_idx >= 0) {
+            build_cpu_core_freq_grid(app, app->cpu_core_count);
+            update_cpu_core_freq_spinners(app, app->cpu_active_custom_profile_idx);
+        }
     }
 }
 
