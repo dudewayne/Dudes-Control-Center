@@ -133,6 +133,7 @@ typedef struct {
     guint profile_combo_signal_id;
     guint cpu_profile_combo_signal_id;
     guint cpu_custom_profile_combo_signal_id;
+    guint cpu_apply_all_cores_signal_id;
     
     /* Statusbar */
     GtkWidget *statusbar;
@@ -300,6 +301,36 @@ static gboolean populate_cpu_core_grid_idle(gpointer data) {
     if (app->cpu_core_count > 0 && app->cpu_active_custom_profile_idx >= 0) {
         build_cpu_core_freq_grid(app, app->cpu_core_count);
         update_cpu_core_freq_spinners(app, app->cpu_active_custom_profile_idx);
+
+        /* Restore checkbox state and enforce spinner disabled/enabled state */
+        int idx = app->cpu_active_custom_profile_idx;
+        char info_cmd[64];
+        snprintf(info_cmd, sizeof(info_cmd), "GET_CUSTOM_PROFILE_INFO %d", idx);
+        const char *info_response = send_cpu_command(app, info_cmd);
+        int all_cores = 0;
+        if (info_response) {
+            char *aac_ptr = strstr(info_response, "APPLY_ALL:");
+            if (aac_ptr) {
+                all_cores = atoi(aac_ptr + 10);
+            }
+        }
+
+        g_signal_handler_block(G_OBJECT(app->cpu_apply_all_cores_checkbox), app->cpu_apply_all_cores_signal_id);
+        gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(app->cpu_apply_all_cores_checkbox), all_cores != 0);
+        g_signal_handler_unblock(G_OBJECT(app->cpu_apply_all_cores_checkbox), app->cpu_apply_all_cores_signal_id);
+
+        if (all_cores) {
+            sync_core0_to_all_cores(app);
+            for (int i = 1; i < app->cpu_core_count && i < 32; i++) {
+                gtk_widget_set_sensitive(app->cpu_core_min_spinners[i], FALSE);
+                gtk_widget_set_sensitive(app->cpu_core_max_spinners[i], FALSE);
+            }
+        } else {
+            for (int i = 1; i < app->cpu_core_count && i < 32; i++) {
+                gtk_widget_set_sensitive(app->cpu_core_min_spinners[i], TRUE);
+                gtk_widget_set_sensitive(app->cpu_core_max_spinners[i], TRUE);
+            }
+        }
     }
     return FALSE; /* Don't repeat */
 }
@@ -856,8 +887,25 @@ static void load_cpu_custom_profiles(AppData *app) {
         gtk_widget_set_sensitive(app->cpu_apply_all_cores_checkbox, TRUE);
 
         /* Restore the Apply to All Cores checkbox state from the active profile.
-         * The toggled callback fires and handles spinner disable/enable automatically. */
+         * Block the toggled callback and manually enforce spinner state, since
+         * gtk_toggle_button_set_active() doesn't fire the callback if value is unchanged. */
+        g_signal_handler_block(G_OBJECT(app->cpu_apply_all_cores_checkbox), app->cpu_apply_all_cores_signal_id);
         gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(app->cpu_apply_all_cores_checkbox), active_all_cores != 0);
+        g_signal_handler_unblock(G_OBJECT(app->cpu_apply_all_cores_checkbox), app->cpu_apply_all_cores_signal_id);
+
+        /* Manually enforce spinner disabled/enabled state */
+        if (active_all_cores) {
+            sync_core0_to_all_cores(app);
+            for (int i = 1; i < app->cpu_core_count && i < 32; i++) {
+                gtk_widget_set_sensitive(app->cpu_core_min_spinners[i], FALSE);
+                gtk_widget_set_sensitive(app->cpu_core_max_spinners[i], FALSE);
+            }
+        } else {
+            for (int i = 1; i < app->cpu_core_count && i < 32; i++) {
+                gtk_widget_set_sensitive(app->cpu_core_min_spinners[i], TRUE);
+                gtk_widget_set_sensitive(app->cpu_core_max_spinners[i], TRUE);
+            }
+        }
     }
 
     g_print("[GUI] Loaded %d custom frequency profiles (active idx=%d)\n", profile_count, active_idx);
@@ -883,12 +931,35 @@ static void on_cpu_custom_profile_changed(GtkWidget *widget, gpointer user_data)
         build_cpu_core_freq_grid(app, app->cpu_core_count);
         update_cpu_core_freq_spinners(app, active);
 
-        /* Re-apply disabled state if Apply to All Cores is still active */
-        if (gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(app->cpu_apply_all_cores_checkbox))) {
+        /* Query the new profile's all_cores value and restore checkbox state */
+        char info_cmd[64];
+        snprintf(info_cmd, sizeof(info_cmd), "GET_CUSTOM_PROFILE_INFO %d", active);
+        const char *info_response = send_cpu_command(app, info_cmd);
+        int all_cores = 0;
+        if (info_response) {
+            char *aac_ptr = strstr(info_response, "APPLY_ALL:");
+            if (aac_ptr) {
+                all_cores = atoi(aac_ptr + 10);
+            }
+        }
+        g_print("[GUI] Profile %d all_cores=%d, setting checkbox\n", active, all_cores);
+
+        /* Block the toggled callback to avoid double-firing during manual enforcement */
+        g_signal_handler_block(G_OBJECT(app->cpu_apply_all_cores_checkbox), app->cpu_apply_all_cores_signal_id);
+        gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(app->cpu_apply_all_cores_checkbox), all_cores != 0);
+        g_signal_handler_unblock(G_OBJECT(app->cpu_apply_all_cores_checkbox), app->cpu_apply_all_cores_signal_id);
+
+        /* Manually enforce spinner disabled/enabled state */
+        if (all_cores) {
             sync_core0_to_all_cores(app);
             for (int i = 1; i < app->cpu_core_count && i < 32; i++) {
                 gtk_widget_set_sensitive(app->cpu_core_min_spinners[i], FALSE);
                 gtk_widget_set_sensitive(app->cpu_core_max_spinners[i], FALSE);
+            }
+        } else {
+            for (int i = 1; i < app->cpu_core_count && i < 32; i++) {
+                gtk_widget_set_sensitive(app->cpu_core_min_spinners[i], TRUE);
+                gtk_widget_set_sensitive(app->cpu_core_max_spinners[i], TRUE);
             }
         }
     } else {
@@ -1007,6 +1078,35 @@ static void on_cpu_create_freq_profile_clicked(GtkWidget *widget, gpointer user_
                 if (app->cpu_core_count > 0) {
                     build_cpu_core_freq_grid(app, app->cpu_core_count);
                     update_cpu_core_freq_spinners(app, new_idx);
+
+                    /* Restore checkbox state and enforce spinner disabled/enabled state */
+                    char info_cmd[64];
+                    snprintf(info_cmd, sizeof(info_cmd), "GET_CUSTOM_PROFILE_INFO %d", new_idx);
+                    const char *info_response = send_cpu_command(app, info_cmd);
+                    int all_cores = 0;
+                    if (info_response) {
+                        char *aac_ptr = strstr(info_response, "APPLY_ALL:");
+                        if (aac_ptr) {
+                            all_cores = atoi(aac_ptr + 10);
+                        }
+                    }
+
+                    g_signal_handler_block(G_OBJECT(app->cpu_apply_all_cores_checkbox), app->cpu_apply_all_cores_signal_id);
+                    gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(app->cpu_apply_all_cores_checkbox), all_cores != 0);
+                    g_signal_handler_unblock(G_OBJECT(app->cpu_apply_all_cores_checkbox), app->cpu_apply_all_cores_signal_id);
+
+                    if (all_cores) {
+                        sync_core0_to_all_cores(app);
+                        for (int i = 1; i < app->cpu_core_count && i < 32; i++) {
+                            gtk_widget_set_sensitive(app->cpu_core_min_spinners[i], FALSE);
+                            gtk_widget_set_sensitive(app->cpu_core_max_spinners[i], FALSE);
+                        }
+                    } else {
+                        for (int i = 1; i < app->cpu_core_count && i < 32; i++) {
+                            gtk_widget_set_sensitive(app->cpu_core_min_spinners[i], TRUE);
+                            gtk_widget_set_sensitive(app->cpu_core_max_spinners[i], TRUE);
+                        }
+                    }
                 }
             }
 
@@ -4263,7 +4363,7 @@ static GtkWidget *create_cpu_page(AppData *app) {
             app->cpu_apply_all_cores_checkbox = gtk_check_button_new_with_label("Apply values to all cores");
             gtk_box_pack_start(GTK_BOX(freq_box), app->cpu_apply_all_cores_checkbox, FALSE, FALSE, 0);
             gtk_widget_set_sensitive(app->cpu_apply_all_cores_checkbox, FALSE); /* Disabled until profile selected */
-            g_signal_connect(app->cpu_apply_all_cores_checkbox, "toggled", G_CALLBACK(on_cpu_apply_all_cores_toggled), app);
+            app->cpu_apply_all_cores_signal_id = g_signal_connect(app->cpu_apply_all_cores_checkbox, "toggled", G_CALLBACK(on_cpu_apply_all_cores_toggled), app);
         }
 
         /* Scrollable area for per-core min/max spinners */
