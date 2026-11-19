@@ -520,15 +520,20 @@ static void parse_cpu_status(AppData *app, const char *response) {
         } else if (strncmp(line, "AUTO_MODE=", 10) == 0) {
             auto_mode = atoi(line + 10);
         } else {
-            /* Parse per-core frequencies: CPU_N_FREQ=value */
+            /* Parse per-core frequencies: CPU_N_FREQ=value (value may contain spaces like "2.40 GHz") */
             int core_idx = -1;
             char freq_tmp[64] = {0};
-            if (sscanf(line, "CPU_%d_FREQ=%63s", &core_idx, freq_tmp) == 2 && core_idx >= 0 && core_idx < 32) {
-                strncpy(core_freqs[core_idx], freq_tmp, sizeof(core_freqs[core_idx]) - 1);
-                if (core_idx >= core_count) {
-                    core_count = core_idx + 1;
+            char *freq_marker = strstr(line, "_FREQ=");
+            if (freq_marker != NULL && strncmp(line, "CPU_", 4) == 0) {
+                core_idx = atoi(line + 4);
+                if (core_idx >= 0 && core_idx < 32) {
+                    strncpy(freq_tmp, freq_marker + 6, sizeof(freq_tmp) - 1);
+                    freq_tmp[sizeof(freq_tmp) - 1] = '\0';
+                    strncpy(core_freqs[core_idx], freq_tmp, sizeof(core_freqs[core_idx]) - 1);
+                    if (core_idx >= core_count) {
+                        core_count = core_idx + 1;
+                    }
                 }
-
             }
         }
         line = strtok_r(NULL, "\n", &saveptr);
@@ -1581,9 +1586,24 @@ static void on_create_profile_clicked(GtkWidget *widget, gpointer user_data) {
             const char *response = send_command(app, cmd);
             show_status(app, response);
             
-            /* Refresh profile list and tray menu (do NOT auto-activate the new profile) */
+            /* Refresh profile list and tray menu, then switch to the new profile */
             refresh_profile_list(app);
             update_tray_menu(app);
+            
+            /* Find and select the newly created profile */
+            int new_idx = -1;
+            for (int k = 0; k < app->num_profiles; k++) {
+                if (strcmp(app->profile_names[k], name) == 0) {
+                    new_idx = k;
+                    break;
+                }
+            }
+            if (new_idx >= 0) {
+                g_signal_handler_block(app->profile_combo, app->profile_combo_signal_id);
+                gtk_combo_box_set_active(GTK_COMBO_BOX(app->profile_combo), new_idx);
+                g_signal_handler_unblock(app->profile_combo, app->profile_combo_signal_id);
+                load_curve_points_for_profile(app, new_idx);
+            }
         } else {
             show_status(app, "ERROR Profile name cannot be empty");
         }
@@ -1993,6 +2013,8 @@ static void refresh_profile_list(AppData *app) {
                 /* Skip past "] " to reach the name */
                 p += 3;
             }
+            /* Skip leading space before the name */
+            if (*p == ' ') p++;
             
             /* Everything remaining is the profile name (may contain spaces) */
             name_start = p;
