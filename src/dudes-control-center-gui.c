@@ -1183,6 +1183,27 @@ static void on_cpu_apply_freq_profile_clicked(GtkWidget *widget, gpointer user_d
     load_cpu_custom_profiles(app);
 }
 
+/* Helper: copy core 0 min/max to all other cores when checkbox is active */
+static void sync_core0_to_all_cores(AppData *app) {
+    if (!gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(app->cpu_apply_all_cores_checkbox)))
+        return;
+    if (app->cpu_core_count <= 0) return;
+
+    double first_min = gtk_adjustment_get_value(app->cpu_core_min_adjustments[0]);
+    double first_max = gtk_adjustment_get_value(app->cpu_core_max_adjustments[0]);
+
+    for (int i = 1; i < app->cpu_core_count && i < 32; i++) {
+        gtk_adjustment_set_value(app->cpu_core_min_adjustments[i], first_min);
+        gtk_adjustment_set_value(app->cpu_core_max_adjustments[i], first_max);
+    }
+}
+
+/* Callback: core 0 adjustment changed while Apply to All Cores is active */
+static void on_core0_freq_changed(GtkAdjustment *adjustment, gpointer user_data) {
+    AppData *app = (AppData *)user_data;
+    sync_core0_to_all_cores(app);
+}
+
 /* Callback: Apply to All Cores checkbox toggled */
 static void on_cpu_apply_all_cores_toggled(GtkCheckButton *checkbox, gpointer user_data) {
     AppData *app = (AppData *)user_data;
@@ -1193,21 +1214,17 @@ static void on_cpu_apply_all_cores_toggled(GtkCheckButton *checkbox, gpointer us
 
     if (active) {
         /* Copy first core's min/max values to all cores and disable other spinners */
-        double first_min = gtk_adjustment_get_value(app->cpu_core_min_adjustments[0]);
-        double first_max = gtk_adjustment_get_value(app->cpu_core_max_adjustments[0]);
+        sync_core0_to_all_cores(app);
 
         for (int i = 1; i < app->cpu_core_count && i < 32; i++) {
-            gtk_adjustment_set_value(app->cpu_core_min_adjustments[i], first_min);
-            gtk_adjustment_set_value(app->cpu_core_max_adjustments[i], first_max);
             gtk_widget_set_sensitive(app->cpu_core_min_spinners[i], FALSE);
             gtk_widget_set_sensitive(app->cpu_core_max_spinners[i], FALSE);
         }
-        /* Also disable first core spinner updates so values stay synced */
-        gtk_widget_set_sensitive(app->cpu_core_min_spinners[0], TRUE);
-        gtk_widget_set_sensitive(app->cpu_core_max_spinners[0], TRUE);
 
         g_print("[GUI] Copied core 0 values (min=%.0f MHz, max=%.0f MHz) to all %d cores\n",
-                first_min, first_max, app->cpu_core_count);
+                gtk_adjustment_get_value(app->cpu_core_min_adjustments[0]),
+                gtk_adjustment_get_value(app->cpu_core_max_adjustments[0]),
+                app->cpu_core_count);
     } else {
         /* Re-enable all spinners */
         for (int i = 1; i < app->cpu_core_count && i < 32; i++) {
@@ -1259,6 +1276,10 @@ static void build_cpu_core_freq_grid(AppData *app, int num_cores) {
         gtk_widget_set_hexpand(app->cpu_core_max_spinners[i], TRUE);
         gtk_grid_attach(GTK_GRID(app->cpu_core_freq_grid), app->cpu_core_max_spinners[i], col_max, row, 1, 1);
     }
+
+    /* Connect core 0 adjustments to sync all cores when Apply to All is active */
+    g_signal_connect(app->cpu_core_min_adjustments[0], "value-changed", G_CALLBACK(on_core0_freq_changed), app);
+    g_signal_connect(app->cpu_core_max_adjustments[0], "value-changed", G_CALLBACK(on_core0_freq_changed), app);
 
     /* Add header labels */
     GtkWidget *min_header = gtk_label_new("Min (MHz)");
