@@ -166,18 +166,27 @@ static void handle_command(const char *cmd, char *response, size_t resp_size) {
         const CpuProfile *active = cpu_profile_get_active();
         const char *active_name = active ? active->name : "None";
 
+        /* Get min/max freq from first core (all cores share the same range) */
+        char freq_min_buf[32], freq_max_buf[32];
+        format_frequency(status.cpus[0].min_freq_hz, freq_min_buf, sizeof(freq_min_buf));
+        format_frequency(status.cpus[0].max_freq_hz, freq_max_buf, sizeof(freq_max_buf));
+
         snprintf(response, resp_size,
             "STATUS OK\n"
             "NUM_CPUS=%d\n"
             "ON_AC=%d\n"
             "CPU_TEMP=%d\n"
             "CPU_LOAD=%.1f\n"
+            "MIN_FREQ=%s\n"
+            "MAX_FREQ=%s\n"
             "ACTIVE_GOVERNOR=%s\n"
             "AUTO_MODE=%d\n",
             status.num_cpus,
             status.on_ac_power,
             status.cpu_temp_c,
             status.cpu_load_percent,
+            freq_min_buf,
+            freq_max_buf,
             active_name,
             g_cpu_state.auto_mode_enabled);
 

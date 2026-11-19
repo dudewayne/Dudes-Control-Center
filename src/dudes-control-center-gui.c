@@ -551,6 +551,11 @@ static void parse_cpu_status(AppData *app, const char *response) {
             strncpy(active_governor, line + 16, sizeof(active_governor) - 1);
         } else if (strncmp(line, "AUTO_MODE=", 10) == 0) {
             auto_mode = atoi(line + 10);
+        } else if (strncmp(line, "MIN_FREQ=", 9) == 0) {
+            strncpy(min_max_freq, line + 9, sizeof(min_max_freq) - 1);
+        } else if (strncmp(line, "MAX_FREQ=", 9) == 0) {
+            strncat(min_max_freq, " / ", sizeof(min_max_freq) - strlen(min_max_freq) - 1);
+            strncat(min_max_freq, line + 9, sizeof(min_max_freq) - strlen(min_max_freq) - 1);
         } else {
             /* Parse per-core frequencies: CPU_N_FREQ=value (value may contain spaces like "2.40 GHz") */
             int core_idx = -1;
