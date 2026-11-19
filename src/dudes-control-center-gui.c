@@ -839,6 +839,12 @@ static void load_cpu_custom_profiles(AppData *app) {
             build_cpu_core_freq_grid(app, app->cpu_core_count);
             update_cpu_core_freq_spinners(app, active_idx);
         }
+
+        /* Enable the action buttons so the user can edit immediately */
+        gtk_widget_set_sensitive(app->cpu_freq_profile_delete_btn, TRUE);
+        gtk_widget_set_sensitive(app->cpu_freq_profile_rename_btn, TRUE);
+        gtk_widget_set_sensitive(app->cpu_freq_profile_apply_btn, TRUE);
+        gtk_widget_set_sensitive(app->cpu_apply_all_cores_checkbox, TRUE);
     }
 
     g_print("[GUI] Loaded %d custom frequency profiles (active idx=%d)\n", profile_count, active_idx);
