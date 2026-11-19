@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.6.9] - 2026-11-19
+
+### Fixed
+- **Logs written to stdout/stderr instead of log files**: All log output (especially from the fan daemon auto-mode loop running every 5 seconds) was going to stdout/stderr (systemd journal) instead of the designated log files. Fixed by removing stderr dual-write from `log_write()` and replacing all direct `fprintf(stderr)/printf` calls in the fan daemon and GUI with `LOG_*` macros. Logs now correctly go to `/var/log/dudes-control-center/` for daemons and `~/.cache/dudes-control-center/logs/` for the GUI.
+
 ## [1.6.8] - 2026-11-18
 
 ### Fixed
