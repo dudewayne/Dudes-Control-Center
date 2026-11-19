@@ -1348,8 +1348,12 @@ static void on_cpu_hard_limit_apply_clicked(GtkWidget *widget, gpointer user_dat
     g_print("[GUI] SET_HARD_LIMIT response: %s\n", response ? response : "NULL");
 
     if (response && strncmp(response, "OK", 2) == 0) {
+        char status_msg[256];
+        snprintf(status_msg, sizeof(status_msg), "Hard limit applied: %.2f GHz", ghz);
+        gtk_label_set_text(GTK_LABEL(app->cpu_freq_profile_status_label), status_msg);
+    } else {
         gtk_label_set_text(GTK_LABEL(app->cpu_freq_profile_status_label),
-            g_strndup(response, strlen(response) - 1));
+            response ? response : "Failed to apply hard limit");
     }
 }
 
