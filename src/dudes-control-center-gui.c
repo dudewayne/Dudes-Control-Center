@@ -5108,6 +5108,20 @@ int main(int argc, char *argv[]) {
                 parse_cpu_status(&app, immediate_status);
             }
         }
+
+        /* Load current hard limit from daemon */
+        {
+            const char *hard_resp = send_cpu_command(&app, "GET_HARD_LIMIT");
+            if (hard_resp && strncmp(hard_resp, "OK", 2) == 0) {
+                const char *eq = strstr(hard_resp, "HARD_LIMIT=");
+                if (eq) {
+                    uint32_t hz = (uint32_t)strtoul(eq + 11, NULL, 10);
+                    double ghz = (double)hz / 1000000000.0;
+                    gtk_spin_button_set_value(GTK_SPIN_BUTTON(app.cpu_hard_limit_spinner), ghz);
+                    g_print("[GUI] Loaded hard limit from daemon: %.2f GHz (%u Hz)\n", ghz, hz);
+                }
+            }
+        }
     } 
 
     /* Create system tray icon */
