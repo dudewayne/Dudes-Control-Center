@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.7.1] - 2026-11-19
+
+### Fixed
+- **Enter key in profile dialogs**: Added Enter key support for creating and renaming profiles in the CPU tab and curve editor. Pressing Enter now triggers the action button instead of requiring a mouse click.
+- **Selection changed after renaming CPU profile**: After renaming a profile, the combo box now stays on the renamed profile instead of switching to whichever profile the daemon marked as active.
+- **Removed CPU Auto feature**: Removed the Auto toggle switch from the CPU tab since it serves no purpose when using custom frequency profiles.
+
 ## [1.7.0] - 2026-11-19
 
 ### Added
