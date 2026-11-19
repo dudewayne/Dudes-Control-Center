@@ -1074,6 +1074,13 @@ static void on_cpu_create_freq_profile_clicked(GtkWidget *widget, gpointer user_
                 gtk_combo_box_set_active(GTK_COMBO_BOX(app->cpu_custom_profile_combo), new_idx);
                 app->cpu_active_custom_profile_idx = new_idx;
 
+                /* Default: set APPLY_ALL_CORES to 1 for the new profile */
+                {
+                    char apply_cmd[64];
+                    snprintf(apply_cmd, sizeof(apply_cmd), "SET_APPLY_ALL_CORES %d 1", new_idx);
+                    send_cpu_command(app, apply_cmd);
+                }
+
                 /* Load the new profile data into the editor grid */
                 if (app->cpu_core_count > 0) {
                     build_cpu_core_freq_grid(app, app->cpu_core_count);
