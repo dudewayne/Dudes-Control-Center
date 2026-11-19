@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.8.0] - 2026-11-19
+
+### Added
+- **Configurable hard CPU frequency limit**: The hard max frequency safety limit (previously hardcoded at 3.6 GHz) is now configurable via a new setting in the CPU Profiles tab. Includes a warning label about hardware risk. The limit is persisted to `~/.config/dudes-control-center/cpu/hard_limit.conf` and loaded from the daemon on GUI startup.
+
 ## [1.7.1] - 2026-11-19
 
 ### Fixed
