@@ -202,6 +202,11 @@ typedef struct {
     GtkAdjustment *cpu_core_min_adjustments[32];
     int cpu_active_custom_profile_idx;
     int cpu_freq_profiles_modified; /* Track unsaved changes */
+
+    /* Hard limit configuration UI */
+    GtkWidget *cpu_hard_limit_spinner;
+    GtkAdjustment *cpu_hard_limit_adjustment;
+    GtkWidget *cpu_hard_limit_apply_btn;
 } AppData;
 
 /* Forward declarations for callbacks */
@@ -262,6 +267,7 @@ static void on_cpu_apply_all_cores_toggled(GtkCheckButton *checkbox, gpointer us
 static void build_cpu_core_freq_grid(AppData *app, int num_cores);
 static void update_cpu_core_freq_spinners(AppData *app, int profile_idx);
 static void mark_cpu_freq_profiles_modified(AppData *app);
+static void on_cpu_hard_limit_apply_clicked(GtkWidget *widget, gpointer user_data);
 
 /* Forward declarations for profile and curve management */
 static void refresh_profile_list(AppData *app);
@@ -1324,6 +1330,27 @@ static void on_cpu_activate_freq_profile_clicked(GtkWidget *widget, gpointer use
     char status_msg[128];
     snprintf(status_msg, sizeof(status_msg), "Activated profile");
     gtk_label_set_text(GTK_LABEL(app->cpu_freq_profile_status_label), status_msg);
+}
+
+/* Callback: Apply hard frequency limit */
+static void on_cpu_hard_limit_apply_clicked(GtkWidget *widget, gpointer user_data) {
+    (void)widget;
+    AppData *app = (AppData *)user_data;
+
+    double ghz = gtk_spin_button_get_value(GTK_SPIN_BUTTON(app->cpu_hard_limit_spinner));
+    uint32_t hz = (uint32_t)(ghz * 1000000000.0);
+
+    g_print("[GUI] Applying hard limit: %.2f GHz (%u Hz)\n", ghz, hz);
+
+    char cmd[256];
+    snprintf(cmd, sizeof(cmd), "SET_HARD_LIMIT|%u", hz);
+    const char *response = send_cpu_command(app, cmd);
+    g_print("[GUI] SET_HARD_LIMIT response: %s\n", response ? response : "NULL");
+
+    if (response && strncmp(response, "OK", 2) == 0) {
+        gtk_label_set_text(GTK_LABEL(app->cpu_freq_profile_status_label),
+            g_strndup(response, strlen(response) - 1));
+    }
 }
 
 /* Helper: copy core 0 min/max to all other cores when checkbox is active */
@@ -4401,6 +4428,49 @@ static GtkWidget *create_cpu_page(AppData *app) {
             app->cpu_freq_profile_status_label = gtk_label_new("");
             gtk_widget_set_halign(app->cpu_freq_profile_status_label, GTK_ALIGN_START);
             gtk_box_pack_start(GTK_BOX(freq_box), app->cpu_freq_profile_status_label, FALSE, FALSE, 0);
+        }
+    }
+
+    /* Section: Hard Frequency Limit */
+    {
+        GtkWidget *limit_frame = gtk_frame_new("Hard Frequency Limit");
+        GtkWidget *limit_box = gtk_box_new(GTK_ORIENTATION_VERTICAL, 5);
+        gtk_container_set_border_width(GTK_CONTAINER(limit_box), 10);
+        gtk_container_add(GTK_CONTAINER(limit_frame), limit_box);
+        gtk_box_pack_start(GTK_BOX(vbox), limit_frame, FALSE, FALSE, 0);
+
+        /* Warning label */
+        {
+            GtkWidget *warning_label = gtk_label_new("");
+            gtk_label_set_markup(GTK_LABEL(warning_label),
+                "<span foreground='#e74c3c' weight='bold'>WARNING:</span> "
+                "This is a safety limit to protect your hardware. "
+                "Setting it too high may cause CPU instability, overheating, or permanent damage. "
+                "Only increase this if you know your CPU's safe operating limits.");
+            gtk_label_set_line_wrap(GTK_LABEL(warning_label), TRUE);
+            gtk_widget_set_hexpand(warning_label, TRUE);
+            gtk_box_pack_start(GTK_BOX(limit_box), warning_label, FALSE, FALSE, 0);
+        }
+
+        /* Hard limit spinner (in GHz, step 0.1, range 0.5 - 8.0) */
+        {
+            GtkWidget *row = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 10);
+            GtkWidget *label = gtk_label_new("Hard Limit (GHz):");
+            gtk_widget_set_halign(label, GTK_ALIGN_END);
+            gtk_label_set_width_chars(GTK_LABEL(label), 20);
+            gtk_box_pack_start(GTK_BOX(row), label, FALSE, FALSE, 0);
+
+            app->cpu_hard_limit_adjustment = gtk_adjustment_new(3.6, 0.5, 8.0, 0.1, 0.5, 0);
+            app->cpu_hard_limit_spinner = gtk_spin_button_new(app->cpu_hard_limit_adjustment, 0.1, 1);
+            gtk_widget_set_halign(app->cpu_hard_limit_spinner, GTK_ALIGN_START);
+            gtk_box_pack_start(GTK_BOX(row), app->cpu_hard_limit_spinner, FALSE, FALSE, 0);
+
+            app->cpu_hard_limit_apply_btn = gtk_button_new_with_label("Apply");
+            gtk_widget_set_halign(app->cpu_hard_limit_apply_btn, GTK_ALIGN_START);
+            gtk_box_pack_start(GTK_BOX(row), app->cpu_hard_limit_apply_btn, FALSE, FALSE, 0);
+            g_signal_connect(app->cpu_hard_limit_apply_btn, "clicked", G_CALLBACK(on_cpu_hard_limit_apply_clicked), app);
+
+            gtk_box_pack_start(GTK_BOX(limit_box), row, FALSE, FALSE, 0);
         }
     }
 
