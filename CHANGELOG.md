@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.6.10] - 2026-11-19
+
+### Fixed
+- **New curve profile not auto-selected after creation**: When creating a new profile in the curve editor, the GUI stayed on the previous profile instead of switching to the newly created one with a cleared curve points list. Root cause: profile name parsing in `refresh_profile_list()` included a leading space (e.g., `' 213'` instead of `'213'`), so the `strcmp` lookup failed. Fixed by skipping the leading space after the bracket marker.
+
 ## [1.6.9] - 2026-11-19
 
 ### Fixed
