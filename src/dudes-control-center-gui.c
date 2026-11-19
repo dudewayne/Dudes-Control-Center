@@ -307,7 +307,7 @@ static gboolean populate_cpu_core_grid_idle(gpointer data) {
         char info_cmd[64];
         snprintf(info_cmd, sizeof(info_cmd), "GET_CUSTOM_PROFILE_INFO %d", idx);
         const char *info_response = send_cpu_command(app, info_cmd);
-        int all_cores = 0;
+        int all_cores = 1; /* Default: apply to all cores */
         if (info_response) {
             char *aac_ptr = strstr(info_response, "APPLY_ALL:");
             if (aac_ptr) {
@@ -831,7 +831,7 @@ static void load_cpu_custom_profiles(AppData *app) {
     char *line = strtok(resp_copy, "\n");
     int profile_count = 0;
     int active_idx = -1;
-    int active_all_cores = 0;  /* Track all_cores for the active profile */
+    int active_all_cores = 1;  /* Default: apply to all cores */
     while (line != NULL) {
         /* Skip empty lines */
         if (strlen(line) == 0) {
@@ -935,7 +935,7 @@ static void on_cpu_custom_profile_changed(GtkWidget *widget, gpointer user_data)
         char info_cmd[64];
         snprintf(info_cmd, sizeof(info_cmd), "GET_CUSTOM_PROFILE_INFO %d", active);
         const char *info_response = send_cpu_command(app, info_cmd);
-        int all_cores = 0;
+        int all_cores = 1; /* Default: apply to all cores */
         if (info_response) {
             char *aac_ptr = strstr(info_response, "APPLY_ALL:");
             if (aac_ptr) {
@@ -1083,7 +1083,7 @@ static void on_cpu_create_freq_profile_clicked(GtkWidget *widget, gpointer user_
                     char info_cmd[64];
                     snprintf(info_cmd, sizeof(info_cmd), "GET_CUSTOM_PROFILE_INFO %d", new_idx);
                     const char *info_response = send_cpu_command(app, info_cmd);
-                    int all_cores = 0;
+                    int all_cores = 1; /* Default: apply to all cores */
                     if (info_response) {
                         char *aac_ptr = strstr(info_response, "APPLY_ALL:");
                         if (aac_ptr) {
