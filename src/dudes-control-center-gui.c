@@ -1189,21 +1189,32 @@ static void on_cpu_apply_all_cores_toggled(GtkCheckButton *checkbox, gpointer us
     int active = gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(checkbox));
     g_print("[GUI] Apply to All Cores: %s\n", active ? "ON" : "OFF");
 
-    if (!active) return;
-
-    /* Copy first core's min/max values to all cores */
     if (app->cpu_core_count <= 0) return;
 
-    double first_min = gtk_adjustment_get_value(app->cpu_core_min_adjustments[0]);
-    double first_max = gtk_adjustment_get_value(app->cpu_core_max_adjustments[0]);
+    if (active) {
+        /* Copy first core's min/max values to all cores and disable other spinners */
+        double first_min = gtk_adjustment_get_value(app->cpu_core_min_adjustments[0]);
+        double first_max = gtk_adjustment_get_value(app->cpu_core_max_adjustments[0]);
 
-    for (int i = 1; i < app->cpu_core_count && i < 32; i++) {
-        gtk_adjustment_set_value(app->cpu_core_min_adjustments[i], first_min);
-        gtk_adjustment_set_value(app->cpu_core_max_adjustments[i], first_max);
+        for (int i = 1; i < app->cpu_core_count && i < 32; i++) {
+            gtk_adjustment_set_value(app->cpu_core_min_adjustments[i], first_min);
+            gtk_adjustment_set_value(app->cpu_core_max_adjustments[i], first_max);
+            gtk_widget_set_sensitive(app->cpu_core_min_spinners[i], FALSE);
+            gtk_widget_set_sensitive(app->cpu_core_max_spinners[i], FALSE);
+        }
+        /* Also disable first core spinner updates so values stay synced */
+        gtk_widget_set_sensitive(app->cpu_core_min_spinners[0], TRUE);
+        gtk_widget_set_sensitive(app->cpu_core_max_spinners[0], TRUE);
+
+        g_print("[GUI] Copied core 0 values (min=%.0f MHz, max=%.0f MHz) to all %d cores\n",
+                first_min, first_max, app->cpu_core_count);
+    } else {
+        /* Re-enable all spinners */
+        for (int i = 1; i < app->cpu_core_count && i < 32; i++) {
+            gtk_widget_set_sensitive(app->cpu_core_min_spinners[i], TRUE);
+            gtk_widget_set_sensitive(app->cpu_core_max_spinners[i], TRUE);
+        }
     }
-
-    g_print("[GUI] Copied core 0 values (min=%.0f MHz, max=%.0f MHz) to all %d cores\n",
-            first_min, first_max, app->cpu_core_count);
 }
 
 /* Build the per-core frequency grid with spinners */
