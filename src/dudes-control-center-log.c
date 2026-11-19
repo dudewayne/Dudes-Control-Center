@@ -84,6 +84,36 @@ static void rotate_logs(void) {
     }
 }
 
+static void open_log_file(void) {
+    char log_path[512];
+    snprintf(log_path, sizeof(log_path), "%s/%s.log", g_log_dir, g_app_name);
+    
+    /* Open in append mode */
+    g_log_file = fopen(log_path, "a");
+    if (!g_log_file) {
+        fprintf(stderr, "[LOG] FAILED to open log file '%s': %s (errno=%d)\n",
+                log_path, strerror(errno), errno);
+        return;
+    }
+    
+    /* Set buffering for performance */
+    setvbuf(g_log_file, NULL, _IOLBF, LOG_BUFFER_SIZE);  /* Line buffered */
+    fprintf(stderr, "[LOG] Log file opened: %s\n", log_path);
+}
+
+/* Fallback: write to stderr if log file is unavailable */
+static void log_write_stderr(const char* buffer) {
+    fprintf(stderr, "%s", buffer);
+    fflush(stderr);
+}
+
+/* Try to reopen the log file if it's closed */
+static void try_reopen_log_file(void) {
+    if (!g_log_file && strlen(g_log_dir) > 0) {
+        open_log_file();
+    }
+}
+
 static void check_and_rotate(void) {
     if (!g_log_file) return;
     
@@ -94,21 +124,85 @@ static void check_and_rotate(void) {
         g_log_file = NULL;
         
         rotate_logs();
+        open_log_file();
     }
 }
 
-static void open_log_file(void) {
-    char log_path[512];
-    snprintf(log_path, sizeof(log_path), "%s/%s.log", g_log_dir, g_app_name);
+void log_write(LogLevel level, const char* format, ...) {
+    va_list args;
     
-    /* Open in append mode */
-    g_log_file = fopen(log_path, "a");
-    if (!g_log_file) {
-        return;
+    /* Format timestamp */
+    time_t now = time(NULL);
+    struct tm* tm_info = localtime(&now);
+    char timestamp[32];
+    strftime(timestamp, sizeof(timestamp), "%Y-%m-%d %H:%M:%S", tm_info);
+    
+    /* Get milliseconds */
+    struct timespec ts;
+    clock_gettime(CLOCK_REALTIME, &ts);
+    int ms = ts.tv_nsec / 1000000;
+    
+    /* Format the log line */
+    char buffer[LOG_BUFFER_SIZE];
+    snprintf(buffer, sizeof(buffer), "[%s.%03d] [%-5s] [%s] ", 
+             timestamp, ms, log_level_to_string(level), g_app_name);
+    
+    /* Add the message */
+    va_start(args, format);
+    vsnprintf(buffer + strlen(buffer), sizeof(buffer) - strlen(buffer), format, args);
+    va_end(args);
+    
+    /* Append newline if not present */
+    size_t len = strlen(buffer);
+    if (len > 0 && buffer[len-1] != '\n') {
+        strncat(buffer, "\n", sizeof(buffer) - len - 1);
     }
     
-    /* Set buffering for performance */
-    setvbuf(g_log_file, NULL, _IOLBF, LOG_BUFFER_SIZE);  /* Line buffered */
+    /* Write to log file with stderr fallback */
+    if (g_log_file) {
+        check_and_rotate();
+        
+        if (!g_log_file) {
+            try_reopen_log_file();
+        }
+        
+        if (g_log_file) {
+            fputs(buffer, g_log_file);
+        } else {
+            log_write_stderr(buffer);
+        }
+    } else {
+        /* No log file at all - write to stderr */
+        log_write_stderr(buffer);
+    }
+
+}
+
+void log_cleanup(void) {
+    if (g_log_file) {
+        fflush(g_log_file);
+        fclose(g_log_file);
+        g_log_file = NULL;
+    }
+}
+
+int log_should_output(LogLevel level) {
+    return level <= g_min_log_level;
+}
+
+void log_set_level(LogLevel level) {
+    LogLevel old_level = g_min_log_level;
+    g_min_log_level = level;
+    char new_ts[32];
+    time_t now = time(NULL);
+    struct tm* tm_info = localtime(&now);
+    strftime(new_ts, sizeof(new_ts), "%Y-%m-%d %H:%M:%S", tm_info);
+    fprintf(g_log_file ? g_log_file : stderr, "[%s] [INFO ] [LOG] Log level changed: %s -> %s\n",
+            new_ts, log_level_to_string(old_level), log_level_to_string(level));
+}
+
+LogLevel log_get_level(void) {
+    return g_min_log_level;
 }
 
 int log_init(const char* app_name, LogLevel min_level, const char* custom_path) {
@@ -151,74 +245,4 @@ int log_init(const char* app_name, LogLevel min_level, const char* custom_path) 
     return 0;
 }
 
-void log_cleanup(void) {
-    if (g_log_file) {
-        fflush(g_log_file);
-        fclose(g_log_file);
-        g_log_file = NULL;
-    }
-}
 
-int log_should_output(LogLevel level) {
-    return level <= g_min_log_level;
-}
-
-void log_set_level(LogLevel level) {
-    LogLevel old_level = g_min_log_level;
-    g_min_log_level = level;
-    char new_ts[32];
-    time_t now = time(NULL);
-    struct tm* tm_info = localtime(&now);
-    strftime(new_ts, sizeof(new_ts), "%Y-%m-%d %H:%M:%S", tm_info);
-    fprintf(g_log_file ? g_log_file : stderr, "[%s] [INFO ] [LOG] Log level changed: %s -> %s\n",
-            new_ts, log_level_to_string(old_level), log_level_to_string(level));
-}
-
-LogLevel log_get_level(void) {
-    return g_min_log_level;
-}
-
-void log_write(LogLevel level, const char* format, ...) {
-    va_list args;
-    
-    /* Format timestamp */
-    time_t now = time(NULL);
-    struct tm* tm_info = localtime(&now);
-    char timestamp[32];
-    strftime(timestamp, sizeof(timestamp), "%Y-%m-%d %H:%M:%S", tm_info);
-    
-    /* Get milliseconds */
-    struct timespec ts;
-    clock_gettime(CLOCK_REALTIME, &ts);
-    int ms = ts.tv_nsec / 1000000;
-    
-    /* Format the log line */
-    char buffer[LOG_BUFFER_SIZE];
-    snprintf(buffer, sizeof(buffer), "[%s.%03d] [%-5s] [%s] ", 
-             timestamp, ms, log_level_to_string(level), g_app_name);
-    
-    /* Add the message */
-    va_start(args, format);
-    vsnprintf(buffer + strlen(buffer), sizeof(buffer) - strlen(buffer), format, args);
-    va_end(args);
-    
-    /* Append newline if not present */
-    size_t len = strlen(buffer);
-    if (len > 0 && buffer[len-1] != '\n') {
-        strncat(buffer, "\n", sizeof(buffer) - len - 1);
-    }
-    
-    /* Write to log file */
-    if (g_log_file) {
-        check_and_rotate();
-        
-        if (!g_log_file) {
-            open_log_file();
-        }
-        
-        if (g_log_file) {
-            fputs(buffer, g_log_file);
-        }
-    }
-    
-}

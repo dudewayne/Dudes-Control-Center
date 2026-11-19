@@ -305,6 +305,9 @@ int cpu_control_init(void) {
              hard_limit, hard_limit / 1e9);
     set_all_cpus_max_freq(hard_limit);
 
+    /* Set EPP to performance so the CPU actually pushes to the configured max frequency */
+    set_all_cpus_epp("performance");
+
     return 0;
 }
 
@@ -447,6 +450,30 @@ int set_cpu_min_freq(int cpu_id, uint32_t freq_hz) {
 
 int set_cpu_max_freq(int cpu_id, uint32_t freq_hz) {
     return sysfs_write_freq(cpu_id, "cpufreq/scaling_max_freq", freq_hz);
+}
+
+/* Set Energy Performance Preference for a single CPU */
+int set_cpu_epp(int cpu_id, const char *epp) {
+    if (!epp) return -1;
+    return sysfs_write_string(cpu_id, "cpufreq/energy_performance_preference", epp);
+}
+
+/* Set Energy Performance Preference for all CPUs */
+int set_all_cpus_epp(const char *epp) {
+    int cpu_count = get_cpu_count();
+    int errors = 0;
+
+    for (int i = 0; i < cpu_count; i++) {
+        if (set_cpu_epp(i, epp) != 0) {
+            errors++;
+        }
+    }
+    if (errors == 0) {
+        LOG_INFO("[CPU] Set EPP to '%s' on all %d cores", epp, cpu_count);
+    } else {
+        LOG_WARN("[CPU] Set EPP to '%s' on %d/%d cores (%d errors)", epp, cpu_count - errors, cpu_count, errors);
+    }
+    return (errors == 0) ? 0 : -1;
 }
 
 /* --- Set governor/frequency for all CPUs --- */
@@ -1403,6 +1430,9 @@ int cpu_custom_profile_apply(int idx) {
         LOG_ERROR("[CPU] Failed to set governor '%s' for custom profile", gov_str);
         return -1;
     }
+
+    /* Set EPP to performance so cores actually push to the configured max */
+    set_all_cpus_epp("performance");
 
     /* Set per-core frequencies */
     int errors = 0;
