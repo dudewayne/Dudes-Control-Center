@@ -49,6 +49,11 @@ static int compare_curve_points_asc(const void *a, const void *b) {
     return pa->temp - pb->temp;  /* Ascending order */
 }
 
+/* Helper: close a dialog when Enter is pressed in an entry */
+static void on_entry_activate(GtkEntry *entry, GtkDialog *dialog) {
+    gtk_dialog_response(dialog, GTK_RESPONSE_ACCEPT);
+}
+
 /* Helper function to get timestamp string */
 static void get_timestamp(char *buf, size_t buf_size) {
     struct timeval tv;
@@ -1015,6 +1020,7 @@ static void on_cpu_create_freq_profile_clicked(GtkWidget *widget, gpointer user_
 
     /* Set Accept as default so Enter key triggers profile creation */
     gtk_dialog_set_default_response(GTK_DIALOG(dialog), GTK_RESPONSE_ACCEPT);
+    g_signal_connect(entry, "activate", G_CALLBACK(on_entry_activate), dialog);
 
     if (gtk_dialog_run(GTK_DIALOG(dialog)) == GTK_RESPONSE_ACCEPT) {
         const gchar *name = gtk_entry_get_text(GTK_ENTRY(entry));
@@ -1252,6 +1258,7 @@ static void on_cpu_rename_freq_profile_clicked(GtkWidget *widget, gpointer user_
 
     /* Set Accept as default so Enter key triggers rename */
     gtk_dialog_set_default_response(GTK_DIALOG(dialog), GTK_RESPONSE_ACCEPT);
+    g_signal_connect(entry, "activate", G_CALLBACK(on_entry_activate), dialog);
 
     if (gtk_dialog_run(GTK_DIALOG(dialog)) == GTK_RESPONSE_ACCEPT) {
         const gchar *new_name = gtk_entry_get_text(GTK_ENTRY(entry));
@@ -1265,6 +1272,11 @@ static void on_cpu_rename_freq_profile_clicked(GtkWidget *widget, gpointer user_
 
             /* Reload the profile list */
             load_cpu_custom_profiles(app);
+
+            /* Keep selection on the renamed profile */
+            g_signal_handler_block(app->cpu_custom_profile_combo, app->cpu_custom_profile_combo_signal_id);
+            gtk_combo_box_set_active(GTK_COMBO_BOX(app->cpu_custom_profile_combo), idx);
+            g_signal_handler_unblock(app->cpu_custom_profile_combo, app->cpu_custom_profile_combo_signal_id);
 
             /* Save profiles to disk (GUI writes directly) */
             gui_save_profiles_to_disk(app);
@@ -1749,6 +1761,10 @@ static void on_create_profile_clicked(GtkWidget *widget, gpointer user_data) {
     GtkWidget *content = gtk_dialog_get_content_area(GTK_DIALOG(dialog));
     gtk_box_pack_start(GTK_BOX(content), entry, TRUE, TRUE, 0);
     gtk_widget_show_all(content);
+    
+    /* Set Accept as default so Enter key triggers profile creation */
+    gtk_dialog_set_default_response(GTK_DIALOG(dialog), GTK_RESPONSE_ACCEPT);
+    g_signal_connect(entry, "activate", G_CALLBACK(on_entry_activate), dialog);
     
     if (gtk_dialog_run(GTK_DIALOG(dialog)) == GTK_RESPONSE_ACCEPT) {
         const gchar *name = gtk_entry_get_text(GTK_ENTRY(entry));
