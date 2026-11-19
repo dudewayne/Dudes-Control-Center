@@ -441,7 +441,7 @@ static void handle_command(const char *cmd, char *response, size_t resp_size) {
         CpuGovernor gov = CPU_GOVERNOR_PERFORMANCE;
         governor_to_enum(arg2, &gov);
 
-        uint32_t max_freq = HARD_MAX_FREQ_HZ;
+        uint32_t max_freq = get_hard_max_freq_hz();
         if (arg3[0]) {
             max_freq = (uint32_t)strtoul(arg3, NULL, 10);
         }

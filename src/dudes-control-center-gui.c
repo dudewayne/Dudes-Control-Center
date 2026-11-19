@@ -1006,7 +1006,7 @@ static void on_cpu_create_freq_profile_clicked(GtkWidget *widget, gpointer user_
 
             /* Send CREATE_CUSTOM_PROFILE command to daemon */
             char cmd[256];
-            snprintf(cmd, sizeof(cmd), "CREATE_CUSTOM_PROFILE|%s|schedutil|%u|0", name, HARD_MAX_FREQ_HZ);
+            snprintf(cmd, sizeof(cmd), "CREATE_CUSTOM_PROFILE|%s|schedutil|%u|0", name, HARD_MAX_FREQ_HZ_DEFAULT);
             const char *response = send_cpu_command(app, cmd);
             g_print("[GUI] CREATE_CUSTOM_PROFILE response: %s\n", response ? response : "NULL");
 

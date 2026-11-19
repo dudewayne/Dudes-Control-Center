@@ -20,6 +20,18 @@
 /* --- Global state --- */
 CpuControlState g_cpu_state = {0};
 
+/* --- Runtime hard frequency limit (configurable) --- */
+static uint32_t g_hard_max_freq_hz = HARD_MAX_FREQ_HZ_DEFAULT;
+
+uint32_t get_hard_max_freq_hz(void) {
+    return g_hard_max_freq_hz;
+}
+
+void set_hard_max_freq_hz(uint32_t freq_hz) {
+    g_hard_max_freq_hz = freq_hz;
+    LOG_INFO("[CPU] Hard max frequency limit changed to %u Hz (%.2f GHz)", freq_hz, freq_hz / 1e9);
+}
+
 /* --- CPU frequency sysfs paths --- */
 #define CPUSYSFS "/sys/devices/system/cpu"
 #define CPUFREQ_SUBDIR "cpufreq"
@@ -240,10 +252,11 @@ int cpu_control_init(void) {
     /* Load custom profiles */
     cpu_custom_profile_load_json();
 
-    /* Apply HARD SAFETY LIMIT immediately on startup (3.6 GHz max) */
+    /* Apply HARD SAFETY LIMIT immediately on startup */
+    uint32_t hard_limit = get_hard_max_freq_hz();
     LOG_INFO("[CPU] Applying hard safety limit: %u Hz (%.1f GHz)",
-             HARD_MAX_FREQ_HZ, HARD_MAX_FREQ_HZ / 1e9);
-    set_all_cpus_max_freq(HARD_MAX_FREQ_HZ);
+             hard_limit, hard_limit / 1e9);
+    set_all_cpus_max_freq(hard_limit);
 
     return 0;
 }
@@ -444,8 +457,8 @@ int cpu_profile_create(const char *name, CpuGovernor governor,
     }
 
     /* Apply safety limit to max_freq if set */
-    if (max_freq > HARD_MAX_FREQ_HZ) {
-        max_freq = HARD_MAX_FREQ_HZ;
+    if (max_freq > get_hard_max_freq_hz()) {
+        max_freq = get_hard_max_freq_hz();
     }
 
     CpuProfile *p = &g_cpu_state.profiles[g_cpu_state.num_profiles];
@@ -519,8 +532,9 @@ int cpu_profile_apply(const char *name) {
     }
 
     /* Set max freq if specified (always apply safety limit) */
-    uint32_t max_freq = p->max_freq_hz > 0 ? p->max_freq_hz : HARD_MAX_FREQ_HZ;
-    if (max_freq > HARD_MAX_FREQ_HZ) max_freq = HARD_MAX_FREQ_HZ;
+    uint32_t hard_limit = get_hard_max_freq_hz();
+    uint32_t max_freq = p->max_freq_hz > 0 ? p->max_freq_hz : hard_limit;
+    if (max_freq > hard_limit) max_freq = hard_limit;
     if (set_all_cpus_max_freq(max_freq) != 0) {
         LOG_WARN("[CPU] Failed to set max freq to %u Hz", max_freq);
     }
@@ -937,8 +951,8 @@ int cpu_custom_profile_create(const char *name, CpuGovernor governor,
     }
 
     /* Apply safety limit */
-    if (default_max_freq_hz > HARD_MAX_FREQ_HZ) {
-        default_max_freq_hz = HARD_MAX_FREQ_HZ;
+    if (default_max_freq_hz > get_hard_max_freq_hz()) {
+        default_max_freq_hz = get_hard_max_freq_hz();
     }
 
     CpuCustomProfile *p = &g_cpu_state.custom_profiles[g_cpu_state.num_custom_profiles];
@@ -1013,7 +1027,7 @@ int cpu_custom_profile_set_core_freq(int profile_idx, int cpu_id,
     CpuCustomProfile *p = &g_cpu_state.custom_profiles[profile_idx];
 
     /* Apply safety limit */
-    if (max_freq_hz > HARD_MAX_FREQ_HZ) max_freq_hz = HARD_MAX_FREQ_HZ;
+    if (max_freq_hz > get_hard_max_freq_hz()) max_freq_hz = get_hard_max_freq_hz();
 
     p->per_core_max_freq_hz[cpu_id] = max_freq_hz;
     p->per_core_min_freq_hz[cpu_id] = min_freq_hz;
@@ -1325,7 +1339,7 @@ int cpu_custom_profile_apply(int idx) {
     for (int i = 0; i < p->num_cores && i < MAX_CPUS; i++) {
         if (p->per_core_max_freq_hz[i] > 0) {
             uint32_t max_freq = p->per_core_max_freq_hz[i];
-            if (max_freq > HARD_MAX_FREQ_HZ) max_freq = HARD_MAX_FREQ_HZ;
+            if (max_freq > get_hard_max_freq_hz()) max_freq = get_hard_max_freq_hz();
             if (set_cpu_max_freq(i, max_freq) != 0) {
                 errors++;
             }

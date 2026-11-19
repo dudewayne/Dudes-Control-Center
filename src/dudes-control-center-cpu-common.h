@@ -28,8 +28,12 @@
 /* Resolved at runtime: ~/.config/dudes-control-center/cpu/ */
 #define CPU_CONFIG_DIR "dudes-control-center/cpu"
 
-/* --- HARD SAFETY LIMIT: Maximum CPU frequency cap (3.6 GHz) --- */
-#define HARD_MAX_FREQ_HZ 3600000000U  /* 3600 MHz = 3.6 GHz in Hz */
+/* --- HARD SAFETY LIMIT: Maximum CPU frequency cap (configurable) --- */
+#define HARD_MAX_FREQ_HZ_DEFAULT 3600000000U  /* 3600 MHz = 3.6 GHz in Hz, default */
+
+/* Runtime hard limit accessors */
+uint32_t get_hard_max_freq_hz(void);
+void set_hard_max_freq_hz(uint32_t freq_hz);
 
 /* --- CPU Governor types --- */
 typedef enum {
