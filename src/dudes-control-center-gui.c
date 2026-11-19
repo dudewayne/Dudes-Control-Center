@@ -1013,6 +1013,9 @@ static void on_cpu_create_freq_profile_clicked(GtkWidget *widget, gpointer user_
 
     gtk_widget_show_all(content);
 
+    /* Set Accept as default so Enter key triggers profile creation */
+    gtk_dialog_set_default_response(GTK_DIALOG(dialog), GTK_RESPONSE_ACCEPT);
+
     if (gtk_dialog_run(GTK_DIALOG(dialog)) == GTK_RESPONSE_ACCEPT) {
         const gchar *name = gtk_entry_get_text(GTK_ENTRY(entry));
 
@@ -1246,6 +1249,9 @@ static void on_cpu_rename_freq_profile_clicked(GtkWidget *widget, gpointer user_
     gtk_box_pack_start(GTK_BOX(content), entry, TRUE, TRUE, 0);
 
     gtk_widget_show_all(content);
+
+    /* Set Accept as default so Enter key triggers rename */
+    gtk_dialog_set_default_response(GTK_DIALOG(dialog), GTK_RESPONSE_ACCEPT);
 
     if (gtk_dialog_run(GTK_DIALOG(dialog)) == GTK_RESPONSE_ACCEPT) {
         const gchar *new_name = gtk_entry_get_text(GTK_ENTRY(entry));
