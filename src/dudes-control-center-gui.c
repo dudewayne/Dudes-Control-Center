@@ -178,8 +178,6 @@ typedef struct {
     GtkWidget *cpu_page_min_max_freq_label;
     GtkWidget *cpu_profile_combo;
     GtkListStore *cpu_profile_store;
-    GtkWidget *cpu_auto_mode_switch;
-    guint cpu_auto_mode_signal_id;
     guint cpu_refresh_timer_id;
     
     /* Per-core frequency display */
@@ -249,7 +247,6 @@ static void parse_cpu_status(AppData *app, const char *response);
 static gboolean cpu_refresh_timer_callback(gpointer user_data);
 static void load_cpu_governors(AppData *app);
 static void on_cpu_governor_changed(GtkWidget *widget, gpointer user_data);
-static void on_cpu_auto_mode_toggled(GtkSwitch *switch_widget, gboolean is_on, gpointer user_data);
 
 /* Forward declarations for CPU custom frequency profile management */
 static gboolean populate_cpu_core_grid_idle(gpointer data);
@@ -630,17 +627,6 @@ static void parse_cpu_status(AppData *app, const char *response) {
             }
         }
     }
-
-    /* Sync auto-mode switch state with daemon */
-    if (app->cpu_auto_mode_switch) {
-        gboolean current_state = gtk_switch_get_active(GTK_SWITCH(app->cpu_auto_mode_switch));
-        gboolean desired_state = (auto_mode != 0);
-        if (current_state != desired_state) {
-            g_signal_handler_block(app->cpu_auto_mode_switch, app->cpu_auto_mode_signal_id);
-            gtk_switch_set_active(GTK_SWITCH(app->cpu_auto_mode_switch), desired_state);
-            g_signal_handler_unblock(app->cpu_auto_mode_switch, app->cpu_auto_mode_signal_id);
-        }
-    }
 }
 
 /* CPU refresh timer callback - fetch CPU STATUS and update UI every 5 seconds */
@@ -772,47 +758,6 @@ static void on_cpu_governor_changed(GtkWidget *widget, gpointer user_data) {
     }
 
     g_free(governor_name);
-}
-
-/* Callback: Toggle CPU auto mode */
-static void on_cpu_auto_mode_toggled(GtkSwitch *switch_widget, gboolean is_on, gpointer user_data) {
-    AppData *app = (AppData *)user_data;
-    char ts[32];
-    get_timestamp(ts, sizeof(ts));
-
-    g_print("%s [GUI] >>> on_cpu_auto_mode_toggled called: is_on=%d <<<\n", ts, is_on);
-    LOG_INFO("CPU auto mode %s", is_on ? "enabled" : "disabled");
-
-    if (!app->cpu_connected || app->cpu_socket_fd < 0) {
-        g_print("%s [GUI] CPU daemon not connected, reverting switch\n", ts);
-        LOG_WARN("CPU daemon not connected, cannot toggle auto mode");
-        if (app->cpu_auto_mode_signal_id != 0) {
-            g_signal_handler_block(switch_widget, app->cpu_auto_mode_signal_id);
-        }
-        gtk_switch_set_active(switch_widget, !is_on);
-        if (app->cpu_auto_mode_signal_id != 0) {
-            g_signal_handler_unblock(switch_widget, app->cpu_auto_mode_signal_id);
-        }
-        return;
-    }
-
-    const char *response = send_cpu_command(app, "TOGGLE_AUTO_MODE");
-    g_print("%s [GUI] TOGGLE_AUTO_MODE response: %s\n", ts, response ? response : "(null)");
-    
-    if (response && strncmp(response, "OK", 2) == 0) {
-        show_status(app, is_on ? "CPU auto-switching enabled" : "CPU auto-switching disabled");
-    } else {
-        g_print("%s [GUI] Failed to toggle CPU auto mode: %s\n", ts, response ? response : "(null)");
-        LOG_WARN("Failed to toggle CPU auto mode: %s", response ? response : "(null)");
-        /* Revert the switch on failure - block signal to prevent infinite recursion */
-        if (app->cpu_auto_mode_signal_id != 0) {
-            g_signal_handler_block(switch_widget, app->cpu_auto_mode_signal_id);
-        }
-        gtk_switch_set_active(switch_widget, !is_on);
-        if (app->cpu_auto_mode_signal_id != 0) {
-            g_signal_handler_unblock(switch_widget, app->cpu_auto_mode_signal_id);
-        }
-    }
 }
 
 /* ============================================================
@@ -4343,24 +4288,6 @@ static GtkWidget *create_cpu_page(AppData *app) {
 
         /* Connect combo box changed signal and store handler ID */
         app->cpu_profile_combo_signal_id = g_signal_connect(app->cpu_profile_combo, "changed", G_CALLBACK(on_cpu_governor_changed), app);
-    }
-
-    /* Section: Auto-switching toggle */
-    {
-        GtkWidget *auto_frame = gtk_frame_new("Automatic Mode");
-        GtkWidget *auto_box = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 10);
-        gtk_container_set_border_width(GTK_CONTAINER(auto_box), 10);
-        gtk_container_add(GTK_CONTAINER(auto_frame), auto_box);
-        gtk_box_pack_start(GTK_BOX(vbox), auto_frame, FALSE, FALSE, 0);
-
-        GtkWidget *auto_label = gtk_label_new("Auto-switch policies based on conditions:");
-        gtk_box_pack_start(GTK_BOX(auto_box), auto_label, FALSE, FALSE, 5);
-
-        app->cpu_auto_mode_switch = gtk_switch_new();
-        gtk_box_pack_end(GTK_BOX(auto_box), app->cpu_auto_mode_switch, FALSE, FALSE, 0);
-
-        app->cpu_auto_mode_signal_id = g_signal_connect(app->cpu_auto_mode_switch, "state-set",
-                        G_CALLBACK(on_cpu_auto_mode_toggled), app);
     }
 
     /* Section: Per-Core Frequency Profiles */
