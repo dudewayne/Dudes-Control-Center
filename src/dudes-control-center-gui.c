@@ -1354,7 +1354,7 @@ static void on_cpu_hard_limit_apply_clicked(GtkWidget *widget, gpointer user_dat
 
         /* Update core freq spinner upper bounds to match new hard limit */
         int max_mhz = (int)(hz / 1000000);
-        for (int i = 0; i < MAX_CPUS; i++) {
+        for (int i = 0; i < app->cpu_core_count && i < 32; i++) {
             if (app->cpu_core_min_adjustments[i]) {
                 gtk_adjustment_set_upper(GTK_ADJUSTMENT(app->cpu_core_min_adjustments[i]), max_mhz);
             }
