@@ -639,6 +639,32 @@ static void handle_command(const char *cmd, char *response, size_t resp_size) {
         return;
     }
 
+    /* --- GET_HARD_LIMIT --- */
+    if (strcmp(action, "GET_HARD_LIMIT") == 0) {
+        snprintf(response, resp_size, "OK HARD_LIMIT=%u\n", get_hard_max_freq_hz());
+        return;
+    }
+
+    /* --- SET_HARD_LIMIT <hz> --- */
+    if (strcmp(action, "SET_HARD_LIMIT") == 0) {
+        if (!arg1[0]) {
+            snprintf(response, resp_size, "ERROR Usage: SET_HARD_LIMIT <hz>\n");
+            return;
+        }
+
+        uint32_t new_limit = (uint32_t)atol(arg1);
+        if (new_limit == 0) {
+            snprintf(response, resp_size, "ERROR Invalid hard limit value: %s\n", arg1);
+            return;
+        }
+
+        set_hard_max_freq_hz(new_limit);
+        save_hard_limit_config();
+        snprintf(response, resp_size, "OK Hard limit set to %u Hz (%.2f GHz)\n", new_limit, new_limit / 1e9);
+        LOG_INFO("[DAEMON] Hard limit changed to %u Hz (%.2f GHz)", new_limit, new_limit / 1e9);
+        return;
+    }
+
     /* --- PING --- */
     if (strcmp(action, "PING") == 0) {
         snprintf(response, resp_size, "PONG\n");

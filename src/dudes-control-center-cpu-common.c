@@ -232,6 +232,50 @@ static int sysfs_write_freq(int cpu_id, const char *filename, uint32_t freq_hz) 
     return 0;
 }
 
+/* --- Persist hard limit to config file --- */
+static const char* get_hard_limit_config_path(void) {
+    static char path[512] = {0};
+    if (path[0] == '\0') {
+        snprintf(path, sizeof(path), "%s/hard_limit.conf", get_cpu_config_dir());
+    }
+    return path;
+}
+
+int load_hard_limit_config(void) {
+    const char *path = get_hard_limit_config_path();
+    FILE *f = fopen(path, "r");
+    if (!f) {
+        LOG_INFO("[CPU] No hard limit config found at %s, using default %u Hz", path, HARD_MAX_FREQ_HZ_DEFAULT);
+        return -1;
+    }
+
+    uint32_t value = 0;
+    if (fscanf(f, "%u", &value) == 1 && value > 0) {
+        set_hard_max_freq_hz(value);
+        LOG_INFO("[CPU] Loaded hard limit from config: %u Hz (%.2f GHz)", value, value / 1e9);
+    } else {
+        LOG_WARN("[CPU] Invalid hard limit in config, using default %u Hz", HARD_MAX_FREQ_HZ_DEFAULT);
+        set_hard_max_freq_hz(HARD_MAX_FREQ_HZ_DEFAULT);
+    }
+    fclose(f);
+    return 0;
+}
+
+int save_hard_limit_config(void) {
+    ensure_cpu_config_dir();
+    const char *path = get_hard_limit_config_path();
+    FILE *f = fopen(path, "w");
+    if (!f) {
+        LOG_ERROR("[CPU] Could not save hard limit config to %s", path);
+        return -1;
+    }
+
+    fprintf(f, "%u", get_hard_max_freq_hz());
+    fclose(f);
+    LOG_INFO("[CPU] Saved hard limit config: %u Hz", get_hard_max_freq_hz());
+    return 0;
+}
+
 /* --- Initialize CPU control subsystem --- */
 int cpu_control_init(void) {
     LOG_INFO("[CPU] Initializing CPU control subsystem");
@@ -251,6 +295,9 @@ int cpu_control_init(void) {
 
     /* Load custom profiles */
     cpu_custom_profile_load_json();
+
+    /* Load persisted hard limit (if any) */
+    load_hard_limit_config();
 
     /* Apply HARD SAFETY LIMIT immediately on startup */
     uint32_t hard_limit = get_hard_max_freq_hz();
