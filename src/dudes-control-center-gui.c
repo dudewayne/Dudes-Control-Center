@@ -305,7 +305,7 @@ static gboolean populate_cpu_core_grid_idle(gpointer data) {
         /* Restore checkbox state and enforce spinner disabled/enabled state */
         int idx = app->cpu_active_custom_profile_idx;
         char info_cmd[64];
-        snprintf(info_cmd, sizeof(info_cmd), "GET_CUSTOM_PROFILE_INFO %d", idx);
+        snprintf(info_cmd, sizeof(info_cmd), "GET_CUSTOM_PROFILE_INFO|%d", idx);
         const char *info_response = send_cpu_command(app, info_cmd);
         int all_cores = 1; /* Default: apply to all cores */
         if (info_response) {
@@ -755,7 +755,7 @@ static void on_cpu_governor_changed(GtkWidget *widget, gpointer user_data) {
 
     /* Build command: APPLY_GOVERNOR <name> */
     char command[256];
-    snprintf(command, sizeof(command), "APPLY_GOVERNOR %s", governor_name);
+    snprintf(command, sizeof(command), "APPLY_GOVERNOR|%s", governor_name);
 
     const char *response = send_cpu_command(app, command);
     if (response && strncmp(response, "OK", 2) == 0) {
@@ -938,7 +938,7 @@ static void on_cpu_custom_profile_changed(GtkWidget *widget, gpointer user_data)
 
         /* Query the new profile's all_cores value and restore checkbox state */
         char info_cmd[64];
-        snprintf(info_cmd, sizeof(info_cmd), "GET_CUSTOM_PROFILE_INFO %d", active);
+        snprintf(info_cmd, sizeof(info_cmd), "GET_CUSTOM_PROFILE_INFO|%d", active);
         const char *info_response = send_cpu_command(app, info_cmd);
         int all_cores = 1; /* Default: apply to all cores */
         if (info_response) {
@@ -1048,7 +1048,7 @@ static void on_cpu_create_freq_profile_clicked(GtkWidget *widget, gpointer user_
 
             /* Send CREATE_CUSTOM_PROFILE command to daemon */
             char cmd[256];
-            snprintf(cmd, sizeof(cmd), "CREATE_CUSTOM_PROFILE %s schedutil %u 0", name, HARD_MAX_FREQ_HZ);
+            snprintf(cmd, sizeof(cmd), "CREATE_CUSTOM_PROFILE|%s|schedutil|%u|0", name, HARD_MAX_FREQ_HZ);
             const char *response = send_cpu_command(app, cmd);
             g_print("[GUI] CREATE_CUSTOM_PROFILE response: %s\n", response ? response : "NULL");
 
@@ -1082,7 +1082,7 @@ static void on_cpu_create_freq_profile_clicked(GtkWidget *widget, gpointer user_
                 /* Default: set APPLY_ALL_CORES to 1 for the new profile */
                 {
                     char apply_cmd[64];
-                    snprintf(apply_cmd, sizeof(apply_cmd), "SET_APPLY_ALL_CORES %d 1", new_idx);
+                    snprintf(apply_cmd, sizeof(apply_cmd), "SET_APPLY_ALL_CORES|%d|1", new_idx);
                     send_cpu_command(app, apply_cmd);
                 }
 
@@ -1093,7 +1093,7 @@ static void on_cpu_create_freq_profile_clicked(GtkWidget *widget, gpointer user_
 
                     /* Restore checkbox state and enforce spinner disabled/enabled state */
                     char info_cmd[64];
-                    snprintf(info_cmd, sizeof(info_cmd), "GET_CUSTOM_PROFILE_INFO %d", new_idx);
+                    snprintf(info_cmd, sizeof(info_cmd), "GET_CUSTOM_PROFILE_INFO|%d", new_idx);
                     const char *info_response = send_cpu_command(app, info_cmd);
                     int all_cores = 1; /* Default: apply to all cores */
                     if (info_response) {
@@ -1165,7 +1165,7 @@ static void on_cpu_delete_freq_profile_clicked(GtkWidget *widget, gpointer user_
     if (gtk_dialog_run(GTK_DIALOG(dialog)) == GTK_RESPONSE_YES) {
         /* Send DELETE_CUSTOM_PROFILE command */
         char cmd[64];
-        snprintf(cmd, sizeof(cmd), "DELETE_CUSTOM_PROFILE %d", idx);
+        snprintf(cmd, sizeof(cmd), "DELETE_CUSTOM_PROFILE|%d", idx);
         const char *response = send_cpu_command(app, cmd);
         g_print("[GUI] DELETE_CUSTOM_PROFILE response: %s\n", response ? response : "NULL");
 
@@ -1253,7 +1253,7 @@ static void on_cpu_rename_freq_profile_clicked(GtkWidget *widget, gpointer user_
         if (strlen(new_name) > 0) {
             /* Send RENAME_CUSTOM_PROFILE command */
             char cmd[256];
-            snprintf(cmd, sizeof(cmd), "RENAME_CUSTOM_PROFILE %d %s", idx, new_name);
+            snprintf(cmd, sizeof(cmd), "RENAME_CUSTOM_PROFILE|%d|%s", idx, new_name);
             const char *response = send_cpu_command(app, cmd);
             g_print("[GUI] RENAME_CUSTOM_PROFILE response: %s\n", response ? response : "NULL");
 
@@ -1302,17 +1302,17 @@ static void on_cpu_apply_freq_profile_clicked(GtkWidget *widget, gpointer user_d
         gulong min_hz = (gulong)(min_mhz * 1000000);
         gulong max_hz = (gulong)(max_mhz * 1000000);
 
-        snprintf(cmd, sizeof(cmd), "SET_CORE_MIN_FREQ %d %d %lu", idx, i, min_hz);
+        snprintf(cmd, sizeof(cmd), "SET_CORE_MIN_FREQ|%d|%d|%lu", idx, i, min_hz);
         send_cpu_command(app, cmd);
 
-        snprintf(cmd, sizeof(cmd), "SET_CORE_MAX_FREQ %d %d %lu", idx, i, max_hz);
+        snprintf(cmd, sizeof(cmd), "SET_CORE_MAX_FREQ|%d|%d|%lu", idx, i, max_hz);
         send_cpu_command(app, cmd);
 
         success_count++;
     }
 
     /* Now apply the profile */
-    snprintf(cmd, sizeof(cmd), "APPLY_CUSTOM_PROFILE %d", idx);
+    snprintf(cmd, sizeof(cmd), "APPLY_CUSTOM_PROFILE|%d", idx);
     const char *response = send_cpu_command(app, cmd);
     g_print("[GUI] APPLY_CUSTOM_PROFILE response: %s\n", response ? response : "NULL");
 
@@ -1323,7 +1323,7 @@ static void on_cpu_apply_freq_profile_clicked(GtkWidget *widget, gpointer user_d
     /* Update the apply_all_cores state in the daemon */
     {
         int checkbox_state = gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(app->cpu_apply_all_cores_checkbox)) ? 1 : 0;
-        snprintf(cmd, sizeof(cmd), "SET_APPLY_ALL_CORES %d %d", idx, checkbox_state);
+        snprintf(cmd, sizeof(cmd), "SET_APPLY_ALL_CORES|%d|%d", idx, checkbox_state);
         send_cpu_command(app, cmd);
     }
 
@@ -1460,7 +1460,7 @@ static void update_cpu_core_freq_spinners(AppData *app, int profile_idx) {
 
     /* Send GET_CUSTOM_PROFILE_INFO command */
     char cmd[64];
-    snprintf(cmd, sizeof(cmd), "GET_CUSTOM_PROFILE_INFO %d", profile_idx);
+    snprintf(cmd, sizeof(cmd), "GET_CUSTOM_PROFILE_INFO|%d", profile_idx);
     const char *response = send_cpu_command(app, cmd);
 
     if (response == NULL || strstr(response, "ERROR")) {

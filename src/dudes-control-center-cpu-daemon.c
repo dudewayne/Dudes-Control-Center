@@ -77,8 +77,8 @@ static void parse_command(const char *cmd, char *action, char *arg1, char *arg2,
 
     char *pos = cmd_copy;
 
-    /* Extract action */
-    char *sep = strchr(pos, ' ');
+    /* Extract action (delimiter is '|' to allow spaces in profile names) */
+    char *sep = strchr(pos, '|');
     if (sep) {
         size_t act_len = sep - pos;
         if (act_len > 31) act_len = 31;
@@ -92,7 +92,7 @@ static void parse_command(const char *cmd, char *action, char *arg1, char *arg2,
     }
 
     /* Extract arg1 */
-    sep = strchr(pos, ' ');
+    sep = strchr(pos, '|');
     if (sep) {
         size_t arg_len = sep - pos;
         if (arg_len > 255) arg_len = 255;
@@ -106,7 +106,7 @@ static void parse_command(const char *cmd, char *action, char *arg1, char *arg2,
     }
 
     /* Extract arg2 */
-    sep = strchr(pos, ' ');
+    sep = strchr(pos, '|');
     if (sep) {
         size_t arg_len = sep - pos;
         if (arg_len > 255) arg_len = 255;
@@ -120,7 +120,7 @@ static void parse_command(const char *cmd, char *action, char *arg1, char *arg2,
     }
 
     /* Extract arg3 */
-    sep = strchr(pos, ' ');
+    sep = strchr(pos, '|');
     if (sep) {
         size_t arg_len = sep - pos;
         if (arg_len > 63) arg_len = 63;
@@ -211,33 +211,17 @@ static void handle_command(const char *cmd, char *response, size_t resp_size) {
     }
 
     /* --- APPLY_GOVERNOR <name> --- */
-    /* Extract full profile name (may contain spaces like "Power Save") from original command */
     if (strcmp(action, "APPLY_GOVERNOR") == 0) {
-        const char *profile_name = strstr(cmd, "APPLY_GOVERNOR ");
-        if (profile_name) {
-            profile_name += strlen("APPLY_GOVERNOR ");
-        } else {
-            profile_name = "";
-        }
-        /* Strip trailing newline */
-        size_t pname_len = strlen(profile_name);
-        char profile_buf[256];
-        strncpy(profile_buf, profile_name, sizeof(profile_buf) - 1);
-        profile_buf[sizeof(profile_buf) - 1] = '\0';
-        while (pname_len > 0 && (profile_buf[pname_len - 1] == '\n' || profile_buf[pname_len - 1] == '\r')) {
-            profile_buf[--pname_len] = '\0';
-        }
-
-        if (pname_len == 0) {
+        if (!arg1[0]) {
             snprintf(response, resp_size, "ERROR No governor policy name specified\n");
             return;
         }
 
-        if (cpu_profile_apply(profile_buf) == 0) {
-            snprintf(response, resp_size, "OK Governor Policy '%s' applied successfully\n", profile_buf);
-            LOG_INFO("[DAEMON] Governor Policy '%s' applied successfully", profile_buf);
+        if (cpu_profile_apply(arg1) == 0) {
+            snprintf(response, resp_size, "OK Governor Policy '%s' applied successfully\n", arg1);
+            LOG_INFO("[DAEMON] Governor Policy '%s' applied successfully", arg1);
         } else {
-            snprintf(response, resp_size, "ERROR Failed to apply governor policy '%s'\n", profile_buf);
+            snprintf(response, resp_size, "ERROR Failed to apply governor policy '%s'\n", arg1);
         }
         return;
     }
@@ -515,13 +499,9 @@ static void handle_command(const char *cmd, char *response, size_t resp_size) {
             return;
         }
 
-        /* Reconstruct full name from arg2+arg3+arg4 (names can contain spaces) */
-        char new_name[256] = {0};
-        snprintf(new_name, sizeof(new_name), "%s%s%s%s%s", arg2, arg3[0] ? " " : "", arg3, arg4[0] ? " " : "", arg4);
-
         int idx = atoi(arg1);
-        if (cpu_custom_profile_rename(idx, new_name) == 0) {
-            snprintf(response, resp_size, "OK Custom profile renamed to '%s'\n", new_name);
+        if (cpu_custom_profile_rename(idx, arg2) == 0) {
+            snprintf(response, resp_size, "OK Custom profile renamed to '%s'\n", arg2);
         } else {
             snprintf(response, resp_size, "ERROR Failed to rename custom profile (name may already exist)\n");
         }
