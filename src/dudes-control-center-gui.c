@@ -800,6 +800,7 @@ static void load_cpu_custom_profiles(AppData *app) {
     char *line = strtok(resp_copy, "\n");
     int profile_count = 0;
     int active_idx = -1;
+    int active_all_cores = 0;  /* Track all_cores for the active profile */
     while (line != NULL) {
         /* Skip empty lines */
         if (strlen(line) == 0) {
@@ -809,6 +810,13 @@ static void load_cpu_custom_profiles(AppData *app) {
 
         /* Check for active marker "[*]" */
         int is_active = (strstr(line, "[*]") != NULL);
+
+        /* Extract all_cores value from metadata before stripping */
+        int line_all_cores = 0;
+        char *ac_ptr = strstr(line, "all_cores=");
+        if (ac_ptr) {
+            line_all_cores = atoi(ac_ptr + 10);
+        }
 
         /* Strip metadata: truncate at '(' to remove "(gov=..., cores=..., all_cores=...)" */
         char *paren = strchr(line, '(');
@@ -820,6 +828,7 @@ static void load_cpu_custom_profiles(AppData *app) {
         gtk_list_store_set(app->cpu_custom_profile_store, &iter, 0, line, -1);
         if (is_active) {
             active_idx = profile_count;
+            active_all_cores = line_all_cores;
         }
         profile_count++;
 
@@ -845,6 +854,10 @@ static void load_cpu_custom_profiles(AppData *app) {
         gtk_widget_set_sensitive(app->cpu_freq_profile_rename_btn, TRUE);
         gtk_widget_set_sensitive(app->cpu_freq_profile_apply_btn, TRUE);
         gtk_widget_set_sensitive(app->cpu_apply_all_cores_checkbox, TRUE);
+
+        /* Restore the Apply to All Cores checkbox state from the active profile.
+         * The toggled callback fires and handles spinner disable/enable automatically. */
+        gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(app->cpu_apply_all_cores_checkbox), active_all_cores != 0);
     }
 
     g_print("[GUI] Loaded %d custom frequency profiles (active idx=%d)\n", profile_count, active_idx);
@@ -2391,6 +2404,15 @@ static void gui_save_profiles_to_disk(AppData *app) {
             /* The daemon returns raw JSON for cpu_freq_profiles */
             cJSON *cpu_json = cJSON_Parse(cpu_response);
             if (cpu_json) {
+                /* Patch the apply_all_cores field for the active profile
+                 * with the current checkbox state before saving */
+                if (app->cpu_active_custom_profile_idx >= 0 && cJSON_IsArray(cpu_json)) {
+                    cJSON *active_profile = cJSON_GetArrayItem(cpu_json, app->cpu_active_custom_profile_idx);
+                    if (active_profile) {
+                        int checkbox_state = gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(app->cpu_apply_all_cores_checkbox)) ? 1 : 0;
+                        cJSON_ReplaceItemInObject(active_profile, "apply_all_cores", cJSON_CreateNumber(checkbox_state));
+                    }
+                }
                 cJSON_AddItemToObject(root, "cpu_freq_profiles", cpu_json);
             } else {
                 g_print("[GUI] WARNING: Failed to parse CPU profiles JSON\n");
