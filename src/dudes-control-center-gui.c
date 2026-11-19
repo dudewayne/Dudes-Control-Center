@@ -1462,6 +1462,23 @@ static void build_cpu_core_freq_grid(AppData *app, int num_cores) {
         gtk_grid_attach(GTK_GRID(app->cpu_core_freq_grid), app->cpu_core_max_spinners[i], col_max, row, 1, 1);
     }
 
+    /* Update spinner upper bounds to match the current hard limit */
+    {
+        const char *hard_resp = send_cpu_command(app, "GET_HARD_LIMIT");
+        if (hard_resp && strncmp(hard_resp, "OK", 2) == 0) {
+            const char *eq = strstr(hard_resp, "HARD_LIMIT=");
+            if (eq) {
+                uint32_t hz = (uint32_t)strtoul(eq + 11, NULL, 10);
+                int max_mhz = (int)(hz / 1000000);
+                for (int i = 0; i < num_cores; i++) {
+                    gtk_adjustment_set_upper(GTK_ADJUSTMENT(app->cpu_core_min_adjustments[i]), max_mhz);
+                    gtk_adjustment_set_upper(GTK_ADJUSTMENT(app->cpu_core_max_adjustments[i]), max_mhz);
+                }
+                g_print("[GUI] Updated core freq spinner upper bounds to %d MHz\n", max_mhz);
+            }
+        }
+    }
+
     /* Connect core 0 adjustments to sync all cores when Apply to All is active */
     g_signal_connect(app->cpu_core_min_adjustments[0], "value-changed", G_CALLBACK(on_core0_freq_changed), app);
     g_signal_connect(app->cpu_core_max_adjustments[0], "value-changed", G_CALLBACK(on_core0_freq_changed), app);
@@ -5138,18 +5155,7 @@ int main(int argc, char *argv[]) {
                     double ghz = (double)hz / 1000000000.0;
                     gtk_spin_button_set_value(GTK_SPIN_BUTTON(app.cpu_hard_limit_spinner), ghz);
                     g_print("[GUI] Loaded hard limit from daemon: %.2f GHz (%u Hz)\n", ghz, hz);
-
-                    /* Update core freq spinner upper bounds to match hard limit */
-                    int max_mhz = (int)(hz / 1000000);
-                    for (int i = 0; i < MAX_CPUS; i++) {
-                        if (app.cpu_core_min_adjustments[i]) {
-                            gtk_adjustment_set_upper(GTK_ADJUSTMENT(app.cpu_core_min_adjustments[i]), max_mhz);
-                        }
-                        if (app.cpu_core_max_adjustments[i]) {
-                            gtk_adjustment_set_upper(GTK_ADJUSTMENT(app.cpu_core_max_adjustments[i]), max_mhz);
-                        }
-                    }
-                    g_print("[GUI] Updated core freq spinner upper bounds to %d MHz\n", max_mhz);
+                    /* Spinner upper bounds are updated in build_cpu_core_freq_grid() */
                 }
             }
         }
