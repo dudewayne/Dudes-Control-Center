@@ -192,7 +192,8 @@ typedef struct {
     GtkWidget *cpu_freq_profile_create_btn;
     GtkWidget *cpu_freq_profile_delete_btn;
     GtkWidget *cpu_freq_profile_rename_btn;
-    GtkWidget *cpu_freq_profile_apply_btn;
+    GtkWidget *cpu_freq_profile_save_btn;
+    GtkWidget *cpu_freq_profile_activate_btn;
     GtkWidget *cpu_freq_profile_status_label;
     GtkWidget *cpu_core_freq_grid; /* Grid for per-core min/max spinners */
     GtkWidget *cpu_core_max_spinners[32]; /* Spinners for max freq per core */
@@ -254,7 +255,8 @@ static void load_cpu_custom_profiles(AppData *app);
 static void on_cpu_custom_profile_changed(GtkWidget *widget, gpointer user_data);
 static void on_cpu_create_freq_profile_clicked(GtkWidget *widget, gpointer user_data);
 static void on_cpu_delete_freq_profile_clicked(GtkWidget *widget, gpointer user_data);
-static void on_cpu_apply_freq_profile_clicked(GtkWidget *widget, gpointer user_data);
+static void on_cpu_save_freq_profile_clicked(GtkWidget *widget, gpointer user_data);
+static void on_cpu_activate_freq_profile_clicked(GtkWidget *widget, gpointer user_data);
 static void sync_core0_to_all_cores(AppData *app);
 static void on_cpu_apply_all_cores_toggled(GtkCheckButton *checkbox, gpointer user_data);
 static void build_cpu_core_freq_grid(AppData *app, int num_cores);
@@ -838,7 +840,8 @@ static void load_cpu_custom_profiles(AppData *app) {
         /* Enable the action buttons so the user can edit immediately */
         gtk_widget_set_sensitive(app->cpu_freq_profile_delete_btn, TRUE);
         gtk_widget_set_sensitive(app->cpu_freq_profile_rename_btn, TRUE);
-        gtk_widget_set_sensitive(app->cpu_freq_profile_apply_btn, TRUE);
+        gtk_widget_set_sensitive(app->cpu_freq_profile_save_btn, TRUE);
+        gtk_widget_set_sensitive(app->cpu_freq_profile_activate_btn, TRUE);
         gtk_widget_set_sensitive(app->cpu_apply_all_cores_checkbox, TRUE);
 
         /* Restore the Apply to All Cores checkbox state from the active profile.
@@ -875,10 +878,11 @@ static void on_cpu_custom_profile_changed(GtkWidget *widget, gpointer user_data)
     app->cpu_active_custom_profile_idx = active;
     g_print("[GUI] Selected custom profile index %d\n", active);
 
-    /* Enable delete, rename, and apply buttons */
+    /* Enable delete, rename, save, and activate buttons */
     gtk_widget_set_sensitive(app->cpu_freq_profile_delete_btn, TRUE);
     gtk_widget_set_sensitive(app->cpu_freq_profile_rename_btn, TRUE);
-    gtk_widget_set_sensitive(app->cpu_freq_profile_apply_btn, TRUE);
+    gtk_widget_set_sensitive(app->cpu_freq_profile_save_btn, TRUE);
+    gtk_widget_set_sensitive(app->cpu_freq_profile_activate_btn, TRUE);
     gtk_widget_set_sensitive(app->cpu_apply_all_cores_checkbox, TRUE);
 
     /* Build the per-core freq grid if we have core count info */
@@ -1237,11 +1241,11 @@ static void on_cpu_rename_freq_profile_clicked(GtkWidget *widget, gpointer user_
     gtk_widget_destroy(dialog);
 }
 
-/* Callback: Apply selected frequency profile */
-static void on_cpu_apply_freq_profile_clicked(GtkWidget *widget, gpointer user_data) {
+/* Callback: Save current profile values to disk */
+static void on_cpu_save_freq_profile_clicked(GtkWidget *widget, gpointer user_data) {
     (void)widget;
     AppData *app = (AppData *)user_data;
-    g_print("[GUI] Apply frequency profile clicked\n");
+    g_print("[GUI] Save frequency profile clicked\n");
 
     int idx = gtk_combo_box_get_active(GTK_COMBO_BOX(app->cpu_custom_profile_combo));
     if (idx < 0) {
@@ -1257,7 +1261,6 @@ static void on_cpu_apply_freq_profile_clicked(GtkWidget *widget, gpointer user_d
     }
 
     char cmd[256];
-    int success_count = 0;
     for (int i = 0; i < num_cores && i < 32; i++) {
         double min_mhz = gtk_adjustment_get_value(app->cpu_core_min_adjustments[i]);
         double max_mhz = gtk_adjustment_get_value(app->cpu_core_max_adjustments[i]);
@@ -1270,18 +1273,7 @@ static void on_cpu_apply_freq_profile_clicked(GtkWidget *widget, gpointer user_d
 
         snprintf(cmd, sizeof(cmd), "SET_CORE_MAX_FREQ|%d|%d|%lu", idx, i, max_hz);
         send_cpu_command(app, cmd);
-
-        success_count++;
     }
-
-    /* Now apply the profile */
-    snprintf(cmd, sizeof(cmd), "APPLY_CUSTOM_PROFILE|%d", idx);
-    const char *response = send_cpu_command(app, cmd);
-    g_print("[GUI] APPLY_CUSTOM_PROFILE response: %s\n", response ? response : "NULL");
-
-    char status_msg[128];
-    snprintf(status_msg, sizeof(status_msg), "Applied profile to %d cores", num_cores);
-    gtk_label_set_text(GTK_LABEL(app->cpu_freq_profile_status_label), status_msg);
 
     /* Update the apply_all_cores state in the daemon */
     {
@@ -1290,14 +1282,48 @@ static void on_cpu_apply_freq_profile_clicked(GtkWidget *widget, gpointer user_d
         send_cpu_command(app, cmd);
     }
 
-    /* Mark profiles as modified so we show the * indicator */
+    /* Mark profiles as modified */
     mark_cpu_freq_profiles_modified(app);
 
     /* Save profiles to disk */
     gui_save_profiles_to_disk(app);
 
+    /* Reload profile list, keeping the user's current selection */
+    int saved_idx = idx;
+    load_cpu_custom_profiles(app);
+    g_signal_handler_block(app->cpu_custom_profile_combo, app->cpu_custom_profile_combo_signal_id);
+    gtk_combo_box_set_active(GTK_COMBO_BOX(app->cpu_custom_profile_combo), saved_idx);
+    g_signal_handler_unblock(app->cpu_custom_profile_combo, app->cpu_custom_profile_combo_signal_id);
+
+    char status_msg[128];
+    snprintf(status_msg, sizeof(status_msg), "Saved profile");
+    gtk_label_set_text(GTK_LABEL(app->cpu_freq_profile_status_label), status_msg);
+}
+
+/* Callback: Activate (apply) the selected frequency profile to the CPU */
+static void on_cpu_activate_freq_profile_clicked(GtkWidget *widget, gpointer user_data) {
+    (void)widget;
+    AppData *app = (AppData *)user_data;
+    g_print("[GUI] Activate frequency profile clicked\n");
+
+    int idx = gtk_combo_box_get_active(GTK_COMBO_BOX(app->cpu_custom_profile_combo));
+    if (idx < 0) {
+        gtk_label_set_text(GTK_LABEL(app->cpu_freq_profile_status_label), "No profile selected");
+        return;
+    }
+
+    /* Apply the profile */
+    char cmd[256];
+    snprintf(cmd, sizeof(cmd), "APPLY_CUSTOM_PROFILE|%d", idx);
+    const char *response = send_cpu_command(app, cmd);
+    g_print("[GUI] APPLY_CUSTOM_PROFILE response: %s\n", response ? response : "NULL");
+
     /* Reload profile list so the [*] marker updates to the newly active profile */
     load_cpu_custom_profiles(app);
+
+    char status_msg[128];
+    snprintf(status_msg, sizeof(status_msg), "Activated profile");
+    gtk_label_set_text(GTK_LABEL(app->cpu_freq_profile_status_label), status_msg);
 }
 
 /* Helper: copy core 0 min/max to all other cores when checkbox is active */
@@ -4359,10 +4385,15 @@ static GtkWidget *create_cpu_page(AppData *app) {
             g_signal_connect(app->cpu_freq_profile_rename_btn, "clicked", G_CALLBACK(on_cpu_rename_freq_profile_clicked), app);
             gtk_widget_set_sensitive(app->cpu_freq_profile_rename_btn, FALSE); /* Disabled until profile selected */
 
-            app->cpu_freq_profile_apply_btn = gtk_button_new_with_label("Apply Profile");
-            gtk_box_pack_start(GTK_BOX(btn_box), app->cpu_freq_profile_apply_btn, FALSE, FALSE, 0);
-            g_signal_connect(app->cpu_freq_profile_apply_btn, "clicked", G_CALLBACK(on_cpu_apply_freq_profile_clicked), app);
-            gtk_widget_set_sensitive(app->cpu_freq_profile_apply_btn, FALSE); /* Disabled until profile selected */
+            app->cpu_freq_profile_save_btn = gtk_button_new_with_label("Save Profile");
+            gtk_box_pack_start(GTK_BOX(btn_box), app->cpu_freq_profile_save_btn, FALSE, FALSE, 0);
+            g_signal_connect(app->cpu_freq_profile_save_btn, "clicked", G_CALLBACK(on_cpu_save_freq_profile_clicked), app);
+            gtk_widget_set_sensitive(app->cpu_freq_profile_save_btn, FALSE); /* Disabled until profile selected */
+
+            app->cpu_freq_profile_activate_btn = gtk_button_new_with_label("Activate Profile");
+            gtk_box_pack_start(GTK_BOX(btn_box), app->cpu_freq_profile_activate_btn, FALSE, FALSE, 0);
+            g_signal_connect(app->cpu_freq_profile_activate_btn, "clicked", G_CALLBACK(on_cpu_activate_freq_profile_clicked), app);
+            gtk_widget_set_sensitive(app->cpu_freq_profile_activate_btn, FALSE); /* Disabled until profile selected */
         }
 
         /* Status label */
