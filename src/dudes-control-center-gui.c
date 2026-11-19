@@ -252,6 +252,7 @@ static void on_cpu_custom_profile_changed(GtkWidget *widget, gpointer user_data)
 static void on_cpu_create_freq_profile_clicked(GtkWidget *widget, gpointer user_data);
 static void on_cpu_delete_freq_profile_clicked(GtkWidget *widget, gpointer user_data);
 static void on_cpu_apply_freq_profile_clicked(GtkWidget *widget, gpointer user_data);
+static void sync_core0_to_all_cores(AppData *app);
 static void on_cpu_apply_all_cores_toggled(GtkCheckButton *checkbox, gpointer user_data);
 static void build_cpu_core_freq_grid(AppData *app, int num_cores);
 static void update_cpu_core_freq_spinners(AppData *app, int profile_idx);
@@ -856,6 +857,15 @@ static void on_cpu_custom_profile_changed(GtkWidget *widget, gpointer user_data)
     if (app->cpu_core_count > 0) {
         build_cpu_core_freq_grid(app, app->cpu_core_count);
         update_cpu_core_freq_spinners(app, active);
+
+        /* Re-apply disabled state if Apply to All Cores is still active */
+        if (gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(app->cpu_apply_all_cores_checkbox))) {
+            sync_core0_to_all_cores(app);
+            for (int i = 1; i < app->cpu_core_count && i < 32; i++) {
+                gtk_widget_set_sensitive(app->cpu_core_min_spinners[i], FALSE);
+                gtk_widget_set_sensitive(app->cpu_core_max_spinners[i], FALSE);
+            }
+        }
     } else {
         g_print("[GUI] Core count not yet available, skipping grid build\n");
     }
