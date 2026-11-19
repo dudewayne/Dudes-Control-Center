@@ -603,6 +603,26 @@ static void handle_command(const char *cmd, char *response, size_t resp_size) {
         return;
     }
 
+    /* --- SET_APPLY_ALL_CORES <profile_idx> <value> --- */
+    if (strcmp(action, "SET_APPLY_ALL_CORES") == 0) {
+        if (!arg1[0] || !arg2[0]) {
+            snprintf(response, resp_size, "ERROR Usage: SET_APPLY_ALL_CORES <profile_idx> <value>\n");
+            return;
+        }
+
+        int profile_idx = atoi(arg1);
+        int value = atoi(arg2);
+
+        if (profile_idx < 0 || profile_idx >= g_cpu_state.num_custom_profiles) {
+            snprintf(response, resp_size, "ERROR Invalid profile index %d\n", profile_idx);
+            return;
+        }
+
+        g_cpu_state.custom_profiles[profile_idx].apply_all_cores = value;
+        snprintf(response, resp_size, "OK apply_all_cores set to %d for profile %d\n", value, profile_idx);
+        return;
+    }
+
     /* --- GET_CUSTOM_PROFILE_INFO <index> --- */
     if (strcmp(action, "GET_CUSTOM_PROFILE_INFO") == 0) {
         if (!arg1[0]) {

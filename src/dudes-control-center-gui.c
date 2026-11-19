@@ -1208,6 +1208,13 @@ static void on_cpu_apply_freq_profile_clicked(GtkWidget *widget, gpointer user_d
     snprintf(status_msg, sizeof(status_msg), "Applied profile to %d cores", num_cores);
     gtk_label_set_text(GTK_LABEL(app->cpu_freq_profile_status_label), status_msg);
 
+    /* Update the apply_all_cores state in the daemon */
+    {
+        int checkbox_state = gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(app->cpu_apply_all_cores_checkbox)) ? 1 : 0;
+        snprintf(cmd, sizeof(cmd), "SET_APPLY_ALL_CORES %d %d", idx, checkbox_state);
+        send_cpu_command(app, cmd);
+    }
+
     /* Mark profiles as modified so we show the * indicator */
     mark_cpu_freq_profiles_modified(app);
 
