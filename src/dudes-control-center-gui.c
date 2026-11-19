@@ -1351,6 +1351,17 @@ static void on_cpu_hard_limit_apply_clicked(GtkWidget *widget, gpointer user_dat
         char status_msg[256];
         snprintf(status_msg, sizeof(status_msg), "Hard limit applied: %.2f GHz", ghz);
         gtk_label_set_text(GTK_LABEL(app->cpu_freq_profile_status_label), status_msg);
+
+        /* Update core freq spinner upper bounds to match new hard limit */
+        int max_mhz = (int)(hz / 1000000);
+        for (int i = 0; i < MAX_CPUS; i++) {
+            if (app->cpu_core_min_adjustments[i]) {
+                gtk_adjustment_set_upper(GTK_ADJUSTMENT(app->cpu_core_min_adjustments[i]), max_mhz);
+            }
+            if (app->cpu_core_max_adjustments[i]) {
+                gtk_adjustment_set_upper(GTK_ADJUSTMENT(app->cpu_core_max_adjustments[i]), max_mhz);
+            }
+        }
     } else {
         gtk_label_set_text(GTK_LABEL(app->cpu_freq_profile_status_label),
             response ? response : "Failed to apply hard limit");
@@ -5127,6 +5138,18 @@ int main(int argc, char *argv[]) {
                     double ghz = (double)hz / 1000000000.0;
                     gtk_spin_button_set_value(GTK_SPIN_BUTTON(app.cpu_hard_limit_spinner), ghz);
                     g_print("[GUI] Loaded hard limit from daemon: %.2f GHz (%u Hz)\n", ghz, hz);
+
+                    /* Update core freq spinner upper bounds to match hard limit */
+                    int max_mhz = (int)(hz / 1000000);
+                    for (int i = 0; i < MAX_CPUS; i++) {
+                        if (app.cpu_core_min_adjustments[i]) {
+                            gtk_adjustment_set_upper(GTK_ADJUSTMENT(app.cpu_core_min_adjustments[i]), max_mhz);
+                        }
+                        if (app.cpu_core_max_adjustments[i]) {
+                            gtk_adjustment_set_upper(GTK_ADJUSTMENT(app.cpu_core_max_adjustments[i]), max_mhz);
+                        }
+                    }
+                    g_print("[GUI] Updated core freq spinner upper bounds to %d MHz\n", max_mhz);
                 }
             }
         }

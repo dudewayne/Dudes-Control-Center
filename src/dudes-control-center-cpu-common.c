@@ -486,6 +486,29 @@ int set_all_cpus_max_freq(uint32_t freq_hz) {
     return (errors == 0) ? 0 : -1;
 }
 
+/* Clamp all CPUs to the current hard limit without increasing frequencies */
+int clamp_cpus_to_hard_limit(void) {
+    uint32_t hard_limit = get_hard_max_freq_hz();
+    int cpu_count = get_cpu_count();
+    int clamped = 0;
+
+    for (int i = 0; i < cpu_count; i++) {
+        uint32_t current_max = get_cpu_max_freq(i);
+        if (current_max > hard_limit) {
+            if (set_cpu_max_freq(i, hard_limit) == 0) {
+                LOG_INFO("[CPU] Clamped core %d max freq from %u Hz to %u Hz (hard limit)",
+                         i, current_max, hard_limit);
+                clamped++;
+            } else {
+                LOG_WARN("[CPU] Failed to clamp core %d to hard limit %u Hz",
+                         i, hard_limit);
+            }
+        }
+    }
+    LOG_INFO("[CPU] Clamped %d/%d cores to hard limit %u Hz", clamped, cpu_count, hard_limit);
+    return 0;
+}
+
 /* --- Profile management functions --- */
 
 /* Create a new profile */

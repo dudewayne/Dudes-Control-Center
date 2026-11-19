@@ -139,6 +139,7 @@ int set_cpu_max_freq(int cpu_id, uint32_t freq_hz);    /* Set maximum frequency 
 int set_all_cpus_governor(const char *governor);       /* Set governor for all CPUs */
 int set_all_cpus_min_freq(uint32_t freq_hz);           /* Set min freq for all CPUs */
 int set_all_cpus_max_freq(uint32_t freq_hz);           /* Set max freq for all CPUs */
+int clamp_cpus_to_hard_limit(void);                     /* Clamp all CPUs to hard limit */
 
 /* System status */
 int get_cpu_system_status(CpuSystemStatus *status);    /* Get complete system status */
