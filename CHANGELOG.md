@@ -2,6 +2,16 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.7.0] - 2026-11-19
+
+### Added
+- **Spaces supported in profile names**: Changed the IPC protocol between the GUI and CPU daemon from space-delimited to pipe-delimited (`|`), allowing profile names to contain spaces without truncation.
+
+## [1.6.13] - 2026-11-19
+
+### Fixed
+- **Apply values to all cores not default on new profile creation**: When creating a new CPU frequency profile, the "Apply values to all cores" option is now enabled by default, matching the behavior of loading existing profiles where this option is the default.
+
 ## [1.6.10] - 2026-11-19
 
 ### Fixed
