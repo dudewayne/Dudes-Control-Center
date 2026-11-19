@@ -2478,7 +2478,7 @@ static void connect_to_daemon(AppData *app) {
     /* Check socket permissions */
     mode_t perms = st.st_mode & 0777;
     if (perms != 0666) {
-        fprintf(stderr, "Warning: Socket has unexpected permissions %o (expected 666)\n", perms);
+        LOG_WARN("Socket has unexpected permissions %o (expected 666)", perms);
     }
     
     app->socket_fd = socket(AF_UNIX, SOCK_STREAM, 0);
@@ -4774,8 +4774,6 @@ int main(int argc, char *argv[]) {
     int existing_pid = check_single_instance();
     if (existing_pid > 0) {
         LOG_ERROR("Another instance already running (PID: %d)", existing_pid);
-        fprintf(stderr, "Another instance of Dudes Control Center GUI is already running (PID: %d)\n", existing_pid);
-        fprintf(stderr, "Please close the existing instance before starting a new one.\n");
         log_cleanup();
         return 1;
     }

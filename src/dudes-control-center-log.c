@@ -221,8 +221,4 @@ void log_write(LogLevel level, const char* format, ...) {
         }
     }
     
-    /* Also write errors/warnings to stderr for immediate visibility */
-    if (level <= LOG_LEVEL_WARN) {
-        fprintf(stderr, "%s", buffer);
-    }
 }

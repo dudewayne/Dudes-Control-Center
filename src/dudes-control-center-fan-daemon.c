@@ -29,21 +29,6 @@
 #define BUFFER_SIZE 1024
 #define MAX_CMD_LEN 256
 
-/* Helper function to get timestamp string */
-static void get_timestamp(char *buf, size_t buf_size) {
-    struct timeval tv;
-    struct tm *tm_info;
-    char time_str[32];
-    
-    #pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wformat-truncation"
-    gettimeofday(&tv, NULL);
-    tm_info = localtime(&tv.tv_sec);
-    strftime(time_str, sizeof(time_str), "%H:%M:%S", tm_info);
-    snprintf(buf, buf_size, "[%s.%03ld] ", time_str, (long)(tv.tv_usec / 1000));
-#pragma GCC diagnostic pop
-}
-
 /* Temperature curve point */
 typedef struct {
     int temperature;  /* °C */
@@ -359,11 +344,7 @@ static int handle_command(const char *cmd, char *response, size_t resp_size) {
     
     sscanf(cmd_copy, "%31s %63s %63s", action, arg1, arg2);
     
-    if (debug_mode) {
-        char ts[32];
-        get_timestamp(ts, sizeof(ts));
-        fprintf(stderr, "%s [DAEMON] Received command: '%s' args='%s' '%s'\n", ts, action, arg1, arg2);
-    }
+    LOG_DEBUG("Received command: '%s' args='%s' '%s'", action, arg1, arg2);
     
     /* Command: STATUS */
     if (strcmp(action, "STATUS") == 0) {
@@ -609,9 +590,7 @@ static int handle_command(const char *cmd, char *response, size_t resp_size) {
             return -1;
         }
         
-        char ts[32];
-        get_timestamp(ts, sizeof(ts));
-        fprintf(stderr, "%s [DAEMON] SET_ACTIVE_PROFILE: Activating profile %d (%s)\n", ts, idx, profiles[idx].name);
+        LOG_INFO("SET_ACTIVE_PROFILE: Activating profile %d (%s)", idx, profiles[idx].name);
         
         /* Deactivate all profiles */
         for (int i = 0; i < num_profiles; i++) {
@@ -623,8 +602,7 @@ static int handle_command(const char *cmd, char *response, size_t resp_size) {
         
         /* Enable auto mode when a profile is activated */
         auto_mode_enabled = 1;
-        get_timestamp(ts, sizeof(ts));
-        fprintf(stderr, "%s [DAEMON] Auto mode ENABLED for profile: %s\n", ts, profiles[idx].name);
+        LOG_INFO("Auto mode ENABLED for profile: %s", profiles[idx].name);
         
         snprintf(response, resp_size, "OK Active profile set to: %s\n", 
                  profiles[idx].name);
@@ -712,9 +690,7 @@ static int handle_client(int client_fd, int client_idx) {
     char response[BUFFER_SIZE];
     ssize_t bytes_read;
     
-    if (debug_mode) {
-        fprintf(stderr, "[DAEMON] handle_client called for slot %d, fd=%d, initial buffer_len=%d\n", client_idx, client_fd, client_buffer_len[client_idx]);
-    }
+    LOG_DEBUG("handle_client called for slot %d, fd=%d, initial buffer_len=%d", client_idx, client_fd, client_buffer_len[client_idx]);
     
     /* Process all complete commands in the buffer */
     while (1) {
@@ -740,20 +716,14 @@ static int handle_client(int client_fd, int client_idx) {
             char arg1[64] = {0};
             sscanf(cmd_log, "%63s %63s", action, arg1);
             
-            if (debug_mode) {
-                char ts[32];
-                get_timestamp(ts, sizeof(ts));
-                fprintf(stderr, "%s [DAEMON] Received command: '%s' args='%s'\n", ts, action, arg1);
-            }
+            LOG_DEBUG("Received command: '%s' args='%s'", action, arg1);
             
             /* Process command */
             int result = handle_command(client_buffers[client_idx], response, sizeof(response));
             
             /* Only log non-STATUS responses to avoid flooding the terminal with periodic updates */
-            if (debug_mode && strncmp(response, "STATUS OK", 9) != 0) {
-                char ts[32];
-                get_timestamp(ts, sizeof(ts));
-                fprintf(stderr, "%s [DAEMON] Sending response: '%s' (result=%d)\n", ts, response, result);
+            if (strncmp(response, "STATUS OK", 9) != 0) {
+                LOG_DEBUG("Sending response: '%s' (result=%d)", response, result);
             }
             
             /* Send response */
@@ -792,14 +762,10 @@ static int handle_client(int client_fd, int client_idx) {
                          BUFFER_SIZE - client_buffer_len[client_idx] - 1, 0);
         
         if (bytes_read <= 0) {
-            if (debug_mode) {
-                char ts[32];
-                get_timestamp(ts, sizeof(ts));
-                if (bytes_read == 0) {
-                    fprintf(stderr, "%s [DAEMON] Client on fd %d disconnected\n", ts, client_fd);
-                } else {
-                    fprintf(stderr, "%s [DAEMON] recv error on fd %d: %s\n", ts, client_fd, strerror(errno));
-                }
+            if (bytes_read == 0) {
+                LOG_INFO("Client on fd %d disconnected", client_fd);
+            } else {
+                LOG_ERROR("recv error on fd %d: %s", client_fd, strerror(errno));
             }
             /* Connection closed or error - close fd and remove from active clients */
             close(client_fd);
@@ -809,9 +775,7 @@ static int handle_client(int client_fd, int client_idx) {
             return 1;  /* Return 1 to indicate disconnection */
         }
         
-        if (debug_mode) {
-            fprintf(stderr, "[DAEMON] Received %zd bytes from client, total buffer_len=%d\n", bytes_read, client_buffer_len[client_idx] + (int)bytes_read);
-        }
+        LOG_DEBUG("Received %zd bytes from client, total buffer_len=%d", bytes_read, client_buffer_len[client_idx] + (int)bytes_read);
         
         client_buffer_len[client_idx] += bytes_read;
     }
@@ -866,8 +830,8 @@ static int create_server_socket(void) {
     /* Verify socket permissions before listening */
     struct stat st;
     if (stat(SOCKET_PATH, &st) == 0) {
-        printf("Socket created at %s with permissions: %o\n", SOCKET_PATH, st.st_mode & 0777);
-        printf("Socket owner: uid=%u, gid=%u\n", st.st_uid, st.st_gid);
+        LOG_DEBUG("Socket created at %s with permissions: %o", SOCKET_PATH, st.st_mode & 0777);
+        LOG_DEBUG("Socket owner: uid=%u, gid=%u", st.st_uid, st.st_gid);
     }
     
     if (listen(server_fd, SOMAXCONN) < 0) {
@@ -993,7 +957,7 @@ int main(int argc, char *argv[]) {
             if (fscanf(pf, "%d", &old_pid) == 1) {
                 /* Check if old process is still alive */
                 if (kill(old_pid, 0) == 0) {
-                    fprintf(stderr, "%s: Another instance already running (PID %d). Exiting.\n", PROGRAM_NAME, old_pid);
+                    fprintf(stderr, "%s: Another instance already running (PID %d). Exiting.\n", PROGRAM_NAME, old_pid); /* Before logging init */
                     fclose(pf);
                     return EXIT_FAILURE;
                 }
@@ -1009,8 +973,6 @@ int main(int argc, char *argv[]) {
         }
     }
     
-    printf("%s starting...\n", PROGRAM_NAME);
-    
     /* Initialize logging (NULL = use /var/log for daemon) */
     if (log_init("FAN_DAEMON", debug_mode ? LOG_LEVEL_DEBUG : LOG_LEVEL_INFO, NULL) != 0) {
         fprintf(stderr, "Failed to initialize logging system\n");
@@ -1024,7 +986,7 @@ int main(int argc, char *argv[]) {
     /* Enable auto mode by default if there's an active profile */
     if (active_profile_idx >= 0 && active_profile_idx < num_profiles) {
         auto_mode_enabled = 1;
-        fprintf(stderr, "[DAEMON] Auto mode enabled with profile: %s\n", profiles[active_profile_idx].name);
+        LOG_INFO("Auto mode enabled with profile: %s", profiles[active_profile_idx].name);
     }
     
     /* Set up signal handlers */
@@ -1040,18 +1002,18 @@ int main(int argc, char *argv[]) {
     
     /* Initialize EC access */
     if (ec_init() != 0) {
-        fprintf(stderr, "Error: Failed to initialize EC access\n");
+        LOG_ERROR("Failed to initialize EC access");
         return EXIT_FAILURE;
     }
     
     /* Create server socket */
     if (create_server_socket() != 0) {
-        fprintf(stderr, "Error: Failed to create server socket\n");
+        LOG_ERROR("Failed to create server socket");
         ec_cleanup();
         return EXIT_FAILURE;
     }
     
-    printf("Server listening on %s\n", SOCKET_PATH);
+    LOG_INFO("Server listening on %s", SOCKET_PATH);
     
     /* Set initial fan speed based on current temperatures and active profile */
     if (auto_mode_enabled && active_profile_idx >= 0) {
@@ -1066,7 +1028,7 @@ int main(int argc, char *argv[]) {
         
         /* Validate temperature */
         if (hot_temp < 10 || hot_temp > 110) {
-            fprintf(stderr, "[DAEMON] WARNING: Invalid temp %d°C on startup, using safe default\n", hot_temp);
+            LOG_WARN("Invalid temp %d°C on startup, using safe default", hot_temp);
             hot_temp = 50; /* Safe default */
         }
         
@@ -1077,10 +1039,8 @@ int main(int argc, char *argv[]) {
         current_fan_duty = initial_duty;
         set_fan_duty(initial_duty);
         
-        char ts[32];
-        get_timestamp(ts, sizeof(ts));
-        fprintf(stderr, "%s [DAEMON] Initial fan speed set to %d%% based on temp CPU=%d°C GPU=%d°C (profile: %s)\n", 
-                ts, initial_duty, cpu_temp, gpu_temp, profiles[active_profile_idx].name);
+        LOG_INFO("Initial fan speed set to %d%% based on temp CPU=%d°C GPU=%d°C (profile: %s)",
+                 initial_duty, cpu_temp, gpu_temp, profiles[active_profile_idx].name);
     }
     
     /* Main event loop */
@@ -1129,11 +1089,7 @@ int main(int argc, char *argv[]) {
                     if (client_fds[i] <= 0) {
                         client_fds[i] = client_fd;
                         num_clients++;
-                        if (debug_mode) {
-                            char ts[32];
-                            get_timestamp(ts, sizeof(ts));
-                            fprintf(stderr, "%s [DAEMON] New client connected on fd %d (slot %d), total clients: %d\n", ts, client_fd, i, num_clients);
-                        }
+                        LOG_INFO("New client connected on fd %d (slot %d), total clients: %d", client_fd, i, num_clients);
                         break;
                     }
                 }
@@ -1143,11 +1099,7 @@ int main(int argc, char *argv[]) {
         /* Handle existing clients */
         for (int i = 0; i < MAX_CLIENTS; i++) {
             if (client_fds[i] > 0 && FD_ISSET(client_fds[i], &read_fds)) {
-                if (debug_mode) {
-                    char ts[32];
-                    get_timestamp(ts, sizeof(ts));
-                    fprintf(stderr, "%s [DAEMON] Activity detected on client fd %d (slot %d), buffer_len=%d\n", ts, client_fds[i], i, client_buffer_len[i]);
-                }
+                LOG_DEBUG("Activity detected on client fd %d (slot %d), buffer_len=%d", client_fds[i], i, client_buffer_len[i]);
                 
                 /* Handle client - returns 1 if disconnected, 0 if still connected */
                 int client_disconnected = handle_client(client_fds[i], i);
@@ -1161,11 +1113,7 @@ int main(int argc, char *argv[]) {
                     if (peek_result < 0) {
                         /* Error occurred - check if it's just EAGAIN/EWOULDBLOCK (no data yet) */
                         if (errno != EAGAIN && errno != EWOULDBLOCK) {
-                            if (debug_mode) {
-                                char ts[32];
-                                get_timestamp(ts, sizeof(ts));
-                                fprintf(stderr, "%s [DAEMON] Client fd %d error: %s\n", ts, client_fds[i], strerror(errno));
-                            }
+                            LOG_ERROR("Client fd %d error: %s", client_fds[i], strerror(errno));
                             close(client_fds[i]);
                             client_fds[i] = -1;
                             client_buffer_len[i] = 0;
@@ -1183,36 +1131,25 @@ int main(int argc, char *argv[]) {
         static int auto_mode_counter = 0;
         auto_mode_counter++;
         
-        if (debug_mode) {
-            char ts[32];
-            get_timestamp(ts, sizeof(ts));
-            fprintf(stderr, "%s [DAEMON] Main loop iteration %d: enabled=%d running=%d mod5=%d\n", 
-                    ts, auto_mode_counter, auto_mode_enabled, g_running, auto_mode_counter % 5);
-            fflush(stderr);  // Force flush to see output immediately
-        }
+        LOG_DEBUG("Main loop iteration %d: enabled=%d running=%d mod5=%d",
+                  auto_mode_counter, auto_mode_enabled, g_running, auto_mode_counter % 5);
         
         if (auto_mode_enabled && g_running && (auto_mode_counter % 5 == 0)) {
             /* Auto mode is handled in the main loop here for simplicity */
-            char ts[32];
-            get_timestamp(ts, sizeof(ts));
-            fprintf(stderr, "%s [DAEMON] *** AUTO MODE LOOP EXECUTING (profile: %s) ***\n", 
-                    ts, active_profile_idx >= 0 ? profiles[active_profile_idx].name : "NONE");
+            LOG_DEBUG("AUTO MODE LOOP EXECUTING (profile: %s)",
+                      active_profile_idx >= 0 ? profiles[active_profile_idx].name : "NONE");
             
             int cpu_temp = get_cpu_temp();
             int gpu_temp = get_gpu_temp();
             
-            if (debug_mode) {
-                fprintf(stderr, "[DAEMON] Raw temps: CPU=%d GPU=%d\n", cpu_temp, gpu_temp);
-            }
+            LOG_DEBUG("Raw temps: CPU=%d GPU=%d", cpu_temp, gpu_temp);
             
             int hot_temp = cpu_temp;
             if (gpu_temp >= 0 && gpu_temp > cpu_temp) {
                 hot_temp = gpu_temp;
             }
             
-            if (debug_mode) {
-                fprintf(stderr, "[DAEMON] Temp validation: CPU=%d (valid range: %d-%d)\n", cpu_temp, TEMP_MIN_VALID_C, TEMP_MAX_VALID_C);
-            }
+            LOG_DEBUG("Temp validation: CPU=%d (valid range: %d-%d)", cpu_temp, TEMP_MIN_VALID_C, TEMP_MAX_VALID_C);
             
             if (cpu_temp >= TEMP_MIN_VALID_C && cpu_temp <= TEMP_MAX_VALID_C) {
                 static int ring[3] = {-1, -1, -1};
@@ -1241,10 +1178,8 @@ int main(int argc, char *argv[]) {
                 
                 int diff = target_duty - clamped_current;
                 
-                char ts[32];
-                get_timestamp(ts, sizeof(ts));
-                fprintf(stderr, "%s [DAEMON] Auto mode: CPU=%d°C GPU=%d°C avg=%d°C target=%d%% current=%d%% (clamped=%d%%) diff=%d\n", 
-                        ts, cpu_temp, gpu_temp, avg_temp, target_duty, current_fan_duty, clamped_current, diff);
+                LOG_INFO("Auto mode: CPU=%d°C GPU=%d°C avg=%d°C target=%d%% current=%d%% (clamped=%d%%) diff=%d",
+                         cpu_temp, gpu_temp, avg_temp, target_duty, current_fan_duty, clamped_current, diff);
                 
                 /* Adaptive ramp control to prevent oscillation */
                 int new_duty = current_fan_duty;
@@ -1286,18 +1221,14 @@ int main(int argc, char *argv[]) {
                     made_change = 1;
                 } else {
                     /* Within deadband - no change needed, but ensure we're stable */
-                    if (debug_mode) {
-                        fprintf(stderr, "[DAEMON] Fan within ±5%% of target (%d%% vs %d%%), holding steady\n", clamped_current, target_duty);
-                    }
+                    LOG_DEBUG("Fan within ±5%% of target (%d%% vs %d%%), holding steady", clamped_current, target_duty);
                 }
                 
                 /* Apply the new duty if changed */
                 if (made_change) {
-                    char ts[32];
-                    get_timestamp(ts, sizeof(ts));
                     set_fan_duty(current_fan_duty);
-                    fprintf(stderr, "%s [DAEMON] Setting fan duty to %d%% (target=%d%%, diff=%d)\n", 
-                            ts, current_fan_duty, target_duty, diff);
+                    LOG_INFO("Setting fan duty to %d%% (target=%d%%, diff=%d)",
+                             current_fan_duty, target_duty, diff);
                 }
             }
         }
@@ -1323,6 +1254,6 @@ int main(int argc, char *argv[]) {
     /* Clean up PID file on normal exit */
     unlink("/run/dudes-control-center-fan-daemon.pid");
     
-    printf("Daemon stopped.\n");
+    LOG_INFO("Daemon stopped.");
     return EXIT_SUCCESS;
 }
