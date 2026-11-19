@@ -833,6 +833,12 @@ static void load_cpu_custom_profiles(AppData *app) {
         gtk_combo_box_set_active(GTK_COMBO_BOX(app->cpu_custom_profile_combo), active_idx);
         g_signal_handler_unblock(app->cpu_custom_profile_combo, app->cpu_custom_profile_combo_signal_id);
         app->cpu_active_custom_profile_idx = active_idx;
+
+        /* Build the grid immediately so the user can edit on first visit */
+        if (app->cpu_core_count > 0) {
+            build_cpu_core_freq_grid(app, app->cpu_core_count);
+            update_cpu_core_freq_spinners(app, active_idx);
+        }
     }
 
     g_print("[GUI] Loaded %d custom frequency profiles (active idx=%d)\n", profile_count, active_idx);
