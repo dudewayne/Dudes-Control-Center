@@ -698,6 +698,21 @@ static void load_cpu_governors(AppData *app) {
             name_start++;
         }
 
+        /* Extract governor string from "gov=xxx" BEFORE truncating the line */
+        char gov_str[32] = "schedutil";
+        char *gov_ptr = strstr(line, "gov=");
+        if (gov_ptr) {
+            char *gov_start = gov_ptr + 4;
+            char *gov_end = strchr(gov_start, ',');
+            if (gov_end) {
+                int gov_len = gov_end - gov_start;
+                if (gov_len > 0 && gov_len < (int)sizeof(gov_str)) {
+                    memcpy(gov_str, gov_start, gov_len);
+                    gov_str[gov_len] = '\0';
+                }
+            }
+        }
+
         char *paren = strchr(name_start, '(');
         if (paren) {
             *paren = '\0';
@@ -716,24 +731,10 @@ static void load_cpu_governors(AppData *app) {
                 active_idx = count;
             }
 
-            /* Extract governor string from "gov=xxx" in the original line */
-            char gov_str[32] = "schedutil";
-            char *gov_ptr = strstr(line, "gov=");
-            if (gov_ptr) {
-                char *gov_start = gov_ptr + 4;
-                char *gov_end = strchr(gov_start, ',');
-                if (gov_end) {
-                    int gov_len = gov_end - gov_start;
-                    if (gov_len > 0 && gov_len < (int)sizeof(gov_str)) {
-                        memcpy(gov_str, gov_start, gov_len);
-                        gov_str[gov_len] = '\0';
-                    }
-                }
-            }
-
             GtkTreeIter iter;
             gtk_list_store_append(app->cpu_profile_store, &iter);
             gtk_list_store_set(app->cpu_profile_store, &iter, 0, name_start, 1, gov_str, -1);
+            g_print("[GUI]   Added governor row: name='%s' gov='%s'\n", name_start, gov_str);
             count++;
         }
 
@@ -1280,13 +1281,19 @@ static void on_cpu_save_freq_profile_clicked(GtkWidget *widget, gpointer user_da
         if (gtk_combo_box_get_active_iter(GTK_COMBO_BOX(app->cpu_profile_combo), &gov_iter)) {
             gchar *gov_name = NULL;
             gtk_tree_model_get(GTK_TREE_MODEL(app->cpu_profile_store), &gov_iter, 1, &gov_name, -1);
-            if (gov_name) {
+            g_print("[GUI] Governor read from column 1: '%s' (ptr=%p)\n", gov_name ? gov_name : "(NULL)", (void*)gov_name);
+            if (gov_name && strlen(gov_name) > 0) {
                 char gov_cmd[256];
                 g_print("[GUI] Saving governor '%s' for profile %d\n", gov_name, idx);
                 snprintf(gov_cmd, sizeof(gov_cmd), "SET_PROFILE_GOVERNOR|%d|%s", idx, gov_name);
-                send_cpu_command(app, gov_cmd);
+                const char *resp = send_cpu_command(app, gov_cmd);
+                g_print("[GUI] SET_PROFILE_GOVERNOR response: %s\n", resp ? resp : "(NULL)");
                 g_free(gov_name);
+            } else {
+                g_print("[GUI] WARNING: governor name is empty or NULL, skipping SET_PROFILE_GOVERNOR\n");
             }
+        } else {
+            g_print("[GUI] WARNING: could not get active iter from cpu_profile_combo\n");
         }
     }
 
