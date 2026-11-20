@@ -1264,6 +1264,76 @@ static void on_cpu_rename_freq_profile_clicked(GtkWidget *widget, gpointer user_
 }
 
 /* Callback: Save current profile values to disk */
+/* Context struct for deferred save work */
+typedef struct {
+    AppData *app;
+    int profile_idx;
+    int num_cores;
+    int apply_all_cores;
+    char governor[64];
+    double core_min_mhz[32];
+    double core_max_mhz[32];
+} CpuSaveContext;
+
+/* Idle callback that performs the actual save work.
+ * Decoupled from the button clicked signal so GTK can release
+ * the button's pressed visual state before we destroy/recreate widgets. */
+static gboolean cpu_save_freq_profile_idle(gpointer user_data) {
+    CpuSaveContext *ctx = (CpuSaveContext *)user_data;
+    AppData *app = ctx->app;
+    int idx = ctx->profile_idx;
+    int num_cores = ctx->num_cores;
+    char cmd[256];
+
+    LOG_INFO("Save step 1: sending governor for profile %d", idx);
+    if (strlen(ctx->governor) > 0) {
+        char gov_cmd[256];
+        LOG_INFO("Saving governor '%s' for profile %d", ctx->governor, idx);
+        snprintf(gov_cmd, sizeof(gov_cmd), "SET_PROFILE_GOVERNOR|%d|%s", idx, ctx->governor);
+        const char *resp = send_cpu_command(app, gov_cmd);
+        LOG_INFO("SET_PROFILE_GOVERNOR response: %s", resp ? resp : "(NULL)");
+    }
+    LOG_INFO("Save step 1 done: governor sent");
+
+    LOG_INFO("Save step 2: sending per-core freq commands (%d cores)", num_cores);
+    for (int i = 0; i < num_cores && i < 32; i++) {
+        gulong min_hz = (gulong)(ctx->core_min_mhz[i] * 1000000);
+        gulong max_hz = (gulong)(ctx->core_max_mhz[i] * 1000000);
+
+        snprintf(cmd, sizeof(cmd), "SET_CORE_MIN_FREQ|%d|%d|%lu", idx, i, min_hz);
+        send_cpu_command(app, cmd);
+
+        snprintf(cmd, sizeof(cmd), "SET_CORE_MAX_FREQ|%d|%d|%lu", idx, i, max_hz);
+        send_cpu_command(app, cmd);
+    }
+    LOG_INFO("Save step 2 done: per-core freq commands sent");
+
+    LOG_INFO("Save step 3: sending apply_all_cores state");
+    snprintf(cmd, sizeof(cmd), "SET_APPLY_ALL_CORES|%d|%d", idx, ctx->apply_all_cores);
+    send_cpu_command(app, cmd);
+    LOG_INFO("Save step 3 done: apply_all_cores sent");
+
+    LOG_INFO("Save step 4: marking profiles modified + saving to disk");
+    mark_cpu_freq_profiles_modified(app);
+    gui_save_profiles_to_disk(app);
+    LOG_INFO("Save step 4 done: profiles saved to disk");
+
+    LOG_INFO("Save step 5: reloading profile list");
+    load_cpu_custom_profiles(app);
+    g_signal_handler_block(app->cpu_custom_profile_combo, app->cpu_custom_profile_combo_signal_id);
+    gtk_combo_box_set_active(GTK_COMBO_BOX(app->cpu_custom_profile_combo), idx);
+    g_signal_handler_unblock(app->cpu_custom_profile_combo, app->cpu_custom_profile_combo_signal_id);
+    LOG_INFO("Save step 5 done: profile list reloaded");
+
+    char status_msg[128];
+    snprintf(status_msg, sizeof(status_msg), "Saved profile");
+    gtk_label_set_text(GTK_LABEL(app->cpu_freq_profile_status_label), status_msg);
+    LOG_INFO("<<< Save frequency profile completed");
+
+    g_free(ctx);
+    return G_SOURCE_REMOVE;
+}
+
 static void on_cpu_save_freq_profile_clicked(GtkWidget *widget, gpointer user_data) {
     (void)widget;
     AppData *app = (AppData *)user_data;
@@ -1276,31 +1346,6 @@ static void on_cpu_save_freq_profile_clicked(GtkWidget *widget, gpointer user_da
         return;
     }
 
-    LOG_INFO("Save step 1: sending governor for profile %d", idx);
-    /* Read governor from combo box and send it */
-    {
-        GtkTreeIter gov_iter;
-        if (gtk_combo_box_get_active_iter(GTK_COMBO_BOX(app->cpu_profile_combo), &gov_iter)) {
-            gchar *gov_name = NULL;
-            gtk_tree_model_get(GTK_TREE_MODEL(app->cpu_profile_store), &gov_iter, 1, &gov_name, -1);
-            LOG_INFO("Governor read from column 1: '%s'", gov_name ? gov_name : "(NULL)");
-            if (gov_name && strlen(gov_name) > 0) {
-                char gov_cmd[256];
-                LOG_INFO("Saving governor '%s' for profile %d", gov_name, idx);
-                snprintf(gov_cmd, sizeof(gov_cmd), "SET_PROFILE_GOVERNOR|%d|%s", idx, gov_name);
-                const char *resp = send_cpu_command(app, gov_cmd);
-                LOG_INFO("SET_PROFILE_GOVERNOR response: %s", resp ? resp : "(NULL)");
-                g_free(gov_name);
-            } else {
-                LOG_INFO("WARNING: governor name is empty or NULL, skipping SET_PROFILE_GOVERNOR");
-            }
-        } else {
-            LOG_INFO("WARNING: could not get active iter from cpu_profile_combo");
-        }
-    }
-    LOG_INFO("Save step 1 done: governor sent");
-
-    /* Read spinner values and send per-core freq commands */
     int num_cores = app->cpu_core_count;
     if (num_cores <= 0) {
         gtk_label_set_text(GTK_LABEL(app->cpu_freq_profile_status_label), "Core count not available");
@@ -1308,56 +1353,38 @@ static void on_cpu_save_freq_profile_clicked(GtkWidget *widget, gpointer user_da
         return;
     }
 
-    LOG_INFO("Save step 2: sending per-core freq commands (%d cores)", num_cores);
-    char cmd[256];
-    for (int i = 0; i < num_cores && i < 32; i++) {
-        double min_mhz = gtk_adjustment_get_value(app->cpu_core_min_adjustments[i]);
-        double max_mhz = gtk_adjustment_get_value(app->cpu_core_max_adjustments[i]);
+    /* Capture all current UI state into a context struct */
+    CpuSaveContext *ctx = g_new0(CpuSaveContext, 1);
+    ctx->app = app;
+    ctx->profile_idx = idx;
+    ctx->num_cores = num_cores;
+    ctx->apply_all_cores = gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(app->cpu_apply_all_cores_checkbox)) ? 1 : 0;
 
-        gulong min_hz = (gulong)(min_mhz * 1000000);
-        gulong max_hz = (gulong)(max_mhz * 1000000);
-
-        snprintf(cmd, sizeof(cmd), "SET_CORE_MIN_FREQ|%d|%d|%lu", idx, i, min_hz);
-        send_cpu_command(app, cmd);
-
-        snprintf(cmd, sizeof(cmd), "SET_CORE_MAX_FREQ|%d|%d|%lu", idx, i, max_hz);
-        send_cpu_command(app, cmd);
-    }
-    LOG_INFO("Save step 2 done: per-core freq commands sent");
-
-    /* Update the apply_all_cores state in the daemon */
-    LOG_INFO("Save step 3: sending apply_all_cores state");
+    /* Read governor */
     {
-        int checkbox_state = gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(app->cpu_apply_all_cores_checkbox)) ? 1 : 0;
-        snprintf(cmd, sizeof(cmd), "SET_APPLY_ALL_CORES|%d|%d", idx, checkbox_state);
-        send_cpu_command(app, cmd);
+        GtkTreeIter gov_iter;
+        if (gtk_combo_box_get_active_iter(GTK_COMBO_BOX(app->cpu_profile_combo), &gov_iter)) {
+            gchar *gov_name = NULL;
+            gtk_tree_model_get(GTK_TREE_MODEL(app->cpu_profile_store), &gov_iter, 1, &gov_name, -1);
+            strncpy(ctx->governor, gov_name ? gov_name : "", sizeof(ctx->governor) - 1);
+            ctx->governor[sizeof(ctx->governor) - 1] = '\0';
+            g_free(gov_name);
+        }
     }
-    LOG_INFO("Save step 3 done: apply_all_cores sent");
 
-    /* Mark profiles as modified */
-    LOG_INFO("Save step 4: marking profiles modified + saving to disk");
-    mark_cpu_freq_profiles_modified(app);
-    gui_save_profiles_to_disk(app);
-    LOG_INFO("Save step 4 done: profiles saved to disk");
+    /* Read spinner values */
+    for (int i = 0; i < num_cores && i < 32; i++) {
+        ctx->core_min_mhz[i] = gtk_adjustment_get_value(app->cpu_core_min_adjustments[i]);
+        ctx->core_max_mhz[i] = gtk_adjustment_get_value(app->cpu_core_max_adjustments[i]);
+    }
 
-    /* Reload profile list, keeping the user's current selection */
-    LOG_INFO("Save step 5: reloading profile list");
-    int saved_idx = idx;
-    load_cpu_custom_profiles(app);
-    g_signal_handler_block(app->cpu_custom_profile_combo, app->cpu_custom_profile_combo_signal_id);
-    gtk_combo_box_set_active(GTK_COMBO_BOX(app->cpu_custom_profile_combo), saved_idx);
-    g_signal_handler_unblock(app->cpu_custom_profile_combo, app->cpu_custom_profile_combo_signal_id);
-    LOG_INFO("Save step 5 done: profile list reloaded");
+    /* Show saving status immediately */
+    gtk_label_set_text(GTK_LABEL(app->cpu_freq_profile_status_label), "Saving...");
 
-    char status_msg[128];
-    snprintf(status_msg, sizeof(status_msg), "Saved profile");
-    gtk_label_set_text(GTK_LABEL(app->cpu_freq_profile_status_label), status_msg);
-
-    /* Force a redraw of the save button so its pressed visual state releases.
-     * GTK3 sometimes keeps the button visually pressed after a long callback
-     * that manipulates many widgets (grid rebuild, combo reload, etc.). */
-    gtk_widget_queue_draw(app->cpu_freq_profile_save_btn);
-    LOG_INFO("<<< Save frequency profile completed");
+    /* Defer the heavy save work to an idle callback so GTK can release
+     * the button's pressed visual state before we destroy/recreate widgets. */
+    g_idle_add((GSourceFunc)cpu_save_freq_profile_idle, ctx);
+    LOG_INFO("Save deferred to idle callback");
 }
 
 /* Callback: Activate (apply) the selected frequency profile to the CPU */
