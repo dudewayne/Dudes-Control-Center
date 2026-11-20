@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.12.0] - 2026-11-20
+
+### Added
+- **CPU Profiles in system tray menu**: Added a "CPU Profiles" submenu to the system tray context menu, similar to the existing "Fan Profiles" submenu. Allows switching CPU frequency profiles directly from the tray icon.
+
 ## [1.11.0] - 2026-11-20
 
 ### Added
