@@ -3853,6 +3853,11 @@ static void on_notebook_page_switched(GtkNotebook *notebook, GtkWidget *page, gi
         /* Load CPU custom profiles and select the active one */
         load_cpu_custom_profiles(app);
 
+        /* Update tray menu so CPU profiles appear in the context menu.
+         * The tray menu is created at startup when cpu_custom_profile_store is empty.
+         * Rebuilding it after profiles load ensures the submenu is populated. */
+        update_tray_menu(app);
+
         /* Defer grid population until GTK has realized the widgets on this page.
          * GTK3 lazy-realizes notebook pages: the page is only realized after
          * the first switch-page signal fires. By using g_idle_add, we ensure
