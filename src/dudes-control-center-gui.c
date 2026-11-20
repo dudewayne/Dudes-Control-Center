@@ -2531,10 +2531,13 @@ static void gui_save_profiles_to_disk(AppData *app) {
         return;
     }
     cJSON_AddStringToObject(root, "version", "1.0");
-    cJSON_AddNumberToObject(root, "active_profile_index", app->active_profile_idx);
+
+    /* Build fan_profiles section (nested object) */
+    cJSON *fan_section = cJSON_CreateObject();
+    cJSON_AddNumberToObject(fan_section, "active_profile_index", app->active_profile_idx);
 
     /* Query fan daemon for all profiles */
-    cJSON *profiles_array = cJSON_CreateArray();
+    cJSON *fan_profiles_array = cJSON_CreateArray();
     for (int i = 0; i < app->num_profiles; i++) {
         char cmd[64];
         snprintf(cmd, sizeof(cmd), "GET_PROFILE %d", i);
@@ -2602,31 +2605,50 @@ static void gui_save_profiles_to_disk(AppData *app) {
         cJSON_AddStringToObject(profile_obj, "name", profile_name);
         cJSON_AddBoolToObject(profile_obj, "is_active", is_active ? true : false);
         cJSON_AddItemToObject(profile_obj, "curve_points", curve_array);
-        cJSON_AddItemToArray(profiles_array, profile_obj);
+        cJSON_AddItemToArray(fan_profiles_array, profile_obj);
     }
-    cJSON_AddItemToObject(root, "fan_profiles", profiles_array);
+    cJSON_AddItemToObject(fan_section, "profiles", fan_profiles_array);
+    cJSON_AddItemToObject(root, "fan_profiles", fan_section);
 
-    /* Query CPU daemon for custom profiles */
+    /* Build cpu_freq_profiles section (nested object) */
     if (app->cpu_connected) {
         const char *cpu_response = send_cpu_command(app, "LIST_CUSTOM_PROFILES_JSON");
         if (cpu_response && strncmp(cpu_response, "ERROR", 5) != 0) {
-            /* The daemon returns raw JSON for cpu_freq_profiles */
-            cJSON *cpu_json = cJSON_Parse(cpu_response);
-            if (cpu_json) {
+            /* The daemon returns raw JSON array for cpu profiles */
+            cJSON *cpu_profiles_array = cJSON_Parse(cpu_response);
+            if (cpu_profiles_array && cJSON_IsArray(cpu_profiles_array)) {
                 /* Patch the apply_all_cores field for the active profile
                  * with the current checkbox state before saving */
-                if (app->cpu_active_custom_profile_idx >= 0 && cJSON_IsArray(cpu_json)) {
-                    cJSON *active_profile = cJSON_GetArrayItem(cpu_json, app->cpu_active_custom_profile_idx);
+                if (app->cpu_active_custom_profile_idx >= 0) {
+                    cJSON *active_profile = cJSON_GetArrayItem(cpu_profiles_array, app->cpu_active_custom_profile_idx);
                     if (active_profile) {
                         int checkbox_state = gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(app->cpu_apply_all_cores_checkbox)) ? 1 : 0;
                         cJSON_ReplaceItemInObject(active_profile, "apply_all_cores", cJSON_CreateNumber(checkbox_state));
                     }
                 }
-                cJSON_AddItemToObject(root, "cpu_freq_profiles", cpu_json);
+
+                /* Build the nested cpu_freq_profiles section */
+                cJSON *cpu_section = cJSON_CreateObject();
+                cJSON_AddNumberToObject(cpu_section, "active_profile_index", app->cpu_active_custom_profile_idx);
+
+                /* Get the current hard limit value */
+                if (app->cpu_hard_limit_hz > 0) {
+                    cJSON_AddNumberToObject(cpu_section, "cpu_hard_limit_hz", (double)app->cpu_hard_limit_hz);
+                }
+
+                cJSON_AddItemToObject(cpu_section, "profiles", cpu_profiles_array);
+                cJSON_AddItemToObject(root, "cpu_freq_profiles", cpu_section);
             } else {
                 g_print("[GUI] WARNING: Failed to parse CPU profiles JSON\n");
+                if (cpu_profiles_array) cJSON_Delete(cpu_profiles_array);
             }
         }
+    } else {
+        /* CPU not connected: still write an empty cpu section */
+        cJSON *cpu_section = cJSON_CreateObject();
+        cJSON_AddNumberToObject(cpu_section, "active_profile_index", 0);
+        cJSON_AddItemToObject(cpu_section, "profiles", cJSON_CreateArray());
+        cJSON_AddItemToObject(root, "cpu_freq_profiles", cpu_section);
     }
 
     /* Write to file */

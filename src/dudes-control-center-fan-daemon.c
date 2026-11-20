@@ -109,17 +109,20 @@ static void save_profiles(void) {
     /* Build JSON document */
     cJSON *root = cJSON_CreateObject();
     if (!root) return;
-    
+
     cJSON_AddStringToObject(root, "version", "1.0");
-    cJSON_AddNumberToObject(root, "active_profile_index", active_profile_idx);
-    
+
+    /* Build fan_profiles section (nested object) */
+    cJSON *fan_section = cJSON_CreateObject();
+    cJSON_AddNumberToObject(fan_section, "active_profile_index", active_profile_idx);
+
     cJSON *profiles_array = cJSON_CreateArray();
     for (int i = 0; i < num_profiles; i++) {
         FanProfile *p = &profiles[i];
         cJSON *profile_obj = cJSON_CreateObject();
         cJSON_AddStringToObject(profile_obj, "name", p->name);
         cJSON_AddBoolToObject(profile_obj, "is_active", p->is_active ? true : false);
-        
+
         cJSON *curve_array = cJSON_CreateArray();
         for (int j = 0; j < p->num_points; j++) {
             cJSON *point = cJSON_CreateObject();
@@ -130,7 +133,8 @@ static void save_profiles(void) {
         cJSON_AddItemToObject(profile_obj, "curve_points", curve_array);
         cJSON_AddItemToArray(profiles_array, profile_obj);
     }
-    cJSON_AddItemToObject(root, "profiles", profiles_array);
+    cJSON_AddItemToObject(fan_section, "profiles", profiles_array);
+    cJSON_AddItemToObject(root, "fan_profiles", fan_section);
     
     /* Write to file */
     char *json_str = cJSON_Print(root);
@@ -208,17 +212,31 @@ static void load_profiles(void) {
         return;
     }
     
-    /* Read active profile index */
-    cJSON *active_idx = cJSON_GetObjectItem(root, "active_profile_index");
-    if (cJSON_IsNumber(active_idx)) {
-        active_profile_idx = active_idx->valueint;
-    } else {
-        active_profile_idx = 0;
+    /* Try new nested format first: fan_profiles object with active_profile_index inside */
+    cJSON *fan_section = cJSON_GetObjectItem(root, "fan_profiles");
+    cJSON *profiles_array = NULL;
+
+    if (cJSON_IsObject(fan_section)) {
+        /* New nested format */
+        cJSON *active_idx = cJSON_GetObjectItem(fan_section, "active_profile_index");
+        if (cJSON_IsNumber(active_idx)) {
+            active_profile_idx = active_idx->valueint;
+        } else {
+            active_profile_idx = 0;
+        }
+        profiles_array = cJSON_GetObjectItem(fan_section, "profiles");
+    } else if (cJSON_IsArray(fan_section)) {
+        /* Old flat format: fan_profiles was directly an array */
+        cJSON *active_idx = cJSON_GetObjectItem(root, "active_profile_index");
+        if (cJSON_IsNumber(active_idx)) {
+            active_profile_idx = active_idx->valueint;
+        } else {
+            active_profile_idx = 0;
+        }
+        profiles_array = fan_section;
     }
-    
-    /* Read profiles array */
-    cJSON *profiles_array = cJSON_GetObjectItem(root, "fan_profiles");
-    if (!cJSON_IsArray(profiles_array)) {
+
+    if (!profiles_array || !cJSON_IsArray(profiles_array)) {
         LOG_WARN("Missing profiles array in %s, using defaults", PROFILE_PATH);
         cJSON_Delete(root);
         init_default_profile();
