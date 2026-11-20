@@ -207,7 +207,12 @@ static int sysfs_write_string(int cpu_id, const char *filename, const char *valu
         return -1;
     }
 
-    fprintf(fp, "%s", value);
+    int ret = fprintf(fp, "%s", value);
+    if (ret < 0) {
+        LOG_ERROR("[CPU] Failed to write to %s: %s", path, strerror(errno));
+        fclose(fp);
+        return -1;
+    }
     fclose(fp);
     return 0;
 }
@@ -227,7 +232,12 @@ static int sysfs_write_freq(int cpu_id, const char *filename, uint32_t freq_hz) 
 
     /* sysfs expects kHz */
     uint32_t freq_khz = freq_hz / 1000;
-    fprintf(fp, "%u", freq_khz);
+    int ret = fprintf(fp, "%u", freq_khz);
+    if (ret < 0) {
+        LOG_ERROR("[CPU] Failed to write to %s: %s", path, strerror(errno));
+        fclose(fp);
+        return -1;
+    }
     fclose(fp);
     return 0;
 }
@@ -260,6 +270,9 @@ int cpu_control_init(void) {
 
     /* Set EPP to performance so the CPU actually pushes to the configured max frequency */
     set_all_cpus_epp("performance");
+
+    /* Set min_perf_pct to 100 so HWP firmware stays near scaling_max_freq during load */
+    set_intel_pstate_min_perf_pct(100);
 
     return 0;
 }
@@ -427,6 +440,32 @@ int set_all_cpus_epp(const char *epp) {
         LOG_WARN("[CPU] Set EPP to '%s' on %d/%d cores (%d errors)", epp, cpu_count - errors, cpu_count, errors);
     }
     return (errors == 0) ? 0 : -1;
+}
+
+/* --- Intel pstate min_perf_pct control ---
+ * On Intel HWP (Speed Shift) mode, this tells the firmware what % of max frequency
+ * to use as the minimum performance target. Setting to 100 helps the CPU stay
+ * near scaling_max_freq during sustained load.
+ */
+int set_intel_pstate_min_perf_pct(int pct) {
+    if (pct < 0 || pct > 100) return -1;
+
+    const char *path = "/sys/devices/system/cpu/intel_pstate/min_perf_pct";
+    FILE *fp = fopen(path, "w");
+    if (!fp) {
+        LOG_ERROR("[CPU] Failed to open %s for writing: %s", path, strerror(errno));
+        return -1;
+    }
+
+    int ret = fprintf(fp, "%d", pct);
+    if (ret < 0) {
+        LOG_ERROR("[CPU] Failed to write to %s: %s", path, strerror(errno));
+        fclose(fp);
+        return -1;
+    }
+    fclose(fp);
+    LOG_INFO("[CPU] Set intel_pstate min_perf_pct to %d", pct);
+    return 0;
 }
 
 /* --- Set governor/frequency for all CPUs --- */

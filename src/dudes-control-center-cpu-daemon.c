@@ -896,6 +896,7 @@ int main(int argc, char *argv[]) {
                 }
             }
             set_all_cpus_epp("performance");
+            set_intel_pstate_min_perf_pct(100);
             last_enforce_time = current_time;
         }
 

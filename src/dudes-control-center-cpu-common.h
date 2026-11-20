@@ -139,6 +139,7 @@ int set_all_cpus_min_freq(uint32_t freq_hz);           /* Set min freq for all C
 int set_all_cpus_max_freq(uint32_t freq_hz);           /* Set max freq for all CPUs */
 int set_cpu_epp(int cpu_id, const char *epp);          /* Set EPP for a CPU */
 int set_all_cpus_epp(const char *epp);                 /* Set EPP for all CPUs */
+int set_intel_pstate_min_perf_pct(int pct);             /* Set intel_pstate min_perf_pct (0-100) */
 int clamp_cpus_to_hard_limit(void);                     /* Clamp all CPUs to hard limit */
 
 /* System status */
