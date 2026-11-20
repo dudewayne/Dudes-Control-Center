@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.11.0] - 2026-11-20
+
+### Added
+- **Hard limit fail-safe enforcer**: Added an independent systemd timer + script that enforces the CPU hard frequency limit every 10 seconds via sysfs. This acts as a fail-safe if the daemon or GUI crashes, ensuring the hard limit is always enforced at the system level.
+
 ## [1.10.0] - 2026-11-20
 
 ### Added
