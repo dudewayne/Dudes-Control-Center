@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.10.0] - 2026-11-20
+
+### Added
+- **Rename Profile button in Curve Editor**: Added a "Rename Profile" button next to the "Delete Profile" button. Opens a dialog pre-filled with the current profile name. Supports names with spaces. Cannot rename the Default profile.
+
 ## [1.9.2] - 2026-11-20
 
 ### Fixed
