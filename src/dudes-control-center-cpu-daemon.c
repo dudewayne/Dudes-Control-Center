@@ -897,11 +897,14 @@ int main(int argc, char *argv[]) {
                 active_profile = &g_cpu_state.custom_profiles[g_cpu_state.active_custom_profile_idx];
             }
 
+            int max_restored = 0;
+            int min_restored = 0;
             for (int i = 0; i < cpu_count; i++) {
                 /* Enforce hard limit on max freq */
                 uint32_t current_max = get_cpu_max_freq(i);
                 if (current_max < hard_limit) {
                     set_cpu_max_freq(i, hard_limit);
+                    max_restored++;
                 }
 
                 /* Enforce min freq from active custom profile */
@@ -911,12 +914,15 @@ int main(int argc, char *argv[]) {
                         uint32_t current_min = get_cpu_min_freq(i);
                         if (current_min < profile_min) {
                             set_cpu_min_freq(i, profile_min);
+                            min_restored++;
                         }
                     }
                 }
             }
-            set_all_cpus_epp("performance");
-            set_intel_pstate_min_perf_pct(100);
+            int epp_rc = set_all_cpus_epp("performance");
+            int mpct_rc = set_intel_pstate_min_perf_pct(100);
+            LOG_INFO("[ENFORCE] max_restored=%d, min_restored=%d, epp_rc=%d, mpct_rc=%d, active_profile_idx=%d",
+                     max_restored, min_restored, epp_rc, mpct_rc, g_cpu_state.active_custom_profile_idx);
             last_enforce_time = current_time;
         }
 
