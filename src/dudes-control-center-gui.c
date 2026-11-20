@@ -3491,6 +3491,9 @@ static void on_apply_profile_clicked(GtkWidget *widget, gpointer user_data) {
         
         /* Update tray menu to reflect new active profile */
         update_tray_menu(app);
+
+        /* Persist the active_profile_index to profiles.json */
+        gui_save_profiles_to_disk(app);
     } else {
         show_status(app, "No profile selected");
     }
