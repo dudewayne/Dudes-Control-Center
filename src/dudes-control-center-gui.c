@@ -891,7 +891,7 @@ static void load_cpu_custom_profiles(AppData *app) {
     }
 
     g_print("[GUI] Loaded %d custom frequency profiles (active idx=%d)\n", profile_count, active_idx);
-    LOG_INFO("[CPU-PROFILES] Loaded %d custom frequency profiles (active idx=%d)", profile_count, active_idx);
+
 }
 
 /* Callback: Custom profile combo box changed */
@@ -3774,11 +3774,8 @@ static void on_notebook_page_switched(GtkNotebook *notebook, GtkWidget *page, gi
     (void)page;
     AppData *app = (AppData *)user_data;
     
-    LOG_INFO("[PAGE-SWITCH] Callback fired, page_num=%d", page_num);
-    
     /* Prevent re-entry */
     if (app->switching_page) {
-        LOG_INFO("[PAGE-SWITCH] Blocked by switching_page guard");
         return;
     }
     
@@ -3853,7 +3850,7 @@ static void on_notebook_page_switched(GtkNotebook *notebook, GtkWidget *page, gi
         char ts[32];
         get_timestamp(ts, sizeof(ts));
         g_print("%s [GUI] Switching to CPU Profiles tab\n", ts);
-        LOG_INFO("[CPU-TAB] Switching to CPU Profiles tab");
+
 
         /* Load CPU custom profiles and select the active one */
         load_cpu_custom_profiles(app);
@@ -3861,7 +3858,6 @@ static void on_notebook_page_switched(GtkNotebook *notebook, GtkWidget *page, gi
         /* Update tray menu so CPU profiles appear in the context menu.
          * The tray menu is created at startup when cpu_custom_profile_store is empty.
          * Rebuilding it after profiles load ensures the submenu is populated. */
-        LOG_INFO("[TRAY] Calling update_tray_menu after loading CPU profiles");
         update_tray_menu(app);
 
         /* Defer grid population until GTK has realized the widgets on this page.
@@ -4902,47 +4898,7 @@ static GtkWidget* create_tray_menu(AppData *app) {
     gtk_container_add(GTK_CONTAINER(menu), separator1);
     gtk_widget_show(separator1);
     
-    /* Fan Profiles submenu */
-    GtkWidget *profiles_menuitem = gtk_menu_item_new_with_label("Fan Profiles");
-    GtkWidget *profiles_submenu = gtk_menu_new();
-    gtk_menu_item_set_submenu(GTK_MENU_ITEM(profiles_menuitem), profiles_submenu);
-    gtk_container_add(GTK_CONTAINER(menu), profiles_menuitem);
-    gtk_widget_show(profiles_menuitem);
-    
-    /* Add profile items to submenu */
-    GtkWidget *first_profile_radio = NULL;
-    for (int i = 0; i < app->num_profiles; i++) {
-        char label[128];
-        if (i == app->active_profile_idx) {
-            snprintf(label, sizeof(label), "%s (Active)", app->profile_names[i]);
-        } else {
-            snprintf(label, sizeof(label), "%s", app->profile_names[i]);
-        }
-        
-        g_print("[GUI] Adding profile item: %s\n", label);
-        
-        GtkWidget *profile_item;
-        if (first_profile_radio == NULL) {
-            profile_item = gtk_radio_menu_item_new_with_label(NULL, label);
-            first_profile_radio = profile_item;
-        } else {
-            profile_item = gtk_radio_menu_item_new_with_label_from_widget(GTK_RADIO_MENU_ITEM(first_profile_radio), label);
-        }
-        
-        /* Store profile index in widget data for reliable retrieval */
-        int *idx_ptr = g_malloc(sizeof(int));
-        *idx_ptr = i;
-        g_object_set_data(G_OBJECT(profile_item), "profile_idx", idx_ptr);
-        
-        if (i == app->active_profile_idx) {
-            gtk_check_menu_item_set_active(GTK_CHECK_MENU_ITEM(profile_item), TRUE);
-        }
-        g_signal_connect(profile_item, "activate", G_CALLBACK(on_tray_select_profile), app);
-        gtk_container_add(GTK_CONTAINER(profiles_submenu), profile_item);
-        gtk_widget_show(profile_item);
-    }
-    
-    /* CPU Profiles submenu */
+    /* CPU Profiles submenu (alphabetical: C before F) */
     if (app->cpu_connected) {
         GtkWidget *cpu_profiles_menuitem = gtk_menu_item_new_with_label("CPU Profiles");
         GtkWidget *cpu_profiles_submenu = gtk_menu_new();
@@ -4952,8 +4908,6 @@ static GtkWidget* create_tray_menu(AppData *app) {
         
         /* Get number of CPU profiles from the store */
         int cpu_profile_count = gtk_tree_model_iter_n_children(GTK_TREE_MODEL(app->cpu_custom_profile_store), NULL);
-        LOG_INFO("[TRAY] CPU Profiles submenu: cpu_connected=%d, profile_count=%d, active_idx=%d",
-                 app->cpu_connected, cpu_profile_count, app->cpu_active_custom_profile_idx);
         
         GtkWidget *first_cpu_profile_radio = NULL;
         GtkTreeIter cpu_iter;
@@ -5001,6 +4955,46 @@ static GtkWidget* create_tray_menu(AppData *app) {
             /* Advance to next row */
             has_iter = gtk_tree_model_iter_next(GTK_TREE_MODEL(app->cpu_custom_profile_store), &cpu_iter);
             i++;
+        }
+    }
+    
+    /* Fan Profiles submenu */
+    {
+        GtkWidget *profiles_menuitem = gtk_menu_item_new_with_label("Fan Profiles");
+        GtkWidget *profiles_submenu = gtk_menu_new();
+        gtk_menu_item_set_submenu(GTK_MENU_ITEM(profiles_menuitem), profiles_submenu);
+        gtk_container_add(GTK_CONTAINER(menu), profiles_menuitem);
+        gtk_widget_show(profiles_menuitem);
+        
+        GtkWidget *first_profile_radio = NULL;
+        for (int i = 0; i < app->num_profiles; i++) {
+            char label[128];
+            if (i == app->active_profile_idx) {
+                snprintf(label, sizeof(label), "%s (Active)", app->profile_names[i]);
+            } else {
+                snprintf(label, sizeof(label), "%s", app->profile_names[i]);
+            }
+            
+            g_print("[GUI] Adding profile item: %s\n", label);
+            
+            GtkWidget *profile_item;
+            if (first_profile_radio == NULL) {
+                profile_item = gtk_radio_menu_item_new_with_label(NULL, label);
+                first_profile_radio = profile_item;
+            } else {
+                profile_item = gtk_radio_menu_item_new_with_label_from_widget(GTK_RADIO_MENU_ITEM(first_profile_radio), label);
+            }
+            
+            int *idx_ptr = g_malloc(sizeof(int));
+            *idx_ptr = i;
+            g_object_set_data(G_OBJECT(profile_item), "profile_idx", idx_ptr);
+            
+            if (i == app->active_profile_idx) {
+                gtk_check_menu_item_set_active(GTK_CHECK_MENU_ITEM(profile_item), TRUE);
+            }
+            g_signal_connect(profile_item, "activate", G_CALLBACK(on_tray_select_profile), app);
+            gtk_container_add(GTK_CONTAINER(profiles_submenu), profile_item);
+            gtk_widget_show(profile_item);
         }
     }
     
