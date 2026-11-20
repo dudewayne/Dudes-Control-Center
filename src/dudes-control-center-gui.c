@@ -716,9 +716,24 @@ static void load_cpu_governors(AppData *app) {
                 active_idx = count;
             }
 
+            /* Extract governor string from "gov=xxx" in the original line */
+            char gov_str[32] = "schedutil";
+            char *gov_ptr = strstr(line, "gov=");
+            if (gov_ptr) {
+                char *gov_start = gov_ptr + 4;
+                char *gov_end = strchr(gov_start, ',');
+                if (gov_end) {
+                    int gov_len = gov_end - gov_start;
+                    if (gov_len > 0 && gov_len < (int)sizeof(gov_str)) {
+                        memcpy(gov_str, gov_start, gov_len);
+                        gov_str[gov_len] = '\0';
+                    }
+                }
+            }
+
             GtkTreeIter iter;
             gtk_list_store_append(app->cpu_profile_store, &iter);
-            gtk_list_store_set(app->cpu_profile_store, &iter, 0, name_start, -1);
+            gtk_list_store_set(app->cpu_profile_store, &iter, 0, name_start, 1, gov_str, -1);
             count++;
         }
 
@@ -1257,6 +1272,22 @@ static void on_cpu_save_freq_profile_clicked(GtkWidget *widget, gpointer user_da
     if (idx < 0) {
         gtk_label_set_text(GTK_LABEL(app->cpu_freq_profile_status_label), "No profile selected");
         return;
+    }
+
+    /* Read governor from combo box and send it */
+    {
+        GtkTreeIter gov_iter;
+        if (gtk_combo_box_get_active_iter(GTK_COMBO_BOX(app->cpu_profile_combo), &gov_iter)) {
+            gchar *gov_name = NULL;
+            gtk_tree_model_get(GTK_TREE_MODEL(app->cpu_profile_store), &gov_iter, 1, &gov_name, -1);
+            if (gov_name) {
+                char gov_cmd[256];
+                g_print("[GUI] Saving governor '%s' for profile %d\n", gov_name, idx);
+                snprintf(gov_cmd, sizeof(gov_cmd), "SET_PROFILE_GOVERNOR|%d|%s", idx, gov_name);
+                send_cpu_command(app, gov_cmd);
+                g_free(gov_name);
+            }
+        }
     }
 
     /* Read spinner values and send per-core freq commands */
@@ -4361,7 +4392,7 @@ static GtkWidget *create_cpu_page(AppData *app) {
         gtk_label_set_width_chars(GTK_LABEL(label), 20);
         gtk_box_pack_start(GTK_BOX(row), label, FALSE, FALSE, 0);
 
-        app->cpu_profile_store = gtk_list_store_new(1, G_TYPE_STRING);
+        app->cpu_profile_store = gtk_list_store_new(2, G_TYPE_STRING, G_TYPE_STRING);
         app->cpu_profile_combo = gtk_combo_box_new();
         gtk_combo_box_set_model(GTK_COMBO_BOX(app->cpu_profile_combo), GTK_TREE_MODEL(app->cpu_profile_store));
         GtkCellRenderer *renderer = gtk_cell_renderer_text_new();

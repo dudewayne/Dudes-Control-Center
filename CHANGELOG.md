@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.8.3] - 2026-11-20
+
+### Fixed
+- **Governor not saved when saving CPU custom profile**: The governor field always saved as `schedutil` regardless of selection. Added `SET_PROFILE_GOVERNOR` daemon command and updated the GUI save handler to read the governor from the combo box and send it before persisting the profile.
+
 ## [1.8.0] - 2026-11-19
 
 ### Added

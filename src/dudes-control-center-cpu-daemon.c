@@ -612,6 +612,31 @@ static void handle_command(const char *cmd, char *response, size_t resp_size) {
         return;
     }
 
+    /* --- SET_PROFILE_GOVERNOR <profile_idx> <governor> --- */
+    if (strcmp(action, "SET_PROFILE_GOVERNOR") == 0) {
+        if (!arg1[0] || !arg2[0]) {
+            snprintf(response, resp_size, "ERROR Usage: SET_PROFILE_GOVERNOR <profile_idx> <governor>\n");
+            return;
+        }
+
+        int profile_idx = atoi(arg1);
+        CpuGovernor gov;
+
+        if (profile_idx < 0 || profile_idx >= g_cpu_state.num_custom_profiles) {
+            snprintf(response, resp_size, "ERROR Invalid profile index %d\n", profile_idx);
+            return;
+        }
+
+        if (governor_to_enum(arg2, &gov) != 0) {
+            snprintf(response, resp_size, "ERROR Unknown governor: %s\n", arg2);
+            return;
+        }
+
+        g_cpu_state.custom_profiles[profile_idx].governor = gov;
+        snprintf(response, resp_size, "OK governor set to %s for profile %d\n", arg2, profile_idx);
+        return;
+    }
+
     /* --- GET_CUSTOM_PROFILE_INFO <index> --- */
     if (strcmp(action, "GET_CUSTOM_PROFILE_INFO") == 0) {
         if (!arg1[0]) {
