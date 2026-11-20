@@ -3856,6 +3856,7 @@ static void on_notebook_page_switched(GtkNotebook *notebook, GtkWidget *page, gi
         /* Update tray menu so CPU profiles appear in the context menu.
          * The tray menu is created at startup when cpu_custom_profile_store is empty.
          * Rebuilding it after profiles load ensures the submenu is populated. */
+        LOG_INFO("[TRAY] Calling update_tray_menu after loading CPU profiles");
         update_tray_menu(app);
 
         /* Defer grid population until GTK has realized the widgets on this page.
@@ -4946,6 +4947,8 @@ static GtkWidget* create_tray_menu(AppData *app) {
         
         /* Get number of CPU profiles from the store */
         int cpu_profile_count = gtk_tree_model_iter_n_children(GTK_TREE_MODEL(app->cpu_custom_profile_store), NULL);
+        LOG_INFO("[TRAY] CPU Profiles submenu: cpu_connected=%d, profile_count=%d, active_idx=%d",
+                 app->cpu_connected, cpu_profile_count, app->cpu_active_custom_profile_idx);
         
         GtkWidget *first_cpu_profile_radio = NULL;
         GtkTreeIter cpu_iter;
