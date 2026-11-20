@@ -1291,10 +1291,10 @@ static gboolean cpu_save_freq_profile_idle(gpointer user_data) {
     for (int i = 0; i < num_cores && i < 32; i++) {
         gulong min_hz = (gulong)(ctx->core_min_mhz[i] * 1000000);
         gulong max_hz = (gulong)(ctx->core_max_mhz[i] * 1000000);
-        pos += snprintf(core_data + pos, sizeof(core_data) - pos, "%lu,%lu,", min_hz, max_hz);
-        /* Remove trailing comma */
-        if (pos > 0) { core_data[pos - 1] = '\0'; pos--; }
-        pos++; /* advance past the comma position */
+        if (i > 0) {
+            pos += snprintf(core_data + pos, sizeof(core_data) - pos, ",");
+        }
+        pos += snprintf(core_data + pos, sizeof(core_data) - pos, "%lu,%lu", min_hz, max_hz);
     }
 
     /* Send single batch command */
