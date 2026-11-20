@@ -2738,10 +2738,11 @@ static void gui_save_profiles_to_disk(AppData *app) {
                 char *name_ptr = strstr(line, "name=");
                 if (name_ptr) {
                     name_ptr += 5;
-                    char *space = strchr(name_ptr, ' ');
-                    if (space) {
-                        int len = space - name_ptr;
-                        if (len > 0 && len < sizeof(profile_name)) {
+                    /* Use " points=" as delimiter to support names with spaces */
+                    char *end = strstr(name_ptr, " points=");
+                    if (end) {
+                        int len = end - name_ptr;
+                        if (len > 0 && len < (int)sizeof(profile_name)) {
                             strncpy(profile_name, name_ptr, len);
                             profile_name[len] = '\0';
                         } else {
