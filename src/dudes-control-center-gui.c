@@ -1328,6 +1328,9 @@ static gboolean cpu_save_freq_profile_idle(gpointer user_data) {
     char status_msg[128];
     snprintf(status_msg, sizeof(status_msg), "Saved profile");
     gtk_label_set_text(GTK_LABEL(app->cpu_freq_profile_status_label), status_msg);
+
+    /* Re-enable the save button */
+    gtk_widget_set_sensitive(app->cpu_freq_profile_save_btn, TRUE);
     LOG_INFO("<<< Save frequency profile completed");
 
     g_free(ctx);
@@ -1378,13 +1381,14 @@ static void on_cpu_save_freq_profile_clicked(GtkWidget *widget, gpointer user_da
         ctx->core_max_mhz[i] = gtk_adjustment_get_value(app->cpu_core_max_adjustments[i]);
     }
 
-    /* Show saving status immediately */
+    /* Immediately disable the save button to clear its pressed visual state,
+     * then re-enable it after the save completes in the idle callback. */
+    gtk_widget_set_sensitive(app->cpu_freq_profile_save_btn, FALSE);
     gtk_label_set_text(GTK_LABEL(app->cpu_freq_profile_status_label), "Saving...");
 
-    /* Defer the heavy save work to an idle callback so GTK can release
-     * the button's pressed visual state before we destroy/recreate widgets. */
+    /* Defer the heavy save work so GTK can process the button state change */
     g_idle_add((GSourceFunc)cpu_save_freq_profile_idle, ctx);
-    LOG_INFO("Save deferred to idle callback");
+    LOG_INFO("Save deferred to idle callback, button disabled");
 }
 
 /* Callback: Activate (apply) the selected frequency profile to the CPU */
