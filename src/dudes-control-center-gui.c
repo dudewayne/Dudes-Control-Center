@@ -1352,6 +1352,11 @@ static void on_cpu_save_freq_profile_clicked(GtkWidget *widget, gpointer user_da
     char status_msg[128];
     snprintf(status_msg, sizeof(status_msg), "Saved profile");
     gtk_label_set_text(GTK_LABEL(app->cpu_freq_profile_status_label), status_msg);
+
+    /* Force a redraw of the save button so its pressed visual state releases.
+     * GTK3 sometimes keeps the button visually pressed after a long callback
+     * that manipulates many widgets (grid rebuild, combo reload, etc.). */
+    gtk_widget_queue_draw(app->cpu_freq_profile_save_btn);
     LOG_INFO("<<< Save frequency profile completed");
 }
 
