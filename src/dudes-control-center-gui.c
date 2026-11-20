@@ -1465,10 +1465,30 @@ static void sync_core0_to_all_cores(AppData *app) {
     }
 }
 
-/* Callback: core 0 adjustment changed while Apply to All Cores is active */
-static void on_core0_freq_changed(GtkAdjustment *adjustment, gpointer user_data) {
+/* Sync core 0 values to all cores - called after input is validated */
+static void sync_core0_live_to_all_cores(AppData *app) {
+    if (!gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(app->cpu_apply_all_cores_checkbox)))
+        return;
+    if (app->cpu_core_count <= 0) return;
+
+    /* Read the validated value from core 0 adjustments */
+    double first_min = gtk_spin_button_get_value(GTK_SPIN_BUTTON(app->cpu_core_min_spinners[0]));
+    double first_max = gtk_spin_button_get_value(GTK_SPIN_BUTTON(app->cpu_core_max_spinners[0]));
+
+    for (int i = 1; i < app->cpu_core_count && i < 32; i++) {
+        gtk_spin_button_set_value(GTK_SPIN_BUTTON(app->cpu_core_min_spinners[i]), first_min);
+        gtk_spin_button_set_value(GTK_SPIN_BUTTON(app->cpu_core_max_spinners[i]), first_max);
+    }
+}
+
+/* Callback: core 0 input signal - fires after GTK validates the typed text */
+static gboolean on_core0_input(GtkSpinButton *spinbutton, const gchar *text, gdouble *new_value, gpointer user_data) {
+    (void)spinbutton;
+    (void)text;
+    (void)new_value;
     AppData *app = (AppData *)user_data;
-    sync_core0_to_all_cores(app);
+    sync_core0_live_to_all_cores(app);
+    return FALSE; /* Accept the input */
 }
 
 /* Callback: Apply to All Cores checkbox toggled */
@@ -1561,9 +1581,12 @@ static void build_cpu_core_freq_grid(AppData *app, int num_cores) {
         }
     }
 
-    /* Connect core 0 adjustments to sync all cores when Apply to All is active */
-    g_signal_connect(app->cpu_core_min_adjustments[0], "value-changed", G_CALLBACK(on_core0_freq_changed), app);
-    g_signal_connect(app->cpu_core_max_adjustments[0], "value-changed", G_CALLBACK(on_core0_freq_changed), app);
+    /* Connect core 0 spinners' input signal to sync all cores when Apply to All is active
+     * The input signal fires after GTK validates the typed text */
+    {
+        g_signal_connect(app->cpu_core_min_spinners[0], "input", G_CALLBACK(on_core0_input), app);
+        g_signal_connect(app->cpu_core_max_spinners[0], "input", G_CALLBACK(on_core0_input), app);
+    }
 
     /* Add header labels */
     GtkWidget *min_header = gtk_label_new("Min (MHz)");
