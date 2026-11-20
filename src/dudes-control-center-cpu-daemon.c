@@ -33,6 +33,9 @@
 /* Auto-switching timer */
 #define AUTO_CHECK_INTERVAL_SEC 5
 
+/* Hard limit enforcement timer (re-apply to counter thermald) */
+#define HARD_LIMIT_ENFORCE_INTERVAL_SEC 5
+
 /* Global state */
 static volatile sig_atomic_t g_running = 1;
 static int server_fd = -1;
@@ -879,6 +882,21 @@ int main(int argc, char *argv[]) {
         if (current_time - last_check_time >= AUTO_CHECK_INTERVAL_SEC) {
             check_auto_conditions();
             last_check_time = current_time;
+        }
+
+        /* Enforce hard limit periodically to counter thermald */
+        static time_t last_enforce_time = 0;
+        if (current_time - last_enforce_time >= HARD_LIMIT_ENFORCE_INTERVAL_SEC) {
+            uint32_t hard_limit = get_hard_max_freq_hz();
+            int cpu_count = get_cpu_count();
+            for (int i = 0; i < cpu_count; i++) {
+                uint32_t current_max = get_cpu_max_freq(i);
+                if (current_max < hard_limit) {
+                    set_cpu_max_freq(i, hard_limit);
+                }
+            }
+            set_all_cpus_epp("performance");
+            last_enforce_time = current_time;
         }
 
         usleep(100000);  /* 100ms */
