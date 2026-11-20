@@ -2644,7 +2644,6 @@ static void gui_save_profiles_to_disk(AppData *app) {
         /* Build profile object */
         cJSON *profile_obj = cJSON_CreateObject();
         cJSON_AddStringToObject(profile_obj, "name", profile_name);
-        cJSON_AddBoolToObject(profile_obj, "is_active", is_active ? true : false);
         cJSON_AddItemToObject(profile_obj, "curve_points", curve_array);
         cJSON_AddItemToArray(fan_profiles_array, profile_obj);
     }

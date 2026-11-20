@@ -40,7 +40,6 @@ typedef struct {
     char name[64];
     TempCurvePoint points[50];
     int num_points;
-    int is_active;
 } FanProfile;
 
 /* Global state */
@@ -99,7 +98,6 @@ static void init_default_profile(void) {
     profile->points[3].temperature = 70; profile->points[3].fan_percent = 50;
     profile->points[4].temperature = 80; profile->points[4].fan_percent = 70;
     profile->points[5].temperature = 85; profile->points[5].fan_percent = 100;
-    profile->is_active = 1;
     num_profiles = 1;
     active_profile_idx = 0;
 }
@@ -121,7 +119,6 @@ static void save_profiles(void) {
         FanProfile *p = &profiles[i];
         cJSON *profile_obj = cJSON_CreateObject();
         cJSON_AddStringToObject(profile_obj, "name", p->name);
-        cJSON_AddBoolToObject(profile_obj, "is_active", p->is_active ? true : false);
 
         cJSON *curve_array = cJSON_CreateArray();
         for (int j = 0; j < p->num_points; j++) {
@@ -255,11 +252,10 @@ static void load_profiles(void) {
     for (int i = 0; i < num_profiles; i++) {
         FanProfile *p = &profiles[i];
         p->num_points = 0;
-        p->is_active = 0;
-        
+
         cJSON *profile_obj = cJSON_GetArrayItem(profiles_array, i);
         if (!cJSON_IsObject(profile_obj)) continue;
-        
+
         /* Read name */
         cJSON *name = cJSON_GetObjectItem(profile_obj, "name");
         if (cJSON_IsString(name)) {
@@ -268,13 +264,7 @@ static void load_profiles(void) {
         } else {
             snprintf(p->name, sizeof(p->name), "Profile_%d", i);
         }
-        
-        /* Read is_active */
-        cJSON *is_active = cJSON_GetObjectItem(profile_obj, "is_active");
-        if (cJSON_IsBool(is_active)) {
-            p->is_active = (cJSON_IsTrue(is_active)) ? 1 : 0;
-        }
-        
+
         /* Read curve points */
         cJSON *curve_array = cJSON_GetObjectItem(profile_obj, "curve_points");
         if (cJSON_IsArray(curve_array)) {
@@ -434,15 +424,8 @@ static int handle_command(const char *cmd, char *response, size_t resp_size) {
             return -1;
         }
         
-        /* Deactivate all profiles */
-        for (int i = 0; i < num_profiles; i++) {
-            profiles[i].is_active = 0;
-        }
-        
-        /* Activate the selected profile */
-        profiles[idx].is_active = 1;
         active_profile_idx = idx;
-        
+
         snprintf(response, resp_size, "OK Profile %d activated\n", idx);
         return 0;
     }
@@ -468,7 +451,6 @@ static int handle_command(const char *cmd, char *response, size_t resp_size) {
         FanProfile *profile = &profiles[num_profiles];
         snprintf(profile->name, sizeof(profile->name), "%s", profile_name);
         profile->num_points = 0;
-        profile->is_active = 0;
         num_profiles++;
         
         snprintf(response, resp_size, "OK Profile created: %s (index %d)\n", 
@@ -512,9 +494,9 @@ static int handle_command(const char *cmd, char *response, size_t resp_size) {
         }
         
         FanProfile *profile = &profiles[idx];
-        snprintf(response, resp_size, 
+        snprintf(response, resp_size,
                  "PROFILE_INFO name=%s points=%d active=%d\n",
-                 profile->name, profile->num_points, profile->is_active);
+                 profile->name, profile->num_points, (idx == active_profile_idx) ? 1 : 0);
         
         for (int i = 0; i < profile->num_points; i++) {
             char point_str[64];
@@ -609,15 +591,9 @@ static int handle_command(const char *cmd, char *response, size_t resp_size) {
         }
         
         LOG_INFO("SET_ACTIVE_PROFILE: Activating profile %d (%s)", idx, profiles[idx].name);
-        
-        /* Deactivate all profiles */
-        for (int i = 0; i < num_profiles; i++) {
-            profiles[i].is_active = 0;
-        }
-        
-        profiles[idx].is_active = 1;
+
         active_profile_idx = idx;
-        
+
         /* Enable auto mode when a profile is activated */
         auto_mode_enabled = 1;
         LOG_INFO("Auto mode ENABLED for profile: %s", profiles[idx].name);
