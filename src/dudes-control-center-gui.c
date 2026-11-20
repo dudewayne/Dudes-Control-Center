@@ -5075,6 +5075,9 @@ static void on_tray_activate_left_click(GtkStatusIcon *status_icon, gpointer use
         gtk_widget_show_all(app->window);
         g_print("[GUI] gtk_widget_show_all completed successfully\n");
         
+        /* Reapply saved window position after showing — WM ignores positions on hidden windows */
+        gtk_window_move(GTK_WINDOW(app->window), app->window_x, app->window_y);
+        
         /* Force a redraw to ensure proper display after widget recreation */
         gtk_widget_queue_draw(app->window);
         g_print("[GUI] About to call gtk_window_present\n");
@@ -5104,6 +5107,8 @@ static void on_tray_show_app(GtkMenuItem *menuitem, gpointer user_data) {
     
     if (!gtk_widget_get_visible(app->window)) {
         gtk_widget_show_all(app->window);
+        /* Reapply saved window position after showing — WM ignores positions on hidden windows */
+        gtk_window_move(GTK_WINDOW(app->window), app->window_x, app->window_y);
         gtk_widget_queue_draw(app->window);
         
         /* Fetch current status from daemon to sync manual mode state before showing window */
