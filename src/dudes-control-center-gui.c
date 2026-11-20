@@ -2631,9 +2631,13 @@ static void gui_save_profiles_to_disk(AppData *app) {
                 cJSON *cpu_section = cJSON_CreateObject();
                 cJSON_AddNumberToObject(cpu_section, "active_profile_index", app->cpu_active_custom_profile_idx);
 
-                /* Get the current hard limit value */
-                if (app->cpu_hard_limit_hz > 0) {
-                    cJSON_AddNumberToObject(cpu_section, "cpu_hard_limit_hz", (double)app->cpu_hard_limit_hz);
+                /* Get the current hard limit value from the spinner */
+                {
+                    double ghz = gtk_spin_button_get_value(GTK_SPIN_BUTTON(app->cpu_hard_limit_spinner));
+                    uint32_t hz = (uint32_t)(ghz * 1000000000.0);
+                    if (hz > 0) {
+                        cJSON_AddNumberToObject(cpu_section, "cpu_hard_limit_hz", (double)hz);
+                    }
                 }
 
                 cJSON_AddItemToObject(cpu_section, "profiles", cpu_profiles_array);
