@@ -891,6 +891,7 @@ static void load_cpu_custom_profiles(AppData *app) {
     }
 
     g_print("[GUI] Loaded %d custom frequency profiles (active idx=%d)\n", profile_count, active_idx);
+    LOG_INFO("[CPU-PROFILES] Loaded %d custom frequency profiles (active idx=%d)", profile_count, active_idx);
 }
 
 /* Callback: Custom profile combo box changed */
@@ -3773,8 +3774,11 @@ static void on_notebook_page_switched(GtkNotebook *notebook, GtkWidget *page, gi
     (void)page;
     AppData *app = (AppData *)user_data;
     
+    LOG_INFO("[PAGE-SWITCH] Callback fired, page_num=%d", page_num);
+    
     /* Prevent re-entry */
     if (app->switching_page) {
+        LOG_INFO("[PAGE-SWITCH] Blocked by switching_page guard");
         return;
     }
     
@@ -3849,6 +3853,7 @@ static void on_notebook_page_switched(GtkNotebook *notebook, GtkWidget *page, gi
         char ts[32];
         get_timestamp(ts, sizeof(ts));
         g_print("%s [GUI] Switching to CPU Profiles tab\n", ts);
+        LOG_INFO("[CPU-TAB] Switching to CPU Profiles tab");
 
         /* Load CPU custom profiles and select the active one */
         load_cpu_custom_profiles(app);
@@ -5520,8 +5525,6 @@ int main(int argc, char *argv[]) {
         /* Load governors into combo box */
         load_cpu_governors(&app);
 
-        /* CPU custom profiles are loaded on page switch via on_notebook_page_switched */
-
         /* Send an immediate STATUS query so cpu_core_count is available before the user switches tabs */
         {
             const char *immediate_status = send_cpu_command(&app, "STATUS");
@@ -5544,7 +5547,13 @@ int main(int argc, char *argv[]) {
                 }
             }
         }
-    } 
+    }
+
+    /* Load CPU custom profiles at startup so they appear in the tray menu immediately.
+     * Must run after STATUS query (cpu_core_count) and before tray creation. */
+    if (app.cpu_connected) {
+        load_cpu_custom_profiles(&app);
+    }
 
     /* Create system tray icon */
     create_system_tray(&app);
