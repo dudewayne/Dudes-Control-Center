@@ -1003,10 +1003,8 @@ int main(int argc, char *argv[]) {
                     }
                 }
             }
-            int epp_rc = set_all_cpus_epp("performance");
-            int mpct_rc = set_intel_pstate_min_perf_pct(100);
-            LOG_INFO("[ENFORCE] max_restored=%d, min_restored=%d, epp_rc=%d, mpct_rc=%d, active_profile_idx=%d",
-                     max_restored, min_restored, epp_rc, mpct_rc, g_cpu_state.active_custom_profile_idx);
+            LOG_INFO("[ENFORCE] max_restored=%d, min_restored=%d, active_profile_idx=%d",
+                     max_restored, min_restored, g_cpu_state.active_custom_profile_idx);
             last_enforce_time = current_time;
         }
 
