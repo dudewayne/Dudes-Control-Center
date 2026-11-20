@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.8.9] - 2026-11-20
+
+### Fixed
+- **Restructured profiles.json for symmetry**: Moved `active_profile_index` for fan profiles inside the `fan_profiles` section (nested object), matching the `cpu_freq_profiles` structure. Both sections now use `active_profile_index` and `profiles` as inner keys. Backward compatibility ensures old format files are loaded correctly and migrated on first save.
+
 ## [1.8.4] - 2026-11-20
 
 ### Fixed
