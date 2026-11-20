@@ -22,6 +22,7 @@ COMMON_HDR = src/dudes-control-center-common.h
 
 # Targets
 CLI_TARGET = dudes-control-center-fan-cli
+CPU_CLI_TARGET = dudes-control-center-cpu-cli
 DAEMON_TARGET = dudes-control-center-fan-daemon
 CPU_DAEMON_TARGET = dudes-control-center-cpu-daemon
 GUI_TARGET = dudes-control-center-gui
@@ -35,7 +36,7 @@ DEB_BUILD_DIR = build-deb
 
 .PHONY: all clean cli daemon cpu-daemon gui install uninstall deb help
 
-all: $(CLI_TARGET) $(DAEMON_TARGET) $(CPU_DAEMON_TARGET) $(GUI_TARGET)
+all: $(CLI_TARGET) $(CPU_CLI_TARGET) $(DAEMON_TARGET) $(CPU_DAEMON_TARGET) $(GUI_TARGET)
 
 $(CLI_TARGET): $(COMMON_SRC) src/dudes-control-center-fan-cli.c $(COMMON_HDR)
 	$(CC) $(CFLAGS) -o $@ $(COMMON_SRC) src/dudes-control-center-fan-cli.c $(LDFLAGS_COMMON)
@@ -51,6 +52,11 @@ $(GUI_TARGET): $(COMMON_SRC) src/dudes-control-center-log.c src/dudes-control-ce
 
 cli: $(CLI_TARGET)
 
+cpu-cli: $(CPU_CLI_TARGET)
+
+$(CPU_CLI_TARGET): src/dudes-control-center-cpu-cli.c src/dudes-control-center-cpu-common.h
+	$(CC) $(CFLAGS) -o $@ src/dudes-control-center-cpu-cli.c $(LDFLAGS_COMMON)
+
 daemon: $(DAEMON_TARGET)
 
 cpu-daemon: $(CPU_DAEMON_TARGET)
@@ -58,7 +64,7 @@ cpu-daemon: $(CPU_DAEMON_TARGET)
 gui: $(GUI_TARGET)
 
 clean:
-	rm -f $(CLI_TARGET) $(DAEMON_TARGET) $(CPU_DAEMON_TARGET) $(GUI_TARGET)
+	rm -f $(CLI_TARGET) $(CPU_CLI_TARGET) $(DAEMON_TARGET) $(CPU_DAEMON_TARGET) $(GUI_TARGET)
 	rm -f $(DEB_BUILD_DIR)/$(PACKAGE)_*.deb 2>/dev/null || true
 
 # Build .deb package
@@ -72,6 +78,7 @@ deb: all
 	@mkdir -p $(DEB_BUILD_DIR)/$(PACKAGE)-$(VERSION)/etc/systemd/system
 	@mkdir -p $(DEB_BUILD_DIR)/$(PACKAGE)-$(VERSION)/DEBIAN
 	@cp $(CLI_TARGET) $(DEB_BUILD_DIR)/$(PACKAGE)-$(VERSION)/usr/local/bin/
+	@cp $(CPU_CLI_TARGET) $(DEB_BUILD_DIR)/$(PACKAGE)-$(VERSION)/usr/local/bin/
 	@cp $(DAEMON_TARGET) $(DEB_BUILD_DIR)/$(PACKAGE)-$(VERSION)/usr/local/bin/
 	@cp $(CPU_DAEMON_TARGET) $(DEB_BUILD_DIR)/$(PACKAGE)-$(VERSION)/usr/local/bin/
 	@cp $(GUI_TARGET) $(DEB_BUILD_DIR)/$(PACKAGE)-$(VERSION)/usr/local/bin/
@@ -103,6 +110,7 @@ deb: all
 install: all
 	@echo "Installing applications..."
 	install -m 755 $(CLI_TARGET) /usr/local/bin/
+	install -m 755 $(CPU_CLI_TARGET) /usr/local/bin/
 	install -m 755 $(DAEMON_TARGET) /usr/local/bin/
 	install -m 755 $(CPU_DAEMON_TARGET) /usr/local/bin/
 	install -m 755 $(GUI_TARGET) /usr/local/bin/
@@ -137,6 +145,7 @@ uninstall:
 	systemctl stop dudes-control-center-hard-limit-enforcer.timer 2>/dev/null || true
 	systemctl disable dudes-control-center-hard-limit-enforcer.timer 2>/dev/null || true
 	rm -f /usr/local/bin/$(CLI_TARGET)
+	rm -f /usr/local/bin/$(CPU_CLI_TARGET)
 	rm -f /usr/local/bin/$(DAEMON_TARGET)
 	rm -f /usr/local/bin/$(CPU_DAEMON_TARGET)
 	rm -f /usr/local/bin/$(GUI_TARGET)
