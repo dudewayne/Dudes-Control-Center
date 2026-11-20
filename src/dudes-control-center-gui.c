@@ -290,6 +290,7 @@ static void on_tray_activate_left_click(GtkStatusIcon *status_icon, gpointer use
 static void on_tray_show_app(GtkMenuItem *menuitem, gpointer user_data);
 static void on_tray_exit(GtkMenuItem *menuitem, gpointer user_data);
 static void on_tray_select_profile(GtkRadioMenuItem *radiomenuitem, gpointer user_data);
+static void on_tray_select_cpu_profile(GtkRadioMenuItem *radiomenuitem, gpointer user_data);
 static gboolean on_window_delete_event(GtkWidget *widget, GdkEvent *event, gpointer user_data);
 static void create_system_tray(AppData *app);
 static void save_window_position(AppData *app);
@@ -4930,6 +4931,66 @@ static GtkWidget* create_tray_menu(AppData *app) {
         gtk_widget_show(profile_item);
     }
     
+    /* CPU Profiles submenu */
+    if (app->cpu_connected) {
+        GtkWidget *cpu_profiles_menuitem = gtk_menu_item_new_with_label("CPU Profiles");
+        GtkWidget *cpu_profiles_submenu = gtk_menu_new();
+        gtk_menu_item_set_submenu(GTK_MENU_ITEM(cpu_profiles_menuitem), cpu_profiles_submenu);
+        gtk_container_add(GTK_CONTAINER(menu), cpu_profiles_menuitem);
+        gtk_widget_show(cpu_profiles_menuitem);
+        
+        /* Get number of CPU profiles from the store */
+        int cpu_profile_count = gtk_tree_model_iter_n_children(GTK_TREE_MODEL(app->cpu_custom_profile_store), NULL);
+        
+        GtkWidget *first_cpu_profile_radio = NULL;
+        GtkTreeIter cpu_iter;
+        gboolean has_iter = gtk_tree_model_get_iter_first(GTK_TREE_MODEL(app->cpu_custom_profile_store), &cpu_iter);
+        int i = 0;
+        while (has_iter && i < cpu_profile_count) {
+            char *raw_name = NULL;
+            gtk_tree_model_get(GTK_TREE_MODEL(app->cpu_custom_profile_store), &cpu_iter, 0, &raw_name, -1);
+            
+            char label[256];
+            if (raw_name) {
+                const char *clean_name = cpu_profile_name_from_display(raw_name);
+                if (i == app->cpu_active_custom_profile_idx) {
+                    snprintf(label, sizeof(label), "%s (Active)", clean_name);
+                } else {
+                    snprintf(label, sizeof(label), "%s", clean_name);
+                }
+                g_free(raw_name);
+            } else {
+                snprintf(label, sizeof(label), "Profile %d", i);
+            }
+            
+            g_print("[GUI] Adding CPU profile item: %s\n", label);
+            
+            GtkWidget *cpu_profile_item;
+            if (first_cpu_profile_radio == NULL) {
+                cpu_profile_item = gtk_radio_menu_item_new_with_label(NULL, label);
+                first_cpu_profile_radio = cpu_profile_item;
+            } else {
+                cpu_profile_item = gtk_radio_menu_item_new_with_label_from_widget(GTK_RADIO_MENU_ITEM(first_cpu_profile_radio), label);
+            }
+            
+            /* Store profile index in widget data */
+            int *idx_ptr = g_malloc(sizeof(int));
+            *idx_ptr = i;
+            g_object_set_data(G_OBJECT(cpu_profile_item), "cpu_profile_idx", idx_ptr);
+            
+            if (i == app->cpu_active_custom_profile_idx) {
+                gtk_check_menu_item_set_active(GTK_CHECK_MENU_ITEM(cpu_profile_item), TRUE);
+            }
+            g_signal_connect(cpu_profile_item, "activate", G_CALLBACK(on_tray_select_cpu_profile), app);
+            gtk_container_add(GTK_CONTAINER(cpu_profiles_submenu), cpu_profile_item);
+            gtk_widget_show(cpu_profile_item);
+            
+            /* Advance to next row */
+            has_iter = gtk_tree_model_iter_next(GTK_TREE_MODEL(app->cpu_custom_profile_store), &cpu_iter);
+            i++;
+        }
+    }
+    
     /* Separator */
     GtkWidget *separator2 = gtk_separator_menu_item_new();
     gtk_container_add(GTK_CONTAINER(menu), separator2);
@@ -5112,6 +5173,69 @@ static void on_tray_select_profile(GtkRadioMenuItem *radiomenuitem, gpointer use
             show_status(app, "Failed to activate profile");
         }
     }
+}
+
+/* Callback: select a CPU profile from the system tray menu */
+static void on_tray_select_cpu_profile(GtkRadioMenuItem *radiomenuitem, gpointer user_data) {
+    AppData *app = (AppData *)user_data;
+    
+    /* Prevent callback during menu creation/update to avoid infinite loop */
+    if (app->updating_tray_menu) {
+        return;
+    }
+    
+    /* Get the profile index stored in widget data */
+    gpointer idx_ptr = g_object_get_data(G_OBJECT(radiomenuitem), "cpu_profile_idx");
+    if (!idx_ptr) {
+        g_printerr("[GUI] No CPU profile index found in menu item\n");
+        return;
+    }
+    
+    int selected_idx = *(int*)idx_ptr;
+    
+    /* Get the profile name from the store */
+    char *profile_name = NULL;
+    GtkTreeIter iter;
+    if (gtk_tree_model_get_iter_first(GTK_TREE_MODEL(app->cpu_custom_profile_store), &iter)) {
+        if (selected_idx == 0) {
+            gtk_tree_model_get(GTK_TREE_MODEL(app->cpu_custom_profile_store), &iter, 0, &profile_name, -1);
+        } else {
+            for (int k = 1; k < selected_idx; k++) {
+                if (!gtk_tree_model_iter_next(GTK_TREE_MODEL(app->cpu_custom_profile_store), &iter))
+                    break;
+            }
+            gtk_tree_model_get(GTK_TREE_MODEL(app->cpu_custom_profile_store), &iter, 0, &profile_name, -1);
+        }
+    }
+    
+    g_print("[GUI] Tray CPU profile selected: index %d (%s)\n", selected_idx, profile_name ? profile_name : "(null)");
+    
+    if (selected_idx >= 0 && selected_idx != app->cpu_active_custom_profile_idx) {
+        g_print("[GUI] Activating CPU profile %d\n", selected_idx);
+        char cmd[256];
+        snprintf(cmd, sizeof(cmd), "APPLY_CUSTOM_PROFILE|%d", selected_idx);
+        const char *response = send_cpu_command(app, cmd);
+        if (response && strncmp(response, "OK", 2) == 0) {
+            g_print("[GUI] CPU profile activated successfully\n");
+            show_status(app, g_strdup_printf("CPU profile '%s' activated", profile_name ? profile_name : "Unknown"));
+            
+            /* Update active index */
+            app->cpu_active_custom_profile_idx = selected_idx;
+            
+            /* Reload profile list to update markers */
+            load_cpu_custom_profiles(app);
+            
+            /* Persist the active_profile_index */
+            gui_save_profiles_to_disk(app);
+            
+            /* Update tray menu to reflect new active profile */
+            update_tray_menu(app);
+        } else {
+            show_status(app, "Failed to activate CPU profile");
+        }
+    }
+    
+    if (profile_name) g_free(profile_name);
 }
 
 /* Save window position to config.json */
