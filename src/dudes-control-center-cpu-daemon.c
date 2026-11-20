@@ -138,14 +138,14 @@ static void parse_command(const char *cmd, char *action, char *arg1, char *arg2,
 
     /* Extract arg4 */
     if (*pos != '\0') {
-        strncpy(arg4, pos, 63);
-        arg4[63] = '\0';
+        strncpy(arg4, pos, 1023);
+        arg4[1023] = '\0';
     }
 }
 
 /* --- Handle client commands --- */
 static void handle_command(const char *cmd, char *response, size_t resp_size) {
-    char action[32], arg1[256], arg2[256], arg3[64], arg4[64];
+    char action[32], arg1[256], arg2[256], arg3[64], arg4[1024];
 
     parse_command(cmd, action, arg1, arg2, arg3, arg4);
 
@@ -692,6 +692,66 @@ static void handle_command(const char *cmd, char *response, size_t resp_size) {
         set_all_cpus_epp("performance");
         snprintf(response, resp_size, "OK Hard limit set to %u Hz (%.2f GHz)\n", new_limit, new_limit / 1e9);
         LOG_INFO("[DAEMON] Hard limit changed to %u Hz (%.2f GHz)", new_limit, new_limit / 1e9);
+        return;
+    }
+
+    /* --- SAVE_CUSTOM_PROFILE (batch save) --- *
+     * Format: SAVE_CUSTOM_PROFILE|<profile_idx>|<governor>|<apply_all>|<core0_min>,<core0_max>,<core1_min>,<core1_max>,...
+     * arg4 contains comma-separated core data to fit in a single round-trip. */
+    if (strcmp(action, "SAVE_CUSTOM_PROFILE") == 0) {
+        if (!arg1[0] || !arg2[0]) {
+            snprintf(response, resp_size, "ERROR Usage: SAVE_CUSTOM_PROFILE <idx> <governor> <apply_all> <core_data>\n");
+            return;
+        }
+
+        int profile_idx = atoi(arg1);
+        if (profile_idx < 0 || profile_idx >= g_cpu_state.num_custom_profiles) {
+            snprintf(response, resp_size, "ERROR Invalid profile index %d\n", profile_idx);
+            return;
+        }
+
+        /* Set governor */
+        CpuGovernor gov;
+        if (governor_to_enum(arg2, &gov) == 0) {
+            g_cpu_state.custom_profiles[profile_idx].governor = gov;
+        }
+
+        /* Set apply_all_cores */
+        int apply_all = atoi(arg3);
+        g_cpu_state.custom_profiles[profile_idx].apply_all_cores = apply_all;
+
+        /* Parse comma-separated core data: min0,max0,min1,max1,... */
+        int cores_set = 0;
+        if (arg4[0]) {
+            char core_data[1024];
+            strncpy(core_data, arg4, sizeof(core_data) - 1);
+            core_data[sizeof(core_data) - 1] = '\0';
+
+            char *save_ptr = NULL;
+            char *token = strtok_r(core_data, ",", &save_ptr);
+            int core_id = 0;
+            int value_in_pair = 0; /* 0 = min, 1 = max */
+            uint32_t min_freq = 0, max_freq = 0;
+
+            while (token != NULL && core_id < MAX_CPUS) {
+                uint64_t val = strtoull(token, NULL, 10);
+
+                if (value_in_pair == 0) {
+                    min_freq = (uint32_t)val;
+                } else {
+                    max_freq = (uint32_t)val;
+                    /* Apply both values using the existing per-core setter */
+                    cpu_custom_profile_set_core_freq(profile_idx, core_id, max_freq, min_freq);
+                    cores_set++;
+                    core_id++;
+                }
+                value_in_pair = 1 - value_in_pair;
+                token = strtok_r(NULL, ",", &save_ptr);
+            }
+        }
+
+        snprintf(response, resp_size, "OK Batch saved profile %d (%d cores)\n", profile_idx, cores_set);
+        LOG_INFO("[DAEMON] Batch save completed for profile %d, %d cores set", profile_idx, cores_set);
         return;
     }
 
