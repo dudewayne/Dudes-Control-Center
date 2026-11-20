@@ -2100,6 +2100,9 @@ static void on_rename_profile_clicked(GtkWidget *widget, gpointer user_data) {
             refresh_profile_list(app);
             update_tray_menu(app);
 
+            /* Persist the renamed profile to profiles.json */
+            gui_save_profiles_to_disk(app);
+
             /* Reload curve points for the renamed profile */
             int new_active = gtk_combo_box_get_active(GTK_COMBO_BOX(app->profile_combo));
             if (new_active >= 0) {
