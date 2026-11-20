@@ -884,15 +884,35 @@ int main(int argc, char *argv[]) {
             last_check_time = current_time;
         }
 
-        /* Enforce hard limit periodically to counter thermald */
+        /* Enforce hard limit and min freq periodically to counter thermald/kernel */
         static time_t last_enforce_time = 0;
         if (current_time - last_enforce_time >= HARD_LIMIT_ENFORCE_INTERVAL_SEC) {
             uint32_t hard_limit = get_hard_max_freq_hz();
             int cpu_count = get_cpu_count();
+
+            /* Get active custom profile for min freq enforcement */
+            CpuCustomProfile *active_profile = NULL;
+            if (g_cpu_state.active_custom_profile_idx >= 0 &&
+                g_cpu_state.active_custom_profile_idx < g_cpu_state.num_custom_profiles) {
+                active_profile = &g_cpu_state.custom_profiles[g_cpu_state.active_custom_profile_idx];
+            }
+
             for (int i = 0; i < cpu_count; i++) {
+                /* Enforce hard limit on max freq */
                 uint32_t current_max = get_cpu_max_freq(i);
                 if (current_max < hard_limit) {
                     set_cpu_max_freq(i, hard_limit);
+                }
+
+                /* Enforce min freq from active custom profile */
+                if (active_profile != NULL) {
+                    uint32_t profile_min = active_profile->per_core_min_freq_hz[i];
+                    if (profile_min > 0) {
+                        uint32_t current_min = get_cpu_min_freq(i);
+                        if (current_min < profile_min) {
+                            set_cpu_min_freq(i, profile_min);
+                        }
+                    }
                 }
             }
             set_all_cpus_epp("performance");
