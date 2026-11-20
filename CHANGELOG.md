@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.13.0] - 2026-11-21
+
+### Added
+- **CPU CLI tool (dudes-control-center-cpu-cli)**: Added a command-line interface for controlling CPU frequency profiles. Supports showing CPU status, listing custom profiles, applying profiles, switching governors (with abbreviation support: perf, sched, pwr), and setting/getting the hard frequency limit.
+
 ## [1.12.0] - 2026-11-20
 
 ### Added
