@@ -83,13 +83,13 @@ static int ensure_cpu_config_dir(void) {
 int governor_to_enum(const char *governor_str, CpuGovernor *gov) {
     if (!governor_str || !gov) return -1;
 
-    if (strcmp(governor_str, "performance") == 0) *gov = CPU_GOVERNOR_PERFORMANCE;
-    else if (strcmp(governor_str, "powersave") == 0) *gov = CPU_GOVERNOR_POWERSAVE;
-    else if (strcmp(governor_str, "userspace") == 0) *gov = CPU_GOVERNOR_USERSPACE;
-    else if (strcmp(governor_str, "ondemand") == 0) *gov = CPU_GOVERNOR_ONDEMAND;
-    else if (strcmp(governor_str, "conservative") == 0) *gov = CPU_GOVERNOR_CONSERVATIVE;
+    if (strcmp(governor_str, "performance") == 0 || strcmp(governor_str, "perf") == 0) *gov = CPU_GOVERNOR_PERFORMANCE;
+    else if (strcmp(governor_str, "powersave") == 0 || strcmp(governor_str, "pwr") == 0) *gov = CPU_GOVERNOR_POWERSAVE;
+    else if (strcmp(governor_str, "userspace") == 0 || strcmp(governor_str, "userspace") == 0) *gov = CPU_GOVERNOR_USERSPACE;
+    else if (strcmp(governor_str, "ondemand") == 0 || strcmp(governor_str, "ond") == 0) *gov = CPU_GOVERNOR_ONDEMAND;
+    else if (strcmp(governor_str, "conservative") == 0 || strcmp(governor_str, "con") == 0) *gov = CPU_GOVERNOR_CONSERVATIVE;
     else if (strcmp(governor_str, "scaling_savings") == 0) *gov = CPU_GOVERNOR_SCALING_SAVINGS;
-    else if (strcmp(governor_str, "schedutil") == 0) *gov = CPU_GOVERNOR_SCHEDUTIL;
+    else if (strcmp(governor_str, "schedutil") == 0 || strcmp(governor_str, "sched") == 0) *gov = CPU_GOVERNOR_SCHEDUTIL;
     else if (strcmp(governor_str, "EPP") == 0 || strcmp(governor_str, "epp") == 0) *gov = CPU_GOVERNOR_EPP;
     else *gov = CPU_GOVERNOR_UNKNOWN;
 

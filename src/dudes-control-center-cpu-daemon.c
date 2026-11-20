@@ -278,10 +278,36 @@ static void handle_command(const char *cmd, char *response, size_t resp_size) {
             return;
         }
 
-        if (set_all_cpus_governor(arg1) == 0) {
-            snprintf(response, resp_size, "OK Governor set to '%s'\n", arg1);
+        /* Validate and resolve governor name (supports abbreviations like perf, sched, pwr) */
+        CpuGovernor gov;
+        if (governor_to_enum(arg1, &gov) != 0) {
+            snprintf(response, resp_size, "ERROR Invalid governor '%s' (use: performance, schedutil, powersave, etc.)\n", arg1);
+            return;
+        }
+
+        /* Use the resolved full governor name for sysfs writes */
+        const char *gov_name = enum_to_governor(gov);
+
+        /* Find matching profile and update internal state */
+        int found = -1;
+        for (int i = 0; i < g_cpu_state.num_profiles; i++) {
+            if (g_cpu_state.profiles[i].governor == gov) {
+                found = i;
+                break;
+            }
+        }
+
+        if (found >= 0) {
+            g_cpu_state.active_profile_idx = found;
+            LOG_INFO("[CPU] Governor changed to '%s' (profile idx=%d)", gov_name, found);
         } else {
-            snprintf(response, resp_size, "ERROR Failed to set governor '%s'\n", arg1);
+            LOG_INFO("[CPU] Governor changed to '%s' (no matching profile)", gov_name);
+        }
+
+        if (set_all_cpus_governor(gov_name) == 0) {
+            snprintf(response, resp_size, "OK Governor set to '%s'\n", gov_name);
+        } else {
+            snprintf(response, resp_size, "ERROR Failed to set governor '%s'\n", gov_name);
         }
         return;
     }
