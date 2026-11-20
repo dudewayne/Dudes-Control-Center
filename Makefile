@@ -1,5 +1,5 @@
 # Makefile for Dudes Control Center Applications
-# Builds: dudes-control-center-fan-cli, dudes-control-center-fan-daemon, dudes-control-center-cpu-daemon, dudes-control-center-gui
+# Builds: dudes-control-center-fan-cli, dudes-control-center-fan-daemon, dudes-control-center-cpu-daemon, dudes-control-center-gui, hard-limit-enforcer
 
 # Rule 8: Use all CPU cores for compilation
 MAKEFLAGS += -j$(shell nproc)
@@ -80,6 +80,9 @@ deb: all
 	@cp DudesControlCenter.png $(DEB_BUILD_DIR)/$(PACKAGE)-$(VERSION)/usr/share/icons/hicolor/256x256/apps/dudes-control-center.png 2>/dev/null || true
 	@cp dudes-control-center-fan-daemon.service $(DEB_BUILD_DIR)/$(PACKAGE)-$(VERSION)/etc/systemd/system/
 	@cp dudes-control-center-cpu-daemon.service $(DEB_BUILD_DIR)/$(PACKAGE)-$(VERSION)/etc/systemd/system/
+	@cp dudes-control-center-hard-limit-enforcer.service $(DEB_BUILD_DIR)/$(PACKAGE)-$(VERSION)/etc/systemd/system/
+	@cp dudes-control-center-hard-limit-enforcer.timer $(DEB_BUILD_DIR)/$(PACKAGE)-$(VERSION)/etc/systemd/system/
+	@cp scripts/dudes-control-center-hard-limit-enforce.sh $(DEB_BUILD_DIR)/$(PACKAGE)-$(VERSION)/usr/local/bin/dudes-control-center-hard-limit-enforce
 	@echo 'Package: $(PACKAGE)' > $(DEB_BUILD_DIR)/$(PACKAGE)-$(VERSION)/DEBIAN/control
 	@echo 'Version: $(VERSION)' >> $(DEB_BUILD_DIR)/$(PACKAGE)-$(VERSION)/DEBIAN/control
 	@echo 'Architecture: amd64' >> $(DEB_BUILD_DIR)/$(PACKAGE)-$(VERSION)/DEBIAN/control
@@ -88,11 +91,11 @@ deb: all
 	@echo 'Section: admin' >> $(DEB_BUILD_DIR)/$(PACKAGE)-$(VERSION)/DEBIAN/control
 	@echo 'Priority: optional' >> $(DEB_BUILD_DIR)/$(PACKAGE)-$(VERSION)/DEBIAN/control
 	@echo 'Depends: libgtk-3-0, libcjson1' >> $(DEB_BUILD_DIR)/$(PACKAGE)-$(VERSION)/DEBIAN/control
-	@printf '#!/bin/sh\nset -e\nif [ "$$1" = "configure" ]; then\n    systemctl daemon-reload\n    systemctl enable dudes-control-center-fan-daemon\n    systemctl restart dudes-control-center-fan-daemon || systemctl start dudes-control-center-fan-daemon\n    systemctl enable dudes-control-center-cpu-daemon\n    systemctl restart dudes-control-center-cpu-daemon || systemctl start dudes-control-center-cpu-daemon\n    update-desktop-database >/dev/null 2>&1 || true\nfi\nexit 0\n' > $(DEB_BUILD_DIR)/$(PACKAGE)-$(VERSION)/DEBIAN/postinst
+	@printf '#!/bin/sh\nset -e\nif [ "$$1" = "configure" ]; then\n    systemctl daemon-reload\n    systemctl enable dudes-control-center-fan-daemon\n    systemctl restart dudes-control-center-fan-daemon || systemctl start dudes-control-center-fan-daemon\n    systemctl enable dudes-control-center-cpu-daemon\n    systemctl restart dudes-control-center-cpu-daemon || systemctl start dudes-control-center-cpu-daemon\n    systemctl enable dudes-control-center-hard-limit-enforcer.timer\n    systemctl start dudes-control-center-hard-limit-enforcer.timer || true\n    update-desktop-database >/dev/null 2>&1 || true\nfi\nexit 0\n' > $(DEB_BUILD_DIR)/$(PACKAGE)-$(VERSION)/DEBIAN/postinst
 	@chmod 755 $(DEB_BUILD_DIR)/$(PACKAGE)-$(VERSION)/DEBIAN/postinst
-	@printf '#!/bin/sh\nset -e\nif [ "$$1" = "remove" ]; then\n    systemctl stop dudes-control-center-fan-daemon 2>/dev/null || true\n    systemctl disable dudes-control-center-fan-daemon 2>/dev/null || true\n    systemctl stop dudes-control-center-cpu-daemon 2>/dev/null || true\n    systemctl disable dudes-control-center-cpu-daemon 2>/dev/null || true\n    systemctl daemon-reload\nfi\nexit 0\n' > $(DEB_BUILD_DIR)/$(PACKAGE)-$(VERSION)/DEBIAN/prerm
+	@printf '#!/bin/sh\nset -e\nif [ "$$1" = "remove" ]; then\n    systemctl stop dudes-control-center-fan-daemon 2>/dev/null || true\n    systemctl disable dudes-control-center-fan-daemon 2>/dev/null || true\n    systemctl stop dudes-control-center-cpu-daemon 2>/dev/null || true\n    systemctl disable dudes-control-center-cpu-daemon 2>/dev/null || true\n    systemctl stop dudes-control-center-hard-limit-enforcer.timer 2>/dev/null || true\n    systemctl disable dudes-control-center-hard-limit-enforcer.timer 2>/dev/null || true\n    systemctl daemon-reload\nfi\nexit 0\n' > $(DEB_BUILD_DIR)/$(PACKAGE)-$(VERSION)/DEBIAN/prerm
 	@chmod 755 $(DEB_BUILD_DIR)/$(PACKAGE)-$(VERSION)/DEBIAN/prerm
-	@printf '#!/bin/sh\nset -e\nif [ "$$1" = "purge" ]; then\n    rm -rf /home/*/.config/dudes-control-center/ 2>/dev/null || true\n    rm -rf /var/log/dudes-control-center/ 2>/dev/null || true\n    rm -f /etc/systemd/system/dudes-control-center-fan-daemon.service 2>/dev/null || true\n    rm -f /etc/systemd/system/dudes-control-center-cpu-daemon.service 2>/dev/null || true\n    systemctl daemon-reload 2>/dev/null || true\nfi\nexit 0\n' > $(DEB_BUILD_DIR)/$(PACKAGE)-$(VERSION)/DEBIAN/postrm
+	@printf '#!/bin/sh\nset -e\nif [ "$$1" = "purge" ]; then\n    rm -rf /home/*/.config/dudes-control-center/ 2>/dev/null || true\n    rm -rf /var/log/dudes-control-center/ 2>/dev/null || true\n    rm -f /etc/systemd/system/dudes-control-center-fan-daemon.service 2>/dev/null || true\n    rm -f /etc/systemd/system/dudes-control-center-cpu-daemon.service 2>/dev/null || true\n    rm -f /etc/systemd/system/dudes-control-center-hard-limit-enforcer.service 2>/dev/null || true\n    rm -f /etc/systemd/system/dudes-control-center-hard-limit-enforcer.timer 2>/dev/null || true\n    systemctl daemon-reload 2>/dev/null || true\nfi\nexit 0\n' > $(DEB_BUILD_DIR)/$(PACKAGE)-$(VERSION)/DEBIAN/postrm
 	@chmod 755 $(DEB_BUILD_DIR)/$(PACKAGE)-$(VERSION)/DEBIAN/postrm
 	@cd $(DEB_BUILD_DIR) && dpkg-deb --build $(PACKAGE)-$(VERSION) $(PACKAGE)_$(VERSION)_amd64.deb
 	@echo "Built: $(DEB_BUILD_DIR)/$(PACKAGE)_$(VERSION)_amd64.deb"
@@ -107,9 +110,16 @@ install: all
 	install -d /etc/systemd/system
 	cp dudes-control-center-fan-daemon.service /etc/systemd/system/
 	cp dudes-control-center-cpu-daemon.service /etc/systemd/system/
+	cp dudes-control-center-hard-limit-enforcer.service /etc/systemd/system/
+	cp dudes-control-center-hard-limit-enforcer.timer /etc/systemd/system/
+	@echo "Installing hard limit enforcer script..."
+	install -m 755 scripts/dudes-control-center-hard-limit-enforce.sh /usr/local/bin/dudes-control-center-hard-limit-enforce
 	systemctl daemon-reload
 	systemctl enable dudes-control-center-fan-daemon
 	systemctl enable dudes-control-center-cpu-daemon
+	@echo "Enabling hard limit enforcer timer..."
+	systemctl enable dudes-control-center-hard-limit-enforcer.timer
+	systemctl start dudes-control-center-hard-limit-enforcer.timer || true
 	@echo "Restarting daemons..."
 	systemctl restart dudes-control-center-fan-daemon || systemctl start dudes-control-center-fan-daemon
 	systemctl restart dudes-control-center-cpu-daemon || systemctl start dudes-control-center-cpu-daemon
@@ -124,12 +134,17 @@ uninstall:
 	systemctl disable dudes-control-center-fan-daemon 2>/dev/null || true
 	systemctl stop dudes-control-center-cpu-daemon 2>/dev/null || true
 	systemctl disable dudes-control-center-cpu-daemon 2>/dev/null || true
+	systemctl stop dudes-control-center-hard-limit-enforcer.timer 2>/dev/null || true
+	systemctl disable dudes-control-center-hard-limit-enforcer.timer 2>/dev/null || true
 	rm -f /usr/local/bin/$(CLI_TARGET)
 	rm -f /usr/local/bin/$(DAEMON_TARGET)
 	rm -f /usr/local/bin/$(CPU_DAEMON_TARGET)
 	rm -f /usr/local/bin/$(GUI_TARGET)
 	rm -f /etc/systemd/system/dudes-control-center-fan-daemon.service
 	rm -f /etc/systemd/system/dudes-control-center-cpu-daemon.service
+	rm -f /etc/systemd/system/dudes-control-center-hard-limit-enforcer.service
+	rm -f /etc/systemd/system/dudes-control-center-hard-limit-enforcer.timer
+	rm -f /usr/local/bin/dudes-control-center-hard-limit-enforce
 	rm -f /usr/share/applications/dudes-control-center.desktop
 	systemctl daemon-reload
 	update-desktop-database >/dev/null 2>&1 || true

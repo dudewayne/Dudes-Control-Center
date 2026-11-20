@@ -1,0 +1,14 @@
+[Unit]
+Description=Dudes Control Center Hard Limit Fail-Safe Enforcer
+Documentation=man:systemd.timer(5)
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/dudes-control-center-hard-limit-enforce
+User=root
+StandardOutput=journal
+StandardError=journal
+Environment=HOME=/home/dude
+
+[Install]
+WantedBy=multi-user.target
