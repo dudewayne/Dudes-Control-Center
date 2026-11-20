@@ -626,6 +626,45 @@ static int handle_command(const char *cmd, char *response, size_t resp_size) {
         snprintf(response, resp_size, "OK Profile deleted\n");
         return 0;
     }
+
+    /* Command: RENAME_PROFILE <idx> <new_name> */
+    if (strcmp(action, "RENAME_PROFILE") == 0) {
+        int idx = atoi(arg1);
+        if (idx < 0 || idx >= num_profiles) {
+            snprintf(response, resp_size, "ERROR Invalid profile index\n");
+            return -1;
+        }
+
+        /* Extract new name from original command to support names with spaces */
+        const char *new_name = strstr(cmd_copy, "RENAME_PROFILE");
+        if (new_name != NULL) {
+            new_name += strlen("RENAME_PROFILE");
+            /* Skip whitespace and the index argument */
+            while (*new_name == ' ') new_name++;
+            while (*new_name && *new_name != ' ') new_name++;
+            while (*new_name == ' ') new_name++;
+        } else {
+            new_name = "";
+        }
+
+        if (strlen(new_name) == 0) {
+            snprintf(response, resp_size, "ERROR Profile name cannot be empty\n");
+            return -1;
+        }
+
+        /* Check for duplicate name */
+        for (int k = 0; k < num_profiles; k++) {
+            if (k != idx && strcmp(profiles[k].name, new_name) == 0) {
+                snprintf(response, resp_size, "ERROR A profile with name '%s' already exists\n", new_name);
+                return -1;
+            }
+        }
+
+        snprintf(profiles[idx].name, sizeof(profiles[idx].name), "%s", new_name);
+        snprintf(response, resp_size, "OK Profile renamed to '%s'\n", new_name);
+        LOG_INFO("Profile %d renamed to '%s'", idx, new_name);
+        return 0;
+    }
     
     /* Command: GET_CURVE_FOR_TEMP <temp> */
     if (strcmp(action, "GET_CURVE_FOR_TEMP") == 0) {

@@ -214,6 +214,7 @@ static void on_apply_clicked(GtkWidget *widget, gpointer user_data);
 static void on_cancel_clicked(GtkWidget *widget, gpointer user_data);
 static void on_create_profile_clicked(GtkWidget *widget, gpointer user_data);
 static void on_delete_profile_clicked(GtkWidget *widget, gpointer user_data);
+static void on_rename_profile_clicked(GtkWidget *widget, gpointer user_data);
 
 /* Forward declarations for page creation */
 static GtkWidget *create_status_page(AppData *app);
@@ -2037,6 +2038,80 @@ static void on_delete_profile_clicked(GtkWidget *widget, gpointer user_data) {
     gtk_widget_destroy(dialog);
 }
 
+/* Callback: Rename selected profile */
+static void on_rename_profile_clicked(GtkWidget *widget, gpointer user_data) {
+    (void)widget;
+    AppData *app = (AppData *)user_data;
+
+    /* Handle unsaved curve changes before showing rename dialog */
+    if (app->curve_points_modified) {
+        int result = check_unsaved_changes(app);
+        if (result == 1) {
+            on_apply_clicked(NULL, app);
+        } else if (result == 0) {
+            app->curve_points_modified = 0;
+        } else {
+            return; /* User cancelled */
+        }
+    }
+
+    int idx = gtk_combo_box_get_active(GTK_COMBO_BOX(app->profile_combo));
+    if (idx < 0 || idx >= app->num_profiles) {
+        show_status(app, "ERROR No profile selected");
+        return;
+    }
+
+    const char *profile_name = app->profile_names[idx];
+
+    /* Don't allow renaming the Default profile */
+    if (strcmp(profile_name, "Default") == 0) {
+        show_status(app, "ERROR Cannot rename Default profile");
+        return;
+    }
+
+    GtkWidget *dialog = gtk_dialog_new_with_buttons("Rename Profile",
+                                                    GTK_WINDOW(app->window),
+                                                    GTK_DIALOG_MODAL,
+                                                    "Cancel", GTK_RESPONSE_CANCEL,
+                                                    "Rename", GTK_RESPONSE_ACCEPT,
+                                                    NULL);
+
+    GtkWidget *entry = gtk_entry_new();
+    gtk_entry_set_text(GTK_ENTRY(entry), profile_name);
+
+    GtkWidget *content = gtk_dialog_get_content_area(GTK_DIALOG(dialog));
+    gtk_box_pack_start(GTK_BOX(content), entry, TRUE, TRUE, 0);
+    gtk_widget_show_all(content);
+
+    /* Set Accept as default so Enter key triggers rename */
+    gtk_dialog_set_default_response(GTK_DIALOG(dialog), GTK_RESPONSE_ACCEPT);
+    g_signal_connect(entry, "activate", G_CALLBACK(on_entry_activate), dialog);
+
+    if (gtk_dialog_run(GTK_DIALOG(dialog)) == GTK_RESPONSE_ACCEPT) {
+        const gchar *new_name = gtk_entry_get_text(GTK_ENTRY(entry));
+        if (strlen(new_name) > 0) {
+            /* Send rename command to daemon */
+            char cmd[256];
+            snprintf(cmd, sizeof(cmd), "RENAME_PROFILE %d %s", idx, new_name);
+            const char *response = send_command(app, cmd);
+            show_status(app, response);
+
+            /* Refresh profile list and tray menu */
+            refresh_profile_list(app);
+            update_tray_menu(app);
+
+            /* Reload curve points for the renamed profile */
+            int new_active = gtk_combo_box_get_active(GTK_COMBO_BOX(app->profile_combo));
+            if (new_active >= 0) {
+                load_curve_points_for_profile(app, new_active);
+            }
+        } else {
+            show_status(app, "ERROR Profile name cannot be empty");
+        }
+    }
+    gtk_widget_destroy(dialog);
+}
+
 /* Helper function: Check if temperature already exists in curve store
  * Returns 1 if a duplicate is found (excluding the row at index_to_exclude)
  */
@@ -3251,6 +3326,11 @@ static GtkWidget *create_curve_editor_page(AppData *app) {
     GtkWidget *delete_profile_btn = gtk_button_new_with_label("Delete Profile");
     g_signal_connect(delete_profile_btn, "clicked", G_CALLBACK(on_delete_profile_clicked), app);
     gtk_box_pack_end(GTK_BOX(profile_box), delete_profile_btn, FALSE, FALSE, 0);
+
+    /* Rename profile button */
+    GtkWidget *rename_profile_btn = gtk_button_new_with_label("Rename Profile");
+    g_signal_connect(rename_profile_btn, "clicked", G_CALLBACK(on_rename_profile_clicked), app);
+    gtk_box_pack_end(GTK_BOX(profile_box), rename_profile_btn, FALSE, FALSE, 0);
     
     gtk_box_pack_start(GTK_BOX(vbox), profile_box, FALSE, FALSE, 0);
     
