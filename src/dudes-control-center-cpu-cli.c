@@ -77,15 +77,27 @@ static const char *send_command(int fd, const char *cmd, char *response, size_t 
 
 /* --- Mode implementations --- */
 
+static void print_value(const char *resp, const char *key) {
+    const char *tmp = strstr(resp, key);
+    if (!tmp) return;
+    tmp += strlen(key);
+    /* Print up to newline */
+    const char *nl = strchr(tmp, '\n');
+    if (nl) {
+        fwrite(tmp, 1, nl - tmp, stdout);
+    } else {
+        fputs(tmp, stdout);
+    }
+    putchar('\n');
+}
+
 static int run_default_mode(int fd) {
     char response[CPU_BUFFER_SIZE];
     const char *resp = send_command(fd, "STATUS", response, sizeof(response));
     if (!resp) return EXIT_FAILURE;
 
-    /* Parse STATUS response */
     printf("=== Dudes Control Center - CPU Status ===\n");
 
-    /* Extract key fields from the STATUS response */
     const char *tmp = strstr(resp, "NUM_CPUS=");
     if (tmp) {
         int num_cpus = atoi(tmp + 9);
@@ -110,20 +122,14 @@ static int run_default_mode(int fd) {
         printf("Power: %s\n", on_ac ? "AC" : "Battery");
     }
 
-    tmp = strstr(resp, "ACTIVE_GOVERNOR=");
-    if (tmp) {
-        printf("Active Profile: %s\n", tmp + 16);
-    }
+    printf("Active Profile: ");
+    print_value(resp, "ACTIVE_GOVERNOR=");
 
-    tmp = strstr(resp, "MIN_FREQ=");
-    if (tmp) {
-        printf("Min Frequency: %s\n", tmp + 9);
-    }
+    printf("Min Frequency: ");
+    print_value(resp, "MIN_FREQ=");
 
-    tmp = strstr(resp, "MAX_FREQ=");
-    if (tmp) {
-        printf("Max Frequency: %s\n", tmp + 9);
-    }
+    printf("Max Frequency: ");
+    print_value(resp, "MAX_FREQ=");
 
     return EXIT_SUCCESS;
 }
@@ -180,7 +186,14 @@ static int run_get_hard_limit(int fd) {
     const char *resp = send_command(fd, "GET_HARD_LIMIT", response, sizeof(response));
     if (!resp) return EXIT_FAILURE;
 
-    printf("%s", resp);
+    const char *tmp = strstr(resp, "HARD_LIMIT=");
+    if (tmp) {
+        uint32_t hz = (uint32_t)strtoul(tmp + 11, NULL, 10);
+        double ghz = (double)hz / 1000000000.0;
+        printf("Hard Limit: %.2f GHz\n", ghz);
+    } else {
+        printf("%s", resp);
+    }
     return EXIT_SUCCESS;
 }
 
