@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.8.4] - 2026-11-20
+
+### Fixed
+- **Governor always saved as schedutil**: The `load_cpu_governors()` function was truncating each line at `(` before extracting the `gov=xxx` string, so the governor parser never found the value and always fell back to the default `schedutil`. Moved the governor extraction before the line truncation.
+
 ## [1.8.3] - 2026-11-20
 
 ### Fixed
