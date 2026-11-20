@@ -1277,53 +1277,47 @@ typedef struct {
 
 /* Idle callback that performs the actual save work.
  * Decoupled from the button clicked signal so GTK can release
- * the button's pressed visual state before we destroy/recreate widgets. */
+ * the button's pressed visual state before we destroy/recreate widgets.
+ * Uses a single batch command (SAVE_CUSTOM_PROFILE) instead of ~50 round-trips. */
 static gboolean cpu_save_freq_profile_idle(gpointer user_data) {
     CpuSaveContext *ctx = (CpuSaveContext *)user_data;
     AppData *app = ctx->app;
     int idx = ctx->profile_idx;
     int num_cores = ctx->num_cores;
-    char cmd[256];
 
-    LOG_INFO("Save step 1: sending governor for profile %d", idx);
-    if (strlen(ctx->governor) > 0) {
-        char gov_cmd[256];
-        LOG_INFO("Saving governor '%s' for profile %d", ctx->governor, idx);
-        snprintf(gov_cmd, sizeof(gov_cmd), "SET_PROFILE_GOVERNOR|%d|%s", idx, ctx->governor);
-        const char *resp = send_cpu_command(app, gov_cmd);
-        LOG_INFO("SET_PROFILE_GOVERNOR response: %s", resp ? resp : "(NULL)");
-    }
-    LOG_INFO("Save step 1 done: governor sent");
-
-    LOG_INFO("Save step 2: sending per-core freq commands (%d cores)", num_cores);
+    /* Build core data: comma-separated min0,max0,min1,max1,... */
+    char core_data[1024] = {0};
+    size_t pos = 0;
     for (int i = 0; i < num_cores && i < 32; i++) {
         gulong min_hz = (gulong)(ctx->core_min_mhz[i] * 1000000);
         gulong max_hz = (gulong)(ctx->core_max_mhz[i] * 1000000);
-
-        snprintf(cmd, sizeof(cmd), "SET_CORE_MIN_FREQ|%d|%d|%lu", idx, i, min_hz);
-        send_cpu_command(app, cmd);
-
-        snprintf(cmd, sizeof(cmd), "SET_CORE_MAX_FREQ|%d|%d|%lu", idx, i, max_hz);
-        send_cpu_command(app, cmd);
+        pos += snprintf(core_data + pos, sizeof(core_data) - pos, "%lu,%lu,", min_hz, max_hz);
+        /* Remove trailing comma */
+        if (pos > 0) { core_data[pos - 1] = '\0'; pos--; }
+        pos++; /* advance past the comma position */
     }
-    LOG_INFO("Save step 2 done: per-core freq commands sent");
 
-    LOG_INFO("Save step 3: sending apply_all_cores state");
-    snprintf(cmd, sizeof(cmd), "SET_APPLY_ALL_CORES|%d|%d", idx, ctx->apply_all_cores);
-    send_cpu_command(app, cmd);
-    LOG_INFO("Save step 3 done: apply_all_cores sent");
+    /* Send single batch command */
+    char batch_cmd[2048];
+    snprintf(batch_cmd, sizeof(batch_cmd),
+        "SAVE_CUSTOM_PROFILE|%d|%s|%d|%s",
+        idx, ctx->governor, ctx->apply_all_cores, core_data);
 
-    LOG_INFO("Save step 4: marking profiles modified + saving to disk");
+    LOG_INFO("Sending batch save for profile %d", idx);
+    const char *resp = send_cpu_command(app, batch_cmd);
+    LOG_INFO("SAVE_CUSTOM_PROFILE response: %s", resp ? resp : "(NULL)");
+
+    /* Mark profiles modified and save to disk */
     mark_cpu_freq_profiles_modified(app);
     gui_save_profiles_to_disk(app);
-    LOG_INFO("Save step 4 done: profiles saved to disk");
+    LOG_INFO("Profiles saved to disk");
 
-    LOG_INFO("Save step 5: reloading profile list");
+    /* Reload profile list */
     load_cpu_custom_profiles(app);
     g_signal_handler_block(app->cpu_custom_profile_combo, app->cpu_custom_profile_combo_signal_id);
     gtk_combo_box_set_active(GTK_COMBO_BOX(app->cpu_custom_profile_combo), idx);
     g_signal_handler_unblock(app->cpu_custom_profile_combo, app->cpu_custom_profile_combo_signal_id);
-    LOG_INFO("Save step 5 done: profile list reloaded");
+    LOG_INFO("Profile list reloaded");
 
     char status_msg[128];
     snprintf(status_msg, sizeof(status_msg), "Saved profile");
