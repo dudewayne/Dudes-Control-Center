@@ -1465,30 +1465,66 @@ static void sync_core0_to_all_cores(AppData *app) {
     }
 }
 
-/* Sync core 0 values to all cores - called after input is validated */
+/* Sync core 0 values to all cores by reading Entry text directly (for live sync during typing)
+ * Called from idle callback, so GTK has processed the text */
 static void sync_core0_live_to_all_cores(AppData *app) {
+    /* Guard: check if widgets still exist (grid may have been rebuilt) */
+    if (!GTK_IS_TOGGLE_BUTTON(app->cpu_apply_all_cores_checkbox))
+        return;
     if (!gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(app->cpu_apply_all_cores_checkbox)))
         return;
     if (app->cpu_core_count <= 0) return;
+    if (!GTK_IS_SPIN_BUTTON(app->cpu_core_min_spinners[0]))
+        return;
+    if (!GTK_IS_SPIN_BUTTON(app->cpu_core_max_spinners[0]))
+        return;
 
-    /* Read the validated value from core 0 adjustments */
-    double first_min = gtk_spin_button_get_value(GTK_SPIN_BUTTON(app->cpu_core_min_spinners[0]));
-    double first_max = gtk_spin_button_get_value(GTK_SPIN_BUTTON(app->cpu_core_max_spinners[0]));
+    /* Read text directly from core 0 spinners (GtkSpinButton IS a GtkEntry in GTK3) */
+    const gchar *min_text = gtk_entry_get_text(GTK_ENTRY(app->cpu_core_min_spinners[0]));
+    const gchar *max_text = gtk_entry_get_text(GTK_ENTRY(app->cpu_core_max_spinners[0]));
+    if (!min_text || !max_text)
+        return;
+
+    /* Skip empty text */
+    if (min_text[0] == '\0' || max_text[0] == '\0')
+        return;
+
+    /* Parse - skip non-numeric */
+    char *end1 = NULL, *end2 = NULL;
+    double first_min = strtod(min_text, &end1);
+    double first_max = strtod(max_text, &end2);
+    if (end1 == min_text || end2 == max_text)
+        return;
 
     for (int i = 1; i < app->cpu_core_count && i < 32; i++) {
+        if (!GTK_IS_SPIN_BUTTON(app->cpu_core_min_spinners[i]))
+            return;
         gtk_spin_button_set_value(GTK_SPIN_BUTTON(app->cpu_core_min_spinners[i]), first_min);
         gtk_spin_button_set_value(GTK_SPIN_BUTTON(app->cpu_core_max_spinners[i]), first_max);
     }
 }
 
-/* Callback: core 0 input signal - fires after GTK validates the typed text */
-static gboolean on_core0_input(GtkSpinButton *spinbutton, const gchar *text, gdouble *new_value, gpointer user_data) {
-    (void)spinbutton;
-    (void)text;
-    (void)new_value;
+/* Idle callback: defer sync until GTK has finished processing the text */
+typedef struct {
+    AppData *app;
+} SyncIdleData;
+
+static gboolean sync_core0_idle_callback(gpointer user_data) {
+    SyncIdleData *data = (SyncIdleData *)user_data;
+    sync_core0_live_to_all_cores(data->app);
+    g_free(data);
+    return FALSE; /* One-shot */
+}
+
+/* Callback: core 0 Entry changed signal - fires on every keystroke */
+static void on_core0_entry_changed(GtkEntry *entry, gpointer user_data) {
+    (void)entry;
     AppData *app = (AppData *)user_data;
-    sync_core0_live_to_all_cores(app);
-    return FALSE; /* Accept the input */
+
+    /* Defer the sync so GTK finishes processing first */
+    SyncIdleData *data = g_new0(SyncIdleData, 1);
+    data->app = app;
+    g_idle_add(sync_core0_idle_callback, data);
 }
 
 /* Callback: Apply to All Cores checkbox toggled */
@@ -1581,11 +1617,11 @@ static void build_cpu_core_freq_grid(AppData *app, int num_cores) {
         }
     }
 
-    /* Connect core 0 spinners' input signal to sync all cores when Apply to All is active
-     * The input signal fires after GTK validates the typed text */
+    /* Connect core 0 spinners' changed signal to sync all cores when Apply to All is active
+     * The changed signal fires on every keystroke for real-time sync */
     {
-        g_signal_connect(app->cpu_core_min_spinners[0], "input", G_CALLBACK(on_core0_input), app);
-        g_signal_connect(app->cpu_core_max_spinners[0], "input", G_CALLBACK(on_core0_input), app);
+        g_signal_connect(app->cpu_core_min_spinners[0], "changed", G_CALLBACK(on_core0_entry_changed), app);
+        g_signal_connect(app->cpu_core_max_spinners[0], "changed", G_CALLBACK(on_core0_entry_changed), app);
     }
 
     /* Add header labels */

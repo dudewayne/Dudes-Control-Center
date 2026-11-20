@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.9.2] - 2026-11-20
+
+### Fixed
+- **Real-time sync of core 0 frequency values to all cores**: When "Apply values to all CPU cores" is enabled, typing a value in core 0's min or max frequency field now automatically updates all other core fields in real-time. Switched from `changed` signal to `input` signal on GtkSpinButton to ensure GTK validates the text before syncing.
+
 ## [1.8.9] - 2026-11-20
 
 ### Fixed
