@@ -3811,9 +3811,14 @@ static void on_notebook_page_switched(GtkNotebook *notebook, GtkWidget *page, gi
         }
     }
     
-    /* Clear profile-specific status messages when leaving the Profiles tab (page 2) */
-    if (current_page == 2 && page_num != 2) {
+    /* Clear status messages when switching tabs */
+    if (current_page != page_num) {
         show_status(app, "");
+        
+        /* Clear CPU profile status label when leaving the CPU Profiles tab */
+        if (current_page == 3 && app->cpu_freq_profile_status_label) {
+            gtk_label_set_text(GTK_LABEL(app->cpu_freq_profile_status_label), "");
+        }
     }
 
     /* Page 2 is the Curve Editor tab (0-indexed: Status=0, Curve Editor=1, Profiles=2) */
