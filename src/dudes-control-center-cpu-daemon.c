@@ -754,29 +754,51 @@ static void check_auto_conditions(void) {
     }
 }
 
-/* --- Handle client connection --- */
-static void handle_client(int client_fd) {
+/* --- Handle client connection (non-blocking) --- */
+static int g_client_fd = -1;
+
+static void handle_client_nonblocking(int client_fd) {
+    /* Set client socket to non-blocking */
+    int flags = fcntl(client_fd, F_GETFL, 0);
+    fcntl(client_fd, F_SETFL, flags | O_NONBLOCK);
+
+    g_client_fd = client_fd;
+    LOG_INFO("[DAEMON] Client connected (non-blocking)");
+}
+
+/* Process pending client data (call from main loop) */
+static void process_client(void) {
+    if (g_client_fd < 0) return;
+
     char buffer[BUFFER_SIZE] = {0};
     char response[MAX_RESPONSE_LEN] = {0};
 
-    while (1) {
-        memset(buffer, 0, sizeof(buffer));
-        ssize_t bytes_read = read(client_fd, buffer, sizeof(buffer) - 1);
-        if (bytes_read <= 0) {
-            LOG_INFO("[DAEMON] Client connection closed or error");
-            close(client_fd);
-            break;
+    memset(buffer, 0, sizeof(buffer));
+    ssize_t bytes_read = read(g_client_fd, buffer, sizeof(buffer) - 1);
+    if (bytes_read == 0) {
+        LOG_INFO("[DAEMON] Client disconnected");
+        close(g_client_fd);
+        g_client_fd = -1;
+        return;
+    } else if (bytes_read < 0) {
+        if (errno != EAGAIN && errno != EWOULDBLOCK) {
+            LOG_ERROR("[DAEMON] Client read error: %s", strerror(errno));
+            close(g_client_fd);
+            g_client_fd = -1;
         }
+        return; /* No data available, that's OK */
+    }
 
-        buffer[bytes_read] = '\0';
-        memset(response, 0, sizeof(response));
-        handle_command(buffer, response, sizeof(response));
+    buffer[bytes_read] = '\0';
+    memset(response, 0, sizeof(response));
+    handle_command(buffer, response, sizeof(response));
 
-        ssize_t bytes_written = write(client_fd, response, strlen(response));
-        if (bytes_written < 0) {
+    ssize_t bytes_written = write(g_client_fd, response, strlen(response));
+    if (bytes_written < 0) {
+        if (errno != EAGAIN && errno != EWOULDBLOCK) {
             LOG_ERROR("[DAEMON] Error writing to client: %s", strerror(errno));
-            close(client_fd);
-            break;
+            close(g_client_fd);
+            g_client_fd = -1;
         }
     }
 }
@@ -868,13 +890,15 @@ int main(int argc, char *argv[]) {
 
         int client_fd = accept(server_fd, (struct sockaddr*)&client_addr, &client_len);
         if (client_fd >= 0) {
-            LOG_INFO("[DAEMON] Client connected");
-            handle_client(client_fd);
+            handle_client_nonblocking(client_fd);
         } else if (errno != EAGAIN && errno != EWOULDBLOCK) {
             if (g_running) {
                 LOG_ERROR("[DAEMON] Accept error: %s", strerror(errno));
             }
         }
+
+        /* Process any pending client commands */
+        process_client();
 
         /* Check auto-switching conditions periodically */
         time_t current_time = time(NULL);
