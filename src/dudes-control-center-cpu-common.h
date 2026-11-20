@@ -34,8 +34,6 @@
 /* Runtime hard limit accessors */
 uint32_t get_hard_max_freq_hz(void);
 void set_hard_max_freq_hz(uint32_t freq_hz);
-int load_hard_limit_config(void);
-int save_hard_limit_config(void);
 
 /* --- CPU Governor types --- */
 typedef enum {

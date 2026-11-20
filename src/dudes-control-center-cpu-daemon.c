@@ -684,7 +684,7 @@ static void handle_command(const char *cmd, char *response, size_t resp_size) {
         }
 
         set_hard_max_freq_hz(new_limit);
-        save_hard_limit_config();
+        cpu_custom_profile_save_json(); /* Persist hard limit to profiles.json */
         clamp_cpus_to_hard_limit();
         set_all_cpus_epp("performance");
         snprintf(response, resp_size, "OK Hard limit set to %u Hz (%.2f GHz)\n", new_limit, new_limit / 1e9);
