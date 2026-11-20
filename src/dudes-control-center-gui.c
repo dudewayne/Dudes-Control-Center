@@ -1406,6 +1406,9 @@ static void on_cpu_activate_freq_profile_clicked(GtkWidget *widget, gpointer use
     /* Reload profile list so the [*] marker updates to the newly active profile */
     load_cpu_custom_profiles(app);
 
+    /* Persist the active_profile_index to profiles.json */
+    gui_save_profiles_to_disk(app);
+
     char status_msg[128];
     snprintf(status_msg, sizeof(status_msg), "Activated profile");
     gtk_label_set_text(GTK_LABEL(app->cpu_freq_profile_status_label), status_msg);
