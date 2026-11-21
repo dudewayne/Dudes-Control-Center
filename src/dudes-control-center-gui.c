@@ -3992,7 +3992,8 @@ static void kbd_wizard_step(AppData *app, const char *prev_key_name) {
     }
     gtk_label_set_text(GTK_LABEL(app->kbd_led_wizard_label), buf);
     
-    /* Light up the current LED on the keyboard */
+    /* Turn off all LEDs first, then light up only the current LED */
+    send_keyboard_command(app, "TURN_OFF");
     char cmd_buf[64];
     snprintf(cmd_buf, sizeof(cmd_buf), "TEST_LED %d", app->kbd_wizard_current_led);
     send_keyboard_command(app, cmd_buf);
