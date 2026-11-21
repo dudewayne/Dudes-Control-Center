@@ -3899,10 +3899,6 @@ static gboolean kbd_canvas_draw(GtkWidget *widget, cairo_t *cr, gpointer user_da
     int width = gtk_widget_get_allocated_width(widget);
     int height = gtk_widget_get_allocated_height(widget);
     
-    /* Clear background */
-    cairo_set_source_rgb(cr, 0.1, 0.1, 0.1);
-    cairo_paint(cr);
-    
     /* Draw keyboard image if available */
     if (app->kbd_keyboard_image) {
         double img_width = cairo_image_surface_get_width(app->kbd_keyboard_image);
@@ -3981,6 +3977,7 @@ static gboolean kbd_canvas_button_press(GtkWidget *widget, GdkEventButton *event
     double img_width = cairo_image_surface_get_width(app->kbd_keyboard_image);
     double img_height = cairo_image_surface_get_height(app->kbd_keyboard_image);
     
+    /* Same scaling as draw callback */
     double scale_x = (double)width / img_width;
     double scale_y = (double)height / img_height;
     double scale = (scale_x < scale_y) ? scale_x : scale_y;
@@ -5894,7 +5891,8 @@ static GtkWidget *create_keyboard_page(AppData *app) {
 
     GtkWidget *zone_scrolled = gtk_scrolled_window_new(NULL, NULL);
     gtk_scrolled_window_set_policy(GTK_SCROLLED_WINDOW(zone_scrolled), GTK_POLICY_NEVER, GTK_POLICY_AUTOMATIC);
-    gtk_scrolled_window_set_min_content_height(GTK_SCROLLED_WINDOW(zone_scrolled), 150);
+    gtk_scrolled_window_set_min_content_height(GTK_SCROLLED_WINDOW(zone_scrolled), 50);
+    gtk_scrolled_window_set_max_content_height(GTK_SCROLLED_WINDOW(zone_scrolled), 50);
     gtk_container_add(GTK_CONTAINER(zone_scrolled), app->kbd_zone_grid);
     gtk_box_pack_start(GTK_BOX(zone_vbox), zone_scrolled, FALSE, FALSE, 0);
 
@@ -5902,7 +5900,7 @@ static GtkWidget *create_keyboard_page(AppData *app) {
     app->kbd_keyboard_canvas = gtk_drawing_area_new();
     g_signal_connect(app->kbd_keyboard_canvas, "draw", G_CALLBACK(kbd_canvas_draw), app);
     g_signal_connect(app->kbd_keyboard_canvas, "button-press-event", G_CALLBACK(kbd_canvas_button_press), app);
-    gtk_box_pack_start(GTK_BOX(zone_vbox), app->kbd_keyboard_canvas, FALSE, FALSE, 0);
+    gtk_box_pack_start(GTK_BOX(zone_vbox), app->kbd_keyboard_canvas, TRUE, TRUE, 0);
 
     /* Load keyboard image */
     app->kbd_keyboard_image = cairo_image_surface_create_from_png("/usr/share/doc/dudes-control-center/images/keyboard_dark.png");
@@ -5912,10 +5910,6 @@ static GtkWidget *create_keyboard_page(AppData *app) {
         cairo_surface_destroy(app->kbd_keyboard_image);
         app->kbd_keyboard_image = NULL;
         gtk_widget_set_size_request(app->kbd_keyboard_canvas, -1, 200); /* fallback height */
-    } else {
-        /* Set canvas height to match image height, width fills available space */
-        int img_h = (int)cairo_image_surface_get_height(app->kbd_keyboard_image);
-        gtk_widget_set_size_request(app->kbd_keyboard_canvas, -1, img_h);
     }
 
     /* Add zone / Apply buttons row */
