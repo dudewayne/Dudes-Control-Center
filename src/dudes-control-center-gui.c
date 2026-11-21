@@ -115,8 +115,13 @@ static const KeyPos kbd_key_positions[120] = {
     {1132, 360, 62, 62 }, {1200, 360, 62, 62 }, {1268, 360, 62, 62 }
 };
 
+/* Socket paths are overridable at build time (used by the test suite) */
+#ifndef SOCKET_PATH
 #define SOCKET_PATH "/run/dudes-control-center-fan.sock"
+#endif
+#ifndef CPU_SOCKET_PATH
 #define CPU_SOCKET_PATH "/run/dudes-control-center-cpu.sock"
+#endif
 #define BUFFER_SIZE 4096
 #define MAX_CURVE_POINTS 50
 

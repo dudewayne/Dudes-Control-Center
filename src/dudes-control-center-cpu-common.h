@@ -11,7 +11,9 @@
 #include <stddef.h>
 
 /* --- Socket configuration --- */
+#ifndef CPU_SOCKET_PATH   /* overridable for tests */
 #define CPU_SOCKET_PATH "/run/dudes-control-center-cpu.sock"
+#endif
 #define CPU_BUFFER_SIZE 4096
 #define CPU_MAX_CMD_LEN 256
 #define CPU_MAX_RESPONSE_LEN 8192

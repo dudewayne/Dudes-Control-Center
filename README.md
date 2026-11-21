@@ -187,6 +187,12 @@ This will:
 sudo make uninstall
 ```
 
+### Testing
+```bash
+make test
+```
+Builds the test suite with AddressSanitizer and UBSan and runs it. It needs no root and no hardware: daemons run against a fake sysfs in temporary directories, so it is safe to run on a machine with the daemons installed. GitHub Actions runs `make all`, `make test` and `make deb` on every push and pull request, and attaches the built `.deb` to each run. Details: [tests/README.md](tests/README.md).
+
 ## Configuration
 
 ### Profile Storage

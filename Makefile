@@ -47,7 +47,7 @@ DEB_BUILD_DIR = build-deb
 DKMS_MODULE_NAME = ite_829x
 DKMS_MODULE_VERSION = $(VERSION)
 
-.PHONY: all clean cli daemon cpu-daemon kbd-daemon gui install uninstall deb help
+.PHONY: all clean cli daemon cpu-daemon kbd-daemon gui install uninstall deb help test
 
 all: $(CLI_TARGET) $(CPU_CLI_TARGET) $(DAEMON_TARGET) $(CPU_DAEMON_TARGET) $(KBD_DAEMON_TARGET) $(GUI_TARGET)
 
@@ -83,6 +83,7 @@ gui: $(GUI_TARGET)
 
 clean:
 	rm -f $(CLI_TARGET) $(CPU_CLI_TARGET) $(DAEMON_TARGET) $(CPU_DAEMON_TARGET) $(KBD_DAEMON_TARGET) $(GUI_TARGET)
+	rm -rf $(TEST_BUILD)
 	rm -f $(DEB_BUILD_DIR)/$(PACKAGE)_*.deb 2>/dev/null || true
 
 # Build .deb package
@@ -204,6 +205,52 @@ uninstall:
 	update-desktop-database >/dev/null 2>&1 || true
 	@echo "Uninstallation complete!"
 
+# ---------------------------------------------------------------------------
+# Test suite: "make test"
+# Builds test binaries with AddressSanitizer + UBSan into $(TEST_BUILD)/ and
+# runs tests/run_tests.sh. Needs no root and no hardware: daemons are built
+# with relative socket/sysfs/config paths and run in temporary directories.
+# ---------------------------------------------------------------------------
+TEST_BUILD = build-test
+TEST_CFLAGS = -g -O1 -fno-omit-frame-pointer -fsanitize=address,undefined -fno-sanitize-recover=undefined -Isrc
+# The current user's group plays the role of "dudes-control-center" in tests
+TEST_GROUP := $(shell id -gn)
+FAN_DAEMON_DEPS = src/dudes-control-center-fan-daemon.c $(COMMON_SRC) $(COMMON_HDR) $(LOG_SRC) $(LOG_HDR) $(SECURE_SRC) $(SECURE_HDR)
+CPU_DAEMON_DEPS = src/dudes-control-center-cpu-daemon.c src/dudes-control-center-cpu-common.c src/dudes-control-center-cpu-common.h $(LOG_SRC) $(LOG_HDR) $(SECURE_SRC) $(SECURE_HDR)
+
+TEST_BINS = $(TEST_BUILD)/test_fan_responses $(TEST_BUILD)/test_fan_safety \
+            $(TEST_BUILD)/test_secure_allow $(TEST_BUILD)/test_secure_deny \
+            $(TEST_BUILD)/cpud_test $(TEST_BUILD)/test_gui_save
+
+test: $(TEST_BINS)
+	bash tests/run_tests.sh $(TEST_BUILD)
+
+$(TEST_BUILD):
+	mkdir -p $@
+
+$(TEST_BUILD)/test_fan_responses: tests/test_fan_responses.c $(FAN_DAEMON_DEPS) | $(TEST_BUILD)
+	$(CC) $(TEST_CFLAGS) $(CJSON_CFLAGS) -o $@ tests/test_fan_responses.c $(COMMON_SRC) $(LOG_SRC) $(SECURE_SRC) $(CJSON_LIBS)
+
+$(TEST_BUILD)/test_fan_safety: tests/test_fan_safety.c $(FAN_DAEMON_DEPS) | $(TEST_BUILD)
+	$(CC) $(TEST_CFLAGS) $(CJSON_CFLAGS) -o $@ tests/test_fan_safety.c $(COMMON_SRC) $(LOG_SRC) $(SECURE_SRC) $(CJSON_LIBS)
+
+$(TEST_BUILD)/test_secure_allow: tests/test_secure.c $(SECURE_SRC) $(SECURE_HDR) $(LOG_SRC) | $(TEST_BUILD)
+	$(CC) $(TEST_CFLAGS) -DDCC_AUTH_GROUP='"$(TEST_GROUP)"' -o $@ tests/test_secure.c $(SECURE_SRC) $(LOG_SRC)
+
+$(TEST_BUILD)/test_secure_deny: tests/test_secure.c $(SECURE_SRC) $(SECURE_HDR) $(LOG_SRC) | $(TEST_BUILD)
+	$(CC) $(TEST_CFLAGS) -DDCC_AUTH_GROUP='"dcc-test-no-such-group"' -o $@ tests/test_secure.c $(SECURE_SRC) $(LOG_SRC)
+
+# The real CPU daemon with relative paths inside its working directory
+$(TEST_BUILD)/cpud_test: $(CPU_DAEMON_DEPS) | $(TEST_BUILD)
+	$(CC) $(TEST_CFLAGS) $(CJSON_CFLAGS) -DSOCKET_PATH='"cpu.sock"' -DCPU_LOG_DIR='"logs"' \
+	  -DCPUSYSFS='"sys"' -DCONTROL_CENTER_CONFIG_DIR='"cfg"' -DDCC_AUTH_GROUP='"$(TEST_GROUP)"' \
+	  -o $@ src/dudes-control-center-cpu-daemon.c src/dudes-control-center-cpu-common.c $(LOG_SRC) $(SECURE_SRC) $(CJSON_LIBS)
+
+$(TEST_BUILD)/test_gui_save: tests/test_gui_save.c src/dudes-control-center-gui.c $(COMMON_SRC) $(LOG_SRC) $(LOG_HDR) | $(TEST_BUILD)
+	$(CC) $(TEST_CFLAGS) -w $(GTK_CFLAGS) $(CJSON_CFLAGS) -DAPP_VERSION='"$(VERSION)"' \
+	  -DSOCKET_PATH='"fan.sock"' -DCPU_SOCKET_PATH='"cpu.sock"' \
+	  -o $@ tests/test_gui_save.c $(COMMON_SRC) $(LOG_SRC) $(GTK_LIBS) $(CJSON_LIBS) -lm
+
 # Help target
 help:
 	@echo "Dudes Control Center Build System (v$(VERSION))"
@@ -214,6 +261,7 @@ help:
 	@echo "  daemon   - Build daemon application only"
 	@echo "  gui      - Build GUI application only"
 	@echo "  clean    - Remove built binaries"
+	@echo "  test     - Build and run the test suite (sanitizers, no root needed)"
 	@echo "  deb      - Build .deb package"
 	@echo "  install  - Install all applications and systemd service"
 	@echo "  uninstall - Remove installed files"

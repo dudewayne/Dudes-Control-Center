@@ -8,6 +8,7 @@ dudes-control-center-daemon
 
 # Build artifacts
 build-deb/
+build-test/
 
 # Backup folders
 backup/

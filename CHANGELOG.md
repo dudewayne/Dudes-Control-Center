@@ -2,6 +2,16 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.17.0] - 2026-11-22
+
+### Added
+- **Automated test suite (`make test`)**: 6 suites, 82 checks, built with AddressSanitizer + UBSan. They cover the fixes from 1.16.1–1.16.4: the fan daemon response overflow, fan safety logic (mocked sensors/EC), socket authorization and symlink-safe file I/O, the real CPU daemon against a fake 24-core 5.3 GHz sysfs, and GUI profile saving and log routing against a fake fan daemon. No root or hardware needed; everything runs in temporary directories. See `tests/README.md`.
+- **GitHub Actions CI** (`.github/workflows/ci.yml`): on every push and pull request it builds all applications, runs the test suite and builds the `.deb` (uploaded as a build artifact). Logs of failing tests are uploaded too.
+- Socket paths in the GUI and CPU headers can be overridden at build time (used by the tests).
+
+### Removed
+- Obsolete v1.0 tests (`test.sh`, `tests/test_gui.py`, `tests/TEST_SUMMARY.md`): they used a `/tmp` socket path and an old project folder and no longer worked.
+
 ## [1.16.4] - 2026-11-22
 
 ### Fixed (CPU frequency control)
