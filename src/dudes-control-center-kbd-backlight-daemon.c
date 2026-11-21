@@ -742,14 +742,22 @@ int main(int argc, char *argv[]) {
     while (g_running) {
         fd_set read_fds;
         struct timeval timeout;
+        int max_fd = server_fd;
 
         FD_ZERO(&read_fds);
         FD_SET(server_fd, &read_fds);
 
+        /* Also monitor client socket for incoming data */
+        if (g_client_fd >= 0) {
+            FD_SET(g_client_fd, &read_fds);
+            if (g_client_fd > max_fd)
+                max_fd = g_client_fd;
+        }
+
         timeout.tv_sec = 1;
         timeout.tv_usec = 0;
 
-        int activity = select(server_fd + 1, &read_fds, NULL, NULL, &timeout);
+        int activity = select(max_fd + 1, &read_fds, NULL, NULL, &timeout);
 
         if (activity < 0) {
             if (errno == EINTR) continue;
@@ -771,8 +779,10 @@ int main(int argc, char *argv[]) {
             handle_client_nonblocking(client_fd);
         }
 
-        /* Process any pending client data */
-        process_client();
+        /* Process client data if there's activity on the client socket */
+        if (g_client_fd >= 0 && FD_ISSET(g_client_fd, &read_fds)) {
+            process_client();
+        }
     }
 
     /* Cleanup */
