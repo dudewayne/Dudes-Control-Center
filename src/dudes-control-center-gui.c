@@ -5900,10 +5900,9 @@ static GtkWidget *create_keyboard_page(AppData *app) {
 
     /* Keyboard schematic canvas */
     app->kbd_keyboard_canvas = gtk_drawing_area_new();
-    gtk_widget_set_size_request(app->kbd_keyboard_canvas, -1, 300);
     g_signal_connect(app->kbd_keyboard_canvas, "draw", G_CALLBACK(kbd_canvas_draw), app);
     g_signal_connect(app->kbd_keyboard_canvas, "button-press-event", G_CALLBACK(kbd_canvas_button_press), app);
-    gtk_box_pack_start(GTK_BOX(zone_vbox), app->kbd_keyboard_canvas, TRUE, TRUE, 0);
+    gtk_box_pack_start(GTK_BOX(zone_vbox), app->kbd_keyboard_canvas, FALSE, FALSE, 0);
 
     /* Load keyboard image */
     app->kbd_keyboard_image = cairo_image_surface_create_from_png("/usr/share/doc/dudes-control-center/images/keyboard_dark.png");
@@ -5912,6 +5911,11 @@ static GtkWidget *create_keyboard_page(AppData *app) {
                 cairo_status_to_string(cairo_surface_status(app->kbd_keyboard_image)));
         cairo_surface_destroy(app->kbd_keyboard_image);
         app->kbd_keyboard_image = NULL;
+        gtk_widget_set_size_request(app->kbd_keyboard_canvas, -1, 200); /* fallback height */
+    } else {
+        /* Set canvas height to match image height, width fills available space */
+        int img_h = (int)cairo_image_surface_get_height(app->kbd_keyboard_image);
+        gtk_widget_set_size_request(app->kbd_keyboard_canvas, -1, img_h);
     }
 
     /* Add zone / Apply buttons row */
