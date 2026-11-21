@@ -77,6 +77,11 @@ static int handle_command(const char *cmd, char *response, size_t resp_size) {
             strncpy(arg1, pos, len < sizeof(arg1)-1 ? len : sizeof(arg1)-1);
             arg1[sizeof(arg1)-1] = '\0';
             pos = sep + 2;
+        } else {
+            if (*pos != '\0') {
+                strncpy(arg1, pos, sizeof(arg1)-1);
+                arg1[sizeof(arg1)-1] = '\0';
+            }
         }
 
         sep = strstr(pos, "::");
@@ -85,6 +90,11 @@ static int handle_command(const char *cmd, char *response, size_t resp_size) {
             strncpy(arg2, pos, len < sizeof(arg2)-1 ? len : sizeof(arg2)-1);
             arg2[sizeof(arg2)-1] = '\0';
             pos = sep + 2;
+        } else {
+            if (*pos != '\0') {
+                strncpy(arg2, pos, sizeof(arg2)-1);
+                arg2[sizeof(arg2)-1] = '\0';
+            }
         }
 
         if (*pos != '\0') {
