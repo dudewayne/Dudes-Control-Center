@@ -4071,33 +4071,31 @@ static void kbd_save_led_mapping_csv(AppData *app) {
         return;
     }
     
-    /* Write header (semicolon delimiter to avoid conflicts with key names containing commas) */
-    fprintf(f, "led_id;key_name;led_index\n");
+    /* Write header (semicolon delimiter) */
+    fprintf(f, "led_id;position;led_index\n");
     
-    /* Track which keys have been written and count LEDs per key */
-    int key_led_count[120] = {0};
-    int key_written[120] = {0};
+    /* Track which positions have been written and count LEDs per position */
+    int pos_led_count[120] = {0};
     
-    /* First pass: count LEDs per key */
+    /* First pass: count LEDs per position */
     for (int led = 0; led < 120; led++) {
         int pos = app->kbd_wizard_mapping[led];
         if (pos >= 0 && pos < 120) {
-            key_led_count[pos]++;
+            pos_led_count[pos]++;
         }
     }
     
     /* Second pass: write entries */
-    int key_led_written[120] = {0};
+    int pos_led_written[120] = {0};
     for (int led = 0; led < 120; led++) {
         int pos = app->kbd_wizard_mapping[led];
         if (pos >= 0 && pos < 120) {
-            const char *key_name = kbd_key_names[pos];
             char led_index_col[16] = "";
-            if (key_led_count[pos] > 1) {
-                snprintf(led_index_col, sizeof(led_index_col), "%d", key_led_written[pos]);
+            if (pos_led_count[pos] > 1) {
+                snprintf(led_index_col, sizeof(led_index_col), "%d", pos_led_written[pos]);
             }
-            fprintf(f, "%d;%s;%s\n", led, key_name, led_index_col);
-            key_led_written[pos]++;
+            fprintf(f, "%d;%d;%s\n", led, pos, led_index_col);
+            pos_led_written[pos]++;
         } else {
             /* Unmapped LED */
             fprintf(f, "%d;;\n", led);
@@ -4105,7 +4103,6 @@ static void kbd_save_led_mapping_csv(AppData *app) {
     }
     
     fclose(f);
-    g_print("[GUI] LED mapping saved to %s\n", csv_path);
 }
 
 /* Load LED mapping from CSV file */
@@ -4135,25 +4132,19 @@ static void kbd_load_led_mapping_csv(AppData *app) {
         /* Remove newline */
         line[strcspn(line, "\n")] = 0;
         
-        /* Parse: led_id;key_name;led_index (semicolon delimiter) */
+        /* Parse: led_id;position;led_index (semicolon delimiter) */
         int led_id = -1;
-        char key_name[64] = "";
+        int position = -1;
         
         char *token = strtok(line, ";");
         if (token) led_id = atoi(token);
         token = strtok(NULL, ";");
-        if (token) strncpy(key_name, token, sizeof(key_name) - 1);
+        if (token) position = atoi(token);
         
         if (led_id < 0 || led_id >= 120) continue;
-        if (strlen(key_name) == 0) continue; /* Unmapped LED */
+        if (position < 0 || position >= 120) continue; /* Unmapped LED */
         
-        /* Find the key position by name */
-        for (int pos = 0; pos < 120; pos++) {
-            if (strcmp(kbd_key_names[pos], key_name) == 0) {
-                app->kbd_wizard_mapping[led_id] = pos;
-                break;
-            }
-        }
+        app->kbd_wizard_mapping[led_id] = position;
     }
     
     fclose(f);
@@ -4286,8 +4277,18 @@ static gboolean kbd_canvas_button_press(GtkWidget *widget, GdkEventButton *event
             /* Handle wizard mode */
             if (app->kbd_wizard_active) {
                 /* Assign this key position to the current LED */
-                app->kbd_wizard_mapping[app->kbd_wizard_current_led] = (int)i;
+                int current_led = app->kbd_wizard_current_led;
+                app->kbd_wizard_mapping[current_led] = (int)i;
                 const char *key_name = (i < 120) ? kbd_key_names[i] : "Unknown";
+                
+                /* Highlight the just-clicked LED on canvas BEFORE advancing */
+                app->kbd_num_selected_leds = 1;
+                app->kbd_selected_led_indices[0] = current_led;
+                kbd_redraw_canvas(app);
+                /* Force GTK to process the draw immediately */
+                while (gtk_events_pending()) {
+                    gtk_main_iteration();
+                }
                 
                 /* Move to next LED */
                 app->kbd_wizard_current_led++;
