@@ -3178,12 +3178,18 @@ static void connect_to_keyboard_daemon(AppData *app) {
         g_print("[GUI] Keyboard daemon socket not found at %s. Keyboard tab will be unavailable.\n", KBD_SOCKET_PATH);
         app->kbd_socket_fd = -1;
         app->kbd_connected = 0;
+        if (app->kbd_status_label) {
+            gtk_label_set_text(GTK_LABEL(app->kbd_status_label), "Keyboard daemon not connected");
+        }
         return;
     }
 
     app->kbd_socket_fd = socket(AF_UNIX, SOCK_STREAM, 0);
     if (app->kbd_socket_fd < 0) {
         g_print("[GUI] Failed to create keyboard socket: %s\n", strerror(errno));
+        if (app->kbd_status_label) {
+            gtk_label_set_text(GTK_LABEL(app->kbd_status_label), "Keyboard daemon socket creation failed");
+        }
         return;
     }
 
@@ -3196,10 +3202,16 @@ static void connect_to_keyboard_daemon(AppData *app) {
         g_print("[GUI] Failed to connect to keyboard daemon: %s\n", strerror(errno));
         close(app->kbd_socket_fd);
         app->kbd_socket_fd = -1;
+        if (app->kbd_status_label) {
+            gtk_label_set_text(GTK_LABEL(app->kbd_status_label), "Keyboard daemon connection failed");
+        }
         return;
     }
 
     app->kbd_connected = 1;
+    if (app->kbd_status_label) {
+        gtk_label_set_text(GTK_LABEL(app->kbd_status_label), "Keyboard daemon connected");
+    }
     g_print("[GUI] Connected to keyboard daemon successfully!\n");
 }
 
@@ -3209,6 +3221,9 @@ static void disconnect_from_keyboard_daemon(AppData *app) {
         close(app->kbd_socket_fd);
         app->kbd_socket_fd = -1;
         app->kbd_connected = 0;
+        if (app->kbd_status_label) {
+            gtk_label_set_text(GTK_LABEL(app->kbd_status_label), "Keyboard daemon not connected");
+        }
     }
 }
 
