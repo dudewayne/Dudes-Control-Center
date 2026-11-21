@@ -544,7 +544,7 @@ static const char *send_cpu_command(AppData *app, const char *cmd) {
     if (strcmp(cmd, "STATUS") != 0) {
         char ts[32];
         get_timestamp(ts, sizeof(ts));
-        g_print("%s [GUI] CPU Received (%zd bytes): %s...\n", ts, received, response);
+        g_print("%s [GUI] CPU Received (%zd bytes): %s...\n", ts, total_received, response);
     }
 
     return response;
