@@ -4204,17 +4204,32 @@ static gboolean kbd_canvas_draw(GtkWidget *widget, cairo_t *cr, gpointer user_da
                 }
             }
             
+            /* Also check if this LED has a mapping from CSV (loaded wizard data) - only when wizard is not active */
+            int has_mapping = 0;
+            if (!app->kbd_wizard_active && led_id >= 0 && led_id < 120 && app->kbd_wizard_mapping[led_id] == i) {
+                has_mapping = 1;
+            }
+            
             /* Draw overlay */
-            if (is_selected) {
-                /* Selected keys - green highlight */
-                cairo_set_source_rgba(cr, 0.0, 1.0, 0.0, 0.3);
+            if (is_selected || has_mapping) {
+                /* Selected keys - green highlight, mapped keys - blue highlight */
+                if (is_selected) {
+                    cairo_set_source_rgba(cr, 0.0, 1.0, 0.0, 0.3);
+                } else {
+                    cairo_set_source_rgba(cr, 0.0, 0.0, 1.0, 0.25);
+                }
                 cairo_rectangle(cr,
                     offset_x + key->x * scale,
                     offset_y + key->y * scale,
                     key->w * scale,
                     key->h * scale);
                 cairo_fill(cr);
-                cairo_set_source_rgb(cr, 0.0, 1.0, 0.0);
+                /* Border color matches highlight */
+                if (is_selected) {
+                    cairo_set_source_rgb(cr, 0.0, 1.0, 0.0);
+                } else {
+                    cairo_set_source_rgb(cr, 0.0, 0.0, 1.0);
+                }
                 cairo_set_line_width(cr, 2.0);
                 cairo_stroke(cr);
             }
@@ -5131,6 +5146,11 @@ static void on_notebook_page_switched(GtkNotebook *notebook, GtkWidget *page, gi
 
         /* Load keyboard profiles */
         load_keyboard_profiles(app);
+        
+        /* Redraw canvas to show loaded LED mapping */
+        if (app->kbd_keyboard_canvas) {
+            gtk_widget_queue_draw(app->kbd_keyboard_canvas);
+        }
     }
 }
 
