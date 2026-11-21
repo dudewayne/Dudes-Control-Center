@@ -634,34 +634,34 @@ static void process_client(void) {
 
     buffer[bytes_read] = '\0';
 
-    /* Remove trailing newline */
-    size_t buf_len = strlen(buffer);
-    if (buf_len > 0 && buffer[buf_len - 1] == '\n') {
-        buffer[buf_len - 1] = '\0';
-    }
+    /* Process each line as a separate command */
+    char *line = strtok(buffer, "\n");
+    while (line != NULL && strlen(line) > 0) {
+        LOG_DEBUG("[KBD_DAEMON] Received command: '%s'", line);
 
-    LOG_DEBUG("[KBD_DAEMON] Received command: '%s'", buffer);
+        response[0] = '\0';
+        handle_command(line, response, sizeof(response));
 
-    response[0] = '\0';
-    handle_command(buffer, response, sizeof(response));
+        LOG_DEBUG("[KBD_DAEMON] Sending response: '%s'", response);
 
-    LOG_DEBUG("[KBD_DAEMON] Sending response: '%s'", response);
-
-    size_t total_len = strlen(response);
-    size_t total_sent = 0;
-    while (total_sent < total_len) {
-        ssize_t bytes_written = write(g_client_fd, response + total_sent, total_len - total_sent);
-        if (bytes_written < 0) {
-            if (errno == EAGAIN || errno == EWOULDBLOCK) {
-                usleep(1000);
-                continue;
+        size_t total_len = strlen(response);
+        size_t total_sent = 0;
+        while (total_sent < total_len) {
+            ssize_t bytes_written = write(g_client_fd, response + total_sent, total_len - total_sent);
+            if (bytes_written < 0) {
+                if (errno == EAGAIN || errno == EWOULDBLOCK) {
+                    usleep(1000);
+                    continue;
+                }
+                LOG_ERROR("[KBD_DAEMON] Error writing to client: %s", strerror(errno));
+                close(g_client_fd);
+                g_client_fd = -1;
+                return;
             }
-            LOG_ERROR("[KBD_DAEMON] Error writing to client: %s", strerror(errno));
-            close(g_client_fd);
-            g_client_fd = -1;
-            return;
+            total_sent += bytes_written;
         }
-        total_sent += bytes_written;
+
+        line = strtok(NULL, "\n");
     }
 }
 
