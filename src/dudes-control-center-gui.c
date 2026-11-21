@@ -285,6 +285,7 @@ static void connect_to_keyboard_daemon(AppData *app);
 static void disconnect_from_keyboard_daemon(AppData *app);
 static const char *send_keyboard_command(AppData *app, const char *cmd);
 static void load_keyboard_profiles(AppData *app);
+static void on_kbd_create_profile_clicked(GtkWidget *widget, gpointer user_data);
 static gboolean cpu_refresh_timer_callback(gpointer user_data);
 static void load_cpu_governors(AppData *app);
 static void on_cpu_governor_changed(GtkWidget *widget, gpointer user_data);
@@ -3377,6 +3378,115 @@ static void load_keyboard_profiles(AppData *app) {
     g_print("[GUI] Loaded %d keyboard profiles (active idx=%d)\n", profile_count, active_idx);
 }
 
+/* Callback: Create new keyboard profile */
+static void on_kbd_create_profile_clicked(GtkWidget *widget, gpointer user_data) {
+    (void)widget;
+    AppData *app = (AppData *)user_data;
+    g_print("[GUI] Create keyboard profile clicked\n");
+
+    if (!app->kbd_connected) {
+        g_print("[GUI] Keyboard daemon not connected, skipping\n");
+        return;
+    }
+
+    /* Show dialog to enter profile name */
+    GtkWidget *dialog = gtk_dialog_new_with_buttons("Create Keyboard Profile",
+                                                    GTK_WINDOW(app->window),
+                                                    GTK_DIALOG_MODAL | GTK_DIALOG_DESTROY_WITH_PARENT,
+                                                    "_Cancel", GTK_RESPONSE_CANCEL,
+                                                    "_Create", GTK_RESPONSE_ACCEPT,
+                                                    NULL);
+    gtk_window_set_resizable(GTK_WINDOW(dialog), FALSE);
+    gtk_window_set_default_size(GTK_WINDOW(dialog), 350, -1);
+
+    GtkWidget *content = gtk_dialog_get_content_area(GTK_DIALOG(dialog));
+    gtk_container_set_border_width(GTK_CONTAINER(content), 10);
+
+    GtkWidget *label = gtk_label_new("Enter profile name:");
+    gtk_box_pack_start(GTK_BOX(content), label, FALSE, FALSE, 0);
+
+    GtkWidget *entry = gtk_entry_new();
+    gtk_box_pack_start(GTK_BOX(content), entry, TRUE, TRUE, 0);
+
+    gtk_widget_show_all(content);
+
+    /* Set Accept as default so Enter key triggers profile creation */
+    gtk_dialog_set_default_response(GTK_DIALOG(dialog), GTK_RESPONSE_ACCEPT);
+    g_signal_connect(entry, "activate", G_CALLBACK(on_entry_activate), dialog);
+
+    if (gtk_dialog_run(GTK_DIALOG(dialog)) == GTK_RESPONSE_ACCEPT) {
+        const gchar *name = gtk_entry_get_text(GTK_ENTRY(entry));
+
+        if (strlen(name) > 0) {
+            /* Check for duplicate profile name */
+            int duplicate = 0;
+            GtkTreeIter iter;
+            if (gtk_tree_model_get_iter_first(GTK_TREE_MODEL(app->kbd_profile_store), &iter)) {
+                do {
+                    gchar *existing_name = NULL;
+                    gtk_tree_model_get(GTK_TREE_MODEL(app->kbd_profile_store), &iter, 0, &existing_name, -1);
+                    if (existing_name && strcmp(existing_name, name) == 0) {
+                        duplicate = 1;
+                        g_free(existing_name);
+                        break;
+                    }
+                    g_free(existing_name);
+                } while (gtk_tree_model_iter_next(GTK_TREE_MODEL(app->kbd_profile_store), &iter));
+            }
+
+            if (duplicate) {
+                GtkWidget *error_dialog = gtk_message_dialog_new(GTK_WINDOW(app->window),
+                                                                 GTK_DIALOG_MODAL | GTK_DIALOG_DESTROY_WITH_PARENT,
+                                                                 GTK_MESSAGE_ERROR,
+                                                                 GTK_BUTTONS_OK,
+                                                                 "A keyboard profile with the name '%s' already exists.",
+                                                                 name);
+                gtk_dialog_run(GTK_DIALOG(error_dialog));
+                gtk_widget_destroy(error_dialog);
+                gtk_widget_destroy(dialog);
+                return;
+            }
+
+            /* Send CREATE_PROFILE command using :: delimiter for names with spaces */
+            char cmd[512];
+            snprintf(cmd, sizeof(cmd), "CREATE_PROFILE::%s", name);
+            const char *response = send_keyboard_command(app, cmd);
+            g_print("[GUI] CREATE_PROFILE response: %s\n", response ? response : "NULL");
+
+            /* Reload the profile list */
+            load_keyboard_profiles(app);
+
+            /* Find and select the newly created profile */
+            int new_idx = -1;
+            if (gtk_tree_model_get_iter_first(GTK_TREE_MODEL(app->kbd_profile_store), &iter)) {
+                int i = 0;
+                do {
+                    gchar *existing_name = NULL;
+                    gtk_tree_model_get(GTK_TREE_MODEL(app->kbd_profile_store), &iter, 0, &existing_name, -1);
+                    if (existing_name && strcmp(existing_name, name) == 0) {
+                        new_idx = i;
+                        g_free(existing_name);
+                        break;
+                    }
+                    g_free(existing_name);
+                    i++;
+                } while (gtk_tree_model_iter_next(GTK_TREE_MODEL(app->kbd_profile_store), &iter));
+            }
+
+            if (new_idx >= 0) {
+                gtk_combo_box_set_active(GTK_COMBO_BOX(app->kbd_profile_combo), new_idx);
+                app->kbd_active_profile_idx = new_idx;
+                g_print("[GUI] Selected newly created keyboard profile at index %d\n", new_idx);
+            }
+
+            gtk_label_set_text(GTK_LABEL(app->kbd_profile_status_label),
+                              "Profile created successfully");
+        }
+    }
+
+    gtk_widget_destroy(dialog);
+}
+
 /* Parse STATUS response and update UI */
 static void parse_status(AppData *app, const char *response) {
     char buffer[BUFFER_SIZE];
@@ -5121,6 +5231,7 @@ static GtkWidget *create_keyboard_page(AppData *app) {
     /* Profile buttons row */
     GtkWidget *btn_row = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 6);
     app->kbd_profile_create_btn = gtk_button_new_from_stock(GTK_STOCK_ADD);
+    g_signal_connect(app->kbd_profile_create_btn, "clicked", G_CALLBACK(on_kbd_create_profile_clicked), app);
     app->kbd_profile_delete_btn = gtk_button_new_from_stock(GTK_STOCK_REMOVE);
     app->kbd_profile_rename_btn = gtk_button_new_with_label("Rename");
     gtk_box_pack_start(GTK_BOX(btn_row), app->kbd_profile_create_btn, FALSE, FALSE, 0);

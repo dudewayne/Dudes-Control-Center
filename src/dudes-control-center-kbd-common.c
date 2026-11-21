@@ -801,6 +801,33 @@ int kbd_profile_delete_json(const char *name) {
     return -1;
 }
 
+/* Create an empty profile in profiles.json */
+int kbd_profile_create_json(const char *name) {
+    /* Check if profile already exists */
+    for (int i = 0; i < g_num_profiles; i++) {
+        if (strcmp(g_profiles[i].name, name) == 0) {
+            LOG_ERROR("[KBD] Profile '%s' already exists", name);
+            return -1;
+        }
+    }
+
+    /* Check max profiles */
+    if (g_num_profiles >= KBD_MAX_PROFILES) {
+        LOG_ERROR("[KBD] Too many profiles (max %d)", KBD_MAX_PROFILES);
+        return -1;
+    }
+
+    /* Create empty profile */
+    KbdLedProfile *p = &g_profiles[g_num_profiles];
+    strncpy(p->name, name, KBD_PROFILE_NAME_MAX - 1);
+    p->name[KBD_PROFILE_NAME_MAX - 1] = '\0';
+    p->num_zones = 0;
+    g_num_profiles++;
+
+    LOG_INFO("[KBD] Created empty profile '%s'", name);
+    return kbd_profiles_save_json();
+}
+
 /* List profiles from profiles.json */
 int kbd_profile_list_json(char *buffer, size_t buf_size) {
     int offset = 0;

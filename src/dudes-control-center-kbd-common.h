@@ -111,6 +111,7 @@ int kbd_profiles_load_json(void);      /* Load keyboard profiles from profiles.j
 int kbd_profiles_save_json(void);      /* Save keyboard profiles to profiles.json */
 int kbd_profile_save_json(const char *name);  /* Save current profile to profiles.json */
 int kbd_profile_load_json(const char *name);  /* Load a profile from profiles.json */
+int kbd_profile_create_json(const char *name);  /* Create an empty profile in profiles.json */
 int kbd_profile_delete_json(const char *name);/* Delete a profile from profiles.json */
 int kbd_profile_list_json(char *buffer, size_t buf_size); /* List profiles from profiles.json */
 int kbd_get_active_profile_index(void); /* Get active keyboard profile index */

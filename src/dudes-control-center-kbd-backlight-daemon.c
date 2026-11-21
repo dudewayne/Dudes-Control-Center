@@ -545,6 +545,18 @@ static int handle_command(const char *cmd, char *response, size_t resp_size) {
         }
     }
 
+    /* Command: CREATE_PROFILE <name> */
+    if (strcmp(action, "CREATE_PROFILE") == 0) {
+        LOG_INFO("[KBD_DAEMON] CREATE_PROFILE: '%s'", arg1);
+        if (kbd_profile_create_json(arg1) == 0) {
+            snprintf(response, resp_size, "OK Profile created: %s\n", arg1);
+            return 0;
+        } else {
+            snprintf(response, resp_size, "ERROR Failed to create profile\n");
+            return -1;
+        }
+    }
+
     /* Command: LIST_PROFILES */
     if (strcmp(action, "LIST_PROFILES") == 0) {
         char profiles_buf[KBD_MAX_RESPONSE_LEN];
