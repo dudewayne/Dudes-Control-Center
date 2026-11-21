@@ -19,6 +19,7 @@
 #include <math.h>
 #include <stdbool.h>
 #include <cjson/cJSON.h>
+#include <poll.h>
 
 /* Define M_PI if not already defined */
 #ifndef M_PI
@@ -495,26 +496,49 @@ static const char *send_cpu_command(AppData *app, const char *cmd) {
     }
 
     memset(response, 0, sizeof(response));
-    ssize_t received = read(app->cpu_socket_fd, response, sizeof(response) - 1);
-    if (received < 0) {
-        char ts[32];
-        get_timestamp(ts, sizeof(ts));
-        g_print("%s [GUI] CPU ERROR: Failed to receive response (%s), marking disconnected\n", ts, strerror(errno));
-        app->cpu_connected = 0;
-        if (app->cpu_socket_fd >= 0) {
-            close(app->cpu_socket_fd);
-            app->cpu_socket_fd = -1;
+    size_t total_received = 0;
+    while (total_received < sizeof(response) - 1) {
+        struct pollfd pfd;
+        pfd.fd = app->cpu_socket_fd;
+        pfd.events = POLLIN;
+        int poll_ret = poll(&pfd, 1, 200); /* 200ms timeout */
+        if (poll_ret < 0) {
+            char ts[32];
+            get_timestamp(ts, sizeof(ts));
+            g_print("%s [GUI] CPU ERROR: poll failed (%s), marking disconnected\n", ts, strerror(errno));
+            app->cpu_connected = 0;
+            if (app->cpu_socket_fd >= 0) {
+                close(app->cpu_socket_fd);
+                app->cpu_socket_fd = -1;
+            }
+            strcpy(response, "ERROR Failed to receive CPU response");
+            return response;
         }
-        strcpy(response, "ERROR Failed to receive CPU response");
-        return response;
-    }
-    if (received == 0) {
-        char ts[32];
-        get_timestamp(ts, sizeof(ts));
-        g_print("%s [GUI] CPU ERROR: Connection closed by daemon (EOF)\n", ts);
-        strcpy(response, "ERROR CPU connection closed");
-        app->cpu_connected = 0;
-        return response;
+        if (poll_ret == 0) break; /* No more data within timeout */
+
+        ssize_t received = read(app->cpu_socket_fd, response + total_received, sizeof(response) - 1 - total_received);
+        if (received < 0) {
+            if (errno == EAGAIN || errno == EWOULDBLOCK) break;
+            char ts[32];
+            get_timestamp(ts, sizeof(ts));
+            g_print("%s [GUI] CPU ERROR: Failed to receive response (%s), marking disconnected\n", ts, strerror(errno));
+            app->cpu_connected = 0;
+            if (app->cpu_socket_fd >= 0) {
+                close(app->cpu_socket_fd);
+                app->cpu_socket_fd = -1;
+            }
+            strcpy(response, "ERROR Failed to receive CPU response");
+            return response;
+        }
+        if (received == 0) {
+            char ts[32];
+            get_timestamp(ts, sizeof(ts));
+            g_print("%s [GUI] CPU ERROR: Connection closed by daemon (EOF)\n", ts);
+            strcpy(response, "ERROR CPU connection closed");
+            app->cpu_connected = 0;
+            return response;
+        }
+        total_received += received;
     }
 
     if (strcmp(cmd, "STATUS") != 0) {
@@ -1388,17 +1412,17 @@ static void on_cpu_save_freq_profile_clicked(GtkWidget *widget, gpointer user_da
     LOG_INFO("Save deferred to idle callback, button disabled");
 }
 
-/* Callback: Activate (apply) the selected frequency profile to the CPU */
-static void on_cpu_activate_freq_profile_clicked(GtkWidget *widget, gpointer user_data) {
-    (void)widget;
-    AppData *app = (AppData *)user_data;
-    g_print("[GUI] Activate frequency profile clicked\n");
+/* Idle callback struct for activate profile */
+typedef struct {
+    AppData *app;
+    int profile_idx;
+} ActivateIdleData;
 
-    int idx = gtk_combo_box_get_active(GTK_COMBO_BOX(app->cpu_custom_profile_combo));
-    if (idx < 0) {
-        gtk_label_set_text(GTK_LABEL(app->cpu_freq_profile_status_label), "No profile selected");
-        return;
-    }
+static gboolean activate_profile_idle_callback(gpointer user_data) {
+    ActivateIdleData *data = (ActivateIdleData *)user_data;
+    AppData *app = data->app;
+    int idx = data->profile_idx;
+    g_free(data);
 
     /* Apply the profile */
     char cmd[256];
@@ -1415,6 +1439,30 @@ static void on_cpu_activate_freq_profile_clicked(GtkWidget *widget, gpointer use
     char status_msg[128];
     snprintf(status_msg, sizeof(status_msg), "Activated profile");
     gtk_label_set_text(GTK_LABEL(app->cpu_freq_profile_status_label), status_msg);
+
+    return FALSE; /* One-shot */
+}
+
+/* Callback: Activate (apply) the selected frequency profile to the CPU */
+static void on_cpu_activate_freq_profile_clicked(GtkWidget *widget, gpointer user_data) {
+    (void)widget;
+    AppData *app = (AppData *)user_data;
+    g_print("[GUI] Activate frequency profile clicked\n");
+
+    int idx = gtk_combo_box_get_active(GTK_COMBO_BOX(app->cpu_custom_profile_combo));
+    if (idx < 0) {
+        gtk_label_set_text(GTK_LABEL(app->cpu_freq_profile_status_label), "No profile selected");
+        return;
+    }
+
+    /* Defer the apply + reload + save to an idle callback so GTK can finish
+     * processing the button click before we destroy/rebuild the grid widgets.
+     * This prevents race conditions with pending signal handlers. */
+    ActivateIdleData *data = g_new0(ActivateIdleData, 1);
+    data->app = app;
+    data->profile_idx = idx;
+    g_idle_add(activate_profile_idle_callback, data);
+    gtk_label_set_text(GTK_LABEL(app->cpu_freq_profile_status_label), "Activating...");
 }
 
 /* Callback: Apply hard frequency limit */
@@ -2805,7 +2853,10 @@ static void gui_save_profiles_to_disk(AppData *app) {
                 if (app->cpu_active_custom_profile_idx >= 0) {
                     cJSON *active_profile = cJSON_GetArrayItem(cpu_profiles_array, app->cpu_active_custom_profile_idx);
                     if (active_profile) {
-                        int checkbox_state = gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(app->cpu_apply_all_cores_checkbox)) ? 1 : 0;
+                        int checkbox_state = 0;
+                        if (GTK_IS_TOGGLE_BUTTON(app->cpu_apply_all_cores_checkbox)) {
+                            checkbox_state = gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(app->cpu_apply_all_cores_checkbox)) ? 1 : 0;
+                        }
                         cJSON_ReplaceItemInObject(active_profile, "apply_all_cores", cJSON_CreateNumber(checkbox_state));
                     }
                 }
@@ -2816,7 +2867,10 @@ static void gui_save_profiles_to_disk(AppData *app) {
 
                 /* Get the current hard limit value from the spinner */
                 {
-                    double ghz = gtk_spin_button_get_value(GTK_SPIN_BUTTON(app->cpu_hard_limit_spinner));
+                    double ghz = 0;
+                    if (GTK_IS_SPIN_BUTTON(app->cpu_hard_limit_spinner)) {
+                        ghz = gtk_spin_button_get_value(GTK_SPIN_BUTTON(app->cpu_hard_limit_spinner));
+                    }
                     uint32_t hz = (uint32_t)(ghz * 1000000000.0);
                     if (hz > 0) {
                         cJSON_AddNumberToObject(cpu_section, "cpu_hard_limit_hz", (double)hz);

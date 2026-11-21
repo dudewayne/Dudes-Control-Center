@@ -879,13 +879,21 @@ static void process_client(void) {
     memset(response, 0, sizeof(response));
     handle_command(buffer, response, sizeof(response));
 
-    ssize_t bytes_written = write(g_client_fd, response, strlen(response));
-    if (bytes_written < 0) {
-        if (errno != EAGAIN && errno != EWOULDBLOCK) {
+    size_t total_len = strlen(response);
+    size_t total_sent = 0;
+    while (total_sent < total_len) {
+        ssize_t bytes_written = write(g_client_fd, response + total_sent, total_len - total_sent);
+        if (bytes_written < 0) {
+            if (errno == EAGAIN || errno == EWOULDBLOCK) {
+                usleep(1000); /* 1ms wait for non-blocking socket */
+                continue;
+            }
             LOG_ERROR("[DAEMON] Error writing to client: %s", strerror(errno));
             close(g_client_fd);
             g_client_fd = -1;
+            return;
         }
+        total_sent += bytes_written;
     }
 }
 
