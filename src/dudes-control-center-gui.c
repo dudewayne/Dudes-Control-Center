@@ -286,6 +286,7 @@ static void disconnect_from_keyboard_daemon(AppData *app);
 static const char *send_keyboard_command(AppData *app, const char *cmd);
 static void load_keyboard_profiles(AppData *app);
 static void on_kbd_create_profile_clicked(GtkWidget *widget, gpointer user_data);
+static void on_kbd_delete_profile_clicked(GtkWidget *widget, gpointer user_data);
 static gboolean cpu_refresh_timer_callback(gpointer user_data);
 static void load_cpu_governors(AppData *app);
 static void on_cpu_governor_changed(GtkWidget *widget, gpointer user_data);
@@ -3487,6 +3488,66 @@ static void on_kbd_create_profile_clicked(GtkWidget *widget, gpointer user_data)
     gtk_widget_destroy(dialog);
 }
 
+/* Callback: Delete keyboard profile */
+static void on_kbd_delete_profile_clicked(GtkWidget *widget, gpointer user_data) {
+    (void)widget;
+    AppData *app = (AppData *)user_data;
+    g_print("[GUI] Delete keyboard profile clicked\n");
+
+    if (!app->kbd_connected) {
+        g_print("[GUI] Keyboard daemon not connected, skipping\n");
+        return;
+    }
+
+    /* Get currently selected profile */
+    int active = gtk_combo_box_get_active(GTK_COMBO_BOX(app->kbd_profile_combo));
+    if (active < 0) {
+        g_print("[GUI] No profile selected for deletion\n");
+        return;
+    }
+
+    /* Get the profile name */
+    gchar *profile_name = NULL;
+    GtkTreeIter iter;
+    if (!gtk_combo_box_get_active_iter(GTK_COMBO_BOX(app->kbd_profile_combo), &iter)) {
+        g_print("[GUI] Could not get selected profile\n");
+        return;
+    }
+    gtk_tree_model_get(GTK_TREE_MODEL(app->kbd_profile_store), &iter, 0, &profile_name, -1);
+    if (!profile_name) {
+        g_print("[GUI] Could not get profile name\n");
+        return;
+    }
+
+    /* Show confirmation dialog */
+    GtkWidget *dialog = gtk_message_dialog_new(GTK_WINDOW(app->window),
+                                                GTK_DIALOG_MODAL | GTK_DIALOG_DESTROY_WITH_PARENT,
+                                                GTK_MESSAGE_QUESTION,
+                                                GTK_BUTTONS_YES_NO,
+                                                "Are you sure you want to delete keyboard profile '%s'?",
+                                                profile_name);
+    gtk_window_set_title(GTK_WINDOW(dialog), "Delete Profile");
+
+    int result = gtk_dialog_run(GTK_DIALOG(dialog));
+    gtk_widget_destroy(dialog);
+
+    if (result == GTK_RESPONSE_YES) {
+        /* Send DELETE_PROFILE command using :: delimiter for names with spaces */
+        char cmd[512];
+        snprintf(cmd, sizeof(cmd), "DELETE_PROFILE::%s", profile_name);
+        const char *response = send_keyboard_command(app, cmd);
+        g_print("[GUI] DELETE_PROFILE response: %s\n", response ? response : "NULL");
+
+        /* Reload the profile list */
+        load_keyboard_profiles(app);
+
+        gtk_label_set_text(GTK_LABEL(app->kbd_profile_status_label),
+                          "Profile deleted successfully");
+    }
+
+    g_free(profile_name);
+}
+
 /* Parse STATUS response and update UI */
 static void parse_status(AppData *app, const char *response) {
     char buffer[BUFFER_SIZE];
@@ -5233,6 +5294,7 @@ static GtkWidget *create_keyboard_page(AppData *app) {
     app->kbd_profile_create_btn = gtk_button_new_from_stock(GTK_STOCK_ADD);
     g_signal_connect(app->kbd_profile_create_btn, "clicked", G_CALLBACK(on_kbd_create_profile_clicked), app);
     app->kbd_profile_delete_btn = gtk_button_new_from_stock(GTK_STOCK_REMOVE);
+    g_signal_connect(app->kbd_profile_delete_btn, "clicked", G_CALLBACK(on_kbd_delete_profile_clicked), app);
     app->kbd_profile_rename_btn = gtk_button_new_with_label("Rename");
     gtk_box_pack_start(GTK_BOX(btn_row), app->kbd_profile_create_btn, FALSE, FALSE, 0);
     gtk_box_pack_start(GTK_BOX(btn_row), app->kbd_profile_delete_btn, FALSE, FALSE, 0);

@@ -803,6 +803,16 @@ int kbd_profile_delete_json(const char *name) {
 
 /* Create an empty profile in profiles.json */
 int kbd_profile_create_json(const char *name) {
+    /* Validate profile name */
+    if (!name || strlen(name) == 0) {
+        LOG_ERROR("[KBD] Invalid profile name (empty)");
+        return -1;
+    }
+    if (strchr(name, '\n') != NULL) {
+        LOG_ERROR("[KBD] Invalid profile name (contains newline)");
+        return -1;
+    }
+
     /* Check if profile already exists */
     for (int i = 0; i < g_num_profiles; i++) {
         if (strcmp(g_profiles[i].name, name) == 0) {
@@ -835,6 +845,8 @@ int kbd_profile_list_json(char *buffer, size_t buf_size) {
                        "PROFILES_START COUNT=%d\n", g_num_profiles);
 
     for (int i = 0; i < g_num_profiles && offset < buf_size - 64; i++) {
+        /* Skip profiles with empty names */
+        if (strlen(g_profiles[i].name) == 0) continue;
         const char *active_marker = (i == g_active_profile_index) ? "*" : " ";
         offset += snprintf(buffer + offset, buf_size - offset,
                 "PROFILE %d [%s] %s\n",
