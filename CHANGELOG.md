@@ -6,6 +6,7 @@ All notable changes to this project will be documented in this file.
 
 ### Added
 - **Visual Zone Editor**: Added a GTK/Cairo canvas in the Keyboard Backlight tab that displays the keyboard schematic (dark variant). Users can click keys to select/deselect LEDs for zone assignment. Selected keys are highlighted with a green overlay.
+- **LED Wizard**: Step-by-step wizard to assign each of the 120 LEDs to a key position on the keyboard schematic. The wizard lights up the current LED in cyan using the hardware, highlights the clicked key on the canvas, and persists the mapping to a CSV file (`~/.config/dudes-control-center/keyboard_led_mapping.csv`) for easy manual editing. Supports Skip, Save & Finish, and Cancel buttons. Mapped keys are shown with a blue highlight on the canvas after the wizard completes.
 
 ## [1.15.0] - 2026-11-21
 
