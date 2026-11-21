@@ -64,21 +64,21 @@ static const int kbd_position_to_led_id[120] = {
 /* Key names from keyboard_keys_de.csv (one per position index, 120 entries) */
 static const char *kbd_key_names[120] = {
     "Esc", "F1", "F2", "F3", "F4", "F5", "F6", "F7",
-    "F8", "F9", "F10", "F11", "F12", "PrtScn", "Scroll Lock", "Del",
-    "Home", "End", "PgUp", "PgDn",
-    "`", "1", "2", "3", "4", "5", "6", "7",
-    "8", "9", "0", "ß", "'", "Backspace", "Backspace",
-    "Num Lock", "Num /", "Num *", "Num -",
+    "F8", "F9", "F10", "F11", "F12", "Druck S-Abf", "Einfg Rollen↓", "Entf",
+    "Pos1", "Ende", "Bild↑ Pause", "Bild↓ Untbr",
+    "^", "1", "2", "3", "4", "5", "6", "7",
+    "8", "9", "0", "ß", "ß", "´", "Backspace", "Backspace",
+    "Numpad Num Lock", "Numpad ÷", "Numpad ×", "Numpad −",
     "Tab", "Tab", "Q", "W", "E", "R", "T", "Z",
     "U", "I", "O", "P", "Ü", "+", "Enter", "Enter",
-    "Num 7", "Num 8", "Num 9", "Num +", "Num +",
+    "Numpad 7", "Numpad 8", "Numpad 9", "Numpad +", "Numpad +",
     "Caps Lock", "Caps Lock", "A", "S", "D", "F", "G", "H",
-    "J", "K", "L", "Ö", "Ä", "#", "Num 4", "Num 5", "Num 6",
-    "L Shift", "L Shift", ",", "Y", "X", "C", "V", "B",
-    "N", "M", "<", ".", "-", "R Shift", "R Shift",
-    "Arrow Up", "Num 1", "Num 2", "Num 3", "Num Enter", "Num Enter",
-    "L Ctrl", "Fn", "Win", "Alt", "Space", "AltGr", "Copilot", "R Ctrl",
-    "Arrow Left", "Arrow Down", "Arrow Right", "Num 0", "Num .", "Num ,"
+    "J", "K", "L", "Ö", "Ä", "#", "Numpad 4", "Numpad 5", "Numpad 6",
+    "Shift left", "Shift left", "<", "Y", "X", "C", "V", "B",
+    "N", "M", ",", ".", "-", "Shift right", "Shift right",
+    "Arrow up", "Numpad 1", "Numpad 2", "Numpad 3", "Numpad Enter", "Numpad Enter",
+    "Strg left", "Fn", "Win", "Alt", "Space", "AltGr", "AI (Copilot)", "Strg right",
+    "Arrow left", "Arrow down", "Arrow right", "Numpad 0", "Numpad ,", "Numpad Enter"
 };
 
 /* QWERTZ keyboard key positions - from keyboard_keys_de.csv */
@@ -4071,8 +4071,8 @@ static void kbd_save_led_mapping_csv(AppData *app) {
         return;
     }
     
-    /* Write header */
-    fprintf(f, "led_id,key_name,led_index\n");
+    /* Write header (semicolon delimiter to avoid conflicts with key names containing commas) */
+    fprintf(f, "led_id;key_name;led_index\n");
     
     /* Track which keys have been written and count LEDs per key */
     int key_led_count[120] = {0};
@@ -4096,11 +4096,11 @@ static void kbd_save_led_mapping_csv(AppData *app) {
             if (key_led_count[pos] > 1) {
                 snprintf(led_index_col, sizeof(led_index_col), "%d", key_led_written[pos]);
             }
-            fprintf(f, "%d,%s,%s\n", led, key_name, led_index_col);
+            fprintf(f, "%d;%s;%s\n", led, key_name, led_index_col);
             key_led_written[pos]++;
         } else {
             /* Unmapped LED */
-            fprintf(f, "%d,,\n", led);
+            fprintf(f, "%d;;\n", led);
         }
     }
     
@@ -4135,13 +4135,13 @@ static void kbd_load_led_mapping_csv(AppData *app) {
         /* Remove newline */
         line[strcspn(line, "\n")] = 0;
         
-        /* Parse: led_id,key_name,led_index */
+        /* Parse: led_id;key_name;led_index (semicolon delimiter) */
         int led_id = -1;
         char key_name[64] = "";
         
-        char *token = strtok(line, ",");
+        char *token = strtok(line, ";");
         if (token) led_id = atoi(token);
-        token = strtok(NULL, ",");
+        token = strtok(NULL, ";");
         if (token) strncpy(key_name, token, sizeof(key_name) - 1);
         
         if (led_id < 0 || led_id >= 120) continue;
