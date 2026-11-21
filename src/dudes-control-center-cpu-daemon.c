@@ -1000,9 +1000,12 @@ static void enforce_frequency_limits(void) {
             if (set_cpu_max_freq(i, target_max) == 0) max_changed++;
         }
 
+        /* A minimum set by the profile is enforced exactly, in both directions:
+         * only raising it left stale higher minimums in place (e.g. 3.6 GHz
+         * after the profile was re-saved with 0.8 GHz). */
         if (target_min > 0) {
             uint64_t current_min = get_cpu_min_freq(i);
-            if (current_min != 0 && current_min < target_min) {
+            if (current_min != 0 && current_min != target_min) {
                 if (set_cpu_min_freq(i, target_min) == 0) min_changed++;
             }
         }
