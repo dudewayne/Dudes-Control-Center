@@ -289,6 +289,7 @@ static void on_kbd_create_profile_clicked(GtkWidget *widget, gpointer user_data)
 static void on_kbd_delete_profile_clicked(GtkWidget *widget, gpointer user_data);
 static void on_kbd_rename_profile_clicked(GtkWidget *widget, gpointer user_data);
 static void on_kbd_save_profile_clicked(GtkWidget *widget, gpointer user_data);
+static void on_kbd_activate_profile_clicked(GtkWidget *widget, gpointer user_data);
 static gboolean cpu_refresh_timer_callback(gpointer user_data);
 static void load_cpu_governors(AppData *app);
 static void on_cpu_governor_changed(GtkWidget *widget, gpointer user_data);
@@ -3704,6 +3705,52 @@ static void on_kbd_save_profile_clicked(GtkWidget *widget, gpointer user_data) {
     g_free(profile_name);
 }
 
+/* Callback: Activate keyboard profile */
+static void on_kbd_activate_profile_clicked(GtkWidget *widget, gpointer user_data) {
+    (void)widget;
+    AppData *app = (AppData *)user_data;
+    g_print("[GUI] Activate keyboard profile clicked\n");
+
+    if (!app->kbd_connected) {
+        g_print("[GUI] Keyboard daemon not connected, skipping\n");
+        return;
+    }
+
+    /* Get currently selected profile name */
+    int active = gtk_combo_box_get_active(GTK_COMBO_BOX(app->kbd_profile_combo));
+    if (active < 0) {
+        g_print("[GUI] No keyboard profile selected to activate\n");
+        gtk_label_set_text(GTK_LABEL(app->kbd_profile_status_label), "No profile selected");
+        return;
+    }
+
+    gchar *profile_name = NULL;
+    GtkTreeIter iter;
+    if (!gtk_combo_box_get_active_iter(GTK_COMBO_BOX(app->kbd_profile_combo), &iter)) {
+        g_print("[GUI] Could not get selected profile\n");
+        return;
+    }
+    gtk_tree_model_get(GTK_TREE_MODEL(app->kbd_profile_store), &iter, 0, &profile_name, -1);
+    if (!profile_name) {
+        g_print("[GUI] Could not get profile name\n");
+        return;
+    }
+
+    /* Send LOAD_PROFILE command using :: delimiter for names with spaces */
+    char cmd[512];
+    snprintf(cmd, sizeof(cmd), "LOAD_PROFILE::%s", profile_name);
+    const char *response = send_keyboard_command(app, cmd);
+    g_print("[GUI] LOAD_PROFILE response: %s\n", response ? response : "NULL");
+
+    /* Reload the profile list to update the [*] marker */
+    load_keyboard_profiles(app);
+
+    gtk_label_set_text(GTK_LABEL(app->kbd_profile_status_label),
+                      g_strconcat("Activated profile: ", profile_name, NULL));
+
+    g_free(profile_name);
+}
+
 /* Parse STATUS response and update UI */
 static void parse_status(AppData *app, const char *response) {
     char buffer[BUFFER_SIZE];
@@ -5456,6 +5503,7 @@ static GtkWidget *create_keyboard_page(AppData *app) {
     app->kbd_profile_save_btn = gtk_button_new_with_label("Save Profile");
     g_signal_connect(app->kbd_profile_save_btn, "clicked", G_CALLBACK(on_kbd_save_profile_clicked), app);
     app->kbd_profile_activate_btn = gtk_button_new_with_label("Activate Profile");
+    g_signal_connect(app->kbd_profile_activate_btn, "clicked", G_CALLBACK(on_kbd_activate_profile_clicked), app);
     gtk_box_pack_start(GTK_BOX(btn_row), app->kbd_profile_create_btn, FALSE, FALSE, 0);
     gtk_box_pack_start(GTK_BOX(btn_row), app->kbd_profile_delete_btn, FALSE, FALSE, 0);
     gtk_box_pack_start(GTK_BOX(btn_row), app->kbd_profile_rename_btn, FALSE, FALSE, 0);
