@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.14.0] - 2026-11-21
+
+### Added
+- **Keyboard Backlight Control**: Added a new keyboard backlight daemon (`dudes-control-center-kbd-backlight-daemon`) and a new tab in the GUI for managing keyboard backlight profiles. Supports zone-based color profiles with a keyboard schematic visualization. Profiles are stored in `profiles.json` alongside fan and CPU profiles.
+
 ## [1.13.1] - 2026-11-21
 
 ### Fixed
