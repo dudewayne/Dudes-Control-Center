@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.13.1] - 2026-11-21
+
+### Fixed
+- **Governor failure no longer blocks profile activation**: When activating a CPU profile via the GUI, if the governor set in the profile is not available on the hardware (e.g., schedutil on systems with only performance/powersave), the daemon now logs a warning and continues to apply the per-core frequencies instead of failing the entire profile activation.
+
 ## [1.13.0] - 2026-11-21
 
 ### Added
