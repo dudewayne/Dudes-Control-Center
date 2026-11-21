@@ -397,6 +397,8 @@ static void on_led_wizard_skip_clicked(GtkWidget *widget, gpointer user_data);
 static void on_led_wizard_cancel_clicked(GtkWidget *widget, gpointer user_data);
 static void kbd_wizard_step(AppData *app, const char *prev_key_name);
 static void kbd_wizard_finish(AppData *app);
+static void kbd_save_led_mapping_csv(AppData *app);
+static void kbd_load_led_mapping_csv(AppData *app);
 static gboolean cpu_refresh_timer_callback(gpointer user_data);
 static void load_cpu_governors(AppData *app);
 static void on_cpu_governor_changed(GtkWidget *widget, gpointer user_data);
@@ -3341,6 +3343,9 @@ static void connect_to_keyboard_daemon(AppData *app) {
     /* Turn on keyboard backlight at startup */
     send_keyboard_command(app, "TURN_ON");
     g_print("[GUI] Sent TURN_ON at startup\n");
+    
+    /* Load LED mapping from CSV */
+    kbd_load_led_mapping_csv(app);
 }
 
 /* Disconnect from keyboard daemon */
@@ -4020,7 +4025,111 @@ static void kbd_wizard_finish(AppData *app) {
     /* Clear selection and redraw */
     app->kbd_num_selected_leds = 0;
     kbd_redraw_canvas(app);
-    /* TODO: Save mapping to profiles.json */
+    
+    /* Save mapping to CSV */
+    kbd_save_led_mapping_csv(app);
+}
+
+/* Save LED mapping to CSV file */
+static void kbd_save_led_mapping_csv(AppData *app) {
+    char csv_path[512];
+    const char *home = getenv("HOME");
+    if (!home) home = "/tmp";
+    snprintf(csv_path, sizeof(csv_path), "%s/.config/dudes-control-center/keyboard_led_mapping.csv", home);
+    
+    FILE *f = fopen(csv_path, "w");
+    if (!f) {
+        g_print("[GUI] WARNING: Could not write LED mapping CSV to %s\n", csv_path);
+        return;
+    }
+    
+    /* Write header */
+    fprintf(f, "led_id,key_name,led_index\n");
+    
+    /* Track which keys have been written and count LEDs per key */
+    int key_led_count[120] = {0};
+    int key_written[120] = {0};
+    
+    /* First pass: count LEDs per key */
+    for (int led = 0; led < 120; led++) {
+        int pos = app->kbd_wizard_mapping[led];
+        if (pos >= 0 && pos < 120) {
+            key_led_count[pos]++;
+        }
+    }
+    
+    /* Second pass: write entries */
+    int key_led_written[120] = {0};
+    for (int led = 0; led < 120; led++) {
+        int pos = app->kbd_wizard_mapping[led];
+        if (pos >= 0 && pos < 120) {
+            const char *key_name = kbd_key_names[pos];
+            char led_index_col[16] = "";
+            if (key_led_count[pos] > 1) {
+                snprintf(led_index_col, sizeof(led_index_col), "%d", key_led_written[pos]);
+            }
+            fprintf(f, "%d,%s,%s\n", led, key_name, led_index_col);
+            key_led_written[pos]++;
+        } else {
+            /* Unmapped LED */
+            fprintf(f, "%d,,\n", led);
+        }
+    }
+    
+    fclose(f);
+    g_print("[GUI] LED mapping saved to %s\n", csv_path);
+}
+
+/* Load LED mapping from CSV file */
+static void kbd_load_led_mapping_csv(AppData *app) {
+    char csv_path[512];
+    const char *home = getenv("HOME");
+    if (!home) home = "/tmp";
+    snprintf(csv_path, sizeof(csv_path), "%s/.config/dudes-control-center/keyboard_led_mapping.csv", home);
+    
+    FILE *f = fopen(csv_path, "r");
+    if (!f) {
+        g_print("[GUI] No LED mapping CSV found at %s\n", csv_path);
+        return;
+    }
+    
+    char line[256];
+    /* Skip header line */
+    if (fgets(line, sizeof(line), f) == NULL) {
+        fclose(f);
+        return;
+    }
+    
+    /* Initialize mapping */
+    memset(app->kbd_wizard_mapping, -1, sizeof(app->kbd_wizard_mapping));
+    
+    while (fgets(line, sizeof(line), f)) {
+        /* Remove newline */
+        line[strcspn(line, "\n")] = 0;
+        
+        /* Parse: led_id,key_name,led_index */
+        int led_id = -1;
+        char key_name[64] = "";
+        
+        char *token = strtok(line, ",");
+        if (token) led_id = atoi(token);
+        token = strtok(NULL, ",");
+        if (token) strncpy(key_name, token, sizeof(key_name) - 1);
+        
+        if (led_id < 0 || led_id >= 120) continue;
+        if (strlen(key_name) == 0) continue; /* Unmapped LED */
+        
+        /* Find the key position by name */
+        for (int pos = 0; pos < 120; pos++) {
+            if (strcmp(kbd_key_names[pos], key_name) == 0) {
+                app->kbd_wizard_mapping[led_id] = pos;
+                break;
+            }
+        }
+    }
+    
+    fclose(f);
+    g_print("[GUI] LED mapping loaded from %s\n", csv_path);
 }
 
 /* Draw callback for keyboard canvas */
