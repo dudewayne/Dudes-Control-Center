@@ -284,6 +284,7 @@ static void parse_cpu_status(AppData *app, const char *response);
 static void connect_to_keyboard_daemon(AppData *app);
 static void disconnect_from_keyboard_daemon(AppData *app);
 static const char *send_keyboard_command(AppData *app, const char *cmd);
+static void load_keyboard_profiles(AppData *app);
 static gboolean cpu_refresh_timer_callback(gpointer user_data);
 static void load_cpu_governors(AppData *app);
 static void on_cpu_governor_changed(GtkWidget *widget, gpointer user_data);
@@ -3286,6 +3287,81 @@ static const char *send_keyboard_command(AppData *app, const char *cmd) {
     return response;
 }
 
+/* Load keyboard profiles from daemon */
+static void load_keyboard_profiles(AppData *app) {
+    if (!app->kbd_connected) {
+        g_print("[GUI] Keyboard daemon not connected, skipping profile load\n");
+        return;
+    }
+
+    const char *response = send_keyboard_command(app, "LIST_PROFILES");
+    if (response == NULL || strncmp(response, "ERROR", 5) == 0) {
+        g_print("[GUI] Failed to load keyboard profiles: %s\n", response ? response : "(null)");
+        return;
+    }
+
+    gtk_list_store_clear(app->kbd_profile_store);
+
+    /* Parse response: PROFILES_START COUNT=N ... PROFILE i [*] Name ... PROFILES_END */
+    char *resp_copy = g_strdup(response);
+    char *line = strtok(resp_copy, "\n");
+    int profile_count = 0;
+    int active_idx = -1;
+
+    while (line != NULL) {
+        /* Skip header/footer lines */
+        if (strncmp(line, "PROFILES_START", 14) == 0 || strncmp(line, "PROFILES_END", 12) == 0) {
+            line = strtok(NULL, "\n");
+            continue;
+        }
+
+        /* Parse PROFILE i [*] Name */
+        int idx = -1;
+        int is_active = 0;
+        char name[256] = "";
+
+        if (sscanf(line, "PROFILE %d [", &idx) >= 1) {
+            char *marker = strstr(line, "[");
+            if (marker) {
+                is_active = (marker[1] == '*');
+            }
+            char *name_start = strstr(line, "] ");
+            if (name_start) {
+                strncpy(name, name_start + 2, sizeof(name) - 1);
+                name[sizeof(name) - 1] = '\0';
+                g_strchomp(name);
+            }
+        }
+
+        if (idx >= 0 && strlen(name) > 0) {
+            GtkTreeIter iter;
+            gtk_list_store_append(app->kbd_profile_store, &iter);
+            gtk_list_store_set(app->kbd_profile_store, &iter, 0, name, -1);
+            if (is_active) {
+                active_idx = idx;
+            }
+            profile_count++;
+        }
+
+        line = strtok(NULL, "\n");
+    }
+    g_free(resp_copy);
+
+    /* Select the active profile */
+    if (active_idx >= 0) {
+        gtk_combo_box_set_active(GTK_COMBO_BOX(app->kbd_profile_combo), active_idx);
+        app->kbd_active_profile_idx = active_idx;
+    }
+
+    /* Update status label */
+    if (app->kbd_connected) {
+        gtk_label_set_text(GTK_LABEL(app->kbd_status_label),
+                          "Keyboard daemon connected");
+    }
+
+    g_print("[GUI] Loaded %d keyboard profiles (active idx=%d)\n", profile_count, active_idx);
+}
+
 /* Parse STATUS response and update UI */
 static void parse_status(AppData *app, const char *response) {
     char buffer[BUFFER_SIZE];
@@ -4073,6 +4149,16 @@ static void on_notebook_page_switched(GtkNotebook *notebook, GtkWidget *page, gi
          * the widgets are fully realized before building the grid.
          * This fixes the bug where the core frequency grid is empty on first visit. */
         g_idle_add(populate_cpu_core_grid_idle, app);
+    }
+
+    /* Page 4 is the Keyboard Backlight tab (0-indexed: Status=0, Curve Editor=1, Profiles=2, CPU Profiles=3, Keyboard=4) */
+    if (page_num == 4) {
+        char ts[32];
+        get_timestamp(ts, sizeof(ts));
+        g_print("%s [GUI] Switching to Keyboard Backlight tab\n", ts);
+
+        /* Load keyboard profiles */
+        load_keyboard_profiles(app);
     }
 }
 
