@@ -35,6 +35,10 @@ PACKAGE = dudes-control-center
 # Deb build directory
 DEB_BUILD_DIR = build-deb
 
+# DKMS module name and version
+DKMS_MODULE_NAME = ite_829x
+DKMS_MODULE_VERSION = $(VERSION)
+
 .PHONY: all clean cli daemon cpu-daemon kbd-daemon gui install uninstall deb help
 
 all: $(CLI_TARGET) $(CPU_CLI_TARGET) $(DAEMON_TARGET) $(CPU_DAEMON_TARGET) $(KBD_DAEMON_TARGET) $(GUI_TARGET)
@@ -98,6 +102,12 @@ deb: all
 	@cp dudes-control-center-hard-limit-enforcer.service $(DEB_BUILD_DIR)/$(PACKAGE)-$(VERSION)/etc/systemd/system/
 	@cp dudes-control-center-hard-limit-enforcer.timer $(DEB_BUILD_DIR)/$(PACKAGE)-$(VERSION)/etc/systemd/system/
 	@cp scripts/dudes-control-center-hard-limit-enforce.sh $(DEB_BUILD_DIR)/$(PACKAGE)-$(VERSION)/usr/local/bin/dudes-control-center-hard-limit-enforce
+	@# DKMS kernel module source
+	@mkdir -p $(DEB_BUILD_DIR)/$(PACKAGE)-$(VERSION)/usr/src/$(DKMS_MODULE_NAME)-$(DKMS_MODULE_VERSION)
+	@cp drivers/ite_829x.c $(DEB_BUILD_DIR)/$(PACKAGE)-$(VERSION)/usr/src/$(DKMS_MODULE_NAME)-$(DKMS_MODULE_VERSION)/
+	@cp drivers/Kbuild $(DEB_BUILD_DIR)/$(PACKAGE)-$(VERSION)/usr/src/$(DKMS_MODULE_NAME)-$(DKMS_MODULE_VERSION)/
+	@cp drivers/Makefile $(DEB_BUILD_DIR)/$(PACKAGE)-$(VERSION)/usr/src/$(DKMS_MODULE_NAME)-$(DKMS_MODULE_VERSION)/
+	@cp drivers/dkms.conf $(DEB_BUILD_DIR)/$(PACKAGE)-$(VERSION)/usr/src/$(DKMS_MODULE_NAME)-$(DKMS_MODULE_VERSION)/
 	@echo 'Package: $(PACKAGE)' > $(DEB_BUILD_DIR)/$(PACKAGE)-$(VERSION)/DEBIAN/control
 	@echo 'Version: $(VERSION)' >> $(DEB_BUILD_DIR)/$(PACKAGE)-$(VERSION)/DEBIAN/control
 	@echo 'Architecture: amd64' >> $(DEB_BUILD_DIR)/$(PACKAGE)-$(VERSION)/DEBIAN/control
@@ -105,12 +115,12 @@ deb: all
 	@echo 'Description: Dudes Control Center - Monitor and control notebook fan speed, CPU frequency, and keyboard backlight' >> $(DEB_BUILD_DIR)/$(PACKAGE)-$(VERSION)/DEBIAN/control
 	@echo 'Section: admin' >> $(DEB_BUILD_DIR)/$(PACKAGE)-$(VERSION)/DEBIAN/control
 	@echo 'Priority: optional' >> $(DEB_BUILD_DIR)/$(PACKAGE)-$(VERSION)/DEBIAN/control
-	@echo 'Depends: libgtk-3-0, libcjson1' >> $(DEB_BUILD_DIR)/$(PACKAGE)-$(VERSION)/DEBIAN/control
-	@printf '#!/bin/sh\nset -e\nif [ "$$1" = "configure" ]; then\n    systemctl daemon-reload\n    systemctl enable dudes-control-center-fan-daemon\n    systemctl restart dudes-control-center-fan-daemon || systemctl start dudes-control-center-fan-daemon\n    systemctl enable dudes-control-center-cpu-daemon\n    systemctl restart dudes-control-center-cpu-daemon || systemctl start dudes-control-center-cpu-daemon\n    systemctl enable dudes-control-center-kbd-backlight-daemon\n    systemctl restart dudes-control-center-kbd-backlight-daemon || systemctl start dudes-control-center-kbd-backlight-daemon\n    systemctl enable dudes-control-center-hard-limit-enforcer.timer\n    systemctl start dudes-control-center-hard-limit-enforcer.timer || true\n    update-desktop-database >/dev/null 2>&1 || true\nfi\nexit 0\n' > $(DEB_BUILD_DIR)/$(PACKAGE)-$(VERSION)/DEBIAN/postinst
+	@echo 'Depends: libgtk-3-0, libcjson1, dkms' >> $(DEB_BUILD_DIR)/$(PACKAGE)-$(VERSION)/DEBIAN/control
+	@printf '#!/bin/sh\nset -e\nif [ "$$1" = "configure" ]; then\n    systemctl daemon-reload\n    # DKMS: register and build ite_829x kernel module\n    DKMS_MOD_NAME=ite_829x\n    DKMS_MOD_VER=$(VERSION)\n    if [ -d /usr/src/$$DKMS_MOD_NAME-$$DKMS_MOD_VER ]; then\n        dkms add -m $$DKMS_MOD_NAME -v $$DKMS_MOD_VER || true\n        dkms build -m $$DKMS_MOD_NAME -v $$DKMS_MOD_VER || true\n        dkms install -m $$DKMS_MOD_NAME -v $$DKMS_MOD_VER || true\n        modprobe $$DKMS_MOD_NAME || true\n    fi\n    systemctl enable dudes-control-center-fan-daemon\n    systemctl restart dudes-control-center-fan-daemon || systemctl start dudes-control-center-fan-daemon\n    systemctl enable dudes-control-center-cpu-daemon\n    systemctl restart dudes-control-center-cpu-daemon || systemctl start dudes-control-center-cpu-daemon\n    systemctl enable dudes-control-center-kbd-backlight-daemon\n    systemctl restart dudes-control-center-kbd-backlight-daemon || systemctl start dudes-control-center-kbd-backlight-daemon\n    systemctl enable dudes-control-center-hard-limit-enforcer.timer\n    systemctl start dudes-control-center-hard-limit-enforcer.timer || true\n    update-desktop-database >/dev/null 2>&1 || true\nfi\nexit 0\n' > $(DEB_BUILD_DIR)/$(PACKAGE)-$(VERSION)/DEBIAN/postinst
 	@chmod 755 $(DEB_BUILD_DIR)/$(PACKAGE)-$(VERSION)/DEBIAN/postinst
-	@printf '#!/bin/sh\nset -e\nif [ "$$1" = "remove" ]; then\n    systemctl stop dudes-control-center-fan-daemon 2>/dev/null || true\n    systemctl disable dudes-control-center-fan-daemon 2>/dev/null || true\n    systemctl stop dudes-control-center-cpu-daemon 2>/dev/null || true\n    systemctl disable dudes-control-center-cpu-daemon 2>/dev/null || true\n    systemctl stop dudes-control-center-kbd-backlight-daemon 2>/dev/null || true\n    systemctl disable dudes-control-center-kbd-backlight-daemon 2>/dev/null || true\n    systemctl stop dudes-control-center-hard-limit-enforcer.timer 2>/dev/null || true\n    systemctl disable dudes-control-center-hard-limit-enforcer.timer 2>/dev/null || true\n    systemctl daemon-reload\nfi\nexit 0\n' > $(DEB_BUILD_DIR)/$(PACKAGE)-$(VERSION)/DEBIAN/prerm
+	@printf '#!/bin/sh\nset -e\nif [ "$$1" = "remove" ]; then\n    systemctl stop dudes-control-center-kbd-backlight-daemon 2>/dev/null || true\n    systemctl disable dudes-control-center-kbd-backlight-daemon 2>/dev/null || true\n    # DKMS: unload ite_829x kernel module\n    rmmod ite_829x 2>/dev/null || true\n    systemctl stop dudes-control-center-fan-daemon 2>/dev/null || true\n    systemctl disable dudes-control-center-fan-daemon 2>/dev/null || true\n    systemctl stop dudes-control-center-cpu-daemon 2>/dev/null || true\n    systemctl disable dudes-control-center-cpu-daemon 2>/dev/null || true\n    systemctl stop dudes-control-center-hard-limit-enforcer.timer 2>/dev/null || true\n    systemctl disable dudes-control-center-hard-limit-enforcer.timer 2>/dev/null || true\n    systemctl daemon-reload\nfi\nexit 0\n' > $(DEB_BUILD_DIR)/$(PACKAGE)-$(VERSION)/DEBIAN/prerm
 	@chmod 755 $(DEB_BUILD_DIR)/$(PACKAGE)-$(VERSION)/DEBIAN/prerm
-	@printf '#!/bin/sh\nset -e\nif [ "$$1" = "purge" ]; then\n    rm -rf /home/*/.config/dudes-control-center/ 2>/dev/null || true\n    rm -rf /var/log/dudes-control-center/ 2>/dev/null || true\n    rm -f /etc/systemd/system/dudes-control-center-fan-daemon.service 2>/dev/null || true\n    rm -f /etc/systemd/system/dudes-control-center-cpu-daemon.service 2>/dev/null || true\n    rm -f /etc/systemd/system/dudes-control-center-kbd-backlight-daemon.service 2>/dev/null || true\n    rm -f /etc/systemd/system/dudes-control-center-hard-limit-enforcer.service 2>/dev/null || true\n    rm -f /etc/systemd/system/dudes-control-center-hard-limit-enforcer.timer 2>/dev/null || true\n    systemctl daemon-reload 2>/dev/null || true\nfi\nexit 0\n' > $(DEB_BUILD_DIR)/$(PACKAGE)-$(VERSION)/DEBIAN/postrm
+	@printf '#!/bin/sh\nset -e\nif [ "$$1" = "purge" ]; then\n    rm -rf /home/*/.config/dudes-control-center/ 2>/dev/null || true\n    rm -rf /var/log/dudes-control-center/ 2>/dev/null || true\n    rm -f /etc/systemd/system/dudes-control-center-fan-daemon.service 2>/dev/null || true\n    rm -f /etc/systemd/system/dudes-control-center-cpu-daemon.service 2>/dev/null || true\n    rm -f /etc/systemd/system/dudes-control-center-kbd-backlight-daemon.service 2>/dev/null || true\n    rm -f /etc/systemd/system/dudes-control-center-hard-limit-enforcer.service 2>/dev/null || true\n    rm -f /etc/systemd/system/dudes-control-center-hard-limit-enforcer.timer 2>/dev/null || true\n    # DKMS: unregister and remove ite_829x\n    dkms remove -m ite_829x --all 2>/dev/null || true\n    rm -rf /usr/src/ite_829x-* 2>/dev/null || true\n    systemctl daemon-reload 2>/dev/null || true\nfi\nexit 0\n' > $(DEB_BUILD_DIR)/$(PACKAGE)-$(VERSION)/DEBIAN/postrm
 	@chmod 755 $(DEB_BUILD_DIR)/$(PACKAGE)-$(VERSION)/DEBIAN/postrm
 	@cd $(DEB_BUILD_DIR) && dpkg-deb --build $(PACKAGE)-$(VERSION) $(PACKAGE)_$(VERSION)_amd64.deb
 	@echo "Built: $(DEB_BUILD_DIR)/$(PACKAGE)_$(VERSION)_amd64.deb"
