@@ -275,6 +275,19 @@ static int handle_command(const char *cmd, char *response, size_t resp_size) {
         }
     }
 
+    /* Command: TURN_ON - restore default backlight color */
+    if (strcmp(action, "TURN_ON") == 0) {
+        if (set_all_leds_color(255, 255, 255) == 0) {
+            kbd_led_set_power(1);
+            kbd_led_set_mode(KBD_LED_MODE_STATIC);
+            snprintf(response, resp_size, "OK All LEDs turned on (white)\n");
+            return 0;
+        } else {
+            snprintf(response, resp_size, "ERROR Failed to turn on LEDs\n");
+            return -1;
+        }
+    }
+
     /* Command: LIST_LEDS */
     if (strcmp(action, "LIST_LEDS") == 0) {
         int led_count = get_led_count();

@@ -292,7 +292,7 @@ static void on_kbd_delete_profile_clicked(GtkWidget *widget, gpointer user_data)
 static void on_kbd_rename_profile_clicked(GtkWidget *widget, gpointer user_data);
 static void on_kbd_save_profile_clicked(GtkWidget *widget, gpointer user_data);
 static void on_kbd_activate_profile_clicked(GtkWidget *widget, gpointer user_data);
-static void on_kbd_off_switch_toggled(GtkWidget *widget, gpointer user_data);
+static gboolean on_kbd_off_switch_toggled(GtkSwitch *sw, gboolean new_state, gpointer user_data);
 static gboolean cpu_refresh_timer_callback(gpointer user_data);
 static void load_cpu_governors(AppData *app);
 static void on_cpu_governor_changed(GtkWidget *widget, gpointer user_data);
@@ -3233,6 +3233,10 @@ static void connect_to_keyboard_daemon(AppData *app) {
         gtk_label_set_text(GTK_LABEL(app->kbd_status_label), "Keyboard daemon connected");
     }
     g_print("[GUI] Connected to keyboard daemon successfully!\n");
+
+    /* Turn on keyboard backlight at startup */
+    send_keyboard_command(app, "TURN_ON");
+    g_print("[GUI] Sent TURN_ON at startup\n");
 }
 
 /* Disconnect from keyboard daemon */
@@ -3782,10 +3786,10 @@ static void on_kbd_activate_profile_clicked(GtkWidget *widget, gpointer user_dat
 }
 
 /* Callback: Keyboard backlight off switch toggled */
-static void on_kbd_off_switch_toggled(GtkWidget *widget, gpointer user_data) {
-    (void)widget;
+static gboolean on_kbd_off_switch_toggled(GtkSwitch *sw, gboolean new_state, gpointer user_data) {
+    (void)sw;
     AppData *app = (AppData *)user_data;
-    gboolean is_on = gtk_switch_get_state(GTK_SWITCH(widget));
+    gboolean is_on = new_state; /* Use new_state, gtk_switch_get_state() returns old state during signal */
 
     if (!app->kbd_connected) {
         g_print("[GUI] Keyboard daemon not connected, skipping off switch toggle\n");
@@ -3800,33 +3804,15 @@ static void on_kbd_off_switch_toggled(GtkWidget *widget, gpointer user_data) {
         gtk_label_set_text(GTK_LABEL(app->kbd_profile_status_label), "Backlight turned OFF");
         g_print("[GUI] Keyboard backlight turned OFF (override active)\n");
     } else {
-        /* Reload active profile to restore colors */
+        /* Turn backlight back on with default color */
         app->kbd_off_active = 0;
-        int active = gtk_combo_box_get_active(GTK_COMBO_BOX(app->kbd_profile_combo));
-        if (active >= 0) {
-            gchar *profile_name = NULL;
-            GtkTreeIter iter;
-            if (gtk_combo_box_get_active_iter(GTK_COMBO_BOX(app->kbd_profile_combo), &iter)) {
-                gtk_tree_model_get(GTK_TREE_MODEL(app->kbd_profile_store), &iter, 0, &profile_name, -1);
-                if (profile_name) {
-                    const char *clean_name = kbd_profile_name_from_display(profile_name);
-                    char cmd[512];
-                    snprintf(cmd, sizeof(cmd), "LOAD_PROFILE::%s", clean_name);
-                    const char *response = send_keyboard_command(app, cmd);
-                    g_print("[GUI] LOAD_PROFILE response (off switch restore): %s\n", response ? response : "NULL");
-                    load_keyboard_profiles(app);
-                    gtk_label_set_text(GTK_LABEL(app->kbd_profile_status_label),
-                                      g_strconcat("Backlight ON - restored profile: ", clean_name, NULL));
-                    g_print("[GUI] Keyboard backlight restored to profile: %s\n", clean_name);
-                    g_free(profile_name);
-                }
-            }
-        } else {
-            /* No profile selected, just send TURN_OFF 0,0,0 off and show message */
-            gtk_label_set_text(GTK_LABEL(app->kbd_profile_status_label), "Backlight turned ON (no active profile)");
-            g_print("[GUI] Keyboard backlight ON, no active profile to restore\n");
-        }
+        const char *response = send_keyboard_command(app, "TURN_ON");
+        g_print("[GUI] TURN_ON response: %s\n", response ? response : "NULL");
+        gtk_label_set_text(GTK_LABEL(app->kbd_profile_status_label), "Backlight turned ON");
+        g_print("[GUI] Keyboard backlight turned ON\n");
     }
+
+    return FALSE; /* Let GTK update the switch visual state */
 }
 
 /* Parse STATUS response and update UI */
