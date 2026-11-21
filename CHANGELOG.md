@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.16.0] - 2026-11-21
+
+### Added
+- **Visual Zone Editor**: Added a GTK/Cairo canvas in the Keyboard Backlight tab that displays the keyboard schematic (dark variant). Users can click keys to select/deselect LEDs for zone assignment. Selected keys are highlighted with a green overlay.
+
 ## [1.15.0] - 2026-11-21
 
 ### Added
