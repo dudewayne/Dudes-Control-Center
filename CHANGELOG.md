@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.15.0] - 2026-11-21
+
+### Added
+- **Keyboard Backlight Off Switch**: Added a toggle switch in the Keyboard Backlight tab to disable/enable the keyboard backlight entirely. When enabled, the off switch overrides all profile settings and stays active until the user disables it.
+
 ## [1.14.0] - 2026-11-21
 
 ### Added

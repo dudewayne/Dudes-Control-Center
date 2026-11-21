@@ -232,6 +232,8 @@ typedef struct {
     GtkWidget *kbd_zone_color_buttons[32];
     GtkWidget *kbd_zone_delete_buttons[32];
     GtkWidget *kbd_add_zone_btn;
+    GtkWidget *kbd_off_switch; /* Toggle to disable keyboard backlight */
+    int kbd_off_active; /* 1 when off switch is active */
     GtkWidget *kbd_apply_zones_btn;
     int kbd_num_zones;
 } AppData;
@@ -290,6 +292,7 @@ static void on_kbd_delete_profile_clicked(GtkWidget *widget, gpointer user_data)
 static void on_kbd_rename_profile_clicked(GtkWidget *widget, gpointer user_data);
 static void on_kbd_save_profile_clicked(GtkWidget *widget, gpointer user_data);
 static void on_kbd_activate_profile_clicked(GtkWidget *widget, gpointer user_data);
+static void on_kbd_off_switch_toggled(GtkWidget *widget, gpointer user_data);
 static gboolean cpu_refresh_timer_callback(gpointer user_data);
 static void load_cpu_governors(AppData *app);
 static void on_cpu_governor_changed(GtkWidget *widget, gpointer user_data);
@@ -3778,6 +3781,54 @@ static void on_kbd_activate_profile_clicked(GtkWidget *widget, gpointer user_dat
     g_free(profile_name);
 }
 
+/* Callback: Keyboard backlight off switch toggled */
+static void on_kbd_off_switch_toggled(GtkWidget *widget, gpointer user_data) {
+    (void)widget;
+    AppData *app = (AppData *)user_data;
+    gboolean is_on = gtk_switch_get_state(GTK_SWITCH(widget));
+
+    if (!app->kbd_connected) {
+        g_print("[GUI] Keyboard daemon not connected, skipping off switch toggle\n");
+        return;
+    }
+
+    if (is_on) {
+        /* Turn off all LEDs */
+        app->kbd_off_active = 1;
+        const char *response = send_keyboard_command(app, "TURN_OFF");
+        g_print("[GUI] TURN_OFF response: %s\n", response ? response : "NULL");
+        gtk_label_set_text(GTK_LABEL(app->kbd_profile_status_label), "Backlight turned OFF");
+        g_print("[GUI] Keyboard backlight turned OFF (override active)\n");
+    } else {
+        /* Reload active profile to restore colors */
+        app->kbd_off_active = 0;
+        int active = gtk_combo_box_get_active(GTK_COMBO_BOX(app->kbd_profile_combo));
+        if (active >= 0) {
+            gchar *profile_name = NULL;
+            GtkTreeIter iter;
+            if (gtk_combo_box_get_active_iter(GTK_COMBO_BOX(app->kbd_profile_combo), &iter)) {
+                gtk_tree_model_get(GTK_TREE_MODEL(app->kbd_profile_store), &iter, 0, &profile_name, -1);
+                if (profile_name) {
+                    const char *clean_name = kbd_profile_name_from_display(profile_name);
+                    char cmd[512];
+                    snprintf(cmd, sizeof(cmd), "LOAD_PROFILE::%s", clean_name);
+                    const char *response = send_keyboard_command(app, cmd);
+                    g_print("[GUI] LOAD_PROFILE response (off switch restore): %s\n", response ? response : "NULL");
+                    load_keyboard_profiles(app);
+                    gtk_label_set_text(GTK_LABEL(app->kbd_profile_status_label),
+                                      g_strconcat("Backlight ON - restored profile: ", clean_name, NULL));
+                    g_print("[GUI] Keyboard backlight restored to profile: %s\n", clean_name);
+                    g_free(profile_name);
+                }
+            }
+        } else {
+            /* No profile selected, just send TURN_OFF 0,0,0 off and show message */
+            gtk_label_set_text(GTK_LABEL(app->kbd_profile_status_label), "Backlight turned ON (no active profile)");
+            g_print("[GUI] Keyboard backlight ON, no active profile to restore\n");
+        }
+    }
+}
+
 /* Parse STATUS response and update UI */
 static void parse_status(AppData *app, const char *response) {
     char buffer[BUFFER_SIZE];
@@ -5546,6 +5597,30 @@ static GtkWidget *create_keyboard_page(AppData *app) {
 
     gtk_container_add(GTK_CONTAINER(profile_frame), profile_vbox);
     gtk_box_pack_start(GTK_BOX(vbox), profile_frame, FALSE, FALSE, 0);
+
+    /* --- Off Switch section --- */
+    GtkWidget *off_switch_frame = gtk_frame_new("Backlight Power");
+    gtk_container_set_border_width(GTK_CONTAINER(off_switch_frame), 6);
+    GtkWidget *off_switch_vbox = gtk_box_new(GTK_ORIENTATION_VERTICAL, 6);
+
+    GtkWidget *off_switch_hbox = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 6);
+    GtkWidget *off_switch_label = gtk_label_new("Backlight Off:");
+    gtk_label_set_xalign(GTK_LABEL(off_switch_label), 0.0);
+    gtk_box_pack_start(GTK_BOX(off_switch_hbox), off_switch_label, FALSE, FALSE, 0);
+
+    app->kbd_off_switch = gtk_switch_new();
+    gtk_switch_set_state(GTK_SWITCH(app->kbd_off_switch), FALSE);
+    g_signal_connect(app->kbd_off_switch, "state-set", G_CALLBACK(on_kbd_off_switch_toggled), app);
+    gtk_box_pack_start(GTK_BOX(off_switch_hbox), app->kbd_off_switch, FALSE, FALSE, 0);
+    gtk_box_pack_start(GTK_BOX(off_switch_vbox), off_switch_hbox, FALSE, FALSE, 0);
+
+    GtkWidget *off_switch_note = gtk_label_new("When ON, overrides all profile settings until disabled.");
+    gtk_widget_set_name(off_switch_note, "kbd-off-switch-note");
+    gtk_label_set_xalign(GTK_LABEL(off_switch_note), 0.0);
+    gtk_box_pack_start(GTK_BOX(off_switch_vbox), off_switch_note, FALSE, FALSE, 0);
+
+    gtk_container_add(GTK_CONTAINER(off_switch_frame), off_switch_vbox);
+    gtk_box_pack_start(GTK_BOX(vbox), off_switch_frame, FALSE, FALSE, 0);
 
     /* --- Zone editor section --- */
     GtkWidget *zone_frame = gtk_frame_new("Zone Editor");
