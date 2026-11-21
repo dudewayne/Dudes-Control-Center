@@ -395,7 +395,7 @@ static void kbd_redraw_canvas(AppData *app);
 static void on_led_wizard_start_clicked(GtkWidget *widget, gpointer user_data);
 static void on_led_wizard_skip_clicked(GtkWidget *widget, gpointer user_data);
 static void on_led_wizard_cancel_clicked(GtkWidget *widget, gpointer user_data);
-static void kbd_wizard_step(AppData *app);
+static void kbd_wizard_step(AppData *app, const char *prev_key_name);
 static void kbd_wizard_finish(AppData *app);
 static gboolean cpu_refresh_timer_callback(gpointer user_data);
 static void load_cpu_governors(AppData *app);
@@ -3941,7 +3941,7 @@ static void on_led_wizard_start_clicked(GtkWidget *widget, gpointer user_data) {
     gtk_widget_set_sensitive(app->kbd_led_wizard_cancel_btn, TRUE);
     
     /* Show first step */
-    kbd_wizard_step(app);
+    kbd_wizard_step(app, NULL);
 }
 
 /* LED Wizard: Skip current LED */
@@ -3955,7 +3955,7 @@ static void on_led_wizard_skip_clicked(GtkWidget *widget, gpointer user_data) {
     if (app->kbd_wizard_current_led >= 120) {
         kbd_wizard_finish(app);
     } else {
-        kbd_wizard_step(app);
+        kbd_wizard_step(app, NULL);
     }
 }
 
@@ -3964,6 +3964,9 @@ static void on_led_wizard_cancel_clicked(GtkWidget *widget, gpointer user_data) 
     AppData *app = (AppData *)user_data;
     
     app->kbd_wizard_active = 0;
+    
+    /* Restore all LEDs */
+    send_keyboard_command(app, "TURN_ON");
     
     /* Update UI */
     gtk_widget_set_sensitive(app->kbd_led_wizard_btn, TRUE);
@@ -3977,10 +3980,22 @@ static void on_led_wizard_cancel_clicked(GtkWidget *widget, gpointer user_data) 
 }
 
 /* LED Wizard: Update UI for current step */
-static void kbd_wizard_step(AppData *app) {
+static void kbd_wizard_step(AppData *app, const char *prev_key_name) {
     char buf[256];
-    snprintf(buf, sizeof(buf), "LED Wizard: Click the key for LED %d / 119", app->kbd_wizard_current_led);
+    
+    /* Build label showing previous assignment and current LED */
+    if (prev_key_name && app->kbd_wizard_current_led > 0) {
+        snprintf(buf, sizeof(buf), "LED %d -> %s | Click key for LED %d / 119",
+                 app->kbd_wizard_current_led - 1, prev_key_name, app->kbd_wizard_current_led);
+    } else {
+        snprintf(buf, sizeof(buf), "LED Wizard: Click the key for LED %d / 119", app->kbd_wizard_current_led);
+    }
     gtk_label_set_text(GTK_LABEL(app->kbd_led_wizard_label), buf);
+    
+    /* Light up the current LED on the keyboard */
+    char cmd_buf[64];
+    snprintf(cmd_buf, sizeof(cmd_buf), "TEST_LED %d", app->kbd_wizard_current_led);
+    send_keyboard_command(app, cmd_buf);
     
     /* Highlight the current LED in the selection */
     app->kbd_num_selected_leds = 1;
@@ -3991,6 +4006,9 @@ static void kbd_wizard_step(AppData *app) {
 /* LED Wizard: Finish and save mapping */
 static void kbd_wizard_finish(AppData *app) {
     app->kbd_wizard_active = 0;
+    
+    /* Restore all LEDs */
+    send_keyboard_command(app, "TURN_ON");
     
     /* Update UI */
     gtk_widget_set_sensitive(app->kbd_led_wizard_btn, TRUE);
@@ -4118,17 +4136,12 @@ static gboolean kbd_canvas_button_press(GtkWidget *widget, GdkEventButton *event
                 app->kbd_wizard_mapping[app->kbd_wizard_current_led] = (int)i;
                 const char *key_name = (i < 120) ? kbd_key_names[i] : "Unknown";
                 
-                /* Show assignment in the wizard label */
-                char buf[256];
-                snprintf(buf, sizeof(buf), "LED %d -> %s", app->kbd_wizard_current_led, key_name);
-                gtk_label_set_text(GTK_LABEL(app->kbd_led_wizard_label), buf);
-                
                 /* Move to next LED */
                 app->kbd_wizard_current_led++;
                 if (app->kbd_wizard_current_led >= 120) {
                     kbd_wizard_finish(app);
                 } else {
-                    kbd_wizard_step(app);
+                    kbd_wizard_step(app, key_name);
                 }
                 return TRUE;
             }
