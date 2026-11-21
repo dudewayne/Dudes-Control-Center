@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.16.3] - 2026-11-22
+
+### Fixed
+- **Saving fan/CPU settings erased the keyboard profiles**: the GUI rebuilt `profiles.json` from scratch with only the fan and CPU sections. It now merges into the existing file. `keyboard_profiles` and any other keys are preserved. A section is only replaced when the daemon returned it completely; if the fan or CPU daemon is unreachable, or a response is incomplete, the saved section is kept (before, an empty CPU section and no hard limit were written). An unparsable file is never overwritten. The hard limit is carried over if the spinner is unavailable. Writes are atomic (temp file + rename).
+- **GUI log was nearly empty (Rule R2)**: all GUI output (`g_print`, `g_printerr`, GLib/GTK warnings) now goes to `~/.cache/dudes-control-center/logs/GUI.log` with proper levels, and is still echoed to a terminal if the GUI was started from one. Identical repeated messages (periodic status refresh) are logged at most once per minute. New `--debug` option for DEBUG-level detail. Startup logs the version.
+- GUI never read `FAN_DUTY` from the fan daemon status (compared 11 characters of a 9-character key).
+- Keyboard off-switch handler returned no value when the keyboard daemon was not connected (undefined behaviour).
+
 ## [1.16.2] - 2026-11-21
 
 ### Fixed (Fan safety)

@@ -153,6 +153,95 @@ static void get_timestamp(char *buf, size_t buf_size) {
 #pragma GCC diagnostic pop
 }
 
+/* --- Route all GUI output into GUI.log (Rule R2) ---
+ * The GUI historically printed to stdout with g_print(), which is lost when it
+ * is started from the desktop menu. These handlers send g_print/g_printerr and
+ * GLib/GTK warnings to the log file (and still echo to a terminal if present).
+ * Identical messages (e.g. from the periodic status refresh) are written at
+ * most once per GUI_LOG_REPEAT_WINDOW_SEC to keep the log readable. */
+#define GUI_LOG_REPEAT_WINDOW_SEC 60
+#define GUI_LOG_REPEAT_SLOTS      64
+
+static uint64_t gui_log_hash(const char *str) {
+    uint64_t h = 1469598103934665603ULL;           /* FNV-1a */
+    for (; *str; str++) { h ^= (unsigned char)*str; h *= 1099511628211ULL; }
+    return h;
+}
+
+/* Returns 1 if this exact message was already logged within the window */
+static int gui_log_is_repeat(const char *msg) {
+    static uint64_t hashes[GUI_LOG_REPEAT_SLOTS];
+    static time_t   stamps[GUI_LOG_REPEAT_SLOTS];
+    uint64_t h = gui_log_hash(msg);
+    time_t now = time(NULL);
+    int oldest = 0;
+    for (int i = 0; i < GUI_LOG_REPEAT_SLOTS; i++) {
+        if (hashes[i] == h && stamps[i] != 0) {
+            if (now - stamps[i] < GUI_LOG_REPEAT_WINDOW_SEC) return 1;
+            stamps[i] = now;
+            return 0;
+        }
+        if (stamps[i] < stamps[oldest]) oldest = i;
+    }
+    hashes[oldest] = h;
+    stamps[oldest] = now;
+    return 0;
+}
+
+static void gui_log_text(LogLevel default_level, const char *text) {
+    char *copy = g_strdup(text);
+    char *save = NULL;
+    for (char *line = strtok_r(copy, "\n", &save); line; line = strtok_r(NULL, "\n", &save)) {
+        char *msg = line;
+        /* Drop the "[HH:MM:SS.mmm] " prefix from get_timestamp(); the log adds its own */
+        if (msg[0] == '[' && strlen(msg) > 15 && msg[3] == ':' && msg[6] == ':' && msg[13] == ']') {
+            msg += 14;
+            while (*msg == ' ') msg++;
+        }
+        if (strncmp(msg, "[GUI] ", 6) == 0) msg += 6;
+        if (*msg == '\0') continue;
+
+        LogLevel level = default_level;
+        if (strstr(msg, "ERROR") || strstr(msg, "CRITICAL") || strstr(msg, "Failed")) level = LOG_LEVEL_ERROR;
+        else if (strstr(msg, "WARNING") || strstr(msg, "WARN")) level = LOG_LEVEL_WARN;
+        else if (strncmp(msg, "DEBUG", 5) == 0 || strstr(msg, " DEBUG:")) level = LOG_LEVEL_DEBUG;
+
+        if (!log_should_output(level)) continue;
+        if (level > LOG_LEVEL_WARN && gui_log_is_repeat(msg)) continue;  /* never drop errors */
+        log_write(level, "%s", msg);
+    }
+    g_free(copy);
+}
+
+static void gui_print_handler(const gchar *text) {
+    gui_log_text(LOG_LEVEL_INFO, text);
+    if (isatty(STDOUT_FILENO)) { fputs(text, stdout); fflush(stdout); }
+}
+
+static void gui_printerr_handler(const gchar *text) {
+    gui_log_text(LOG_LEVEL_WARN, text);
+    if (isatty(STDERR_FILENO)) { fputs(text, stderr); fflush(stderr); }
+}
+
+static void gui_glib_log_handler(const gchar *domain, GLogLevelFlags flags,
+                                 const gchar *message, gpointer user_data) {
+    (void)user_data;
+    LogLevel level = LOG_LEVEL_INFO;
+    if (flags & (G_LOG_LEVEL_ERROR | G_LOG_LEVEL_CRITICAL)) level = LOG_LEVEL_ERROR;
+    else if (flags & G_LOG_LEVEL_WARNING) level = LOG_LEVEL_WARN;
+    else if (flags & G_LOG_LEVEL_DEBUG) level = LOG_LEVEL_DEBUG;
+    if (log_should_output(level)) {
+        log_write(level, "[%s] %s", domain ? domain : "GLib", message ? message : "");
+    }
+    g_log_default_handler(domain, flags, message, NULL);  /* keep normal terminal output */
+}
+
+static void gui_install_log_handlers(void) {
+    g_set_print_handler(gui_print_handler);
+    g_set_printerr_handler(gui_printerr_handler);
+    g_log_set_default_handler(gui_glib_log_handler, NULL);
+}
+
 /* Application data structure */
 typedef struct {
     GtkWidget *window;
@@ -2916,25 +3005,51 @@ static void gui_save_profiles_to_disk(AppData *app) {
     snprintf(dir_path, sizeof(dir_path), "%s/.config/dudes-control-center", home);
     mkdir(dir_path, 0755);
 
-    /* Build JSON root */
-    cJSON *root = cJSON_CreateObject();
-    if (!root) {
-        g_print("[GUI] ERROR: Failed to create JSON root for profile save\n");
-        return;
+    /* Start from the existing file so sections owned by others
+     * (keyboard_profiles, future keys) are preserved */
+    cJSON *root = NULL;
+    gchar *existing = NULL;
+    gsize existing_len = 0;
+    GError *read_err = NULL;
+    if (g_file_get_contents(profiles_path, &existing, &existing_len, &read_err)) {
+        root = cJSON_Parse(existing);
+        g_free(existing);
+        if (!root) {
+            LOG_ERROR("Profile save aborted: %s is not valid JSON (not overwriting it, to avoid data loss)",
+                      profiles_path);
+            return;
+        }
+    } else {
+        if (!g_error_matches(read_err, G_FILE_ERROR, G_FILE_ERROR_NOENT)) {
+            LOG_ERROR("Profile save aborted: cannot read %s: %s", profiles_path, read_err->message);
+            g_error_free(read_err);
+            return;
+        }
+        g_error_free(read_err);
+        root = cJSON_CreateObject();
+        if (!root) {
+            LOG_ERROR("Failed to create JSON root for profile save");
+            return;
+        }
     }
-    cJSON_AddStringToObject(root, "version", "1.0");
+    if (!cJSON_GetObjectItem(root, "version")) {
+        cJSON_AddStringToObject(root, "version", "1.0");
+    }
 
     /* Build fan_profiles section (nested object) */
     cJSON *fan_section = cJSON_CreateObject();
     cJSON_AddNumberToObject(fan_section, "active_profile_index", app->active_profile_idx);
 
-    /* Query fan daemon for all profiles */
+    /* Query fan daemon for all profiles. Only replace the saved fan section
+     * if every profile could be read; a partial list would lose profiles. */
+    int fan_complete = (app->connected && app->num_profiles > 0);
     cJSON *fan_profiles_array = cJSON_CreateArray();
     for (int i = 0; i < app->num_profiles; i++) {
         char cmd[64];
         snprintf(cmd, sizeof(cmd), "GET_PROFILE %d", i);
         const char *response = send_command(app, cmd);
         if (!response || strncmp(response, "ERROR", 5) == 0) {
+            fan_complete = 0;
             continue;
         }
 
@@ -3000,7 +3115,17 @@ static void gui_save_profiles_to_disk(AppData *app) {
         cJSON_AddItemToArray(fan_profiles_array, profile_obj);
     }
     cJSON_AddItemToObject(fan_section, "profiles", fan_profiles_array);
-    cJSON_AddItemToObject(root, "fan_profiles", fan_section);
+    if (fan_complete) {
+        if (cJSON_GetObjectItem(root, "fan_profiles")) {
+            cJSON_ReplaceItemInObject(root, "fan_profiles", fan_section);
+        } else {
+            cJSON_AddItemToObject(root, "fan_profiles", fan_section);
+        }
+    } else {
+        LOG_WARN("Fan daemon profiles incomplete (connected=%d, profiles=%d) - keeping saved fan section",
+                 app->connected, app->num_profiles);
+        cJSON_Delete(fan_section);
+    }
 
     /* Build cpu_freq_profiles section (nested object) */
     if (app->cpu_connected) {
@@ -3035,34 +3160,47 @@ static void gui_save_profiles_to_disk(AppData *app) {
                     uint32_t hz = (uint32_t)(ghz * 1000000000.0);
                     if (hz > 0) {
                         cJSON_AddNumberToObject(cpu_section, "cpu_hard_limit_hz", (double)hz);
+                    } else {
+                        /* Spinner unavailable: carry over the saved limit so the
+                         * hard-limit enforcer never loses its value */
+                        cJSON *old_cpu = cJSON_GetObjectItem(root, "cpu_freq_profiles");
+                        cJSON *old_limit = old_cpu ? cJSON_GetObjectItem(old_cpu, "cpu_hard_limit_hz") : NULL;
+                        if (cJSON_IsNumber(old_limit) && old_limit->valuedouble > 0) {
+                            cJSON_AddNumberToObject(cpu_section, "cpu_hard_limit_hz", old_limit->valuedouble);
+                        }
                     }
                 }
 
                 cJSON_AddItemToObject(cpu_section, "profiles", cpu_profiles_array);
-                cJSON_AddItemToObject(root, "cpu_freq_profiles", cpu_section);
+                if (cJSON_GetObjectItem(root, "cpu_freq_profiles")) {
+                    cJSON_ReplaceItemInObject(root, "cpu_freq_profiles", cpu_section);
+                } else {
+                    cJSON_AddItemToObject(root, "cpu_freq_profiles", cpu_section);
+                }
             } else {
-                g_print("[GUI] WARNING: Failed to parse CPU profiles JSON\n");
+                LOG_WARN("Could not parse CPU profiles from daemon - keeping saved CPU section");
                 if (cpu_profiles_array) cJSON_Delete(cpu_profiles_array);
             }
+        } else {
+            LOG_WARN("CPU daemon did not return profiles - keeping saved CPU section");
         }
     } else {
-        /* CPU not connected: still write an empty cpu section */
-        cJSON *cpu_section = cJSON_CreateObject();
-        cJSON_AddNumberToObject(cpu_section, "active_profile_index", 0);
-        cJSON_AddItemToObject(cpu_section, "profiles", cJSON_CreateArray());
-        cJSON_AddItemToObject(root, "cpu_freq_profiles", cpu_section);
+        /* CPU daemon not connected: leave the saved CPU section (and hard limit) untouched */
+        LOG_WARN("CPU daemon not connected - keeping saved CPU section");
     }
 
-    /* Write to file */
+    /* Write atomically (temp file + rename), so a crash never leaves a
+     * half-written file */
     char *json_str = cJSON_Print(root);
     if (json_str) {
-        FILE *fp = fopen(profiles_path, "w");
-        if (fp) {
-            fprintf(fp, "%s\n", json_str);
-            fclose(fp);
-            g_print("[GUI] Saved profiles to %s\n", profiles_path);
+        GError *write_err = NULL;
+        if (g_file_set_contents(profiles_path, json_str, -1, &write_err)) {
+            LOG_INFO("Saved profiles to %s (fan section %s, keyboard section %s)", profiles_path,
+                     fan_complete ? "updated" : "kept",
+                     cJSON_GetObjectItem(root, "keyboard_profiles") ? "preserved" : "absent");
         } else {
-            g_print("[GUI] ERROR: Could not write %s: %s\n", profiles_path, strerror(errno));
+            LOG_ERROR("Could not write %s: %s", profiles_path, write_err->message);
+            g_error_free(write_err);
         }
         cJSON_free(json_str);
     }
@@ -3904,7 +4042,7 @@ static gboolean on_kbd_off_switch_toggled(GtkSwitch *sw, gboolean new_state, gpo
 
     if (!app->kbd_connected) {
         g_print("[GUI] Keyboard daemon not connected, skipping off switch toggle\n");
-        return;
+        return TRUE;  /* handled: keep the switch where it is */
     }
 
     if (is_on) {
@@ -4379,8 +4517,8 @@ static void parse_status(AppData *app, const char *response) {
             gpu_fan_rpm = atoi(token + 12);
         } else if (strncmp(token, "AUTO_MODE=", 10) == 0) {
             auto_mode = atoi(token + 10);
-        } else if (strncmp(token, "FAN_DUTY=", 11) == 0) {
-            fan_duty = atoi(token + 11);
+        } else if (strncmp(token, "FAN_DUTY=", 9) == 0) {
+            fan_duty = atoi(token + 9);
             app->last_known_fan_duty = fan_duty; /* Cache for manual mode */
         }
         token = strtok(NULL, "\n");
@@ -6951,12 +7089,19 @@ static void write_pid_file(void) {
 }
 
 int main(int argc, char *argv[]) {
+    /* --debug: include DEBUG-level detail in GUI.log */
+    LogLevel gui_log_level = LOG_LEVEL_INFO;
+    for (int i = 1; i < argc; i++) {
+        if (strcmp(argv[i], "--debug") == 0) gui_log_level = LOG_LEVEL_DEBUG;
+    }
+
     /* Initialize logging first (NULL = use default user directory) */
-    if (log_init("GUI", LOG_LEVEL_INFO, NULL) != 0) {
+    if (log_init("GUI", gui_log_level, NULL) != 0) {
         fprintf(stderr, "Failed to initialize logging system\n");
     }
-    
-    LOG_INFO("Application starting...");
+    gui_install_log_handlers();
+
+    LOG_INFO("Application starting (version %s)...", APP_VERSION);
     
     /* Check for another running instance before initializing GTK */
     int existing_pid = check_single_instance();
