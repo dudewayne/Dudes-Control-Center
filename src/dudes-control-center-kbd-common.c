@@ -801,6 +801,39 @@ int kbd_profile_delete_json(const char *name) {
     return -1;
 }
 
+/* Rename a profile in profiles.json */
+int kbd_profile_rename_json(const char *old_name, const char *new_name) {
+    /* Validate new name */
+    if (!new_name || strlen(new_name) == 0) {
+        LOG_ERROR("[KBD] Invalid new profile name (empty)");
+        return -1;
+    }
+    if (strchr(new_name, '\n') != NULL) {
+        LOG_ERROR("[KBD] Invalid new profile name (contains newline)");
+        return -1;
+    }
+
+    /* Check for duplicate name */
+    for (int i = 0; i < g_num_profiles; i++) {
+        if (strcmp(g_profiles[i].name, new_name) == 0) {
+            LOG_ERROR("[KBD] Profile '%s' already exists", new_name);
+            return -1;
+        }
+    }
+
+    /* Find and rename */
+    for (int i = 0; i < g_num_profiles; i++) {
+        if (strcmp(g_profiles[i].name, old_name) == 0) {
+            strncpy(g_profiles[i].name, new_name, KBD_PROFILE_NAME_MAX - 1);
+            g_profiles[i].name[KBD_PROFILE_NAME_MAX - 1] = '\0';
+            LOG_INFO("[KBD] Renamed profile '%s' to '%s'", old_name, new_name);
+            return kbd_profiles_save_json();
+        }
+    }
+    LOG_ERROR("[KBD] Profile '%s' not found for rename", old_name);
+    return -1;
+}
+
 /* Create an empty profile in profiles.json */
 int kbd_profile_create_json(const char *name) {
     /* Validate profile name */

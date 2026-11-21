@@ -555,6 +555,18 @@ static int handle_command(const char *cmd, char *response, size_t resp_size) {
         }
     }
 
+    /* Command: RENAME_PROFILE <old_name> <new_name> */
+    if (strcmp(action, "RENAME_PROFILE") == 0) {
+        LOG_INFO("[KBD_DAEMON] RENAME_PROFILE: '%s' -> '%s'", arg1, arg2);
+        if (kbd_profile_rename_json(arg1, arg2) == 0) {
+            snprintf(response, resp_size, "OK Profile renamed: %s to %s\n", arg1, arg2);
+            return 0;
+        } else {
+            snprintf(response, resp_size, "ERROR Profile not found or duplicate name: %s\n", arg1);
+            return -1;
+        }
+    }
+
     /* Command: CREATE_PROFILE <name> */
     if (strcmp(action, "CREATE_PROFILE") == 0) {
         LOG_INFO("[KBD_DAEMON] CREATE_PROFILE: '%s'", arg1);
