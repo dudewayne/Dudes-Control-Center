@@ -19,6 +19,14 @@ CJSON_LIBS = $(shell pkg-config --libs libcjson 2>/dev/null || echo "-lcjson")
 # Source files
 COMMON_SRC = src/dudes-control-center-common.c
 COMMON_HDR = src/dudes-control-center-common.h
+LOG_SRC = src/dudes-control-center-log.c
+LOG_HDR = src/dudes-control-center-log.h
+# Socket authorization + safe user-file I/O for the root daemons
+SECURE_SRC = src/dudes-control-center-secure.c
+SECURE_HDR = src/dudes-control-center-secure.h
+
+# Group whose members may control the daemons (see src/dudes-control-center-secure.h)
+DCC_GROUP = dudes-control-center
 
 # Targets
 CLI_TARGET = dudes-control-center-fan-cli
@@ -46,13 +54,13 @@ all: $(CLI_TARGET) $(CPU_CLI_TARGET) $(DAEMON_TARGET) $(CPU_DAEMON_TARGET) $(KBD
 $(CLI_TARGET): $(COMMON_SRC) src/dudes-control-center-fan-cli.c $(COMMON_HDR)
 	$(CC) $(CFLAGS) -o $@ $(COMMON_SRC) src/dudes-control-center-fan-cli.c $(LDFLAGS_COMMON)
 
-$(DAEMON_TARGET): $(COMMON_SRC) src/dudes-control-center-log.c src/dudes-control-center-fan-daemon.c $(COMMON_HDR) VERSION
-	$(CC) $(CFLAGS) $(CJSON_CFLAGS) -o $@ $(COMMON_SRC) src/dudes-control-center-log.c src/dudes-control-center-fan-daemon.c $(LDFLAGS_COMMON) $(CJSON_LIBS)
+$(DAEMON_TARGET): $(COMMON_SRC) $(LOG_SRC) $(SECURE_SRC) src/dudes-control-center-fan-daemon.c $(COMMON_HDR) $(LOG_HDR) $(SECURE_HDR) VERSION
+	$(CC) $(CFLAGS) $(CJSON_CFLAGS) -o $@ $(COMMON_SRC) $(LOG_SRC) $(SECURE_SRC) src/dudes-control-center-fan-daemon.c $(LDFLAGS_COMMON) $(CJSON_LIBS)
 
-$(CPU_DAEMON_TARGET): src/dudes-control-center-cpu-common.c src/dudes-control-center-log.c src/dudes-control-center-cpu-daemon.c src/dudes-control-center-cpu-common.h VERSION
-	$(CC) $(CFLAGS) $(CJSON_CFLAGS) -o $@ src/dudes-control-center-cpu-common.c src/dudes-control-center-log.c src/dudes-control-center-cpu-daemon.c $(LDFLAGS_COMMON) $(CJSON_LIBS)
+$(CPU_DAEMON_TARGET): src/dudes-control-center-cpu-common.c $(LOG_SRC) $(SECURE_SRC) src/dudes-control-center-cpu-daemon.c src/dudes-control-center-cpu-common.h $(LOG_HDR) $(SECURE_HDR) VERSION
+	$(CC) $(CFLAGS) $(CJSON_CFLAGS) -o $@ src/dudes-control-center-cpu-common.c $(LOG_SRC) $(SECURE_SRC) src/dudes-control-center-cpu-daemon.c $(LDFLAGS_COMMON) $(CJSON_LIBS)
 
-$(GUI_TARGET): $(COMMON_SRC) src/dudes-control-center-log.c src/dudes-control-center-gui.c $(COMMON_HDR) VERSION
+$(GUI_TARGET): $(COMMON_SRC) $(LOG_SRC) src/dudes-control-center-gui.c $(COMMON_HDR) $(LOG_HDR) src/dudes-control-center-kbd-common.h src/dudes-control-center-cpu-common.h VERSION
 	$(CC) $(CFLAGS) $(GTK_CFLAGS) $(CJSON_CFLAGS) -DAPP_VERSION="\"$(VERSION)\"" -o $@ $(COMMON_SRC) src/dudes-control-center-log.c src/dudes-control-center-gui.c $(LDFLAGS_COMMON) $(GTK_LIBS) $(CJSON_LIBS)
 
 cli: $(CLI_TARGET)
@@ -66,8 +74,8 @@ daemon: $(DAEMON_TARGET)
 
 cpu-daemon: $(CPU_DAEMON_TARGET)
 
-$(KBD_DAEMON_TARGET): src/dudes-control-center-kbd-common.c src/dudes-control-center-log.c src/dudes-control-center-kbd-backlight-daemon.c src/dudes-control-center-kbd-common.h VERSION
-	$(CC) $(CFLAGS) $(CJSON_CFLAGS) -o $@ src/dudes-control-center-kbd-common.c src/dudes-control-center-log.c src/dudes-control-center-kbd-backlight-daemon.c $(LDFLAGS_COMMON) $(CJSON_LIBS)
+$(KBD_DAEMON_TARGET): src/dudes-control-center-kbd-common.c $(LOG_SRC) $(SECURE_SRC) src/dudes-control-center-kbd-backlight-daemon.c src/dudes-control-center-kbd-common.h $(COMMON_HDR) $(LOG_HDR) $(SECURE_HDR) VERSION
+	$(CC) $(CFLAGS) $(CJSON_CFLAGS) -o $@ src/dudes-control-center-kbd-common.c $(LOG_SRC) $(SECURE_SRC) src/dudes-control-center-kbd-backlight-daemon.c $(LDFLAGS_COMMON) $(CJSON_LIBS)
 
 kbd-daemon: $(KBD_DAEMON_TARGET)
 
@@ -118,7 +126,7 @@ deb: all
 	@echo 'Section: admin' >> $(DEB_BUILD_DIR)/$(PACKAGE)-$(VERSION)/DEBIAN/control
 	@echo 'Priority: optional' >> $(DEB_BUILD_DIR)/$(PACKAGE)-$(VERSION)/DEBIAN/control
 	@echo 'Depends: libgtk-3-0, libcjson1, dkms' >> $(DEB_BUILD_DIR)/$(PACKAGE)-$(VERSION)/DEBIAN/control
-	@printf '#!/bin/sh\nset -e\nif [ "$$1" = "configure" ]; then\n    systemctl daemon-reload\n    # DKMS: register and build ite_829x kernel module\n    DKMS_MOD_NAME=ite_829x\n    DKMS_MOD_VER=$(VERSION)\n    if [ -d /usr/src/$$DKMS_MOD_NAME-$$DKMS_MOD_VER ]; then\n        dkms add -m $$DKMS_MOD_NAME -v $$DKMS_MOD_VER || true\n        dkms build -m $$DKMS_MOD_NAME -v $$DKMS_MOD_VER || true\n        dkms install -m $$DKMS_MOD_NAME -v $$DKMS_MOD_VER || true\n        modprobe $$DKMS_MOD_NAME || true\n    fi\n    systemctl enable dudes-control-center-fan-daemon\n    systemctl restart dudes-control-center-fan-daemon || systemctl start dudes-control-center-fan-daemon\n    systemctl enable dudes-control-center-cpu-daemon\n    systemctl restart dudes-control-center-cpu-daemon || systemctl start dudes-control-center-cpu-daemon\n    systemctl enable dudes-control-center-kbd-backlight-daemon\n    systemctl restart dudes-control-center-kbd-backlight-daemon || systemctl start dudes-control-center-kbd-backlight-daemon\n    systemctl enable dudes-control-center-hard-limit-enforcer.timer\n    systemctl start dudes-control-center-hard-limit-enforcer.timer || true\n    update-desktop-database >/dev/null 2>&1 || true\nfi\nexit 0\n' > $(DEB_BUILD_DIR)/$(PACKAGE)-$(VERSION)/DEBIAN/postinst
+	@printf '#!/bin/sh\nset -e\nif [ "$$1" = "configure" ]; then\n    # Access control: members of $(DCC_GROUP) may control the daemons\n    groupadd -f --system $(DCC_GROUP)\n    DCC_USER=""\n    if [ -n "$${SUDO_USER:-}" ] && [ "$$SUDO_USER" != "root" ]; then DCC_USER="$$SUDO_USER";\n    elif [ -n "$${PKEXEC_UID:-}" ]; then DCC_USER=$$(id -nu "$$PKEXEC_UID" 2>/dev/null || true); fi\n    if [ -n "$$DCC_USER" ]; then\n        usermod -aG $(DCC_GROUP) "$$DCC_USER" && echo "Added $$DCC_USER to group $(DCC_GROUP)"\n    else\n        echo "NOTE: add your desktop user to the control group: sudo usermod -aG $(DCC_GROUP) <user>"\n    fi\n    systemctl daemon-reload\n    # DKMS: register and build ite_829x kernel module\n    DKMS_MOD_NAME=ite_829x\n    DKMS_MOD_VER=$(VERSION)\n    if [ -d /usr/src/$$DKMS_MOD_NAME-$$DKMS_MOD_VER ]; then\n        dkms add -m $$DKMS_MOD_NAME -v $$DKMS_MOD_VER || true\n        dkms build -m $$DKMS_MOD_NAME -v $$DKMS_MOD_VER || true\n        dkms install -m $$DKMS_MOD_NAME -v $$DKMS_MOD_VER || true\n        modprobe $$DKMS_MOD_NAME || true\n    fi\n    systemctl enable dudes-control-center-fan-daemon\n    systemctl restart dudes-control-center-fan-daemon || systemctl start dudes-control-center-fan-daemon\n    systemctl enable dudes-control-center-cpu-daemon\n    systemctl restart dudes-control-center-cpu-daemon || systemctl start dudes-control-center-cpu-daemon\n    systemctl enable dudes-control-center-kbd-backlight-daemon\n    systemctl restart dudes-control-center-kbd-backlight-daemon || systemctl start dudes-control-center-kbd-backlight-daemon\n    systemctl enable dudes-control-center-hard-limit-enforcer.timer\n    systemctl start dudes-control-center-hard-limit-enforcer.timer || true\n    update-desktop-database >/dev/null 2>&1 || true\nfi\nexit 0\n' > $(DEB_BUILD_DIR)/$(PACKAGE)-$(VERSION)/DEBIAN/postinst
 	@chmod 755 $(DEB_BUILD_DIR)/$(PACKAGE)-$(VERSION)/DEBIAN/postinst
 	@printf '#!/bin/sh\nset -e\nif [ "$$1" = "remove" ]; then\n    systemctl stop dudes-control-center-kbd-backlight-daemon 2>/dev/null || true\n    systemctl disable dudes-control-center-kbd-backlight-daemon 2>/dev/null || true\n    # DKMS: unload ite_829x kernel module\n    rmmod ite_829x 2>/dev/null || true\n    systemctl stop dudes-control-center-fan-daemon 2>/dev/null || true\n    systemctl disable dudes-control-center-fan-daemon 2>/dev/null || true\n    systemctl stop dudes-control-center-cpu-daemon 2>/dev/null || true\n    systemctl disable dudes-control-center-cpu-daemon 2>/dev/null || true\n    systemctl stop dudes-control-center-hard-limit-enforcer.timer 2>/dev/null || true\n    systemctl disable dudes-control-center-hard-limit-enforcer.timer 2>/dev/null || true\n    systemctl daemon-reload\nfi\nexit 0\n' > $(DEB_BUILD_DIR)/$(PACKAGE)-$(VERSION)/DEBIAN/prerm
 	@chmod 755 $(DEB_BUILD_DIR)/$(PACKAGE)-$(VERSION)/DEBIAN/prerm
@@ -135,6 +143,13 @@ install: all
 	install -m 755 $(CPU_DAEMON_TARGET) /usr/local/bin/
 	install -m 755 $(KBD_DAEMON_TARGET) /usr/local/bin/
 	install -m 755 $(GUI_TARGET) /usr/local/bin/
+	@echo "Setting up access group $(DCC_GROUP)..."
+	groupadd -f --system $(DCC_GROUP)
+	@if [ -n "$${SUDO_USER:-}" ] && [ "$$SUDO_USER" != "root" ]; then \
+		usermod -aG $(DCC_GROUP) "$$SUDO_USER" && echo "Added $$SUDO_USER to group $(DCC_GROUP)"; \
+	else \
+		echo "NOTE: add your desktop user: sudo usermod -aG $(DCC_GROUP) <user>"; \
+	fi
 	@echo "Creating systemd service for daemon..."
 	install -d /etc/systemd/system
 	cp dudes-control-center-fan-daemon.service /etc/systemd/system/

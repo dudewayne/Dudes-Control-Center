@@ -21,6 +21,7 @@
 
 #include "dudes-control-center-kbd-common.h"
 #include "dudes-control-center-log.h"
+#include "dudes-control-center-secure.h"
 
 #define PROGRAM_NAME "dudes-control-center-kbd-backlight-daemon"
 
@@ -293,15 +294,23 @@ static int handle_command(const char *cmd, char *response, size_t resp_size) {
         int led_count = get_led_count();
         snprintf(response, resp_size, "LED_LIST_START COUNT=%d\n", led_count);
 
-        int offset = strlen(response);
-        for (int i = 0; i < led_count && offset < KBD_MAX_RESPONSE_LEN - 128; i++) {
-            int written = snprintf(response + offset, KBD_MAX_RESPONSE_LEN - offset,
-                                   "LED %d %s %d\n", i, state->leds[i].name, state->leds[i].max_brightness);
-            if (written < 0 || written >= KBD_MAX_RESPONSE_LEN - offset) break;
-            offset += written;
+        static const char end_marker[] = "LED_LIST_END\n";
+        if (resp_size <= sizeof(end_marker)) return -1;
+        const size_t limit = resp_size - sizeof(end_marker);
+
+        size_t offset = strlen(response);
+        if (offset >= limit) offset = 0;
+        for (int i = 0; i < led_count; i++) {
+            char line[KBD_LED_NAME_MAX + 32];
+            int written = snprintf(line, sizeof(line), "LED %d %s %d\n",
+                                   i, state->leds[i].name, state->leds[i].max_brightness);
+            if (written < 0 || (size_t)written >= sizeof(line) || offset + (size_t)written >= limit) break;
+            memcpy(response + offset, line, (size_t)written);
+            offset += (size_t)written;
         }
 
-        strcat(response, "LED_LIST_END\n");
+        /* offset < limit, so the marker and its NUL always fit */
+        memcpy(response + offset, end_marker, sizeof(end_marker));
         return 0;
     }
 
@@ -713,7 +722,8 @@ static int init_socket(void) {
         return -1;
     }
 
-    chmod(KBD_SOCKET_PATH, 0777);
+    /* Anyone may connect; dcc_peer_authorized() decides who may send commands */
+    chmod(KBD_SOCKET_PATH, 0666);
 
     if (listen(sock_fd, SOMAXCONN) < 0) {
         LOG_ERROR("[KBD_DAEMON] Failed to listen on socket: %s", strerror(errno));
@@ -751,6 +761,7 @@ int main(int argc, char *argv[]) {
     /* Set up signal handlers */
     signal(SIGINT, on_sigint);
     signal(SIGHUP, on_sighup);
+    dcc_ignore_sigpipe();
     signal(SIGTERM, on_sigint);
 
     /* Initialize socket */
@@ -798,6 +809,12 @@ int main(int argc, char *argv[]) {
             if (client_fd < 0) {
                 if (errno == EINTR || errno == EWOULDBLOCK) continue;
                 LOG_ERROR("[KBD_DAEMON] accept() failed: %s", strerror(errno));
+                continue;
+            }
+
+            /* Reject before handle_client_nonblocking() closes the current client */
+            if (!dcc_peer_authorized(client_fd)) {
+                dcc_reject_client(client_fd);
                 continue;
             }
 

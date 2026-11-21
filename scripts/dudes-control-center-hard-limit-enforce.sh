@@ -2,35 +2,64 @@
 # dudes-control-center-hard-limit-enforce.sh
 # Fail-safe enforcement script for CPU hard frequency limit.
 # Reads the hard limit from profiles.json and writes it to sysfs.
-# Runs independently of the daemon via systemd timer.
+# Runs independently of the daemon via systemd timer (as root).
+#
+# Security: profiles.json lives in a user's home directory. This script runs
+# as root, so it reads the file with the identity of the directory's owner
+# (setpriv) and never writes anything into the home directory.
 
-PROFILES_FILE="$HOME/.config/dudes-control-center/profiles.json"
-LOG_FILE="$HOME/.cache/dudes-control-center/logs/hard-limit-enforcer.log"
+PROFILES_DIR="$HOME/.config/dudes-control-center"
+PROFILES_FILE="$PROFILES_DIR/profiles.json"
+LOG_DIR="/var/log/dudes-control-center"
+LOG_FILE="$LOG_DIR/HARD_LIMIT_ENFORCER.log"
+LOG_MAX_BYTES=$((1024 * 1024))
 
-# Ensure log directory exists
-mkdir -p "$(dirname "$LOG_FILE")" 2>/dev/null
+mkdir -p "$LOG_DIR" 2>/dev/null
 
 log() {
-    echo "[$(date '+%H:%M:%S')] $*" >> "$LOG_FILE" 2>/dev/null
+    # Simple size cap so a 10 s timer cannot fill the disk
+    if [ -f "$LOG_FILE" ] && [ "$(stat -c %s "$LOG_FILE" 2>/dev/null || echo 0)" -gt "$LOG_MAX_BYTES" ]; then
+        mv -f "$LOG_FILE" "$LOG_FILE.1" 2>/dev/null
+    fi
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] $*" >> "$LOG_FILE" 2>/dev/null
 }
 
-# Check if profiles.json exists
-if [ ! -f "$PROFILES_FILE" ]; then
-    log "ERROR: profiles.json not found at $PROFILES_FILE"
+# The config directory must be a real directory owned by a regular user
+if [ -L "$PROFILES_DIR" ] || [ ! -d "$PROFILES_DIR" ]; then
+    log "ERROR: $PROFILES_DIR is missing or a symlink"
+    exit 1
+fi
+OWNER_UID=$(stat -c %u "$PROFILES_DIR")
+OWNER_GID=$(stat -c %g "$PROFILES_DIR")
+if [ "$OWNER_UID" = "0" ]; then
+    log "ERROR: $PROFILES_DIR is owned by root; expected the desktop user"
     exit 1
 fi
 
-# Extract cpu_hard_limit_hz from profiles.json using grep/sed
-HARD_LIMIT_HZ=$(grep -o '"cpu_hard_limit_hz"[[:space:]]*:[[:space:]]*[0-9]*' "$PROFILES_FILE" 2>/dev/null | grep -o '[0-9]*')
+# Read the file as its owner; refuse to follow a symlink at the file itself
+if [ -L "$PROFILES_FILE" ]; then
+    log "ERROR: $PROFILES_FILE is a symlink - refusing to read it"
+    exit 1
+fi
+CONTENT=$(setpriv --reuid="$OWNER_UID" --regid="$OWNER_GID" --clear-groups \
+          head -c 1048576 -- "$PROFILES_FILE" 2>/dev/null)
+if [ -z "$CONTENT" ]; then
+    log "ERROR: profiles.json not readable at $PROFILES_FILE"
+    exit 1
+fi
 
-if [ -z "$HARD_LIMIT_HZ" ]; then
-    log "ERROR: Could not read cpu_hard_limit_hz from profiles.json"
+# Extract cpu_hard_limit_hz (first match, digits only)
+HARD_LIMIT_HZ=$(printf '%s' "$CONTENT" \
+    | grep -o '"cpu_hard_limit_hz"[[:space:]]*:[[:space:]]*[0-9]*' \
+    | head -n 1 | grep -o '[0-9]*$')
+
+if ! [[ "$HARD_LIMIT_HZ" =~ ^[0-9]{6,12}$ ]]; then
+    log "ERROR: Could not read a valid cpu_hard_limit_hz from profiles.json"
     exit 1
 fi
 
 # Convert Hz to kHz (sysfs uses kHz)
 HARD_LIMIT_KHZ=$((HARD_LIMIT_HZ / 1000))
-log "Enforcing hard limit: ${HARD_LIMIT_HZ} Hz (${HARD_LIMIT_KHZ} kHz)"
 
 # Write to all policy directories
 ENFORCED=0
@@ -39,8 +68,7 @@ for policy_dir in /sys/devices/system/cpu/cpufreq/policy*; do
     if [ -f "$policy_dir/scaling_max_freq" ]; then
         current_max=$(cat "$policy_dir/scaling_max_freq" 2>/dev/null)
         if [ -n "$current_max" ] && [ "$current_max" -gt "$HARD_LIMIT_KHZ" ]; then
-            echo "$HARD_LIMIT_KHZ" > "$policy_dir/scaling_max_freq" 2>/dev/null
-            if [ $? -eq 0 ]; then
+            if echo "$HARD_LIMIT_KHZ" > "$policy_dir/scaling_max_freq" 2>/dev/null; then
                 ENFORCED=$((ENFORCED + 1))
             else
                 FAILED=$((FAILED + 1))
@@ -50,5 +78,8 @@ for policy_dir in /sys/devices/system/cpu/cpufreq/policy*; do
     fi
 done
 
-log "Done: enforced=$ENFORCED, failed=$FAILED"
+# Only log when something happened, to keep the log readable
+if [ "$ENFORCED" -gt 0 ] || [ "$FAILED" -gt 0 ]; then
+    log "Hard limit ${HARD_LIMIT_HZ} Hz (${HARD_LIMIT_KHZ} kHz): enforced=$ENFORCED, failed=$FAILED"
+fi
 exit 0

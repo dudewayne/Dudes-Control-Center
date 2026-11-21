@@ -21,6 +21,7 @@
 #include <stdarg.h>
 
 #include "dudes-control-center-log.h"
+#include "dudes-control-center-secure.h"
 #include "dudes-control-center-cpu-common.h"
 
 #define PROGRAM_NAME "dudes-control-center-cpu-daemon"
@@ -382,22 +383,22 @@ static void handle_command(const char *cmd, char *response, size_t resp_size) {
 
     /* --- GET_AVAILABLE_GOVERNORS --- */
     if (strcmp(action, "GET_AVAILABLE_GOVERNORS") == 0) {
-        char *governors[20];
+        /* get_all_governors() may fill up to MAX_CPUS entries of CPU_GOVERNOR_NAME_MAX bytes */
+        char governor_storage[MAX_CPUS][CPU_GOVERNOR_NAME_MAX];
+        char *governors[MAX_CPUS];
         int count = 0;
 
-        for (int i = 0; i < 20; i++) governors[i] = malloc(32);
+        for (int i = 0; i < MAX_CPUS; i++) governors[i] = governor_storage[i];
 
         if (get_all_governors(governors, &count) == 0) {
             snprintf(response, resp_size, "GOVERNORS OK\nCOUNT=%d\n", count);
 
             size_t pos = strlen(response);
-            for (int i = 0; i < count && pos < resp_size - 32; i++) {
+            for (int i = 0; i < count && pos + CPU_GOVERNOR_NAME_MAX + 2 < resp_size; i++) {
                 pos += snprintf(response + pos, resp_size - pos, "%s\n", governors[i]);
-                free(governors[i]);
             }
         } else {
             snprintf(response, resp_size, "ERROR Failed to get available governors\n");
-            for (int i = 0; i < 20; i++) free(governors[i]);
         }
         return;
     }
@@ -557,7 +558,7 @@ static void handle_command(const char *cmd, char *response, size_t resp_size) {
         /* Read current min freq so we don't overwrite it */
         uint32_t current_min = 0;
         const CpuCustomProfile *tmp = cpu_custom_profile_get(profile_idx);
-        if (tmp && cpu_id < tmp->num_cores && cpu_id < MAX_CPUS) {
+        if (tmp && cpu_id >= 0 && cpu_id < tmp->num_cores && cpu_id < MAX_CPUS) {
             current_min = tmp->per_core_min_freq_hz[cpu_id];
         }
 
@@ -583,7 +584,7 @@ static void handle_command(const char *cmd, char *response, size_t resp_size) {
         /* Read current max freq so we don't overwrite it */
         uint32_t current_max = 0;
         const CpuCustomProfile *tmp2 = cpu_custom_profile_get(profile_idx);
-        if (tmp2 && cpu_id < tmp2->num_cores && cpu_id < MAX_CPUS) {
+        if (tmp2 && cpu_id >= 0 && cpu_id < tmp2->num_cores && cpu_id < MAX_CPUS) {
             current_max = tmp2->per_core_max_freq_hz[cpu_id];
         }
 
@@ -609,7 +610,7 @@ static void handle_command(const char *cmd, char *response, size_t resp_size) {
         /* Read current min freq so we don't overwrite it */
         uint32_t current_min = 0;
         const CpuCustomProfile *tmp3 = cpu_custom_profile_get(profile_idx);
-        if (tmp3 && cpu_id < tmp3->num_cores && cpu_id < MAX_CPUS) {
+        if (tmp3 && cpu_id >= 0 && cpu_id < tmp3->num_cores && cpu_id < MAX_CPUS) {
             current_min = tmp3->per_core_min_freq_hz[cpu_id];
         }
 
@@ -963,6 +964,7 @@ int main(int argc, char *argv[]) {
     /* Set up signal handlers */
     signal(SIGINT, on_sigint);
     signal(SIGHUP, on_sighup);
+    dcc_ignore_sigpipe();
     signal(SIGTERM, on_sigterm);
 
     /* Create socket server */
@@ -983,7 +985,10 @@ int main(int argc, char *argv[]) {
         socklen_t client_len = sizeof(client_addr);
 
         int client_fd = accept(server_fd, (struct sockaddr*)&client_addr, &client_len);
-        if (client_fd >= 0) {
+        if (client_fd >= 0 && !dcc_peer_authorized(client_fd)) {
+            /* Reject before touching the current client connection */
+            dcc_reject_client(client_fd);
+        } else if (client_fd >= 0) {
             handle_client_nonblocking(client_fd);
         } else if (errno != EAGAIN && errno != EWOULDBLOCK) {
             if (g_running) {

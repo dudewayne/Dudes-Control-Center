@@ -15,6 +15,7 @@
 
 #include "dudes-control-center-kbd-common.h"
 #include "dudes-control-center-log.h"
+#include "dudes-control-center-secure.h"
 #include "dudes-control-center-common.h"
 
 /* ============================================================================
@@ -540,23 +541,20 @@ void kbd_set_active_profile_index(int idx) {
 int kbd_profiles_save_json(void) {
     const char *path = MAIN_PROFILES_PATH;
 
+    /* Read as the file's owner, never through a symlink (see secure.h) */
     cJSON *root = NULL;
-    FILE *f = fopen(path, "r");
-    if (f) {
-        fseek(f, 0, SEEK_END);
-        long file_size = ftell(f);
-        fseek(f, 0, SEEK_SET);
-
-        if (file_size > 0 && file_size <= 1024 * 1024) {
-            char *file_content = (char *)malloc(file_size + 1);
-            if (file_content) {
-                size_t bytes_read = fread(file_content, 1, file_size, f);
-                file_content[bytes_read] = '\0';
-                root = cJSON_Parse(file_content);
-                free(file_content);
-            }
+    char *file_content = dcc_user_file_read(path, 1024 * 1024, NULL);
+    if (file_content) {
+        root = cJSON_Parse(file_content);
+        free(file_content);
+        if (!root) {
+            /* Never replace an unparsable file: that would wipe the other sections */
+            LOG_ERROR("%s: existing %s is not valid JSON - not saving", __func__, path);
+            return -1;
         }
-        fclose(f);
+    } else if (errno != ENOENT) {
+        LOG_ERROR("%s: cannot read %s - not saving", __func__, path);
+        return -1;
     }
 
     if (!root) {
@@ -587,10 +585,7 @@ int kbd_profiles_save_json(void) {
         return -1;
     }
 
-    f = fopen(path, "w");
-    if (f) {
-        fprintf(f, "%s\n", json_str);
-        fclose(f);
+    if (dcc_user_file_write(path, json_str, strlen(json_str)) == 0) {
         LOG_INFO("[KBD] Saved %d keyboard profiles to %s (keyboard_profiles section)",
                  g_num_profiles, path);
     } else {
@@ -611,30 +606,12 @@ int kbd_profiles_load_json(void) {
 
     const char *path = MAIN_PROFILES_PATH;
 
-    FILE *f = fopen(path, "r");
-    if (!f) {
-        LOG_INFO("[KBD] No saved profiles file found at %s", path);
-        return -1;
-    }
-
-    fseek(f, 0, SEEK_END);
-    long file_size = ftell(f);
-    fseek(f, 0, SEEK_SET);
-
-    if (file_size <= 0 || file_size > 1024 * 1024) {
-        fclose(f);
-        return -1;
-    }
-
-    char *file_content = (char *)malloc(file_size + 1);
+    /* Read as the file's owner, never through a symlink (see secure.h) */
+    char *file_content = dcc_user_file_read(path, 1024 * 1024, NULL);
     if (!file_content) {
-        fclose(f);
+        LOG_INFO("[KBD] No readable profiles file at %s", path);
         return -1;
     }
-
-    size_t bytes_read = fread(file_content, 1, file_size, f);
-    file_content[bytes_read] = '\0';
-    fclose(f);
 
     cJSON *root = cJSON_Parse(file_content);
     free(file_content);
@@ -886,7 +863,9 @@ int kbd_profile_list_json(char *buffer, size_t buf_size) {
     offset += snprintf(buffer + offset, buf_size - offset,
                        "PROFILES_START COUNT=%d\n", g_num_profiles);
 
-    for (int i = 0; i < g_num_profiles && offset < buf_size - 64; i++) {
+    /* Margin must exceed the longest line ("PROFILE nn [*] " + 63-char name),
+     * otherwise a truncated snprintf pushes offset past buf_size. */
+    for (int i = 0; i < g_num_profiles && offset + 128 < (int)buf_size; i++) {
         /* Skip profiles with empty names */
         if (strlen(g_profiles[i].name) == 0) continue;
         const char *active_marker = (i == g_active_profile_index) ? "*" : " ";

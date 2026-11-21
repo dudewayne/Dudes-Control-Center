@@ -202,9 +202,13 @@ Profiles are saved to: `~/.config/dudes-control-center/profiles.json`
 - Rotation: 5 files, max 10MB each
 - Requires root access to read
 
-### Unix Socket
-- Path: `/run/dudes-control-center-fan.sock`
-- Permissions: 666 (read/write for all users)
+### Unix Sockets and Access Control
+- Paths: `/run/dudes-control-center-fan.sock`, `/run/dudes-control-center-cpu.sock`, `/run/dudes-control-center-kbd.sock`
+- Any user can connect (mode 666), but the daemons only accept commands from **root** and members of the **`dudes-control-center`** group (checked with `SO_PEERCRED`). Other users get `ERROR Permission denied`.
+- The package creates the group and adds the installing user. To add another user (takes effect immediately, no re-login needed):
+  ```bash
+  sudo usermod -aG dudes-control-center <user>
+  ```
 
 ## Hardware Compatibility
 

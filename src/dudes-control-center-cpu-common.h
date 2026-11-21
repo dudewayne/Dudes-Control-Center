@@ -163,7 +163,6 @@ int cpu_profile_set_condition(const char *name, ConditionType type, int threshol
 void cpu_profile_clear_condition(const char *name);     /* Clear condition from profile */
 
 /* Profile persistence */
-int cpu_profiles_save_all(void);                        /* Save all profiles to disk */
 int cpu_profiles_load_all(void);                        /* Load all profiles from disk */
 int cpu_profile_set_last_used(const char *name);        /* Set last used profile marker */
 

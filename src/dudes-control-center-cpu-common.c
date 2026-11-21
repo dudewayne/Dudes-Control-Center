@@ -16,6 +16,7 @@
 #include <cjson/cJSON.h>
 #include "dudes-control-center-cpu-common.h"
 #include "dudes-control-center-log.h"
+#include "dudes-control-center-secure.h"
 
 /* --- Global state --- */
 CpuControlState g_cpu_state = {0};
@@ -40,22 +41,6 @@ void set_hard_max_freq_hz(uint32_t freq_hz) {
 /* Daemons run as root, so HOME=/root. Use the GUI user's config path directly. */
 #define CONTROL_CENTER_CONFIG_DIR "/home/dude/.config/dudes-control-center"
 
-static const char* get_cpu_config_dir(void) {
-    static char path[512] = {0};
-    if (path[0] == '\0') {
-        snprintf(path, sizeof(path), "%s", CONTROL_CENTER_CONFIG_DIR);
-    }
-    return path;
-}
-
-static const char* get_cpu_profiles_path(void) {
-    static char path[512] = {0};
-    if (path[0] == '\0') {
-        snprintf(path, sizeof(path), "%s/profiles.json", get_cpu_config_dir());
-    }
-    return path;
-}
-
 /* Path to the main Control Center profiles.json (~/.config/dudes-control-center/profiles.json) */
 static const char* get_main_profiles_path(void) {
     static char path[512] = {0};
@@ -65,19 +50,7 @@ static const char* get_main_profiles_path(void) {
     return path;
 }
 
-/* Wrapper for backward compatibility — now points to main profiles.json */
-static const char* get_cpu_custom_profiles_path(void) {
-    return get_main_profiles_path();
-}
 
-static int ensure_cpu_config_dir(void) {
-    const char *dir = get_cpu_config_dir();
-    if (mkdir(dir, 0755) != 0 && errno != EEXIST) {
-        LOG_ERROR("Could not create CPU config directory: %s", dir);
-        return -1;
-    }
-    return 0;
-}
 
 /* --- Helper: Convert governor string to enum --- */
 int governor_to_enum(const char *governor_str, CpuGovernor *gov) {
@@ -926,18 +899,6 @@ int get_cpu_system_status(CpuSystemStatus *status) {
     return 0;
 }
 
-/* --- Condition type helpers for JSON persistence --- */
-static const char* condition_type_to_string(ConditionType type) {
-    switch (type) {
-        case CONDITION_AC_POWER:    return "ac_power";
-        case CONDITION_BATTERY:     return "battery";
-        case CONDITION_TEMP_HIGH:   return "temp_high";
-        case CONDITION_TEMP_LOW:    return "temp_low";
-        case CONDITION_LOAD_HIGH:   return "load_high";
-        case CONDITION_LOAD_LOW:    return "load_low";
-        default:                   return "none";
-    }
-}
 
 static ConditionType condition_type_from_string(const char *str) {
     if (!str) return CONDITION_NONE;
@@ -952,57 +913,6 @@ static ConditionType condition_type_from_string(const char *str) {
 
 /* --- Profile persistence (JSON) --- */
 
-/* Save all profiles to disk as JSON */
-int cpu_profiles_save_all(void) {
-    if (ensure_cpu_config_dir() != 0) return -1;
-
-    cJSON *root = cJSON_CreateObject();
-    if (!root) return -1;
-
-    cJSON_AddStringToObject(root, "version", "1.0");
-    cJSON_AddNumberToObject(root, "active_profile_index", g_cpu_state.active_profile_idx);
-    cJSON_AddStringToObject(root, "last_used_profile", g_cpu_state.last_used_profile);
-    cJSON_AddNumberToObject(root, "auto_mode_enabled", g_cpu_state.auto_mode_enabled);
-
-    cJSON *profiles_array = cJSON_CreateArray();
-    for (int i = 0; i < g_cpu_state.num_profiles; i++) {
-        CpuProfile *p = &g_cpu_state.profiles[i];
-        cJSON *profile_obj = cJSON_CreateObject();
-        cJSON_AddStringToObject(profile_obj, "name", p->name);
-        cJSON_AddStringToObject(profile_obj, "governor", enum_to_governor(p->governor));
-        cJSON_AddNumberToObject(profile_obj, "min_freq_hz", p->min_freq_hz);
-        cJSON_AddNumberToObject(profile_obj, "max_freq_hz", p->max_freq_hz);
-        cJSON_AddStringToObject(profile_obj, "condition_type", condition_type_to_string(p->condition_type));
-        cJSON_AddNumberToObject(profile_obj, "condition_threshold", p->condition_threshold);
-        cJSON_AddNumberToObject(profile_obj, "is_auto_switchable", p->is_auto_switchable);
-        cJSON_AddItemToArray(profiles_array, profile_obj);
-    }
-    cJSON_AddItemToObject(root, "profiles", profiles_array);
-
-    /* Write to file */
-    char *json_str = cJSON_Print(root);
-    if (!json_str) {
-        cJSON_Delete(root);
-        return -1;
-    }
-
-    const char *path = get_cpu_profiles_path();
-    FILE *f = fopen(path, "w");
-    if (f) {
-        fprintf(f, "%s\n", json_str);
-        fclose(f);
-        LOG_INFO("[CPU] Saved %d profiles to %s", g_cpu_state.num_profiles, path);
-    } else {
-        LOG_ERROR("[CPU] Failed to write profiles to %s: %s", path, strerror(errno));
-        cJSON_free(json_str);
-        cJSON_Delete(root);
-        return -1;
-    }
-
-    cJSON_free(json_str);
-    cJSON_Delete(root);
-    return 0;
-}
 
 /* CPU governor profiles (Performance, Balanced, Power Save) are hardcoded defaults.
  * They are no longer loaded from the shared profiles.json file.
@@ -1212,23 +1122,20 @@ int cpu_custom_profile_save_json(void) {
     const char *path = get_main_profiles_path();
 
     /* Read existing file if it exists, otherwise create empty root */
+    /* Read as the file's owner, never through a symlink (see secure.h) */
     cJSON *root = NULL;
-    FILE *f = fopen(path, "r");
-    if (f) {
-        fseek(f, 0, SEEK_END);
-        long file_size = ftell(f);
-        fseek(f, 0, SEEK_SET);
-
-        if (file_size > 0 && file_size <= 1024 * 1024) {
-            char *file_content = (char *)malloc(file_size + 1);
-            if (file_content) {
-                size_t bytes_read = fread(file_content, 1, file_size, f);
-                file_content[bytes_read] = '\0';
-                root = cJSON_Parse(file_content);
-                free(file_content);
-            }
+    char *file_content = dcc_user_file_read(path, 1024 * 1024, NULL);
+    if (file_content) {
+        root = cJSON_Parse(file_content);
+        free(file_content);
+        if (!root) {
+            /* Never replace an unparsable file: that would wipe the other sections */
+            LOG_ERROR("%s: existing %s is not valid JSON - not saving", __func__, path);
+            return -1;
         }
-        fclose(f);
+    } else if (errno != ENOENT) {
+        LOG_ERROR("%s: cannot read %s - not saving", __func__, path);
+        return -1;
     }
 
     if (!root) {
@@ -1262,10 +1169,7 @@ int cpu_custom_profile_save_json(void) {
         return -1;
     }
 
-    f = fopen(path, "w");
-    if (f) {
-        fprintf(f, "%s\n", json_str);
-        fclose(f);
+    if (dcc_user_file_write(path, json_str, strlen(json_str)) == 0) {
         LOG_INFO("[CPU] Saved %d custom profiles to %s (cpu_freq_profiles section)",
                  g_cpu_state.num_custom_profiles, path);
     } else {
@@ -1287,31 +1191,12 @@ int cpu_custom_profile_load_json(void) {
 
     const char *path = get_main_profiles_path();
 
-    FILE *f = fopen(path, "r");
-    if (!f) {
-        LOG_INFO("[CPU] No saved profiles file found at %s", path);
-        return -1;
-    }
-
-    /* Read file contents */
-    fseek(f, 0, SEEK_END);
-    long file_size = ftell(f);
-    fseek(f, 0, SEEK_SET);
-
-    if (file_size <= 0 || file_size > 1024 * 1024) {
-        fclose(f);
-        return -1;
-    }
-
-    char *file_content = (char *)malloc(file_size + 1);
+    /* Read as the file's owner, never through a symlink (see secure.h) */
+    char *file_content = dcc_user_file_read(path, 1024 * 1024, NULL);
     if (!file_content) {
-        fclose(f);
+        LOG_INFO("[CPU] No readable profiles file at %s", path);
         return -1;
     }
-
-    size_t bytes_read = fread(file_content, 1, file_size, f);
-    file_content[bytes_read] = '\0';
-    fclose(f);
 
     cJSON *root = cJSON_Parse(file_content);
     free(file_content);

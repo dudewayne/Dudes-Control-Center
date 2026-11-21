@@ -2,6 +2,16 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.16.1] - 2026-11-21
+
+### Fixed (Security)
+- **Stack buffer overflow in the fan daemon**: `GET_PROFILE` could write past its response buffer once a profile had about 32 or more curve points. Any local user could trigger it. The response is now built with strict bounds, and the response buffer was enlarged so a full 50-point profile fits. `LIST_PROFILES` and the keyboard daemon's `LIST_LEDS`/profile list use the same bounded pattern. The CPU daemon's `GET_AVAILABLE_GOVERNORS` no longer overflows or leaks, and `SET_CORE_*` rejects negative CPU ids.
+- **Socket access control**: the fan, CPU and keyboard daemons now check the connecting process (`SO_PEERCRED`). Only root and members of the new `dudes-control-center` group may send commands. Others get `ERROR Permission denied` and are disconnected; a rejected connection no longer kicks out the GUI's connection. Group membership is read on every connection, so no re-login is needed. The deb `postinst` and `make install` create the group and add the installing user (`SUDO_USER`/`PKEXEC_UID`). The keyboard socket mode changed from 0777 to 0666.
+- **Root no longer reads/writes `profiles.json` as root**: the daemons access the file with the identity of the config directory's owner (`setfsuid`). They never follow a symlink at the file and refuse a symlinked config directory. Writes are atomic (temp file + fsync + rename). Before, a symlink could redirect root's writes to any system file. If the existing file is not valid JSON, the daemons no longer overwrite it (that used to wipe other sections). Removed the unused CPU writer that would have replaced the whole file.
+- **Hard-limit enforcer script**: now reads `profiles.json` as the directory owner (`setpriv`) and logs to `/var/log/dudes-control-center/HARD_LIMIT_ENFORCER.log` instead of writing as root into `~/.cache`. It validates the parsed limit and only logs when it changed something.
+- Daemons ignore `SIGPIPE`, so a client that disconnects early can no longer kill them. When all fan-daemon client slots are full, the extra connection is closed instead of leaked.
+- Parse errors on `profiles.json` no longer copy file contents into the daemon log.
+
 ## [1.16.0] - 2026-11-21
 
 ### Added

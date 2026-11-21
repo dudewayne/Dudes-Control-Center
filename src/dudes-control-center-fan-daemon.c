@@ -20,6 +20,7 @@
 #include <stdbool.h>
 #include "dudes-control-center-common.h"
 #include "dudes-control-center-log.h"
+#include "dudes-control-center-secure.h"
 #include <cjson/cJSON.h>
 
 #define PROGRAM_NAME "dudes-control-center-fan-daemon"
@@ -27,6 +28,7 @@
 #define PROFILE_PATH "/home/dude/.config/dudes-control-center/profiles.json"
 #define MAX_CLIENTS 10
 #define BUFFER_SIZE 1024
+#define RESPONSE_SIZE 4096   /* large enough for a full 50-point GET_PROFILE */
 #define MAX_CMD_LEN 256
 
 /* Temperature curve point */
@@ -102,100 +104,28 @@ static void init_default_profile(void) {
     active_profile_idx = 0;
 }
 
-/* Save all profiles to disk as JSON */
-static void save_profiles(void) {
-    /* Build JSON document */
-    cJSON *root = cJSON_CreateObject();
-    if (!root) return;
-
-    cJSON_AddStringToObject(root, "version", "1.0");
-
-    /* Build fan_profiles section (nested object) */
-    cJSON *fan_section = cJSON_CreateObject();
-    cJSON_AddNumberToObject(fan_section, "active_profile_index", active_profile_idx);
-
-    cJSON *profiles_array = cJSON_CreateArray();
-    for (int i = 0; i < num_profiles; i++) {
-        FanProfile *p = &profiles[i];
-        cJSON *profile_obj = cJSON_CreateObject();
-        cJSON_AddStringToObject(profile_obj, "name", p->name);
-
-        cJSON *curve_array = cJSON_CreateArray();
-        for (int j = 0; j < p->num_points; j++) {
-            cJSON *point = cJSON_CreateObject();
-            cJSON_AddNumberToObject(point, "temperature", p->points[j].temperature);
-            cJSON_AddNumberToObject(point, "fan_percent", p->points[j].fan_percent);
-            cJSON_AddItemToArray(curve_array, point);
-        }
-        cJSON_AddItemToObject(profile_obj, "curve_points", curve_array);
-        cJSON_AddItemToArray(profiles_array, profile_obj);
-    }
-    cJSON_AddItemToObject(fan_section, "profiles", profiles_array);
-    cJSON_AddItemToObject(root, "fan_profiles", fan_section);
-    
-    /* Write to file */
-    char *json_str = cJSON_Print(root);
-    if (!json_str) {
-        cJSON_Delete(root);
-        LOG_WARN("Failed to serialize profiles to JSON");
-        return;
-    }
-    
-    FILE *fp = fopen(PROFILE_PATH, "w");
-    if (!fp) {
-        free(json_str);
-        cJSON_Delete(root);
-        LOG_WARN("Could not open %s for writing: %s", PROFILE_PATH, strerror(errno));
-        return;
-    }
-    
-    fprintf(fp, "%s\n", json_str);
-    fclose(fp);
-    free(json_str);
-    cJSON_Delete(root);
-    
-    LOG_INFO("Saved %d profiles to %s", num_profiles, PROFILE_PATH);
-}
-
 /* Load all profiles from disk as JSON */
 static void load_profiles(void) {
-    FILE *fp = fopen(PROFILE_PATH, "r");
-    if (!fp) {
-        LOG_INFO("No saved profiles found at %s, using defaults", PROFILE_PATH);
+    /* Read as the file's owner, never through a symlink (see secure.h) */
+    char *json_buf = dcc_user_file_read(PROFILE_PATH, 1024 * 1024, NULL);
+    if (!json_buf) {
+        LOG_INFO("No readable profiles at %s, using defaults", PROFILE_PATH);
         init_default_profile();
         return;
     }
-    
-    /* Read entire file into buffer */
-    fseek(fp, 0, SEEK_END);
-    long file_size = ftell(fp);
-    fseek(fp, 0, SEEK_SET);
-    
-    if (file_size <= 0) {
-        fclose(fp);
+    if (json_buf[0] == '\0') {
+        free(json_buf);
         LOG_WARN("Empty profile file at %s, using defaults", PROFILE_PATH);
         init_default_profile();
         return;
     }
-    
-    char *json_buf = malloc(file_size + 1);
-    if (!json_buf) {
-        fclose(fp);
-        LOG_WARN("Failed to allocate memory for profile loading");
-        init_default_profile();
-        return;
-    }
-    
-    size_t bytes_read = fread(json_buf, 1, file_size, fp);
-    json_buf[bytes_read] = '\0';
-    fclose(fp);
-    
+
     /* Parse JSON */
     cJSON *root = cJSON_Parse(json_buf);
     free(json_buf);
     
     if (!root) {
-        LOG_WARN("Invalid JSON in profile file %s: %s", PROFILE_PATH, cJSON_GetErrorPtr());
+        LOG_WARN("Invalid JSON in profile file %s, using defaults", PROFILE_PATH);
         init_default_profile();
         return;
     }
@@ -346,7 +276,7 @@ static int handle_command(const char *cmd, char *response, size_t resp_size) {
     }
     
     /* Parse command */
-    char action[32];
+    char action[32] = "";
     char arg1[64] = "";
     char arg2[64] = "";
     
@@ -402,17 +332,22 @@ static int handle_command(const char *cmd, char *response, size_t resp_size) {
     
     /* Command: LIST_PROFILES */
     if (strcmp(action, "LIST_PROFILES") == 0) {
-        int offset = snprintf(response, resp_size, "PROFILES_START\n");
-        for (int i = 0; i < num_profiles && offset < (int)resp_size - 64; i++) {
+        static const char end_marker[] = "PROFILES_END\n";
+        if (resp_size <= sizeof(end_marker)) return -1;
+        const size_t limit = resp_size - sizeof(end_marker);
+
+        int n = snprintf(response, limit, "PROFILES_START\n");
+        size_t pos = (n < 0) ? 0 : (size_t)n;
+        for (int i = 0; i < num_profiles; i++) {
+            char line[128];
             char active_marker = (i == active_profile_idx) ? '*' : ' ';
-            int written = snprintf(response + offset, resp_size - offset,
+            int len = snprintf(line, sizeof(line),
                      "PROFILE %d [%c] %s\n", i, active_marker, profiles[i].name);
-            if (written < 0) break;
-            offset += written;
+            if (len < 0 || (size_t)len >= sizeof(line) || pos + (size_t)len >= limit) break;
+            memcpy(response + pos, line, (size_t)len);
+            pos += (size_t)len;
         }
-        if (offset < (int)resp_size - 16) {
-            strcat(response, "PROFILES_END\n");
-        }
+        memcpy(response + pos, end_marker, sizeof(end_marker));
         return 0;
     }
     
@@ -462,7 +397,7 @@ static int handle_command(const char *cmd, char *response, size_t resp_size) {
     if (strcmp(action, "ADD_CURVE_POINT") == 0) {
         int idx = atoi(arg1);
         int temp = atoi(arg2);
-        char arg3[32];
+        char arg3[32] = "";
         sscanf(cmd_copy, "%*s %*d %*d %31s", arg3);
         int fan_pct = atoi(arg3);
         
@@ -494,19 +429,37 @@ static int handle_command(const char *cmd, char *response, size_t resp_size) {
         }
         
         FanProfile *profile = &profiles[idx];
-        snprintf(response, resp_size,
+        static const char end_marker[] = "PROFILE_END\n";
+        /* Space that must always stay free for the end marker + NUL */
+        const size_t reserve = sizeof(end_marker);
+        if (resp_size <= reserve) {
+            return -1;
+        }
+        const size_t limit = resp_size - reserve;
+
+        int n = snprintf(response, limit,
                  "PROFILE_INFO name=%s points=%d active=%d\n",
                  profile->name, profile->num_points, (idx == active_profile_idx) ? 1 : 0);
-        
+        size_t pos = (n < 0) ? 0 : ((size_t)n < limit ? (size_t)n : limit - 1);
+
         for (int i = 0; i < profile->num_points; i++) {
             char point_str[64];
-            snprintf(point_str, sizeof(point_str), 
+            int len = snprintf(point_str, sizeof(point_str),
                      "CURVE_POINT temp=%d fan_pct=%d\n",
                      profile->points[i].temperature, profile->points[i].fan_percent);
-            strncat(response, point_str, resp_size - strlen(response) - 1);
+            if (len < 0 || (size_t)len >= sizeof(point_str)) break;
+            /* Only append whole lines; drop the rest if the buffer is full */
+            if (pos + (size_t)len >= limit) {
+                LOG_WARN("GET_PROFILE %d: response truncated at %d of %d points",
+                         idx, i, profile->num_points);
+                break;
+            }
+            memcpy(response + pos, point_str, (size_t)len);
+            pos += (size_t)len;
         }
-        
-        strcat(response, "PROFILE_END\n");
+
+        /* pos < limit, so the marker and its NUL always fit */
+        memcpy(response + pos, end_marker, sizeof(end_marker));
         return 0;
     }
     
@@ -558,7 +511,7 @@ static int handle_command(const char *cmd, char *response, size_t resp_size) {
         
         /* Parse the curve points from arg3 onwards
          * Format: temp1,fan_pct1,temp2,fan_pct2,... */
-        char arg3[512];
+        char arg3[512] = "";
         sscanf(cmd_copy, "%*s %*d %*d %511s", arg3);
         
         char *saveptr;
@@ -720,7 +673,7 @@ static int client_buffer_len[MAX_CLIENTS];
 /* Handle client connection - process ALL available complete commands
  * Returns: 0 if client still connected, 1 if client disconnected */
 static int handle_client(int client_fd, int client_idx) {
-    char response[BUFFER_SIZE];
+    char response[RESPONSE_SIZE];
     ssize_t bytes_read;
     
     LOG_DEBUG("handle_client called for slot %d, fd=%d, initial buffer_len=%d", client_idx, client_fd, client_buffer_len[client_idx]);
@@ -1026,6 +979,7 @@ int main(int argc, char *argv[]) {
     signal(SIGINT, on_sigint);
     signal(SIGTERM, on_sigint);
     signal(SIGHUP, on_sighup);
+    dcc_ignore_sigpipe();
     
     /* Initialize client buffers */
     for (int i = 0; i < MAX_CLIENTS; i++) {
@@ -1117,14 +1071,25 @@ int main(int argc, char *argv[]) {
         /* Check for new connections */
         if (FD_ISSET(server_fd, &read_fds)) {
             int client_fd = accept(server_fd, NULL, NULL);
+            if (client_fd >= 0 && !dcc_peer_authorized(client_fd)) {
+                dcc_reject_client(client_fd);
+                client_fd = -1;
+            }
             if (client_fd >= 0) {
+                int slot = -1;
                 for (int i = 0; i < MAX_CLIENTS; i++) {
                     if (client_fds[i] <= 0) {
+                        slot = i;
                         client_fds[i] = client_fd;
                         num_clients++;
                         LOG_INFO("New client connected on fd %d (slot %d), total clients: %d", client_fd, i, num_clients);
                         break;
                     }
+                }
+                if (slot < 0) {
+                    /* All slots busy: don't leak the descriptor */
+                    LOG_WARN("Too many clients (%d), rejecting fd %d", MAX_CLIENTS, client_fd);
+                    close(client_fd);
                 }
             }
         }
