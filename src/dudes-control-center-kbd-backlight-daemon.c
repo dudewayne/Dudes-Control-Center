@@ -652,6 +652,12 @@ int main(int argc, char *argv[]) {
     (void)argc;
     (void)argv;
 
+    /* Initialize logging */
+    if (log_init("KBD_BACKLIGHT_DAEMON", LOG_LEVEL_INFO, "/var/log/dudes-control-center") != 0) {
+        fprintf(stderr, "[KBD_DAEMON] Failed to initialize logging\n");
+        return 1;
+    }
+
     LOG_INFO("[KBD_DAEMON] Starting %s...", PROGRAM_NAME);
 
     /* Initialize LED subsystem */
@@ -725,5 +731,6 @@ int main(int argc, char *argv[]) {
     kbd_led_cleanup();
 
     LOG_INFO("[KBD_DAEMON] Daemon stopped");
+    log_cleanup();
     return 0;
 }
