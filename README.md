@@ -225,22 +225,28 @@ These applications are designed for Clevo-based notebooks that use EC I/O port a
 
 ### Built-in Safety Measures
 
-1. **Watchdog Timer (Daemon)**
-   - Monitors main loop responsiveness
-   - Triggers after 10 seconds of unresponsiveness
-   - Automatically sets fans to 100% in fail-safe mode
+1. **Watchdog (systemd)**
+   - The fan daemon pings the systemd watchdog every 2 seconds (`WatchdogSec=30`)
+   - If its main loop hangs, systemd kills and restarts it
+   - Whenever the daemon stops for any reason (crash, watchdog, stop, upgrade), `ExecStopPost=` sets the fans to 100% directly through the EC until the daemon is back
 
-2. **Fail-Safe Mode**
-   - Activates on critical errors
-   - Sets fan speed to maximum (100%)
-   - Prevents overheating in case of software failure
+2. **Sensor Fail-Safe** (auto and manual mode)
+   - Invalid readings (< 10°C or > 110°C, or no answer from the EC) count as sensor failures
+   - After 2 consecutive failures (~10 s) the fans are held at 100% until valid readings return
+   - `STATUS` reports `FAILSAFE=1` while this is active
 
-3. **Temperature Validation**
-   - Invalid readings (< 10°C or > 110°C) trigger safety responses
-   - Auto mode sets fans to 100% if sensors fail
+3. **Emergency Temperature Override** (auto and manual mode)
+   - At 95°C or more (CPU or GPU) the fans go to 100%, even in manual mode
+   - Released below 90°C; the previous setting is then restored
+
+4. **Safe Curve Fallback**
+   - If the active profile is missing or has no curve points, the built-in default curve is used (never a fixed low speed)
+   - Profiles without curve points cannot be activated
+
+5. **Temperature Sources**
    - Multiple fallback sources for temperature reading (EC, sysfs, nvidia-smi)
 
-4. **Single Instance Protection**
+6. **Single Instance Protection**
    - GUI prevents multiple instances via PID file
    - Prevents conflicting fan control commands
 

@@ -7,6 +7,14 @@ Type=simple
 ExecStart=/usr/local/bin/dudes-control-center-fan-daemon --foreground
 Restart=always
 User=root
+# The daemon pings the systemd watchdog every 2 s. If its main loop hangs
+# (e.g. EC access stuck), systemd kills and restarts it.
+WatchdogSec=30
+NotifyAccess=main
+# Fail-safe whenever the daemon stops for ANY reason (crash, watchdog kill,
+# stop, upgrade): set the fans to 100% directly through the EC. The restarted
+# daemon takes over again within seconds.
+ExecStopPost=-/usr/local/bin/dudes-control-center-fan-cli --set 100
 
 [Install]
 WantedBy=multi-user.target

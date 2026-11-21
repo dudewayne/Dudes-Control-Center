@@ -2,6 +2,20 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.16.2] - 2026-11-21
+
+### Fixed (Fan safety)
+- **Sensor failure now triggers the fail-safe**: after 2 consecutive invalid CPU temperature readings (~10 s) the fans are held at 100% in auto *and* manual mode until valid readings return. Before, the fan just stayed at its last speed. EC reads that time out are now reported as errors instead of returning a stale byte.
+- **Emergency temperature override**: at 95°C or more (CPU or GPU) the fans go to 100% in any mode, including manual 0%. They stay there until the temperature drops below 90°C, then the previous setting is restored.
+- **No more fixed 20% fallback**: if the active profile is missing or has no curve points, the daemon uses the built-in safe curve. Activating a profile without points is refused. Deleting a profile keeps the active profile correct; deleting the active one switches to "Default". An invalid saved active index falls back to profile 0.
+- **Watchdog replaced**: the old check ran inside the loop it watched, used wall-clock time, and shut the daemon down after suspend/resume or a clock change. The daemon now pings the systemd watchdog (`WatchdogSec=30`); if it hangs, systemd restarts it. The unit's new `ExecStopPost=` sets the fans to 100% through the EC whenever the daemon stops for any reason (crash, watchdog kill, stop, upgrade). Loop stalls are measured with the monotonic clock and only logged.
+- **Signal handling**: SIGTERM/SIGINT handlers only set a flag; the fans-to-100% fail-safe runs after the main loop (any mode, not just auto).
+- **Clients can no longer stall fan control**: client sockets are non-blocking, and a client that stops reading responses is disconnected. All client slots are now polled (clients in higher slots were ignored after a disconnect). Pipelined commands no longer corrupt each other.
+- The control step runs on a fixed 5 s monotonic timer instead of every 5th loop iteration (which ran faster while the GUI was polling).
+- Curve evaluation no longer sorts the stored profile in place, so point indices used by the GUI stay stable.
+- A failed EC write is logged and retried, instead of being reported as the new fan duty. `SET_AUTO 0` keeps the current speed instead of jumping to an old manual value.
+- `STATUS` reports `FAILSAFE=1` while a safety override is active.
+
 ## [1.16.1] - 2026-11-21
 
 ### Fixed (Security)

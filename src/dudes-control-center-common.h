@@ -38,7 +38,8 @@
 /* --- Function prototypes for EC access --- */
 int ec_init(void);
 void ec_cleanup(void);
-uint8_t ec_io_read(const uint32_t port);
+uint8_t ec_io_read(const uint32_t port);                       /* returns 0 if the EC does not answer */
+int ec_io_read_checked(const uint32_t port, uint8_t *value);  /* 0 on success, -1 on EC timeout */
 int ec_io_do(const uint32_t cmd, const uint32_t port, const uint8_t value);
 
 /* --- Temperature reading functions --- */

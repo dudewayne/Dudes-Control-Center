@@ -4,6 +4,7 @@
  * Runs as a systemd service and provides IPC via Unix socket
  */
 
+#define _GNU_SOURCE   /* accept4() */
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -18,6 +19,8 @@
 #include <sys/time.h>
 #include <ctype.h>
 #include <stdbool.h>
+#include <stdint.h>
+#include <stddef.h>
 #include "dudes-control-center-common.h"
 #include "dudes-control-center-log.h"
 #include "dudes-control-center-secure.h"
@@ -52,35 +55,94 @@ static int num_profiles = 0;
 static int active_profile_idx = -1;
 static int auto_mode_enabled = 0;
 static int manual_duty = 20;
-static int current_fan_duty = 20; /* Track actual fan duty for STATUS reporting */
+static int current_fan_duty = 20; /* Last duty successfully written to the EC */
 
-/* Watchdog timer for fail-safe */
-static time_t last_loop_time = 0; /* Will be set on first iteration */
-#define WATCHDOG_TIMEOUT_SEC 10  /* Trigger fail-safe if main loop stops for 10 seconds */
+/* --- Safety configuration --- */
+#define CONTROL_INTERVAL_SEC     5   /* Temperature check / fan update interval */
+#define SENSOR_FAIL_LIMIT        2   /* Consecutive invalid CPU readings before fail-safe */
+#define EMERGENCY_TEMP_C        95   /* Any mode: force 100% at or above this temperature */
+#define EMERGENCY_HYSTERESIS_C   5   /* ...and keep it until temp drops this far below */
+#define LOOP_STALL_WARN_SEC     10   /* Log if one main-loop iteration takes this long */
+#define SD_WATCHDOG_PING_SEC     2   /* How often to ping the systemd watchdog */
 
-/* Socket file descriptors */
+/* Safety override state: while active, fans are held at 100% in any mode */
+typedef enum {
+    OVERRIDE_NONE = 0,
+    OVERRIDE_SENSOR_FAILURE = 1,
+    OVERRIDE_EMERGENCY_TEMP = 2
+} OverrideReason;
+static OverrideReason override_reason = OVERRIDE_NONE;
+static int sensor_fail_count = 0;
+
+/* Built-in safe curve, used whenever the active profile is missing or empty */
+static const TempCurvePoint DEFAULT_CURVE[] = {
+    {45, 20}, {55, 30}, {60, 40}, {70, 50}, {80, 70}, {85, 100}
+};
+#define DEFAULT_CURVE_POINTS ((int)(sizeof(DEFAULT_CURVE) / sizeof(DEFAULT_CURVE[0])))
+
+/* Socket file descriptors (-1 = free slot; fd 0 is a valid descriptor) */
 static int server_fd = -1;
 static int client_fds[MAX_CLIENTS];
 static int num_clients = 0;
 
-/* Fail-safe: Set fans to 100% for safety */
-static void fail_safe_fan_max(void) {
-    if (auto_mode_enabled) {
-        /* Temporarily disable auto mode to set manual control */
-        auto_mode_enabled = 0;
-        set_fan_duty(100);
-        current_fan_duty = 100;
-        LOG_INFO("FAIL-SAFE: Fans set to 100%% for safety");
+static const char *override_reason_str(OverrideReason r) {
+    switch (r) {
+        case OVERRIDE_SENSOR_FAILURE: return "sensor failure";
+        case OVERRIDE_EMERGENCY_TEMP: return "emergency temperature";
+        default:                      return "none";
     }
 }
 
-/* Signal handlers */
+static double monotonic_seconds(void) {
+    struct timespec ts;
+    clock_gettime(CLOCK_MONOTONIC, &ts);
+    return (double)ts.tv_sec + ts.tv_nsec / 1e9;
+}
+
+/* Write a duty to the EC. current_fan_duty only changes if the write worked,
+ * so a failed write is retried on the next control step. */
+static int apply_fan_duty(int pct) {
+    pct = clamp(pct, 0, 100);
+    if (set_fan_duty(pct) != 0) {
+        LOG_ERROR("Failed to write fan duty %d%% to EC (EC not responding)", pct);
+        return -1;
+    }
+    current_fan_duty = pct;
+    return 0;
+}
+
+/* Fail-safe: Set fans to 100% regardless of mode */
+static void fail_safe_fan_max(const char *reason) {
+    if (apply_fan_duty(100) == 0) {
+        LOG_WARN("FAIL-SAFE: Fans set to 100%% (%s)", reason);
+    }
+}
+
+/* Minimal sd_notify() so we don't depend on libsystemd.
+ * Does nothing when not started by systemd (NOTIFY_SOCKET unset). */
+static void sd_notify_msg(const char *msg) {
+    const char *path = getenv("NOTIFY_SOCKET");
+    if (!path || !*path) return;
+
+    struct sockaddr_un addr;
+    memset(&addr, 0, sizeof(addr));
+    addr.sun_family = AF_UNIX;
+    size_t len = strlen(path);
+    if (len >= sizeof(addr.sun_path)) return;
+    memcpy(addr.sun_path, path, len);
+    if (addr.sun_path[0] == '@') addr.sun_path[0] = '\0';  /* abstract namespace */
+
+    int fd = socket(AF_UNIX, SOCK_DGRAM | SOCK_CLOEXEC, 0);
+    if (fd < 0) return;
+    (void)!sendto(fd, msg, strlen(msg), MSG_NOSIGNAL, (struct sockaddr *)&addr,
+                  (socklen_t)(offsetof(struct sockaddr_un, sun_path) + len));
+    close(fd);
+}
+
+/* Signal handlers: only set a flag (async-signal-safe).
+ * The fail-safe and cleanup run in main() after the loop ends. */
 static void on_sigint(int sig) {
     (void)sig;
-    /* Fail-safe: Set fans to maximum before shutdown */
-    fail_safe_fan_max();
-    /* Clean up PID file */
-    unlink("/run/dudes-control-center-fan-daemon.pid");
     g_running = 0;
 }
 
@@ -215,22 +277,37 @@ static void load_profiles(void) {
     }
     
     cJSON_Delete(root);
+    if (active_profile_idx < 0 || active_profile_idx >= num_profiles) {
+        LOG_WARN("Saved active profile index %d is invalid - using profile 0", active_profile_idx);
+        active_profile_idx = 0;
+    }
     LOG_INFO("Loaded %d profiles from %s (active: %d)", num_profiles, PROFILE_PATH, active_profile_idx);
 }
 
-/* Calculate target fan duty from temperature using active profile */
+/* Calculate target fan duty from temperature using active profile.
+ * Falls back to the built-in safe curve if the active profile is missing or
+ * has no points (never to a fixed low duty). Does not modify the profile. */
 static int get_target_duty_from_temp(int temp_c) {
-    if (active_profile_idx < 0 || active_profile_idx >= num_profiles) {
-        return 20; /* Default fallback */
+    const TempCurvePoint *src = DEFAULT_CURVE;
+    int n = DEFAULT_CURVE_POINTS;
+
+    if (active_profile_idx >= 0 && active_profile_idx < num_profiles &&
+        profiles[active_profile_idx].num_points > 0) {
+        src = profiles[active_profile_idx].points;
+        n = profiles[active_profile_idx].num_points;
+    } else {
+        static int warned = 0;
+        if (!warned) {
+            LOG_WARN("Active fan profile %d is missing or empty - using built-in safe curve",
+                     active_profile_idx);
+            warned = 1;
+        }
     }
-    
-    FanProfile *profile = &profiles[active_profile_idx];
-    TempCurvePoint *points = profile->points;
-    int n = profile->num_points;
-    
-    if (n == 0) return 20;
-    
-    /* Sort points by temperature (simple bubble sort) */
+    if (n > 50) n = 50;
+
+    /* Sort a copy, so point indices seen by clients never change */
+    TempCurvePoint points[50];
+    memcpy(points, src, sizeof(TempCurvePoint) * (size_t)n);
     for (int i = 0; i < n - 1; i++) {
         for (int j = 0; j < n - i - 1; j++) {
             if (points[j].temperature > points[j + 1].temperature) {
@@ -240,27 +317,29 @@ static int get_target_duty_from_temp(int temp_c) {
             }
         }
     }
-    
-    /* Edge cases */
+
+    int duty = points[n - 1].fan_percent;
     if (temp_c <= points[0].temperature) {
-        return points[0].fan_percent;
-    }
-    if (temp_c >= points[n - 1].temperature) {
-        return points[n - 1].fan_percent;
-    }
-    
-    /* Linear interpolation */
-    for (int i = 0; i < n - 1; i++) {
-        int t1 = points[i].temperature, p1 = points[i].fan_percent;
-        int t2 = points[i + 1].temperature, p2 = points[i + 1].fan_percent;
-        if (temp_c >= t1 && temp_c < t2) {
-            double fraction = (double)(temp_c - t1) / (double)(t2 - t1);
-            double percentage = p1 + (p2 - p1) * fraction;
-            return (int)(percentage + 0.5);
+        duty = points[0].fan_percent;
+    } else if (temp_c < points[n - 1].temperature) {
+        /* Linear interpolation */
+        for (int i = 0; i < n - 1; i++) {
+            int t1 = points[i].temperature, p1 = points[i].fan_percent;
+            int t2 = points[i + 1].temperature, p2 = points[i + 1].fan_percent;
+            if (temp_c >= t1 && temp_c < t2) {
+                double fraction = (double)(temp_c - t1) / (double)(t2 - t1);
+                double percentage = p1 + (p2 - p1) * fraction;
+                duty = (int)(percentage + 0.5);
+                break;
+            }
         }
     }
-    
-    return points[n - 1].fan_percent;
+    return clamp(duty, 0, 100);
+}
+
+/* Does this profile have a usable curve? */
+static int profile_has_curve(int idx) {
+    return idx >= 0 && idx < num_profiles && profiles[idx].num_points > 0;
 }
 
 /* Parse command from client */
@@ -300,8 +379,10 @@ static int handle_command(const char *cmd, char *response, size_t resp_size) {
             "CPU_FAN_RPM=%d\n"
             "GPU_FAN_RPM=%d\n"
             "FAN_DUTY=%d\n"
-            "AUTO_MODE=%d\n",
-            cpu_temp, gpu_temp, cpu_fan_rpm, gpu_fan_rpm, fan_duty, auto_mode_enabled);
+            "AUTO_MODE=%d\n"
+            "FAILSAFE=%d\n",
+            cpu_temp, gpu_temp, cpu_fan_rpm, gpu_fan_rpm, fan_duty, auto_mode_enabled,
+            override_reason != OVERRIDE_NONE ? 1 : 0);
         return 0;
     }
     
@@ -315,16 +396,31 @@ static int handle_command(const char *cmd, char *response, size_t resp_size) {
         
         auto_mode_enabled = 0;
         manual_duty = pct;
-        current_fan_duty = pct; /* Track for STATUS reporting */
-        set_fan_duty(pct);
-        
+
+        if (override_reason != OVERRIDE_NONE) {
+            /* Safety override wins; the manual value applies once it clears */
+            snprintf(response, resp_size, "OK Fan set to %d%% (held at 100%% while fail-safe is active: %s)\n",
+                     pct, override_reason_str(override_reason));
+            return 0;
+        }
+
+        if (apply_fan_duty(pct) != 0) {
+            snprintf(response, resp_size, "ERROR Failed to set fan duty (EC not responding)\n");
+            return -1;
+        }
         snprintf(response, resp_size, "OK Fan set to %d%%\n", pct);
         return 0;
     }
     
     /* Command: SET_AUTO <0|1> */
     if (strcmp(action, "SET_AUTO") == 0) {
-        auto_mode_enabled = atoi(arg1);
+        int enable = atoi(arg1) ? 1 : 0;
+        if (!enable && auto_mode_enabled) {
+            /* Leaving auto mode: hold the current speed instead of jumping
+             * to an old manual value */
+            manual_duty = clamp(current_fan_duty, 0, 100);
+        }
+        auto_mode_enabled = enable;
         snprintf(response, resp_size, "OK Auto mode %s\n", 
                  auto_mode_enabled ? "enabled" : "disabled");
         return 0;
@@ -358,7 +454,11 @@ static int handle_command(const char *cmd, char *response, size_t resp_size) {
             snprintf(response, resp_size, "ERROR Invalid profile index\n");
             return -1;
         }
-        
+        if (!profile_has_curve(idx)) {
+            snprintf(response, resp_size, "ERROR Profile '%s' has no curve points\n", profiles[idx].name);
+            return -1;
+        }
+
         active_profile_idx = idx;
 
         snprintf(response, resp_size, "OK Profile %d activated\n", idx);
@@ -543,6 +643,11 @@ static int handle_command(const char *cmd, char *response, size_t resp_size) {
             return -1;
         }
         
+        if (!profile_has_curve(idx)) {
+            snprintf(response, resp_size, "ERROR Profile '%s' has no curve points\n", profiles[idx].name);
+            return -1;
+        }
+
         LOG_INFO("SET_ACTIVE_PROFILE: Activating profile %d (%s)", idx, profiles[idx].name);
 
         active_profile_idx = idx;
@@ -575,7 +680,20 @@ static int handle_command(const char *cmd, char *response, size_t resp_size) {
             profiles[i] = profiles[i + 1];
         }
         num_profiles--;
-        
+
+        /* Keep active_profile_idx pointing at the same profile, or fall back
+         * to "Default" if the active one was deleted */
+        if (idx < active_profile_idx) {
+            active_profile_idx--;
+        } else if (idx == active_profile_idx) {
+            int fallback = 0;
+            for (int k = 0; k < num_profiles; k++) {
+                if (strcmp(profiles[k].name, "Default") == 0) { fallback = k; break; }
+            }
+            active_profile_idx = fallback;
+            LOG_WARN("Active fan profile was deleted - switched to '%s'", profiles[fallback].name);
+        }
+
         snprintf(response, resp_size, "OK Profile deleted\n");
         return 0;
     }
@@ -670,102 +788,85 @@ static int handle_command(const char *cmd, char *response, size_t resp_size) {
 static char client_buffers[MAX_CLIENTS][BUFFER_SIZE];
 static int client_buffer_len[MAX_CLIENTS];
 
+static void drop_client(int client_idx, const char *why) {
+    int fd = client_fds[client_idx];
+    if (fd < 0) return;
+    LOG_INFO("Client on fd %d (slot %d) disconnected: %s", fd, client_idx, why);
+    close(fd);
+    client_fds[client_idx] = -1;
+    client_buffer_len[client_idx] = 0;
+    if (num_clients > 0) num_clients--;
+}
+
+/* Send the whole response without ever blocking the control loop.
+ * Responses are far smaller than the socket buffer, so a client that has
+ * stopped reading is the only way this fails - that client is dropped. */
+static int send_response(int client_fd, const char *data, size_t len) {
+    size_t sent = 0;
+    while (sent < len) {
+        ssize_t w = send(client_fd, data + sent, len - sent, MSG_NOSIGNAL | MSG_DONTWAIT);
+        if (w < 0) {
+            if (errno == EINTR) continue;
+            return -1;   /* EAGAIN: client not reading; or real error */
+        }
+        sent += (size_t)w;
+    }
+    return 0;
+}
+
 /* Handle client connection - process ALL available complete commands
  * Returns: 0 if client still connected, 1 if client disconnected */
 static int handle_client(int client_fd, int client_idx) {
     char response[RESPONSE_SIZE];
-    ssize_t bytes_read;
-    
-    LOG_DEBUG("handle_client called for slot %d, fd=%d, initial buffer_len=%d", client_idx, client_fd, client_buffer_len[client_idx]);
-    
-    /* Process all complete commands in the buffer */
-    while (1) {
-        /* Check if we have a complete line */
-        char *newline = memchr(client_buffers[client_idx], '\n', client_buffer_len[client_idx]);
-        
-        if (newline != NULL) {
-            /* We have at least one complete command - process it */
-            size_t cmd_len = newline - client_buffers[client_idx] + 1;  // Include the newline
-            
-            /* Null-terminate the command */
-            client_buffers[client_idx][cmd_len] = '\0';
-            
-            /* Log incoming command */
-            char cmd_log[BUFFER_SIZE];
-            strncpy(cmd_log, client_buffers[client_idx], BUFFER_SIZE - 1);
-            cmd_log[BUFFER_SIZE - 1] = '\0';
-            size_t len = strlen(cmd_log);
-            if (len > 0 && cmd_log[len-1] == '\n') cmd_log[len-1] = '\0';
-            
-            /* Parse action for logging */
-            char action[64] = {0};
-            char arg1[64] = {0};
-            sscanf(cmd_log, "%63s %63s", action, arg1);
-            
-            LOG_DEBUG("Received command: '%s' args='%s'", action, arg1);
-            
-            /* Process command */
-            int result = handle_command(client_buffers[client_idx], response, sizeof(response));
-            
-            /* Only log non-STATUS responses to avoid flooding the terminal with periodic updates */
-            if (strncmp(response, "STATUS OK", 9) != 0) {
-                LOG_DEBUG("Sending response: '%s' (result=%d)", response, result);
-            }
-            
-            /* Send response */
-            #pragma GCC diagnostic push
-            #pragma GCC diagnostic ignored "-Wunused-result"
-            write(client_fd, response, strlen(response));
-            #pragma GCC diagnostic pop
-            
-            /* Remove processed command from buffer */
-            size_t remaining = client_buffer_len[client_idx] - cmd_len;
-            if (remaining > 0) {
-                memmove(client_buffers[client_idx], client_buffers[client_idx] + cmd_len, remaining);
-            }
-            client_buffer_len[client_idx] = remaining;
-            
-            /* Continue to process next command in buffer */
-            continue;
-        }
-        
-        /* No complete line yet - try to read more data */
-        struct timeval tv;
-        tv.tv_sec = 0;
-        tv.tv_usec = 10000;  // 10ms timeout for non-blocking behavior
-        
-        fd_set read_fds;
-        FD_ZERO(&read_fds);
-        FD_SET(client_fd, &read_fds);
-        
-        int ret = select(client_fd + 1, &read_fds, NULL, NULL, &tv);
-        if (ret <= 0) {
-            /* No more data available right now */
-            break;  // Exit and let main loop call us again
-        }
-        
-        bytes_read = recv(client_fd, client_buffers[client_idx] + client_buffer_len[client_idx],
-                         BUFFER_SIZE - client_buffer_len[client_idx] - 1, 0);
-        
-        if (bytes_read <= 0) {
-            if (bytes_read == 0) {
-                LOG_INFO("Client on fd %d disconnected", client_fd);
-            } else {
-                LOG_ERROR("recv error on fd %d: %s", client_fd, strerror(errno));
-            }
-            /* Connection closed or error - close fd and remove from active clients */
-            close(client_fd);
-            client_fds[client_idx] = -1;
-            client_buffer_len[client_idx] = 0;
-            if (num_clients > 0) num_clients--;
-            return 1;  /* Return 1 to indicate disconnection */
-        }
-        
-        LOG_DEBUG("Received %zd bytes from client, total buffer_len=%d", bytes_read, client_buffer_len[client_idx] + (int)bytes_read);
-        
-        client_buffer_len[client_idx] += bytes_read;
+
+    /* Read whatever is available (socket is non-blocking) */
+    int space = BUFFER_SIZE - 1 - client_buffer_len[client_idx];
+    if (space <= 0) {
+        drop_client(client_idx, "command too long");
+        return 1;
     }
-    
+    ssize_t bytes_read = recv(client_fd, client_buffers[client_idx] + client_buffer_len[client_idx],
+                              (size_t)space, MSG_DONTWAIT);
+    if (bytes_read == 0) {
+        drop_client(client_idx, "closed by peer");
+        return 1;
+    }
+    if (bytes_read < 0) {
+        if (errno == EAGAIN || errno == EWOULDBLOCK || errno == EINTR) return 0;
+        drop_client(client_idx, strerror(errno));
+        return 1;
+    }
+    client_buffer_len[client_idx] += (int)bytes_read;
+
+    /* Process every complete line in the buffer */
+    char *newline;
+    while ((newline = memchr(client_buffers[client_idx], '\n', (size_t)client_buffer_len[client_idx])) != NULL) {
+        size_t cmd_len = (size_t)(newline - client_buffers[client_idx]) + 1;  /* incl. newline */
+
+        /* Copy the command out; never write into the shared buffer, which may
+         * already hold the start of the next command */
+        char cmd[BUFFER_SIZE];
+        memcpy(cmd, client_buffers[client_idx], cmd_len);
+        cmd[cmd_len] = '\0';
+
+        response[0] = '\0';
+        int result = handle_command(cmd, response, sizeof(response));
+
+        /* Only log non-STATUS responses to avoid flooding the log with periodic updates */
+        if (strncmp(response, "STATUS OK", 9) != 0) {
+            LOG_DEBUG("Sending response: '%s' (result=%d)", response, result);
+        }
+
+        size_t remaining = (size_t)client_buffer_len[client_idx] - cmd_len;
+        memmove(client_buffers[client_idx], client_buffers[client_idx] + cmd_len, remaining);
+        client_buffer_len[client_idx] = (int)remaining;
+
+        if (send_response(client_fd, response, strlen(response)) != 0) {
+            drop_client(client_idx, "not reading responses");
+            return 1;
+        }
+    }
+
     return 0;  /* Client still connected */
 }
 
@@ -830,59 +931,109 @@ static int create_server_socket(void) {
     return 0;
 }
 
-/* Auto mode loop - unused, kept for reference */
-static __attribute__((unused)) void *auto_mode_loop(void *arg) {
-    (void)arg;
-    
-    int current_duty = 20;
-    int ring[3] = {-1, -1, -1};
-    int idx = 0, filled = 0;
-    
-    while (g_running && auto_mode_enabled) {
-        int cpu_temp = get_cpu_temp();
-        int gpu_temp = get_gpu_temp();
-        
-        /* Determine the hotter temperature */
-        int hot_temp = cpu_temp;
-        if (gpu_temp >= 0 && gpu_temp > cpu_temp) {
-            hot_temp = gpu_temp;
-        }
-        
-        /* Safety check for invalid CPU temp */
-        if (cpu_temp < TEMP_MIN_VALID_C || cpu_temp > TEMP_MAX_VALID_C) {
-            current_duty = 100;
-            set_fan_duty(100);
-        } else {
-            /* Update ring buffer */
-            ring[idx] = hot_temp;
-            idx = (idx + 1) % 3;
-            if (filled < 3) filled++;
-            
-            /* Calculate average temperature */
-            int sum = 0;
-            for (int i = 0; i < filled; i++) {
-                sum += ring[i];
-            }
-            int avg_temp = sum / filled;
-            
-            /* Get target duty from profile curve */
-            int target_duty = get_target_duty_from_temp(avg_temp);
-            
-            /* Smooth transitions */
-            int diff = target_duty - current_duty;
-            if (diff >= 5) {
-                current_duty += 5;
-                set_fan_duty(current_duty);
-            } else if (diff <= -1) {
-                current_duty -= 1;
-                set_fan_duty(current_duty);
-            }
-        }
-        
-        usleep(1000 * 1000); /* 1 second interval */
+/* One control step: read sensors, apply safety overrides, then the curve.
+ * Runs every CONTROL_INTERVAL_SEC in BOTH auto and manual mode, because the
+ * safety overrides must also protect manual mode. */
+static void fan_control_step(void) {
+    static int ring[3] = {-1, -1, -1};
+    static int ring_idx = 0, ring_filled = 0;
+
+    int cpu_temp = get_cpu_temp();
+    int gpu_temp = get_gpu_temp();
+    int cpu_valid = (cpu_temp >= TEMP_MIN_VALID_C && cpu_temp <= TEMP_MAX_VALID_C);
+    int gpu_valid = (gpu_temp >= TEMP_MIN_VALID_C && gpu_temp <= TEMP_MAX_VALID_C);
+
+    int hot_temp = cpu_temp;
+    if (gpu_valid && (!cpu_valid || gpu_temp > cpu_temp)) hot_temp = gpu_temp;
+
+    LOG_DEBUG("Control step: CPU=%d GPU=%d valid=%d/%d auto=%d override=%s",
+              cpu_temp, gpu_temp, cpu_valid, gpu_valid, auto_mode_enabled,
+              override_reason_str(override_reason));
+
+    /* --- 1. Decide whether a safety override is needed --- */
+    if (cpu_valid) {
+        sensor_fail_count = 0;
+    } else if (sensor_fail_count < 1000) {
+        sensor_fail_count++;
+        LOG_WARN("Invalid CPU temperature reading (%d), %d/%d before fail-safe",
+                 cpu_temp, sensor_fail_count, SENSOR_FAIL_LIMIT);
     }
-    
-    return NULL;
+
+    OverrideReason wanted = OVERRIDE_NONE;
+    if (sensor_fail_count >= SENSOR_FAIL_LIMIT) {
+        wanted = OVERRIDE_SENSOR_FAILURE;
+    } else if (cpu_valid || gpu_valid) {
+        int threshold = (override_reason == OVERRIDE_EMERGENCY_TEMP)
+                      ? EMERGENCY_TEMP_C - EMERGENCY_HYSTERESIS_C
+                      : EMERGENCY_TEMP_C;
+        if (hot_temp >= threshold) wanted = OVERRIDE_EMERGENCY_TEMP;
+    }
+
+    if (wanted != OVERRIDE_NONE) {
+        if (override_reason != wanted) {
+            LOG_ERROR("SAFETY OVERRIDE (%s): CPU=%d GPU=%d - holding fans at 100%%",
+                      override_reason_str(wanted), cpu_temp, gpu_temp);
+            override_reason = wanted;
+        }
+        if (current_fan_duty != 100) {
+            fail_safe_fan_max(override_reason_str(wanted));
+        }
+        return;
+    }
+
+    if (override_reason != OVERRIDE_NONE) {
+        LOG_WARN("Safety override (%s) cleared: CPU=%d GPU=%d",
+                 override_reason_str(override_reason), cpu_temp, gpu_temp);
+        override_reason = OVERRIDE_NONE;
+        if (!auto_mode_enabled) {
+            apply_fan_duty(manual_duty);   /* restore the user's manual setting */
+        }
+        /* auto mode ramps down from 100% through the normal logic below */
+    }
+
+    /* A single bad reading (below the limit) holds the current duty */
+    if (!cpu_valid) return;
+
+    /* --- 2. Manual mode: just make sure the requested duty is applied --- */
+    if (!auto_mode_enabled) {
+        if (current_fan_duty != manual_duty) apply_fan_duty(manual_duty);
+        return;
+    }
+
+    /* --- 3. Auto mode: follow the curve with a smoothed temperature --- */
+    ring[ring_idx] = hot_temp;
+    ring_idx = (ring_idx + 1) % 3;
+    if (ring_filled < 3) ring_filled++;
+    int sum = 0;
+    for (int j = 0; j < ring_filled; j++) sum += ring[j];
+    int avg_temp = sum / ring_filled;
+
+    int target_duty = get_target_duty_from_temp(avg_temp);
+    int current = clamp(current_fan_duty, 0, 100);
+    int diff = target_duty - current;
+
+    LOG_INFO("Auto mode: CPU=%d°C GPU=%d°C avg=%d°C target=%d%% current=%d%% diff=%d",
+             cpu_temp, gpu_temp, avg_temp, target_duty, current, diff);
+
+    /* Adaptive ramp control to prevent oscillation */
+    int new_duty = current;
+    if (diff >= 5) {
+        if (diff >= 30)      new_duty = target_duty;  /* large: jump to target */
+        else if (diff >= 15) new_duty += 15;          /* medium: moderate ramp */
+        else                 new_duty += 5;           /* small: gentle ramp */
+    } else if (diff <= -5) {
+        if (diff <= -30)      new_duty = target_duty;
+        else if (diff <= -15) new_duty -= 15;
+        else                  new_duty -= 5;
+    } else {
+        LOG_DEBUG("Fan within ±5%% of target (%d%% vs %d%%), holding steady", current, target_duty);
+        return;
+    }
+
+    new_duty = clamp(new_duty, 0, 100);
+    if (apply_fan_duty(new_duty) == 0) {
+        LOG_INFO("Setting fan duty to %d%% (target=%d%%, diff=%d)", new_duty, target_duty, diff);
+    }
 }
 
 int main(int argc, char *argv[]) {
@@ -983,6 +1134,7 @@ int main(int argc, char *argv[]) {
     
     /* Initialize client buffers */
     for (int i = 0; i < MAX_CLIENTS; i++) {
+        client_fds[i] = -1;
         client_buffer_len[i] = 0;
         memset(client_buffers[i], 0, BUFFER_SIZE);
     }
@@ -1002,256 +1154,147 @@ int main(int argc, char *argv[]) {
     
     LOG_INFO("Server listening on %s", SOCKET_PATH);
     
-    /* Set initial fan speed based on current temperatures and active profile */
-    if (auto_mode_enabled && active_profile_idx >= 0) {
+    /* Set the initial fan speed right away (also applies the fail-safe if the
+     * sensors are already broken at startup) */
+    if (!auto_mode_enabled) {
+        apply_fan_duty(manual_duty);
+    }
+    fan_control_step();
+    if (auto_mode_enabled && override_reason == OVERRIDE_NONE) {
+        /* Jump straight to the curve instead of ramping from the default */
         int cpu_temp = get_cpu_temp();
         int gpu_temp = get_gpu_temp();
-        
-        /* Use the hotter temperature */
         int hot_temp = cpu_temp;
-        if (gpu_temp >= 0 && gpu_temp > cpu_temp) {
-            hot_temp = gpu_temp;
+        if (gpu_temp >= TEMP_MIN_VALID_C && gpu_temp > cpu_temp) hot_temp = gpu_temp;
+        if (cpu_temp >= TEMP_MIN_VALID_C && cpu_temp <= TEMP_MAX_VALID_C) {
+            int initial_duty = get_target_duty_from_temp(hot_temp);
+            apply_fan_duty(initial_duty);
+            LOG_INFO("Initial fan speed set to %d%% based on temp CPU=%d°C GPU=%d°C (profile: %s)",
+                     initial_duty, cpu_temp, gpu_temp,
+                     profile_has_curve(active_profile_idx) ? profiles[active_profile_idx].name : "built-in");
         }
-        
-        /* Validate temperature */
-        if (hot_temp < 10 || hot_temp > 110) {
-            LOG_WARN("Invalid temp %d°C on startup, using safe default", hot_temp);
-            hot_temp = 50; /* Safe default */
-        }
-        
-        int initial_duty = get_target_duty_from_temp(hot_temp);
-        if (initial_duty > 100) initial_duty = 100;
-        if (initial_duty < 0) initial_duty = 0;
-        
-        current_fan_duty = initial_duty;
-        set_fan_duty(initial_duty);
-        
-        LOG_INFO("Initial fan speed set to %d%% based on temp CPU=%d°C GPU=%d°C (profile: %s)",
-                 initial_duty, cpu_temp, gpu_temp, profiles[active_profile_idx].name);
     }
-    
+
+    /* Tell systemd we're up; WATCHDOG=1 pings follow from the main loop.
+     * If the loop ever hangs, systemd (WatchdogSec=) kills and restarts the
+     * daemon, and ExecStopPost= sets the fans to 100% in between. */
+    sd_notify_msg("READY=1");
+
+    double last_control = monotonic_seconds();
+    double last_ping = 0;
+    double last_iteration = last_control;
+
     /* Main event loop */
-    fd_set read_fds;
-    int max_fd = server_fd;
-    
     while (g_running) {
-        /* Watchdog: Check if main loop is still responsive */
-        time_t now = time(NULL);
-        if (last_loop_time != 0 && (now - last_loop_time > WATCHDOG_TIMEOUT_SEC)) {
-            LOG_ERROR("WATCHDOG TRIGGERED: Main loop unresponsive for %ld seconds!", (long)(now - last_loop_time));
-            fail_safe_fan_max();
-            break;  /* Exit main loop and shutdown */
+        double now = monotonic_seconds();
+
+        /* CLOCK_MONOTONIC does not advance during suspend, so this only
+         * fires on a real stall (e.g. EC access hanging), never on resume. */
+        if (now - last_iteration > LOOP_STALL_WARN_SEC) {
+            LOG_ERROR("Main loop stalled for %.1f seconds", now - last_iteration);
         }
-        last_loop_time = now;
-        
+        last_iteration = now;
+
+        if (now - last_ping >= SD_WATCHDOG_PING_SEC) {
+            sd_notify_msg("WATCHDOG=1");
+            last_ping = now;
+        }
+
+        fd_set read_fds;
         FD_ZERO(&read_fds);
         FD_SET(server_fd, &read_fds);
-        
-        for (int i = 0; i < num_clients; i++) {
-            if (client_fds[i] > 0) {
+        int max_fd = server_fd;
+
+        /* Clients can live in any slot, so check all of them */
+        for (int i = 0; i < MAX_CLIENTS; i++) {
+            if (client_fds[i] >= 0) {
                 FD_SET(client_fds[i], &read_fds);
-                if (client_fds[i] > max_fd) {
-                    max_fd = client_fds[i];
-                }
+                if (client_fds[i] > max_fd) max_fd = client_fds[i];
             }
         }
-        
+
+        /* Wake up at the latest when the next control step is due */
+        double until_control = CONTROL_INTERVAL_SEC - (now - last_control);
+        if (until_control < 0) until_control = 0;
+        if (until_control > 1.0) until_control = 1.0;
         struct timeval timeout;
-        timeout.tv_sec = 1;
-        timeout.tv_usec = 0;
-        
+        timeout.tv_sec = (time_t)until_control;
+        timeout.tv_usec = (suseconds_t)((until_control - (double)timeout.tv_sec) * 1e6);
+
         int activity = select(max_fd + 1, &read_fds, NULL, NULL, &timeout);
-        
         if (activity < 0) {
             if (errno == EINTR) continue;
-            perror("select");
+            LOG_ERROR("select() failed: %s", strerror(errno));
             break;
         }
-        
-        /* Check for new connections */
-        if (FD_ISSET(server_fd, &read_fds)) {
-            int client_fd = accept(server_fd, NULL, NULL);
-            if (client_fd >= 0 && !dcc_peer_authorized(client_fd)) {
-                dcc_reject_client(client_fd);
-                client_fd = -1;
-            }
-            if (client_fd >= 0) {
-                int slot = -1;
-                for (int i = 0; i < MAX_CLIENTS; i++) {
-                    if (client_fds[i] <= 0) {
-                        slot = i;
-                        client_fds[i] = client_fd;
-                        num_clients++;
-                        LOG_INFO("New client connected on fd %d (slot %d), total clients: %d", client_fd, i, num_clients);
-                        break;
-                    }
+
+        if (activity > 0) {
+            /* Check for new connections */
+            if (FD_ISSET(server_fd, &read_fds)) {
+                int client_fd = accept4(server_fd, NULL, NULL, SOCK_NONBLOCK | SOCK_CLOEXEC);
+                if (client_fd >= 0 && !dcc_peer_authorized(client_fd)) {
+                    dcc_reject_client(client_fd);
+                    client_fd = -1;
                 }
-                if (slot < 0) {
-                    /* All slots busy: don't leak the descriptor */
-                    LOG_WARN("Too many clients (%d), rejecting fd %d", MAX_CLIENTS, client_fd);
-                    close(client_fd);
-                }
-            }
-        }
-        
-        /* Handle existing clients */
-        for (int i = 0; i < MAX_CLIENTS; i++) {
-            if (client_fds[i] > 0 && FD_ISSET(client_fds[i], &read_fds)) {
-                LOG_DEBUG("Activity detected on client fd %d (slot %d), buffer_len=%d", client_fds[i], i, client_buffer_len[i]);
-                
-                /* Handle client - returns 1 if disconnected, 0 if still connected */
-                int client_disconnected = handle_client(client_fds[i], i);
-                
-                /* Only do peek check if client is still connected */
-                if (!client_disconnected) {
-                    /* Check if client disconnected by trying to peek at socket */
-                    /* Only close on actual EOF/error, not when socket is just empty (normal for request/response) */
-                    char buf[1];
-                    ssize_t peek_result = recv(client_fds[i], buf, 1, MSG_PEEK | MSG_DONTWAIT);
-                    if (peek_result < 0) {
-                        /* Error occurred - check if it's just EAGAIN/EWOULDBLOCK (no data yet) */
-                        if (errno != EAGAIN && errno != EWOULDBLOCK) {
-                            LOG_ERROR("Client fd %d error: %s", client_fds[i], strerror(errno));
-                            close(client_fds[i]);
-                            client_fds[i] = -1;
+                if (client_fd >= 0) {
+                    int slot = -1;
+                    for (int i = 0; i < MAX_CLIENTS; i++) {
+                        if (client_fds[i] < 0) {
+                            slot = i;
+                            client_fds[i] = client_fd;
                             client_buffer_len[i] = 0;
-                            num_clients--;
+                            num_clients++;
+                            LOG_INFO("New client connected on fd %d (slot %d), total clients: %d",
+                                     client_fd, i, num_clients);
+                            break;
                         }
-                        /* If EAGAIN/EWOULDBLOCK, socket is just empty - keep connection alive */
                     }
-                    /* peek_result == 0 means EOF (client closed), but we don't expect this in normal operation
-                     * The client will close when it exits, which we'll detect on next select() */
+                    if (slot < 0) {
+                        /* All slots busy: don't leak the descriptor */
+                        LOG_WARN("Too many clients (%d), rejecting fd %d", MAX_CLIENTS, client_fd);
+                        close(client_fd);
+                    }
+                }
+            }
+
+            /* Handle existing clients */
+            for (int i = 0; i < MAX_CLIENTS; i++) {
+                if (client_fds[i] >= 0 && FD_ISSET(client_fds[i], &read_fds)) {
+                    handle_client(client_fds[i], i);
                 }
             }
         }
-        
-        /* Check auto mode */
-        static int auto_mode_counter = 0;
-        auto_mode_counter++;
-        
-        LOG_DEBUG("Main loop iteration %d: enabled=%d running=%d mod5=%d",
-                  auto_mode_counter, auto_mode_enabled, g_running, auto_mode_counter % 5);
-        
-        if (auto_mode_enabled && g_running && (auto_mode_counter % 5 == 0)) {
-            /* Auto mode is handled in the main loop here for simplicity */
-            LOG_DEBUG("AUTO MODE LOOP EXECUTING (profile: %s)",
-                      active_profile_idx >= 0 ? profiles[active_profile_idx].name : "NONE");
-            
-            int cpu_temp = get_cpu_temp();
-            int gpu_temp = get_gpu_temp();
-            
-            LOG_DEBUG("Raw temps: CPU=%d GPU=%d", cpu_temp, gpu_temp);
-            
-            int hot_temp = cpu_temp;
-            if (gpu_temp >= 0 && gpu_temp > cpu_temp) {
-                hot_temp = gpu_temp;
-            }
-            
-            LOG_DEBUG("Temp validation: CPU=%d (valid range: %d-%d)", cpu_temp, TEMP_MIN_VALID_C, TEMP_MAX_VALID_C);
-            
-            if (cpu_temp >= TEMP_MIN_VALID_C && cpu_temp <= TEMP_MAX_VALID_C) {
-                static int ring[3] = {-1, -1, -1};
-                static int idx = 0, filled = 0;
-                
-                ring[idx] = hot_temp;
-                idx = (idx + 1) % 3;
-                if (filled < 3) filled++;
-                
-                int sum = 0;
-                for (int j = 0; j < filled; j++) {
-                    sum += ring[j];
-                }
-                int avg_temp = sum / filled;
-                
-                int target_duty = get_target_duty_from_temp(avg_temp);
-                
-                /* Clamp target to valid range */
-                if (target_duty > 100) target_duty = 100;
-                if (target_duty < 0) target_duty = 0;
-                
-                /* Use clamped current duty for comparison (treat anything >= 100% as 100%) */
-                int clamped_current = current_fan_duty;
-                if (clamped_current > 100) clamped_current = 100;
-                if (clamped_current < 0) clamped_current = 0;
-                
-                int diff = target_duty - clamped_current;
-                
-                LOG_INFO("Auto mode: CPU=%d°C GPU=%d°C avg=%d°C target=%d%% current=%d%% (clamped=%d%%) diff=%d",
-                         cpu_temp, gpu_temp, avg_temp, target_duty, current_fan_duty, clamped_current, diff);
-                
-                /* Adaptive ramp control to prevent oscillation */
-                int new_duty = current_fan_duty;
-                int made_change = 0;
-                
-                if (diff >= 5) {
-                    /* Ramp up - use smaller steps when close to target */
-                    if (diff >= 30) {
-                        /* Large difference: jump aggressively */
-                        new_duty = target_duty;  /* Go directly to target for large changes */
-                    } else if (diff >= 15) {
-                        /* Medium difference: moderate ramp */
-                        new_duty += 15;
-                    } else {
-                        /* Small difference: gentle ramp to avoid overshoot */
-                        new_duty += 5;  /* Smaller step when close */
-                    }
-                    
-                    /* Cap at 100% */
-                    if (new_duty > 100) new_duty = 100;
-                    current_fan_duty = new_duty;
-                    made_change = 1;
-                } else if (diff <= -5) {
-                    /* Ramp down - use smaller steps when close to target */
-                    if (diff <= -30) {
-                        /* Large difference: jump directly to target */
-                        new_duty = target_duty;
-                    } else if (diff <= -15) {
-                        /* Medium difference: moderate ramp */
-                        new_duty -= 15;
-                    } else {
-                        /* Small difference: gentle ramp to avoid overshoot */
-                        new_duty -= 5;  /* Smaller step when close */
-                    }
-                    
-                    /* Don't go below 0% */
-                    if (new_duty < 0) new_duty = 0;
-                    current_fan_duty = new_duty;
-                    made_change = 1;
-                } else {
-                    /* Within deadband - no change needed, but ensure we're stable */
-                    LOG_DEBUG("Fan within ±5%% of target (%d%% vs %d%%), holding steady", clamped_current, target_duty);
-                }
-                
-                /* Apply the new duty if changed */
-                if (made_change) {
-                    set_fan_duty(current_fan_duty);
-                    LOG_INFO("Setting fan duty to %d%% (target=%d%%, diff=%d)",
-                             current_fan_duty, target_duty, diff);
-                }
-            }
+
+        /* Time-based control step (not tied to how often clients talk to us) */
+        now = monotonic_seconds();
+        if (g_running && now - last_control >= CONTROL_INTERVAL_SEC) {
+            last_control = now;
+            fan_control_step();
         }
     }
-    
-    /* Cleanup */
+
+    /* Cleanup: fans to 100% before handing control back (any mode) */
     LOG_INFO("Shutting down...");
-    log_cleanup();
-    
+    sd_notify_msg("STOPPING=1");
+    fail_safe_fan_max("daemon shutting down");
+
     for (int i = 0; i < MAX_CLIENTS; i++) {
-        if (client_fds[i] > 0) {
+        if (client_fds[i] >= 0) {
             close(client_fds[i]);
         }
     }
-    
+
     if (server_fd >= 0) {
         close(server_fd);
     }
-    
+
     remove_old_socket();
     ec_cleanup();
-    
+
     /* Clean up PID file on normal exit */
     unlink("/run/dudes-control-center-fan-daemon.pid");
-    
+
     LOG_INFO("Daemon stopped.");
+    log_cleanup();
     return EXIT_SUCCESS;
 }

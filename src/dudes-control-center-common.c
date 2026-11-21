@@ -27,7 +27,8 @@ static int ec_io_wait(const uint32_t port, const uint32_t flag, const char value
         usleep(1000);
         data = inb(port);
     }
-    return (i >= 100) ? -1 : 0;
+    /* Decide on the final state, not the counter (the last poll may succeed) */
+    return (((data >> flag) & 0x1) == value) ? 0 : -1;
 }
 
 int ec_init(void) {
@@ -47,15 +48,26 @@ void ec_cleanup(void) {
     ioperm(EC_SC, 1, 0);
 }
 
-uint8_t ec_io_read(const uint32_t port) {
-    ec_io_wait(EC_SC, IBF, 0);
+int ec_io_read_checked(const uint32_t port, uint8_t *value) {
+    /* Every handshake step must succeed; otherwise the byte on the data
+     * port is stale or garbage and must not be used. */
+    if (ec_io_wait(EC_SC, IBF, 0) != 0) return -1;
     outb(EC_SC_READ_CMD, EC_SC);
 
-    ec_io_wait(EC_SC, IBF, 0);
+    if (ec_io_wait(EC_SC, IBF, 0) != 0) return -1;
     outb(port, EC_DATA);
 
-    ec_io_wait(EC_SC, OBF, 1);
-    return inb(EC_DATA);
+    if (ec_io_wait(EC_SC, OBF, 1) != 0) return -1;
+    *value = inb(EC_DATA);
+    return 0;
+}
+
+uint8_t ec_io_read(const uint32_t port) {
+    uint8_t value = 0;
+    if (ec_io_read_checked(port, &value) != 0) {
+        return 0;  /* callers treat 0 as "no data" (RPM, duty) */
+    }
+    return value;
 }
 
 int ec_io_do(const uint32_t cmd, const uint32_t port, const uint8_t value) {
@@ -74,7 +86,10 @@ int ec_io_do(const uint32_t cmd, const uint32_t port, const uint8_t value) {
 /* --- Temperature reading functions --- */
 
 int get_cpu_temp(void) {
-    uint8_t temp = ec_io_read(EC_REG_CPU_TEMP);
+    uint8_t temp = 0;
+    if (ec_io_read_checked(EC_REG_CPU_TEMP, &temp) != 0) {
+        return -1; /* EC did not answer */
+    }
     if (temp < TEMP_MIN_VALID_C || temp > TEMP_MAX_VALID_C) {
         return -1; /* Invalid temperature */
     }
@@ -180,8 +195,9 @@ int get_gpu_temp(void) {
     }
     
     /* Fallback to EC register */
-    uint8_t ec_temp = ec_io_read(EC_REG_GPU_TEMP);
-    if (ec_temp >= TEMP_MIN_VALID_C && ec_temp <= TEMP_MAX_VALID_C) {
+    uint8_t ec_temp = 0;
+    if (ec_io_read_checked(EC_REG_GPU_TEMP, &ec_temp) == 0 &&
+        ec_temp >= TEMP_MIN_VALID_C && ec_temp <= TEMP_MAX_VALID_C) {
         return (int)ec_temp;
     }
     
