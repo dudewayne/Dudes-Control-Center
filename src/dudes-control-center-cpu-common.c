@@ -1432,11 +1432,10 @@ int cpu_custom_profile_apply(int idx) {
     CpuCustomProfile *p = &g_cpu_state.custom_profiles[idx];
     LOG_INFO("[CPU] Applying custom profile '%s' (index %d)", p->name, idx);
 
-    /* Set governor first */
+    /* Set governor (non-fatal: continue with frequencies even if governor fails) */
     const char *gov_str = enum_to_governor(p->governor);
     if (set_all_cpus_governor(gov_str) != 0) {
-        LOG_ERROR("[CPU] Failed to set governor '%s' for custom profile", gov_str);
-        return -1;
+        LOG_WARN("[CPU] Failed to set governor '%s' for profile '%s', continuing with frequencies", gov_str, p->name);
     }
 
     /* Set EPP to performance so cores actually push to the configured max */
