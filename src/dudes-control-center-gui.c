@@ -61,6 +61,26 @@ static const int kbd_position_to_led_id[120] = {
     51, 64, 4, 103
 };
 
+/* Key names from keyboard_keys_de.csv (one per position index, 120 entries) */
+static const char *kbd_key_names[120] = {
+    "Esc", "F1", "F2", "F3", "F4", "F5", "F6", "F7",
+    "F8", "F9", "F10", "F11", "F12", "PrtScn", "Scroll Lock", "Del",
+    "Home", "End", "PgUp", "PgDn",
+    "`", "1", "2", "3", "4", "5", "6", "7",
+    "8", "9", "0", "ß", "'", "Backspace", "Backspace",
+    "Num Lock", "Num /", "Num *", "Num -",
+    "Tab", "Tab", "Q", "W", "E", "R", "T", "Z",
+    "U", "I", "O", "P", "Ü", "+", "Enter", "Enter",
+    "Num 7", "Num 8", "Num 9", "Num +", "Num +",
+    "Caps Lock", "Caps Lock", "A", "S", "D", "F", "G", "H",
+    "J", "K", "L", "Ö", "Ä", "#", "Num 4", "Num 5", "Num 6",
+    "L Shift", "L Shift", ",", "Y", "X", "C", "V", "B",
+    "N", "M", "<", ".", "-", "R Shift", "R Shift",
+    "Arrow Up", "Num 1", "Num 2", "Num 3", "Num Enter", "Num Enter",
+    "L Ctrl", "Fn", "Win", "Alt", "Space", "AltGr", "Copilot", "R Ctrl",
+    "Arrow Left", "Arrow Down", "Arrow Right", "Num 0", "Num .", "Num ,"
+};
+
 /* QWERTZ keyboard key positions - from keyboard_keys_de.csv */
 static const KeyPos kbd_key_positions[120] = {
     {24, 20, 58, 56 }, {88, 20, 58, 56 }, {151, 20, 58, 56 }, {215, 20, 58, 56 },
@@ -3919,10 +3939,9 @@ static void on_led_wizard_start_clicked(GtkWidget *widget, gpointer user_data) {
     gtk_widget_set_sensitive(app->kbd_led_wizard_btn, FALSE);
     gtk_widget_set_sensitive(app->kbd_led_wizard_skip_btn, TRUE);
     gtk_widget_set_sensitive(app->kbd_led_wizard_cancel_btn, TRUE);
-    gtk_label_set_text(GTK_LABEL(app->kbd_led_wizard_label), 
-                      "LED Wizard: Click the key for LED 0 (or Skip to leave as-is)");
     
-    g_print("[GUI] LED Wizard started\n");
+    /* Show first step */
+    kbd_wizard_step(app);
 }
 
 /* LED Wizard: Skip current LED */
@@ -3930,8 +3949,6 @@ static void on_led_wizard_skip_clicked(GtkWidget *widget, gpointer user_data) {
     AppData *app = (AppData *)user_data;
     
     if (!app->kbd_wizard_active) return;
-    
-    g_print("[GUI] LED Wizard: Skipping LED %d\n", app->kbd_wizard_current_led);
     
     /* Move to next LED */
     app->kbd_wizard_current_led++;
@@ -3957,8 +3974,6 @@ static void on_led_wizard_cancel_clicked(GtkWidget *widget, gpointer user_data) 
     /* Clear selection and redraw */
     app->kbd_num_selected_leds = 0;
     kbd_redraw_canvas(app);
-    
-    g_print("[GUI] LED Wizard cancelled\n");
 }
 
 /* LED Wizard: Update UI for current step */
@@ -3986,8 +4001,6 @@ static void kbd_wizard_finish(AppData *app) {
     /* Clear selection and redraw */
     app->kbd_num_selected_leds = 0;
     kbd_redraw_canvas(app);
-    
-    g_print("[GUI] LED Wizard finished, mapping saved\n");
     /* TODO: Save mapping to profiles.json */
 }
 
@@ -4098,14 +4111,17 @@ static gboolean kbd_canvas_button_press(GtkWidget *widget, GdkEventButton *event
             unscaled_y >= key->y && unscaled_y <= key->y + key->h) {
             
             int led_id = kbd_position_to_led_id[i];
-            g_print("[GUI] Clicked key at position %zu (LED ID %d)\n", i, led_id);
             
             /* Handle wizard mode */
             if (app->kbd_wizard_active) {
                 /* Assign this key position to the current LED */
                 app->kbd_wizard_mapping[app->kbd_wizard_current_led] = (int)i;
-                g_print("[GUI] LED Wizard: LED %d -> key position %zu\n", 
-                        app->kbd_wizard_current_led, i);
+                const char *key_name = (i < 120) ? kbd_key_names[i] : "Unknown";
+                
+                /* Show assignment in the wizard label */
+                char buf[256];
+                snprintf(buf, sizeof(buf), "LED %d -> %s", app->kbd_wizard_current_led, key_name);
+                gtk_label_set_text(GTK_LABEL(app->kbd_led_wizard_label), buf);
                 
                 /* Move to next LED */
                 app->kbd_wizard_current_led++;
@@ -6035,6 +6051,7 @@ static GtkWidget *create_keyboard_page(AppData *app) {
     
     /* Keyboard schematic canvas */
     app->kbd_keyboard_canvas = gtk_drawing_area_new();
+    gtk_widget_set_events(app->kbd_keyboard_canvas, GDK_BUTTON_PRESS_MASK);
     g_signal_connect(app->kbd_keyboard_canvas, "draw", G_CALLBACK(kbd_canvas_draw), app);
     g_signal_connect(app->kbd_keyboard_canvas, "button-press-event", G_CALLBACK(kbd_canvas_button_press), app);
     gtk_box_pack_start(GTK_BOX(zone_vbox), app->kbd_keyboard_canvas, TRUE, TRUE, 0);
