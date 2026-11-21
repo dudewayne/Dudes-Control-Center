@@ -31,6 +31,7 @@
 
 #include "dudes-control-center-log.h"
 #include "dudes-control-center-cpu-common.h"
+#include "dudes-control-center-kbd-common.h"
 
 #define SOCKET_PATH "/run/dudes-control-center-fan.sock"
 #define CPU_SOCKET_PATH "/run/dudes-control-center-cpu.sock"
@@ -208,6 +209,31 @@ typedef struct {
     GtkWidget *cpu_hard_limit_spinner;
     GtkAdjustment *cpu_hard_limit_adjustment;
     GtkWidget *cpu_hard_limit_apply_btn;
+
+    /* Page 7: Keyboard Backlight Control widgets */
+    int kbd_socket_fd;
+    int kbd_connected;
+    GtkWidget *kbd_profile_combo;
+    GtkListStore *kbd_profile_store;
+    GtkWidget *kbd_profile_create_btn;
+    GtkWidget *kbd_profile_delete_btn;
+    GtkWidget *kbd_profile_rename_btn;
+    GtkWidget *kbd_profile_save_btn;
+    GtkWidget *kbd_profile_activate_btn;
+    GtkWidget *kbd_profile_status_label;
+    GtkWidget *kbd_zone_grid; /* Grid for zone color editors */
+    GtkWidget *kbd_status_label;
+    guint kbd_refresh_timer_id;
+    int kbd_active_profile_idx;
+    int kbd_profiles_modified; /* Track unsaved changes */
+
+    /* Keyboard zone editor widgets (dynamic zones) */
+    GtkWidget *kbd_zone_name_entries[32];
+    GtkWidget *kbd_zone_color_buttons[32];
+    GtkWidget *kbd_zone_delete_buttons[32];
+    GtkWidget *kbd_add_zone_btn;
+    GtkWidget *kbd_apply_zones_btn;
+    int kbd_num_zones;
 } AppData;
 
 /* Forward declarations for callbacks */
@@ -224,6 +250,7 @@ static GtkWidget *create_profile_list_page(AppData *app);
 static GtkWidget *create_log_page(AppData *app);
 static GtkWidget *create_about_page(void);
 static GtkWidget *create_cpu_page(AppData *app);
+static GtkWidget *create_keyboard_page(AppData *app);
 
 /* Helper function to create clickable link label */
 static GtkWidget *create_clickable_link(const char *url);
@@ -252,6 +279,11 @@ static void connect_to_cpu_daemon(AppData *app);
 static void disconnect_from_cpu_daemon(AppData *app);
 static const char *send_cpu_command(AppData *app, const char *cmd);
 static void parse_cpu_status(AppData *app, const char *response);
+
+/* Forward declarations for keyboard daemon connection */
+static void connect_to_keyboard_daemon(AppData *app);
+static void disconnect_from_keyboard_daemon(AppData *app);
+static const char *send_keyboard_command(AppData *app, const char *cmd);
 static gboolean cpu_refresh_timer_callback(gpointer user_data);
 static void load_cpu_governors(AppData *app);
 static void on_cpu_governor_changed(GtkWidget *widget, gpointer user_data);
@@ -3138,6 +3170,122 @@ static void disconnect_from_cpu_daemon(AppData *app) {
     }
 }
 
+/* Connect to keyboard daemon */
+static void connect_to_keyboard_daemon(AppData *app) {
+    struct stat st;
+    if (stat(KBD_SOCKET_PATH, &st) != 0) {
+        g_print("[GUI] Keyboard daemon socket not found at %s. Keyboard tab will be unavailable.\n", KBD_SOCKET_PATH);
+        app->kbd_socket_fd = -1;
+        app->kbd_connected = 0;
+        return;
+    }
+
+    app->kbd_socket_fd = socket(AF_UNIX, SOCK_STREAM, 0);
+    if (app->kbd_socket_fd < 0) {
+        g_print("[GUI] Failed to create keyboard socket: %s\n", strerror(errno));
+        return;
+    }
+
+    struct sockaddr_un addr;
+    memset(&addr, 0, sizeof(addr));
+    addr.sun_family = AF_UNIX;
+    strncpy(addr.sun_path, KBD_SOCKET_PATH, sizeof(addr.sun_path) - 1);
+
+    if (connect(app->kbd_socket_fd, (struct sockaddr*)&addr, sizeof(addr)) < 0) {
+        g_print("[GUI] Failed to connect to keyboard daemon: %s\n", strerror(errno));
+        close(app->kbd_socket_fd);
+        app->kbd_socket_fd = -1;
+        return;
+    }
+
+    app->kbd_connected = 1;
+    g_print("[GUI] Connected to keyboard daemon successfully!\n");
+}
+
+/* Disconnect from keyboard daemon */
+static void disconnect_from_keyboard_daemon(AppData *app) {
+    if (app->kbd_socket_fd >= 0) {
+        close(app->kbd_socket_fd);
+        app->kbd_socket_fd = -1;
+        app->kbd_connected = 0;
+    }
+}
+
+/* Send command to keyboard daemon */
+static const char *send_keyboard_command(AppData *app, const char *cmd) {
+    static char response[8192];
+
+    if (!app->kbd_connected || app->kbd_socket_fd < 0) {
+        strcpy(response, "ERROR Not connected to keyboard daemon");
+        return response;
+    }
+
+    char cmd_with_newline[256];
+    snprintf(cmd_with_newline, sizeof(cmd_with_newline), "%s\n", cmd);
+
+    ssize_t sent = write(app->kbd_socket_fd, cmd_with_newline, strlen(cmd_with_newline));
+    if (sent < 0) {
+        char ts[32];
+        get_timestamp(ts, sizeof(ts));
+        g_print("%s [GUI] KBD ERROR: Failed to send command (%s), marking disconnected\n", ts, strerror(errno));
+        app->kbd_connected = 0;
+        if (app->kbd_socket_fd >= 0) {
+            close(app->kbd_socket_fd);
+            app->kbd_socket_fd = -1;
+        }
+        strcpy(response, "ERROR Failed to send keyboard command");
+        return response;
+    }
+
+    memset(response, 0, sizeof(response));
+    size_t total_received = 0;
+    while (total_received < sizeof(response) - 1) {
+        struct pollfd pfd;
+        pfd.fd = app->kbd_socket_fd;
+        pfd.events = POLLIN;
+        int poll_ret = poll(&pfd, 1, 200);
+        if (poll_ret < 0) {
+            char ts[32];
+            get_timestamp(ts, sizeof(ts));
+            g_print("%s [GUI] KBD ERROR: poll failed (%s), marking disconnected\n", ts, strerror(errno));
+            app->kbd_connected = 0;
+            if (app->kbd_socket_fd >= 0) {
+                close(app->kbd_socket_fd);
+                app->kbd_socket_fd = -1;
+            }
+            strcpy(response, "ERROR Failed to receive keyboard response");
+            return response;
+        }
+        if (poll_ret == 0) break;
+
+        ssize_t received = read(app->kbd_socket_fd, response + total_received, sizeof(response) - 1 - total_received);
+        if (received < 0) {
+            if (errno == EAGAIN || errno == EWOULDBLOCK) break;
+            char ts[32];
+            get_timestamp(ts, sizeof(ts));
+            g_print("%s [GUI] KBD ERROR: Failed to receive response (%s), marking disconnected\n", ts, strerror(errno));
+            app->kbd_connected = 0;
+            if (app->kbd_socket_fd >= 0) {
+                close(app->kbd_socket_fd);
+                app->kbd_socket_fd = -1;
+            }
+            strcpy(response, "ERROR Failed to receive keyboard response");
+            return response;
+        }
+        if (received == 0) {
+            char ts[32];
+            get_timestamp(ts, sizeof(ts));
+            g_print("%s [GUI] KBD ERROR: Connection closed by daemon (EOF)\n", ts);
+            strcpy(response, "ERROR Keyboard connection closed");
+            app->kbd_connected = 0;
+            return response;
+        }
+        total_received += received;
+    }
+
+    return response;
+}
+
 /* Parse STATUS response and update UI */
 static void parse_status(AppData *app, const char *response) {
     char buffer[BUFFER_SIZE];
@@ -4829,6 +4977,103 @@ static GtkWidget *create_cpu_page(AppData *app) {
     return vbox;
 }
 
+/* Create Page 7: Keyboard Backlight Control */
+static GtkWidget *create_keyboard_page(AppData *app) {
+    GtkWidget *vbox = gtk_box_new(GTK_ORIENTATION_VERTICAL, 6);
+    gtk_container_set_border_width(GTK_CONTAINER(vbox), 12);
+
+    /* --- Status section --- */
+    GtkWidget *status_box = gtk_box_new(GTK_ORIENTATION_VERTICAL, 4);
+    app->kbd_status_label = gtk_label_new("Keyboard daemon not connected");
+    gtk_label_set_xalign(GTK_LABEL(app->kbd_status_label), 0.0);
+    gtk_widget_set_hexpand(app->kbd_status_label, TRUE);
+    gtk_box_pack_start(GTK_BOX(status_box), app->kbd_status_label, FALSE, FALSE, 0);
+
+    GtkWidget *status_frame = gtk_frame_new("Keyboard Status");
+    gtk_container_set_border_width(GTK_CONTAINER(status_frame), 6);
+    gtk_container_add(GTK_CONTAINER(status_frame), status_box);
+    gtk_box_pack_start(GTK_BOX(vbox), status_frame, FALSE, FALSE, 0);
+
+    /* --- Profile management section --- */
+    GtkWidget *profile_frame = gtk_frame_new("Keyboard Profiles");
+    gtk_container_set_border_width(GTK_CONTAINER(profile_frame), 6);
+    GtkWidget *profile_vbox = gtk_box_new(GTK_ORIENTATION_VERTICAL, 6);
+
+    /* Profile combo box */
+    GtkWidget *profile_hbox = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 6);
+    gtk_label_set_xalign(GTK_LABEL(gtk_label_new("Profile:")), 0.0);
+    GtkWidget *profile_label = gtk_label_new("Profile:");
+    gtk_box_pack_start(GTK_BOX(profile_hbox), profile_label, FALSE, FALSE, 0);
+
+    app->kbd_profile_store = gtk_list_store_new(1, G_TYPE_STRING);
+    app->kbd_profile_combo = gtk_combo_box_new();
+    gtk_combo_box_set_model(GTK_COMBO_BOX(app->kbd_profile_combo), GTK_TREE_MODEL(app->kbd_profile_store));
+    {
+        GtkCellRenderer *renderer = gtk_cell_renderer_text_new();
+        gtk_cell_layout_pack_start(GTK_CELL_LAYOUT(app->kbd_profile_combo), renderer, TRUE);
+        gtk_cell_layout_set_attributes(GTK_CELL_LAYOUT(app->kbd_profile_combo), renderer, "text", 0, NULL);
+    }
+    gtk_combo_box_set_id_column(GTK_COMBO_BOX(app->kbd_profile_combo), 0);
+    gtk_box_pack_start(GTK_BOX(profile_hbox), app->kbd_profile_combo, TRUE, TRUE, 0);
+    gtk_box_pack_start(GTK_BOX(profile_vbox), profile_hbox, FALSE, FALSE, 0);
+
+    /* Profile buttons row */
+    GtkWidget *btn_row = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 6);
+    app->kbd_profile_create_btn = gtk_button_new_from_stock(GTK_STOCK_ADD);
+    app->kbd_profile_delete_btn = gtk_button_new_from_stock(GTK_STOCK_REMOVE);
+    app->kbd_profile_rename_btn = gtk_button_new_with_label("Rename");
+    gtk_box_pack_start(GTK_BOX(btn_row), app->kbd_profile_create_btn, FALSE, FALSE, 0);
+    gtk_box_pack_start(GTK_BOX(btn_row), app->kbd_profile_delete_btn, FALSE, FALSE, 0);
+    gtk_box_pack_start(GTK_BOX(btn_row), app->kbd_profile_rename_btn, FALSE, FALSE, 0);
+    gtk_box_pack_start(GTK_BOX(profile_vbox), btn_row, FALSE, FALSE, 0);
+
+    /* Save / Activate buttons row */
+    GtkWidget *save_row = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 6);
+    app->kbd_profile_save_btn = gtk_button_new_with_label("Save Profile");
+    app->kbd_profile_activate_btn = gtk_button_new_with_label("Activate Profile");
+    gtk_box_pack_start(GTK_BOX(save_row), app->kbd_profile_save_btn, FALSE, FALSE, 0);
+    gtk_box_pack_start(GTK_BOX(save_row), app->kbd_profile_activate_btn, FALSE, FALSE, 0);
+    gtk_box_pack_start(GTK_BOX(profile_vbox), save_row, FALSE, FALSE, 0);
+
+    /* Profile status label */
+    app->kbd_profile_status_label = gtk_label_new("");
+    gtk_label_set_xalign(GTK_LABEL(app->kbd_profile_status_label), 0.0);
+    gtk_widget_set_name(app->kbd_profile_status_label, "kbd-status-label");
+    gtk_box_pack_start(GTK_BOX(profile_vbox), app->kbd_profile_status_label, FALSE, FALSE, 0);
+
+    gtk_container_add(GTK_CONTAINER(profile_frame), profile_vbox);
+    gtk_box_pack_start(GTK_BOX(vbox), profile_frame, FALSE, FALSE, 0);
+
+    /* --- Zone editor section --- */
+    GtkWidget *zone_frame = gtk_frame_new("Zone Editor");
+    gtk_container_set_border_width(GTK_CONTAINER(zone_frame), 6);
+    GtkWidget *zone_vbox = gtk_box_new(GTK_ORIENTATION_VERTICAL, 6);
+
+    /* Zone grid */
+    app->kbd_zone_grid = gtk_grid_new();
+    gtk_grid_set_column_spacing(GTK_GRID(app->kbd_zone_grid), 6);
+    gtk_grid_set_row_spacing(GTK_GRID(app->kbd_zone_grid), 4);
+
+    GtkWidget *zone_scrolled = gtk_scrolled_window_new(NULL, NULL);
+    gtk_scrolled_window_set_policy(GTK_SCROLLED_WINDOW(zone_scrolled), GTK_POLICY_NEVER, GTK_POLICY_AUTOMATIC);
+    gtk_scrolled_window_set_min_content_height(GTK_SCROLLED_WINDOW(zone_scrolled), 200);
+    gtk_container_add(GTK_CONTAINER(zone_scrolled), app->kbd_zone_grid);
+    gtk_box_pack_start(GTK_BOX(zone_vbox), zone_scrolled, TRUE, TRUE, 0);
+
+    /* Add zone / Apply buttons row */
+    GtkWidget *zone_btn_row = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 6);
+    app->kbd_add_zone_btn = gtk_button_new_with_label("Add Zone");
+    app->kbd_apply_zones_btn = gtk_button_new_with_label("Apply Zones");
+    gtk_box_pack_start(GTK_BOX(zone_btn_row), app->kbd_add_zone_btn, FALSE, FALSE, 0);
+    gtk_box_pack_start(GTK_BOX(zone_btn_row), app->kbd_apply_zones_btn, FALSE, FALSE, 0);
+    gtk_box_pack_start(GTK_BOX(zone_vbox), zone_btn_row, FALSE, FALSE, 0);
+
+    gtk_container_add(GTK_CONTAINER(zone_frame), zone_vbox);
+    gtk_box_pack_start(GTK_BOX(vbox), zone_frame, TRUE, TRUE, 0);
+
+    return vbox;
+}
+
 /* Create main window */
 static GtkWidget *create_main_window(AppData *app) {
     app->window = gtk_window_new(GTK_WINDOW_TOPLEVEL);
@@ -4860,11 +5105,17 @@ static GtkWidget *create_main_window(AppData *app) {
     gtk_scrolled_window_set_policy(GTK_SCROLLED_WINDOW(cpu_scrolled), GTK_POLICY_NEVER, GTK_POLICY_AUTOMATIC);
     gtk_container_add(GTK_CONTAINER(cpu_scrolled), cpu_page);
     GtkWidget *page6 = create_about_page();
+    GtkWidget *kbd_page = create_keyboard_page(app);
+    /* Wrap keyboard page in a scrolled window */
+    GtkWidget *kbd_scrolled = gtk_scrolled_window_new(NULL, NULL);
+    gtk_scrolled_window_set_policy(GTK_SCROLLED_WINDOW(kbd_scrolled), GTK_POLICY_NEVER, GTK_POLICY_AUTOMATIC);
+    gtk_container_add(GTK_CONTAINER(kbd_scrolled), kbd_page);
 
     gtk_notebook_append_page(GTK_NOTEBOOK(app->notebook), page1, gtk_label_new("Status"));
     gtk_notebook_append_page(GTK_NOTEBOOK(app->notebook), page2, gtk_label_new("Curve Editor"));
     gtk_notebook_append_page(GTK_NOTEBOOK(app->notebook), page3, gtk_label_new("Fan Profiles"));
     gtk_notebook_append_page(GTK_NOTEBOOK(app->notebook), cpu_scrolled, gtk_label_new("CPU Profiles"));
+    gtk_notebook_append_page(GTK_NOTEBOOK(app->notebook), kbd_scrolled, gtk_label_new("Keyboard Backlight"));
     gtk_notebook_append_page(GTK_NOTEBOOK(app->notebook), page4, gtk_label_new("Logs"));
     gtk_notebook_append_page(GTK_NOTEBOOK(app->notebook), page6, gtk_label_new("About"));
     
@@ -5560,6 +5811,9 @@ int main(int argc, char *argv[]) {
 
     /* Connect to CPU daemon */
     connect_to_cpu_daemon(&app);
+
+    /* Connect to keyboard daemon */
+    connect_to_keyboard_daemon(&app);
 
     /* Initialize pending selection to current active profile */
     app.pending_active_profile_idx = app.active_profile_idx;
