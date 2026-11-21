@@ -16,6 +16,9 @@ All notable changes to this project will be documented in this file.
 - A failed EC write is logged and retried, instead of being reported as the new fan duty. `SET_AUTO 0` keeps the current speed instead of jumping to an old manual value.
 - `STATUS` reports `FAILSAFE=1` while a safety override is active.
 
+### Fixed (Packaging)
+- **Keyboard module (DKMS) was never rebuilt on install**: the packaged `dkms.conf` said version 1.15.0 while the source was installed as a newer version, so `dkms add` failed silently. The deb now writes the package version into `dkms.conf`. `postinst` unregisters other module versions (including broken leftovers), installs with `--force`, then unloads the old module and loads the new one, and prints the loaded module's version and path.
+
 ## [1.16.1] - 2026-11-21
 
 ### Fixed (Security)
