@@ -32,6 +32,68 @@
 #include "dudes-control-center-log.h"
 #include "dudes-control-center-cpu-common.h"
 #include "dudes-control-center-kbd-common.h"
+#include <cairo.h>
+#include <cairo-gobject.h>
+
+/* --- Keyboard Visual Zone Editor --- */
+typedef struct {
+    double x, y, w, h;
+} KeyPos;
+
+/* Keyboard image dimensions */
+#define KBD_IMAGE_WIDTH 1330
+#define KBD_IMAGE_HEIGHT 440
+
+/* Mapping from visual position index (in key_positions[]) to LED ID */
+static const int kbd_position_to_led_id[120] = {
+    41, 77, 14, 66, 1, 56, 109, 46, 96, 33, 7, 61, 114,
+    50, 102, 39, 90, 27, 79, 16,
+    3, 58, 111, 47, 98, 35, 86, 23, 74, 11, 118, 89, 54, 44,
+    31, 94, 83, 20, 71, 8,
+    52, 115, 104, 42, 92, 29, 81, 18, 69, 5, 112, 49, 100, 37,
+    88, 19, 76, 13, 65, 113, 0,
+    45, 108, 95, 32, 84, 21, 72, 9, 62, 116, 105, 43, 93, 82,
+    70, 6, 60,
+    101, 22, 89, 26, 78, 15, 67, 2, 57, 110, 97, 34, 85,
+    73, 87, 10, 63, 117, 53, 55, 106,
+    80, 48, 36, 24, 59, 119, 40, 68, 17, 75,
+    12, 38, 107, 91, 25, 30, 103, 99, 119,
+    51, 64, 4, 103
+};
+
+/* QWERTZ keyboard key positions - from keyboard_keys_de.csv */
+static const KeyPos kbd_key_positions[120] = {
+    {24, 20, 58, 56 }, {88, 20, 58, 56 }, {151, 20, 58, 56 }, {215, 20, 58, 56 },
+    {278, 20, 58, 56 }, {342, 20, 58, 56 }, {405, 20, 58, 56 }, {469, 20, 58, 56 },
+    {533, 20, 58, 56 }, {596, 20, 58, 56 }, {660, 20, 58, 56 }, {723, 20, 58, 56 },
+    {787, 20, 58, 56 }, {851, 20, 58, 56 }, {914, 20, 58, 56 }, {978, 20, 58, 56 },
+    {1064, 20, 62, 56 }, {1132, 20, 62, 56 }, {1200, 20, 62, 56 }, {1268, 20, 62, 56 },
+    {24, 88, 62, 62 }, {92, 88, 62, 62 }, {160, 88, 62, 62 }, {228, 88, 62, 62 },
+    {296, 88, 62, 62 }, {364, 88, 62, 62 }, {432, 88, 62, 62 }, {500, 88, 62, 62 },
+    {568, 88, 62, 62 }, {636, 88, 62, 62 }, {704, 88, 62, 62 }, {772, 88, 62, 62 },
+    {772, 88, 62, 62 }, {840, 88, 62, 62 }, {908, 88, 130, 62 }, {908, 88, 130, 62 },
+    {1064, 88, 62, 62 }, {1132, 88, 62, 62 }, {1200, 88, 62, 62 }, {1268, 88, 62, 62 },
+    {24, 156, 96, 62 }, {24, 156, 96, 62 }, {126, 156, 62, 62 }, {194, 156, 62, 62 },
+    {262, 156, 62, 62 }, {330, 156, 62, 62 }, {398, 156, 62, 62 }, {466, 156, 62, 62 },
+    {534, 156, 62, 62 }, {602, 156, 62, 62 }, {670, 156, 62, 62 }, {738, 156, 62, 62 },
+    {806, 156, 62, 62 }, {874, 156, 62, 62 }, {942, 156, 96, 130 }, {942, 156, 96, 130 },
+    {1064, 156, 62, 62 }, {1132, 156, 62, 62 }, {1200, 156, 62, 62 }, {1268, 156, 62, 130 },
+    {1268, 156, 62, 130 }, {24, 224, 113, 62 }, {24, 224, 113, 62 },
+    {143, 224, 62, 62 }, {211, 224, 62, 62 }, {279, 224, 62, 62 }, {347, 224, 62, 62 },
+    {415, 224, 62, 62 }, {483, 224, 62, 62 }, {551, 224, 62, 62 }, {619, 224, 62, 62 },
+    {687, 224, 62, 62 }, {755, 224, 62, 62 }, {823, 224, 62, 62 }, {891, 224, 62, 62 },
+    {1064, 224, 62, 62 }, {1132, 224, 62, 62 }, {1200, 224, 62, 62 },
+    {24, 292, 79, 62 }, {24, 292, 79, 62 }, {109, 292, 62, 62 },
+    {177, 292, 62, 62 }, {245, 292, 62, 62 }, {313, 292, 62, 62 }, {381, 292, 62, 62 },
+    {449, 292, 62, 62 }, {517, 292, 62, 62 }, {585, 292, 62, 62 }, {653, 292, 62, 62 },
+    {721, 292, 62, 62 }, {789, 292, 62, 62 }, {857, 292, 127, 62 }, {857, 292, 127, 62 },
+    {996, 292, 62, 62 }, {1064, 292, 62, 62 }, {1132, 292, 62, 62 }, {1200, 292, 62, 62 },
+    {1268, 292, 62, 130 }, {1268, 292, 62, 130 },
+    {24, 360, 76, 62 }, {106, 360, 62, 62 }, {174, 360, 62, 62 }, {242, 360, 62, 62 },
+    {310, 360, 375, 62 }, {690, 360, 62, 62 }, {758, 360, 62, 62 }, {826, 360, 89, 62 },
+    {928, 360, 62, 62 }, {996, 360, 62, 62 }, {1064, 360, 62, 62 },
+    {1132, 360, 62, 62 }, {1200, 360, 62, 62 }, {1268, 360, 62, 62 }
+};
 
 #define SOCKET_PATH "/run/dudes-control-center-fan.sock"
 #define CPU_SOCKET_PATH "/run/dudes-control-center-cpu.sock"
@@ -222,6 +284,10 @@ typedef struct {
     GtkWidget *kbd_profile_activate_btn;
     GtkWidget *kbd_profile_status_label;
     GtkWidget *kbd_zone_grid; /* Grid for zone color editors */
+    GtkWidget *kbd_keyboard_canvas; /* Drawing area for keyboard schematic */
+    cairo_surface_t *kbd_keyboard_image; /* Cached keyboard image */
+    int kbd_selected_led_indices[120]; /* LEDs selected for current zone */
+    int kbd_num_selected_leds; /* Count of selected LEDs */
     GtkWidget *kbd_status_label;
     guint kbd_refresh_timer_id;
     int kbd_active_profile_idx;
@@ -294,6 +360,9 @@ static void on_kbd_save_profile_clicked(GtkWidget *widget, gpointer user_data);
 static void on_kbd_activate_profile_clicked(GtkWidget *widget, gpointer user_data);
 static gboolean on_kbd_off_switch_toggled(GtkSwitch *sw, gboolean new_state, gpointer user_data);
 static void on_preset_color_clicked(GtkWidget *widget, AppData *app);
+static gboolean kbd_canvas_draw(GtkWidget *widget, cairo_t *cr, gpointer user_data);
+static gboolean kbd_canvas_button_press(GtkWidget *widget, GdkEventButton *event, gpointer user_data);
+static void kbd_redraw_canvas(AppData *app);
 static gboolean cpu_refresh_timer_callback(gpointer user_data);
 static void load_cpu_governors(AppData *app);
 static void on_cpu_governor_changed(GtkWidget *widget, gpointer user_data);
@@ -3816,6 +3885,151 @@ static gboolean on_kbd_off_switch_toggled(GtkSwitch *sw, gboolean new_state, gpo
     return FALSE; /* Let GTK update the switch visual state */
 }
 
+/* Redraw the keyboard canvas */
+static void kbd_redraw_canvas(AppData *app) {
+    if (app->kbd_keyboard_canvas) {
+        gtk_widget_queue_draw(app->kbd_keyboard_canvas);
+    }
+}
+
+/* Draw callback for keyboard canvas */
+static gboolean kbd_canvas_draw(GtkWidget *widget, cairo_t *cr, gpointer user_data) {
+    (void)widget;
+    AppData *app = (AppData *)user_data;
+    int width = gtk_widget_get_allocated_width(widget);
+    int height = gtk_widget_get_allocated_height(widget);
+    
+    /* Clear background */
+    cairo_set_source_rgb(cr, 0.1, 0.1, 0.1);
+    cairo_paint(cr);
+    
+    /* Draw keyboard image if available */
+    if (app->kbd_keyboard_image) {
+        double img_width = cairo_image_surface_get_width(app->kbd_keyboard_image);
+        double img_height = cairo_image_surface_get_height(app->kbd_keyboard_image);
+        
+        /* Scale to fit canvas while maintaining aspect ratio */
+        double scale_x = (double)width / img_width;
+        double scale_y = (double)height / img_height;
+        double scale = (scale_x < scale_y) ? scale_x : scale_y;
+        
+        double scaled_w = img_width * scale;
+        double scaled_h = img_height * scale;
+        double offset_x = (width - scaled_w) / 2.0;
+        double offset_y = (height - scaled_h) / 2.0;
+        
+        cairo_save(cr);
+        cairo_translate(cr, offset_x, offset_y);
+        cairo_scale(cr, scale, scale);
+        cairo_set_source_surface(cr, app->kbd_keyboard_image, 0, 0);
+        cairo_paint(cr);
+        cairo_restore(cr);
+        
+        /* Draw key overlays */
+        size_t num_keys = sizeof(kbd_key_positions) / sizeof(kbd_key_positions[0]);
+        for (size_t i = 0; i < num_keys; i++) {
+            const KeyPos *key = &kbd_key_positions[i];
+            
+            /* Check if this LED is selected */
+            int led_id = kbd_position_to_led_id[i];
+            int is_selected = 0;
+            for (int s = 0; s < app->kbd_num_selected_leds; s++) {
+                if (app->kbd_selected_led_indices[s] == led_id) {
+                    is_selected = 1;
+                    break;
+                }
+            }
+            
+            /* Draw overlay */
+            if (is_selected) {
+                /* Selected keys - green highlight */
+                cairo_set_source_rgba(cr, 0.0, 1.0, 0.0, 0.3);
+                cairo_rectangle(cr,
+                    offset_x + key->x * scale,
+                    offset_y + key->y * scale,
+                    key->w * scale,
+                    key->h * scale);
+                cairo_fill(cr);
+                cairo_set_source_rgb(cr, 0.0, 1.0, 0.0);
+                cairo_set_line_width(cr, 2.0);
+                cairo_stroke(cr);
+            }
+        }
+    } else {
+        /* No image loaded, show placeholder text */
+        cairo_set_source_rgb(cr, 0.7, 0.7, 0.7);
+        cairo_select_font_face(cr, "sans", CAIRO_FONT_SLANT_NORMAL, CAIRO_FONT_WEIGHT_NORMAL);
+        cairo_set_font_size(cr, 14);
+        cairo_move_to(cr, width/2 - 80, height/2);
+        cairo_show_text(cr, "Keyboard schematic loading...");
+        cairo_stroke(cr);
+    }
+    
+    return FALSE;
+}
+
+/* Click handler for keyboard canvas */
+static gboolean kbd_canvas_button_press(GtkWidget *widget, GdkEventButton *event, gpointer user_data) {
+    AppData *app = (AppData *)user_data;
+    
+    if (!app->kbd_keyboard_image || event->button != 1) {
+        return FALSE;
+    }
+    
+    int width = gtk_widget_get_allocated_width(widget);
+    int height = gtk_widget_get_allocated_height(widget);
+    double img_width = cairo_image_surface_get_width(app->kbd_keyboard_image);
+    double img_height = cairo_image_surface_get_height(app->kbd_keyboard_image);
+    
+    double scale_x = (double)width / img_width;
+    double scale_y = (double)height / img_height;
+    double scale = (scale_x < scale_y) ? scale_x : scale_y;
+    
+    double scaled_w = img_width * scale;
+    double scaled_h = img_height * scale;
+    double offset_x = (width - scaled_w) / 2.0;
+    double offset_y = (height - scaled_h) / 2.0;
+    
+    /* Convert click to image coordinates */
+    double unscaled_x = (event->x - offset_x) / scale;
+    double unscaled_y = (event->y - offset_y) / scale;
+    
+    /* Find which key was clicked */
+    size_t num_keys = sizeof(kbd_key_positions) / sizeof(kbd_key_positions[0]);
+    for (size_t i = 0; i < num_keys; i++) {
+        const KeyPos *key = &kbd_key_positions[i];
+        if (unscaled_x >= key->x && unscaled_x <= key->x + key->w &&
+            unscaled_y >= key->y && unscaled_y <= key->y + key->h) {
+            
+            int led_id = kbd_position_to_led_id[i];
+            g_print("[GUI] Clicked key at position %zu (LED ID %d)\n", i, led_id);
+            
+            /* Toggle selection */
+            int found = 0;
+            for (int s = 0; s < app->kbd_num_selected_leds; s++) {
+                if (app->kbd_selected_led_indices[s] == led_id) {
+                    /* Remove from selection */
+                    app->kbd_selected_led_indices[s] = app->kbd_selected_led_indices[app->kbd_num_selected_leds - 1];
+                    app->kbd_num_selected_leds--;
+                    found = 1;
+                    break;
+                }
+            }
+            
+            if (!found && app->kbd_num_selected_leds < 120) {
+                /* Add to selection */
+                app->kbd_selected_led_indices[app->kbd_num_selected_leds++] = led_id;
+            }
+            
+            /* Redraw canvas */
+            kbd_redraw_canvas(app);
+            return TRUE;
+        }
+    }
+    
+    return FALSE;
+}
+
 /* Callback: Preset color button clicked */
 static void on_preset_color_clicked(GtkWidget *widget, AppData *app) {
     if (!app->kbd_connected) {
@@ -5668,21 +5882,37 @@ static GtkWidget *create_keyboard_page(AppData *app) {
     gtk_container_add(GTK_CONTAINER(preset_frame), preset_vbox);
     gtk_box_pack_start(GTK_BOX(vbox), preset_frame, FALSE, FALSE, 0);
 
-    /* --- Zone editor section --- */
-    GtkWidget *zone_frame = gtk_frame_new("Zone Editor");
+    /* --- Visual Zone Editor section --- */
+    GtkWidget *zone_frame = gtk_frame_new("Visual Zone Editor");
     gtk_container_set_border_width(GTK_CONTAINER(zone_frame), 6);
     GtkWidget *zone_vbox = gtk_box_new(GTK_ORIENTATION_VERTICAL, 6);
 
-    /* Zone grid */
+    /* Zone grid (zone name/color entries) */
     app->kbd_zone_grid = gtk_grid_new();
     gtk_grid_set_column_spacing(GTK_GRID(app->kbd_zone_grid), 6);
     gtk_grid_set_row_spacing(GTK_GRID(app->kbd_zone_grid), 4);
 
     GtkWidget *zone_scrolled = gtk_scrolled_window_new(NULL, NULL);
     gtk_scrolled_window_set_policy(GTK_SCROLLED_WINDOW(zone_scrolled), GTK_POLICY_NEVER, GTK_POLICY_AUTOMATIC);
-    gtk_scrolled_window_set_min_content_height(GTK_SCROLLED_WINDOW(zone_scrolled), 200);
+    gtk_scrolled_window_set_min_content_height(GTK_SCROLLED_WINDOW(zone_scrolled), 150);
     gtk_container_add(GTK_CONTAINER(zone_scrolled), app->kbd_zone_grid);
-    gtk_box_pack_start(GTK_BOX(zone_vbox), zone_scrolled, TRUE, TRUE, 0);
+    gtk_box_pack_start(GTK_BOX(zone_vbox), zone_scrolled, FALSE, FALSE, 0);
+
+    /* Keyboard schematic canvas */
+    app->kbd_keyboard_canvas = gtk_drawing_area_new();
+    gtk_widget_set_size_request(app->kbd_keyboard_canvas, -1, 300);
+    g_signal_connect(app->kbd_keyboard_canvas, "draw", G_CALLBACK(kbd_canvas_draw), app);
+    g_signal_connect(app->kbd_keyboard_canvas, "button-press-event", G_CALLBACK(kbd_canvas_button_press), app);
+    gtk_box_pack_start(GTK_BOX(zone_vbox), app->kbd_keyboard_canvas, TRUE, TRUE, 0);
+
+    /* Load keyboard image */
+    app->kbd_keyboard_image = cairo_image_surface_create_from_png("/usr/share/doc/dudes-control-center/images/keyboard_dark.png");
+    if (cairo_surface_status(app->kbd_keyboard_image) != CAIRO_STATUS_SUCCESS) {
+        g_print("[GUI] WARNING: Could not load keyboard image: %s\n", 
+                cairo_status_to_string(cairo_surface_status(app->kbd_keyboard_image)));
+        cairo_surface_destroy(app->kbd_keyboard_image);
+        app->kbd_keyboard_image = NULL;
+    }
 
     /* Add zone / Apply buttons row */
     GtkWidget *zone_btn_row = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 6);

@@ -86,6 +86,7 @@ deb: all
 	@mkdir -p $(DEB_BUILD_DIR)/$(PACKAGE)-$(VERSION)/usr/share/pixmaps
 	@mkdir -p $(DEB_BUILD_DIR)/$(PACKAGE)-$(VERSION)/usr/share/icons/hicolor/256x256/apps
 	@mkdir -p $(DEB_BUILD_DIR)/$(PACKAGE)-$(VERSION)/etc/systemd/system
+	@mkdir -p $(DEB_BUILD_DIR)/$(PACKAGE)-$(VERSION)/usr/share/doc/dudes-control-center/images
 	@mkdir -p $(DEB_BUILD_DIR)/$(PACKAGE)-$(VERSION)/DEBIAN
 	@cp $(CLI_TARGET) $(DEB_BUILD_DIR)/$(PACKAGE)-$(VERSION)/usr/local/bin/
 	@cp $(CPU_CLI_TARGET) $(DEB_BUILD_DIR)/$(PACKAGE)-$(VERSION)/usr/local/bin/
@@ -93,6 +94,7 @@ deb: all
 	@cp $(CPU_DAEMON_TARGET) $(DEB_BUILD_DIR)/$(PACKAGE)-$(VERSION)/usr/local/bin/
 	@cp $(KBD_DAEMON_TARGET) $(DEB_BUILD_DIR)/$(PACKAGE)-$(VERSION)/usr/local/bin/
 	@cp $(GUI_TARGET) $(DEB_BUILD_DIR)/$(PACKAGE)-$(VERSION)/usr/local/bin/
+	@cp resources/keyboard_dark.png $(DEB_BUILD_DIR)/$(PACKAGE)-$(VERSION)/usr/share/doc/dudes-control-center/images/keyboard_dark.png 2>/dev/null || true
 	@cp dudes-control-center.desktop $(DEB_BUILD_DIR)/$(PACKAGE)-$(VERSION)/usr/share/applications/
 	@cp DudesControlCenter.png $(DEB_BUILD_DIR)/$(PACKAGE)-$(VERSION)/usr/share/pixmaps/ 2>/dev/null || true
 	@cp DudesControlCenter.png $(DEB_BUILD_DIR)/$(PACKAGE)-$(VERSION)/usr/share/icons/hicolor/256x256/apps/dudes-control-center.png 2>/dev/null || true
