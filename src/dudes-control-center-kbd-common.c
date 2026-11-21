@@ -423,7 +423,16 @@ int profile_apply(const char *name) {
         return -1;
     }
 
-    return apply_zones();
+    /* Persist the active profile index to profiles.json */
+    kbd_profiles_save_json();
+
+    /* Apply zones - OK if 0 zones (empty profile) */
+    int result = apply_zones();
+    if (result != 0 && g_num_zones == 0) {
+        LOG_INFO("[KBD] Profile '%s' has no zones to apply", name);
+        return 0;
+    }
+    return result;
 }
 
 const KbdLedProfile* profile_get_current(void) {
