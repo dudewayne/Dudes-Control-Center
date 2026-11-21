@@ -161,7 +161,7 @@ static int handle_command(const char *cmd, char *response, size_t resp_size) {
 
     free(cmd_dup);
 
-    LOG_DEBUG("[KBD_DAEMON] Received command: '%s' args='%s' '%s' '%s' '%s'",
+    LOG_INFO("[KBD_DAEMON] Received command: '%s' args='%s' '%s' '%s' '%s'",
               action, arg1, arg2, arg3, arg4);
 
     const KbdLedState *state = kbd_led_get_state();

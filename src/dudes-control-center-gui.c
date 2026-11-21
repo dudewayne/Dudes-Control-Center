@@ -293,6 +293,7 @@ static void on_kbd_rename_profile_clicked(GtkWidget *widget, gpointer user_data)
 static void on_kbd_save_profile_clicked(GtkWidget *widget, gpointer user_data);
 static void on_kbd_activate_profile_clicked(GtkWidget *widget, gpointer user_data);
 static gboolean on_kbd_off_switch_toggled(GtkSwitch *sw, gboolean new_state, gpointer user_data);
+static void on_preset_color_clicked(GtkWidget *widget, AppData *app);
 static gboolean cpu_refresh_timer_callback(gpointer user_data);
 static void load_cpu_governors(AppData *app);
 static void on_cpu_governor_changed(GtkWidget *widget, gpointer user_data);
@@ -3815,6 +3816,30 @@ static gboolean on_kbd_off_switch_toggled(GtkSwitch *sw, gboolean new_state, gpo
     return FALSE; /* Let GTK update the switch visual state */
 }
 
+/* Callback: Preset color button clicked */
+static void on_preset_color_clicked(GtkWidget *widget, AppData *app) {
+    if (!app->kbd_connected) {
+        g_print("[GUI] Keyboard daemon not connected, skipping preset color\n");
+        return;
+    }
+
+    int *rgb = (int *)g_object_get_data(G_OBJECT(widget), "preset-rgb");
+    if (!rgb) {
+        g_print("[GUI] No RGB data for preset button\n");
+        return;
+    }
+
+    char cmd[64];
+    snprintf(cmd, sizeof(cmd), "SET_COLOR %d %d %d", rgb[0], rgb[1], rgb[2]);
+    const char *response = send_keyboard_command(app, cmd);
+    g_print("[GUI] SET_COLOR %d %d %d response: %s\n", rgb[0], rgb[1], rgb[2], response ? response : "NULL");
+
+    /* Update status label */
+    const char *name = gtk_button_get_label(GTK_BUTTON(widget));
+    gtk_label_set_text(GTK_LABEL(app->kbd_profile_status_label),
+                      g_strconcat("Color set to: ", name, NULL));
+}
+
 /* Parse STATUS response and update UI */
 static void parse_status(AppData *app, const char *response) {
     char buffer[BUFFER_SIZE];
@@ -5607,6 +5632,41 @@ static GtkWidget *create_keyboard_page(AppData *app) {
 
     gtk_container_add(GTK_CONTAINER(off_switch_frame), off_switch_vbox);
     gtk_box_pack_start(GTK_BOX(vbox), off_switch_frame, FALSE, FALSE, 0);
+
+    /* --- Preset Colors section --- */
+    GtkWidget *preset_frame = gtk_frame_new("Preset Colors");
+    gtk_container_set_border_width(GTK_CONTAINER(preset_frame), 6);
+    GtkWidget *preset_vbox = gtk_box_new(GTK_ORIENTATION_VERTICAL, 6);
+
+    GtkWidget *preset_label = gtk_label_new("Quick color for entire keyboard:");
+    gtk_label_set_xalign(GTK_LABEL(preset_label), 0.0);
+    gtk_box_pack_start(GTK_BOX(preset_vbox), preset_label, FALSE, FALSE, 0);
+
+    GtkWidget *preset_hbox = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 6);
+
+    /* Define preset colors: {label, R, G, B} */
+    const char *preset_names[] = {"White", "Red", "Green", "Blue", "Yellow", "Cyan", "Magenta", "Orange", "Purple"};
+    uint8_t preset_r[] = {255, 255, 0, 0, 255, 0, 255, 255, 128};
+    uint8_t preset_g[] = {255, 0, 255, 0, 255, 255, 0, 165, 0};
+    uint8_t preset_b[] = {255, 0, 0, 255, 0, 255, 255, 0, 128};
+    int preset_count = 9;
+
+    for (int i = 0; i < preset_count; i++) {
+        GtkWidget *btn = gtk_button_new_with_label(preset_names[i]);
+        g_signal_connect_data(btn, "clicked", G_CALLBACK(on_preset_color_clicked), app,
+                              NULL, (GConnectFlags)G_CONNECT_AFTER);
+        /* Store RGB values as user data on the button */
+        int *rgb = g_new(int, 3);
+        rgb[0] = preset_r[i];
+        rgb[1] = preset_g[i];
+        rgb[2] = preset_b[i];
+        g_object_set_data_full(G_OBJECT(btn), "preset-rgb", rgb, g_free);
+        gtk_box_pack_start(GTK_BOX(preset_hbox), btn, FALSE, FALSE, 0);
+    }
+
+    gtk_box_pack_start(GTK_BOX(preset_vbox), preset_hbox, FALSE, FALSE, 0);
+    gtk_container_add(GTK_CONTAINER(preset_frame), preset_vbox);
+    gtk_box_pack_start(GTK_BOX(vbox), preset_frame, FALSE, FALSE, 0);
 
     /* --- Zone editor section --- */
     GtkWidget *zone_frame = gtk_frame_new("Zone Editor");
