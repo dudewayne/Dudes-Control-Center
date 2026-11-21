@@ -1027,6 +1027,18 @@ static const char *cpu_profile_name_from_display(const char *display_name) {
     return p;
 }
 
+/* Extract clean keyboard profile name from stored display string.
+ * Stored format: "[*] ProfileName" or "    ProfileName"
+ * Returns: pointer into display_name (not a new allocation). */
+static const char *kbd_profile_name_from_display(const char *display_name) {
+    const char *p = display_name;
+    /* Skip leading whitespace */
+    while (*p == ' ' || *p == '\t') p++;
+    /* Skip "[*] " marker if present */
+    if (strncmp(p, "[*] ", 4) == 0) p += 4;
+    return p;
+}
+
 /* Callback: Create new frequency profile */
 static void on_cpu_create_freq_profile_clicked(GtkWidget *widget, gpointer user_data) {
     (void)widget;
@@ -3356,7 +3368,10 @@ static void load_keyboard_profiles(AppData *app) {
         if (idx >= 0 && strlen(name) > 0) {
             GtkTreeIter iter;
             gtk_list_store_append(app->kbd_profile_store, &iter);
-            gtk_list_store_set(app->kbd_profile_store, &iter, 0, name, -1);
+            /* Store display text with active marker, like CPU profiles */
+            char display[256];
+            snprintf(display, sizeof(display), "%s %s", is_active ? "[*]" : "   ", name);
+            gtk_list_store_set(app->kbd_profile_store, &iter, 0, display, -1);
             if (is_active) {
                 active_idx = idx;
             }
@@ -3429,7 +3444,7 @@ static void on_kbd_create_profile_clicked(GtkWidget *widget, gpointer user_data)
                 do {
                     gchar *existing_name = NULL;
                     gtk_tree_model_get(GTK_TREE_MODEL(app->kbd_profile_store), &iter, 0, &existing_name, -1);
-                    if (existing_name && strcmp(existing_name, name) == 0) {
+                    if (existing_name && strcmp(kbd_profile_name_from_display(existing_name), name) == 0) {
                         duplicate = 1;
                         g_free(existing_name);
                         break;
@@ -3467,7 +3482,7 @@ static void on_kbd_create_profile_clicked(GtkWidget *widget, gpointer user_data)
                 do {
                     gchar *existing_name = NULL;
                     gtk_tree_model_get(GTK_TREE_MODEL(app->kbd_profile_store), &iter, 0, &existing_name, -1);
-                    if (existing_name && strcmp(existing_name, name) == 0) {
+                    if (existing_name && strcmp(kbd_profile_name_from_display(existing_name), name) == 0) {
                         new_idx = i;
                         g_free(existing_name);
                         break;
@@ -3522,13 +3537,16 @@ static void on_kbd_delete_profile_clicked(GtkWidget *widget, gpointer user_data)
         return;
     }
 
+    /* Extract clean profile name from display string */
+    const char *clean_name = kbd_profile_name_from_display(profile_name);
+
     /* Show confirmation dialog */
     GtkWidget *dialog = gtk_message_dialog_new(GTK_WINDOW(app->window),
                                                 GTK_DIALOG_MODAL | GTK_DIALOG_DESTROY_WITH_PARENT,
                                                 GTK_MESSAGE_QUESTION,
                                                 GTK_BUTTONS_YES_NO,
                                                 "Are you sure you want to delete keyboard profile '%s'?",
-                                                profile_name);
+                                                clean_name);
     gtk_window_set_title(GTK_WINDOW(dialog), "Delete Profile");
 
     int result = gtk_dialog_run(GTK_DIALOG(dialog));
@@ -3537,7 +3555,7 @@ static void on_kbd_delete_profile_clicked(GtkWidget *widget, gpointer user_data)
     if (result == GTK_RESPONSE_YES) {
         /* Send DELETE_PROFILE command using :: delimiter for names with spaces */
         char cmd[512];
-        snprintf(cmd, sizeof(cmd), "DELETE_PROFILE::%s", profile_name);
+        snprintf(cmd, sizeof(cmd), "DELETE_PROFILE::%s", clean_name);
         const char *response = send_keyboard_command(app, cmd);
         g_print("[GUI] DELETE_PROFILE response: %s\n", response ? response : "NULL");
 
@@ -3582,6 +3600,9 @@ static void on_kbd_rename_profile_clicked(GtkWidget *widget, gpointer user_data)
         return;
     }
 
+    /* Extract clean profile name from display string */
+    const char *clean_old_name = kbd_profile_name_from_display(old_name);
+
     /* Show dialog to enter new profile name */
     GtkWidget *dialog = gtk_dialog_new_with_buttons("Rename Keyboard Profile",
                                                     GTK_WINDOW(app->window),
@@ -3599,7 +3620,7 @@ static void on_kbd_rename_profile_clicked(GtkWidget *widget, gpointer user_data)
     gtk_box_pack_start(GTK_BOX(content), label, FALSE, FALSE, 0);
 
     GtkWidget *entry = gtk_entry_new();
-    gtk_entry_set_text(GTK_ENTRY(entry), old_name);
+    gtk_entry_set_text(GTK_ENTRY(entry), clean_old_name);
     gtk_box_pack_start(GTK_BOX(content), entry, TRUE, TRUE, 0);
 
     gtk_widget_show_all(content);
@@ -3610,7 +3631,7 @@ static void on_kbd_rename_profile_clicked(GtkWidget *widget, gpointer user_data)
     if (gtk_dialog_run(GTK_DIALOG(dialog)) == GTK_RESPONSE_ACCEPT) {
         const gchar *new_name = gtk_entry_get_text(GTK_ENTRY(entry));
 
-        if (strlen(new_name) > 0 && strcmp(new_name, old_name) != 0) {
+        if (strlen(new_name) > 0 && strcmp(new_name, clean_old_name) != 0) {
             /* Check for duplicate profile name */
             int duplicate = 0;
             GtkTreeIter iter2;
@@ -3618,7 +3639,7 @@ static void on_kbd_rename_profile_clicked(GtkWidget *widget, gpointer user_data)
                 do {
                     gchar *existing_name = NULL;
                     gtk_tree_model_get(GTK_TREE_MODEL(app->kbd_profile_store), &iter2, 0, &existing_name, -1);
-                    if (existing_name && strcmp(existing_name, new_name) == 0) {
+                    if (existing_name && strcmp(kbd_profile_name_from_display(existing_name), new_name) == 0) {
                         duplicate = 1;
                         g_free(existing_name);
                         break;
@@ -3643,7 +3664,7 @@ static void on_kbd_rename_profile_clicked(GtkWidget *widget, gpointer user_data)
 
             /* Send RENAME_PROFILE command using :: delimiter for names with spaces */
             char cmd[512];
-            snprintf(cmd, sizeof(cmd), "RENAME_PROFILE::%s::%s", old_name, new_name);
+            snprintf(cmd, sizeof(cmd), "RENAME_PROFILE::%s::%s", clean_old_name, new_name);
             const char *response = send_keyboard_command(app, cmd);
             g_print("[GUI] RENAME_PROFILE response: %s\n", response ? response : "NULL");
 
@@ -3690,9 +3711,12 @@ static void on_kbd_save_profile_clicked(GtkWidget *widget, gpointer user_data) {
         return;
     }
 
+    /* Extract clean profile name from display string */
+    const char *clean_name = kbd_profile_name_from_display(profile_name);
+
     /* Send SAVE_PROFILE command using :: delimiter for names with spaces */
     char cmd[512];
-    snprintf(cmd, sizeof(cmd), "SAVE_PROFILE::%s", profile_name);
+    snprintf(cmd, sizeof(cmd), "SAVE_PROFILE::%s", clean_name);
     const char *response = send_keyboard_command(app, cmd);
     g_print("[GUI] SAVE_PROFILE response: %s\n", response ? response : "NULL");
 
@@ -3700,7 +3724,7 @@ static void on_kbd_save_profile_clicked(GtkWidget *widget, gpointer user_data) {
     load_keyboard_profiles(app);
 
     gtk_label_set_text(GTK_LABEL(app->kbd_profile_status_label),
-                      g_strconcat("Profile saved: ", profile_name, NULL));
+                      g_strconcat("Profile saved: ", clean_name, NULL));
 
     g_free(profile_name);
 }
@@ -3736,9 +3760,12 @@ static void on_kbd_activate_profile_clicked(GtkWidget *widget, gpointer user_dat
         return;
     }
 
+    /* Extract clean profile name from display string */
+    const char *clean_name = kbd_profile_name_from_display(profile_name);
+
     /* Send LOAD_PROFILE command using :: delimiter for names with spaces */
     char cmd[512];
-    snprintf(cmd, sizeof(cmd), "LOAD_PROFILE::%s", profile_name);
+    snprintf(cmd, sizeof(cmd), "LOAD_PROFILE::%s", clean_name);
     const char *response = send_keyboard_command(app, cmd);
     g_print("[GUI] LOAD_PROFILE response: %s\n", response ? response : "NULL");
 
@@ -3746,7 +3773,7 @@ static void on_kbd_activate_profile_clicked(GtkWidget *widget, gpointer user_dat
     load_keyboard_profiles(app);
 
     gtk_label_set_text(GTK_LABEL(app->kbd_profile_status_label),
-                      g_strconcat("Activated profile: ", profile_name, NULL));
+                      g_strconcat("Activated profile: ", clean_name, NULL));
 
     g_free(profile_name);
 }
