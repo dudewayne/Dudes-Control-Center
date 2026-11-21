@@ -703,15 +703,16 @@ static const char *send_command(AppData *app, const char *cmd) {
 
 /* Send command to CPU daemon via its own socket */
 static const char *send_cpu_command(AppData *app, const char *cmd) {
-    static char response[8192];
+    static char response[65536];   /* large enough for LIST_CUSTOM_PROFILES_JSON */
 
     if (!app->cpu_connected || app->cpu_socket_fd < 0) {
         strcpy(response, "ERROR Not connected to CPU daemon");
         return response;
     }
 
-    char cmd_with_newline[256];
-    snprintf(cmd_with_newline, sizeof(cmd_with_newline), "%s\n", cmd);
+    /* No fixed size: SAVE_CUSTOM_PROFILE carries two values per core
+     * (a 256-byte buffer silently dropped cores beyond ~10) */
+    gchar *cmd_with_newline = g_strdup_printf("%s\n", cmd);
 
     if (strcmp(cmd, "STATUS") != 0) {
         char ts[32];
@@ -720,6 +721,7 @@ static const char *send_cpu_command(AppData *app, const char *cmd) {
     }
 
     ssize_t sent = write(app->cpu_socket_fd, cmd_with_newline, strlen(cmd_with_newline));
+    g_free(cmd_with_newline);
     if (sent < 0) {
         char ts[32];
         get_timestamp(ts, sizeof(ts));
@@ -1548,8 +1550,8 @@ typedef struct {
     int num_cores;
     int apply_all_cores;
     char governor[64];
-    double core_min_mhz[32];
-    double core_max_mhz[32];
+    double core_min_mhz[MAX_CPUS];
+    double core_max_mhz[MAX_CPUS];
 } CpuSaveContext;
 
 /* Idle callback that performs the actual save work.
@@ -1563,9 +1565,9 @@ static gboolean cpu_save_freq_profile_idle(gpointer user_data) {
     int num_cores = ctx->num_cores;
 
     /* Build core data: comma-separated min0,max0,min1,max1,... */
-    char core_data[1024] = {0};
+    char core_data[MAX_CPUS * 48] = {0};   /* "min,max," per core, 64-bit Hz */
     size_t pos = 0;
-    for (int i = 0; i < num_cores && i < 32; i++) {
+    for (int i = 0; i < num_cores && i < MAX_CPUS; i++) {
         gulong min_hz = (gulong)(ctx->core_min_mhz[i] * 1000000);
         gulong max_hz = (gulong)(ctx->core_max_mhz[i] * 1000000);
         if (i > 0) {
@@ -1575,7 +1577,7 @@ static gboolean cpu_save_freq_profile_idle(gpointer user_data) {
     }
 
     /* Send single batch command */
-    char batch_cmd[2048];
+    char batch_cmd[MAX_CPUS * 48 + 256];
     snprintf(batch_cmd, sizeof(batch_cmd),
         "SAVE_CUSTOM_PROFILE|%d|%s|%d|%s",
         idx, ctx->governor, ctx->apply_all_cores, core_data);
@@ -1647,7 +1649,7 @@ static void on_cpu_save_freq_profile_clicked(GtkWidget *widget, gpointer user_da
     }
 
     /* Read spinner values */
-    for (int i = 0; i < num_cores && i < 32; i++) {
+    for (int i = 0; i < num_cores && i < MAX_CPUS; i++) {
         ctx->core_min_mhz[i] = gtk_adjustment_get_value(app->cpu_core_min_adjustments[i]);
         ctx->core_max_mhz[i] = gtk_adjustment_get_value(app->cpu_core_max_adjustments[i]);
     }
@@ -1721,12 +1723,12 @@ static void on_cpu_hard_limit_apply_clicked(GtkWidget *widget, gpointer user_dat
     AppData *app = (AppData *)user_data;
 
     double ghz = gtk_spin_button_get_value(GTK_SPIN_BUTTON(app->cpu_hard_limit_spinner));
-    uint32_t hz = (uint32_t)(ghz * 1000000000.0);
+    guint64 hz = (guint64)(ghz * 1000000000.0 + 0.5);
 
-    g_print("[GUI] Applying hard limit: %.2f GHz (%u Hz)\n", ghz, hz);
+    g_print("[GUI] Applying hard limit: %.2f GHz (%" G_GUINT64_FORMAT " Hz)\n", ghz, hz);
 
     char cmd[256];
-    snprintf(cmd, sizeof(cmd), "SET_HARD_LIMIT|%u", hz);
+    snprintf(cmd, sizeof(cmd), "SET_HARD_LIMIT|%" G_GUINT64_FORMAT, hz);
     const char *response = send_cpu_command(app, cmd);
     g_print("[GUI] SET_HARD_LIMIT response: %s\n", response ? response : "NULL");
 
@@ -1907,7 +1909,7 @@ static void build_cpu_core_freq_grid(AppData *app, int num_cores) {
         if (hard_resp && strncmp(hard_resp, "OK", 2) == 0) {
             const char *eq = strstr(hard_resp, "HARD_LIMIT=");
             if (eq) {
-                uint32_t hz = (uint32_t)strtoul(eq + 11, NULL, 10);
+                guint64 hz = g_ascii_strtoull(eq + 11, NULL, 10);
                 int max_mhz = (int)(hz / 1000000);
                 for (int i = 0; i < num_cores; i++) {
                     gtk_adjustment_set_upper(GTK_ADJUSTMENT(app->cpu_core_min_adjustments[i]), max_mhz);
@@ -1970,15 +1972,15 @@ static void update_cpu_core_freq_spinners(AppData *app, int profile_idx) {
         while (*p == ' ' || *p == '\t') p++;
 
         int core_id = -1;
-        unsigned int freq_hz = 0;
+        unsigned long long freq_hz = 0;
 
-        if (sscanf(p, "CORE_%d_MAX:%u", &core_id, &freq_hz) == 2) {
+        if (sscanf(p, "CORE_%d_MAX:%llu", &core_id, &freq_hz) == 2) {
             if (core_id >= 0 && core_id < MAX_CPUS && app->cpu_core_max_adjustments[core_id] != NULL) {
                 /* Convert Hz to MHz for spinner */
                 double freq_mhz = (double)freq_hz / 1000000.0;
                 gtk_adjustment_set_value(GTK_ADJUSTMENT(app->cpu_core_max_adjustments[core_id]), freq_mhz);
             }
-        } else if (sscanf(p, "CORE_%d_MIN:%u", &core_id, &freq_hz) == 2) {
+        } else if (sscanf(p, "CORE_%d_MIN:%llu", &core_id, &freq_hz) == 2) {
             if (core_id >= 0 && core_id < MAX_CPUS && app->cpu_core_min_adjustments[core_id] != NULL) {
                 double freq_mhz = (double)freq_hz / 1000000.0;
                 gtk_adjustment_set_value(GTK_ADJUSTMENT(app->cpu_core_min_adjustments[core_id]), freq_mhz);
@@ -3157,7 +3159,7 @@ static void gui_save_profiles_to_disk(AppData *app) {
                     if (GTK_IS_SPIN_BUTTON(app->cpu_hard_limit_spinner)) {
                         ghz = gtk_spin_button_get_value(GTK_SPIN_BUTTON(app->cpu_hard_limit_spinner));
                     }
-                    uint32_t hz = (uint32_t)(ghz * 1000000000.0);
+                    guint64 hz = (guint64)(ghz * 1000000000.0 + 0.5);
                     if (hz > 0) {
                         cJSON_AddNumberToObject(cpu_section, "cpu_hard_limit_hz", (double)hz);
                     } else {
@@ -7182,10 +7184,10 @@ int main(int argc, char *argv[]) {
             if (hard_resp && strncmp(hard_resp, "OK", 2) == 0) {
                 const char *eq = strstr(hard_resp, "HARD_LIMIT=");
                 if (eq) {
-                    uint32_t hz = (uint32_t)strtoul(eq + 11, NULL, 10);
+                    guint64 hz = g_ascii_strtoull(eq + 11, NULL, 10);
                     double ghz = (double)hz / 1000000000.0;
                     gtk_spin_button_set_value(GTK_SPIN_BUTTON(app.cpu_hard_limit_spinner), ghz);
-                    g_print("[GUI] Loaded hard limit from daemon: %.2f GHz (%u Hz)\n", ghz, hz);
+                    g_print("[GUI] Loaded hard limit from daemon: %.2f GHz (%" G_GUINT64_FORMAT " Hz)\n", ghz, hz);
                     /* Spinner upper bounds are updated in build_cpu_core_freq_grid() */
                 }
             }

@@ -20,6 +20,7 @@
 #include <sys/stat.h>
 #include <errno.h>
 #include <stdint.h>
+#include <inttypes.h>
 
 #define CPU_SOCKET_PATH "/run/dudes-control-center-cpu.sock"
 #define CPU_BUFFER_SIZE 4096
@@ -58,7 +59,10 @@ static const char *send_command(int fd, const char *cmd, char *response, size_t 
     if (fd < 0) return NULL;
 
     /* Send command */
-    ssize_t sent = write(fd, cmd, strlen(cmd));
+    /* The daemon reads newline-terminated commands */
+    char line[1024];
+    snprintf(line, sizeof(line), "%s\n", cmd);
+    ssize_t sent = write(fd, line, strlen(line));
     if (sent < 0) {
         fprintf(stderr, "Error: Failed to send command: %s\n", strerror(errno));
         return NULL;
@@ -169,11 +173,11 @@ static int run_set_governor(int fd, const char *governor) {
 }
 
 static int run_set_hard_limit(int fd, double ghz) {
-    uint32_t hz = (uint32_t)(ghz * 1000000000.0);
+    uint64_t hz = (uint64_t)(ghz * 1000000000.0 + 0.5);
     char cmd[64];
     char response[CPU_BUFFER_SIZE];
 
-    snprintf(cmd, sizeof(cmd), "SET_HARD_LIMIT|%u", hz);
+    snprintf(cmd, sizeof(cmd), "SET_HARD_LIMIT|%" PRIu64, hz);
     const char *resp = send_command(fd, cmd, response, sizeof(response));
     if (!resp) return EXIT_FAILURE;
 
@@ -188,7 +192,7 @@ static int run_get_hard_limit(int fd) {
 
     const char *tmp = strstr(resp, "HARD_LIMIT=");
     if (tmp) {
-        uint32_t hz = (uint32_t)strtoul(tmp + 11, NULL, 10);
+        uint64_t hz = (uint64_t)strtoull(tmp + 11, NULL, 10);
         double ghz = (double)hz / 1000000000.0;
         printf("Hard Limit: %.2f GHz\n", ghz);
     } else {

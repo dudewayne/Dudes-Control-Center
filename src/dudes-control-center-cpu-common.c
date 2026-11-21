@@ -22,24 +22,28 @@
 CpuControlState g_cpu_state = {0};
 
 /* --- Runtime hard frequency limit (configurable) --- */
-static uint32_t g_hard_max_freq_hz = HARD_MAX_FREQ_HZ_DEFAULT;
+static uint64_t g_hard_max_freq_hz = HARD_MAX_FREQ_HZ_DEFAULT;
 
-uint32_t get_hard_max_freq_hz(void) {
+uint64_t get_hard_max_freq_hz(void) {
     return g_hard_max_freq_hz;
 }
 
-void set_hard_max_freq_hz(uint32_t freq_hz) {
+void set_hard_max_freq_hz(uint64_t freq_hz) {
     g_hard_max_freq_hz = freq_hz;
-    LOG_INFO("[CPU] Hard max frequency limit changed to %u Hz (%.2f GHz)", freq_hz, freq_hz / 1e9);
+    LOG_INFO("[CPU] Hard max frequency limit changed to %" PRIu64 " Hz (%.2f GHz)", freq_hz, freq_hz / 1e9);
 }
 
 /* --- CPU frequency sysfs paths --- */
+#ifndef CPUSYSFS   /* overridable for tests */
 #define CPUSYSFS "/sys/devices/system/cpu"
+#endif
 #define CPUFREQ_SUBDIR "cpufreq"
 
 /* --- Config path helpers --- */
 /* Daemons run as root, so HOME=/root. Use the GUI user's config path directly. */
+#ifndef CONTROL_CENTER_CONFIG_DIR   /* overridable for tests */
 #define CONTROL_CENTER_CONFIG_DIR "/home/dude/.config/dudes-control-center"
+#endif
 
 /* Path to the main Control Center profiles.json (~/.config/dudes-control-center/profiles.json) */
 static const char* get_main_profiles_path(void) {
@@ -85,7 +89,7 @@ const char* enum_to_governor(CpuGovernor gov) {
 }
 
 /* --- Helper: Parse frequency string like "100MHz" or "2.5GHz" to Hz --- */
-uint32_t parse_frequency(const char *str) {
+uint64_t parse_frequency(const char *str) {
     if (!str || !*str) return 0;
 
     char unit[8] = {0};
@@ -107,18 +111,18 @@ uint32_t parse_frequency(const char *str) {
     }
 
     if (strcmp(unit, "GHz") == 0 || strcmp(unit, "ghz") == 0) {
-        return (uint32_t)(value * 1e9);
+        return (uint64_t)(value * 1e9);
     } else if (strcmp(unit, "MHz") == 0 || strcmp(unit, "mhz") == 0) {
-        return (uint32_t)(value * 1e6);
+        return (uint64_t)(value * 1e6);
     } else if (strcmp(unit, "kHz") == 0 || strcmp(unit, "khz") == 0) {
-        return (uint32_t)(value * 1e3);
+        return (uint64_t)(value * 1e3);
     } else {
-        return (uint32_t)value;
+        return (uint64_t)value;
     }
 }
 
 /* --- Helper: Format frequency to human-readable string --- */
-void format_frequency(uint32_t freq_hz, char *buf, size_t buf_size) {
+void format_frequency(uint64_t freq_hz, char *buf, size_t buf_size) {
     if (freq_hz >= 1e9) {
         snprintf(buf, buf_size, "%.2f GHz", freq_hz / 1e9);
     } else if (freq_hz >= 1e6) {
@@ -126,7 +130,7 @@ void format_frequency(uint32_t freq_hz, char *buf, size_t buf_size) {
     } else if (freq_hz >= 1e3) {
         snprintf(buf, buf_size, "%.2f kHz", freq_hz / 1e3);
     } else {
-        snprintf(buf, buf_size, "%u Hz", freq_hz);
+        snprintf(buf, buf_size, "%" PRIu64 " Hz", freq_hz);
     }
 }
 
@@ -152,15 +156,15 @@ static int sysfs_read_string(int cpu_id, const char *filename, char *buffer, siz
 }
 
 /* Read a sysfs file as an unsigned integer (value is in kHz from sysfs, converted to Hz) */
-static uint32_t sysfs_read_freq(int cpu_id, const char *filename) {
+static uint64_t sysfs_read_freq(int cpu_id, const char *filename) {
     char path[512];
     snprintf(path, sizeof(path), "%s/cpu%d/%s", CPUSYSFS, cpu_id, filename);
 
     FILE *fp = fopen(path, "r");
     if (!fp) return 0;
 
-    uint32_t val_khz = 0;
-    if (fscanf(fp, "%u", &val_khz) != 1) {
+    uint64_t val_khz = 0;
+    if (fscanf(fp, "%" SCNu64 "", &val_khz) != 1) {
         fclose(fp);
         return 0;
     }
@@ -191,7 +195,7 @@ static int sysfs_write_string(int cpu_id, const char *filename, const char *valu
 }
 
 /* Write an unsigned integer (as kHz) to a sysfs file */
-static int sysfs_write_freq(int cpu_id, const char *filename, uint32_t freq_hz) {
+static int sysfs_write_freq(int cpu_id, const char *filename, uint64_t freq_hz) {
     if (!freq_hz) return -1;
 
     char path[512];
@@ -204,8 +208,8 @@ static int sysfs_write_freq(int cpu_id, const char *filename, uint32_t freq_hz) 
     }
 
     /* sysfs expects kHz */
-    uint32_t freq_khz = freq_hz / 1000;
-    int ret = fprintf(fp, "%u", freq_khz);
+    uint64_t freq_khz = freq_hz / 1000;
+    int ret = fprintf(fp, "%" PRIu64 "", freq_khz);
     if (ret < 0) {
         LOG_ERROR("[CPU] Failed to write to %s: %s", path, strerror(errno));
         fclose(fp);
@@ -236,8 +240,8 @@ int cpu_control_init(void) {
     cpu_custom_profile_load_json();
 
     /* Apply HARD SAFETY LIMIT immediately on startup */
-    uint32_t hard_limit = get_hard_max_freq_hz();
-    LOG_INFO("[CPU] Applying hard safety limit: %u Hz (%.1f GHz)",
+    uint64_t hard_limit = get_hard_max_freq_hz();
+    LOG_INFO("[CPU] Applying hard safety limit: %" PRIu64 " Hz (%.1f GHz)",
              hard_limit, hard_limit / 1e9);
     set_all_cpus_max_freq(hard_limit);
 
@@ -361,16 +365,16 @@ int get_current_governor(int cpu_id, char *buffer, size_t buf_size) {
 }
 
 /* --- Frequency read functions --- */
-uint32_t get_cpu_min_freq(int cpu_id) {
+uint64_t get_cpu_min_freq(int cpu_id) {
     return sysfs_read_freq(cpu_id, "cpufreq/scaling_min_freq");
 }
 
-uint32_t get_cpu_max_freq(int cpu_id) {
+uint64_t get_cpu_max_freq(int cpu_id) {
     return sysfs_read_freq(cpu_id, "cpufreq/scaling_max_freq");
 }
 
-uint32_t get_cpu_current_freq(int cpu_id) {
-    uint32_t freq = sysfs_read_freq(cpu_id, "cpufreq/scaling_cur_freq");
+uint64_t get_cpu_current_freq(int cpu_id) {
+    uint64_t freq = sysfs_read_freq(cpu_id, "cpufreq/scaling_cur_freq");
     if (!freq) {
         freq = sysfs_read_freq(cpu_id, "cpufreq/cpuinfo_cur_freq");
     }
@@ -383,11 +387,11 @@ int set_cpu_governor(int cpu_id, const char *governor) {
     return sysfs_write_string(cpu_id, "cpufreq/scaling_governor", governor);
 }
 
-int set_cpu_min_freq(int cpu_id, uint32_t freq_hz) {
+int set_cpu_min_freq(int cpu_id, uint64_t freq_hz) {
     return sysfs_write_freq(cpu_id, "cpufreq/scaling_min_freq", freq_hz);
 }
 
-int set_cpu_max_freq(int cpu_id, uint32_t freq_hz) {
+int set_cpu_max_freq(int cpu_id, uint64_t freq_hz) {
     return sysfs_write_freq(cpu_id, "cpufreq/scaling_max_freq", freq_hz);
 }
 
@@ -423,7 +427,7 @@ int set_all_cpus_epp(const char *epp) {
 int set_intel_pstate_min_perf_pct(int pct) {
     if (pct < 0 || pct > 100) return -1;
 
-    const char *path = "/sys/devices/system/cpu/intel_pstate/min_perf_pct";
+    const char *path = CPUSYSFS "/intel_pstate/min_perf_pct";
     FILE *fp = fopen(path, "w");
     if (!fp) {
         LOG_ERROR("[CPU] Failed to open %s for writing: %s", path, strerror(errno));
@@ -454,7 +458,7 @@ int set_all_cpus_governor(const char *governor) {
     return (errors == 0) ? 0 : -1;
 }
 
-int set_all_cpus_min_freq(uint32_t freq_hz) {
+int set_all_cpus_min_freq(uint64_t freq_hz) {
     int cpu_count = get_cpu_count();
     int errors = 0;
 
@@ -466,7 +470,7 @@ int set_all_cpus_min_freq(uint32_t freq_hz) {
     return (errors == 0) ? 0 : -1;
 }
 
-int set_all_cpus_max_freq(uint32_t freq_hz) {
+int set_all_cpus_max_freq(uint64_t freq_hz) {
     int cpu_count = get_cpu_count();
     int errors = 0;
 
@@ -480,24 +484,24 @@ int set_all_cpus_max_freq(uint32_t freq_hz) {
 
 /* Clamp all CPUs to the current hard limit without increasing frequencies */
 int clamp_cpus_to_hard_limit(void) {
-    uint32_t hard_limit = get_hard_max_freq_hz();
+    uint64_t hard_limit = get_hard_max_freq_hz();
     int cpu_count = get_cpu_count();
     int clamped = 0;
 
     for (int i = 0; i < cpu_count; i++) {
-        uint32_t current_max = get_cpu_max_freq(i);
+        uint64_t current_max = get_cpu_max_freq(i);
         if (current_max > hard_limit) {
             if (set_cpu_max_freq(i, hard_limit) == 0) {
-                LOG_INFO("[CPU] Clamped core %d max freq from %u Hz to %u Hz (hard limit)",
+                LOG_INFO("[CPU] Clamped core %d max freq from %" PRIu64 " Hz to %" PRIu64 " Hz (hard limit)",
                          i, current_max, hard_limit);
                 clamped++;
             } else {
-                LOG_WARN("[CPU] Failed to clamp core %d to hard limit %u Hz",
+                LOG_WARN("[CPU] Failed to clamp core %d to hard limit %" PRIu64 " Hz",
                          i, hard_limit);
             }
         }
     }
-    LOG_INFO("[CPU] Clamped %d/%d cores to hard limit %u Hz", clamped, cpu_count, hard_limit);
+    LOG_INFO("[CPU] Clamped %d/%d cores to hard limit %" PRIu64 " Hz", clamped, cpu_count, hard_limit);
     return 0;
 }
 
@@ -505,7 +509,7 @@ int clamp_cpus_to_hard_limit(void) {
 
 /* Create a new profile */
 int cpu_profile_create(const char *name, CpuGovernor governor,
-                       uint32_t min_freq, uint32_t max_freq) {
+                       uint64_t min_freq, uint64_t max_freq) {
     if (!name || g_cpu_state.num_profiles >= MAX_CPU_PROFILES) {
         return -1;
     }
@@ -589,16 +593,16 @@ int cpu_profile_apply(const char *name) {
     /* Set min freq if specified */
     if (p->min_freq_hz > 0) {
         if (set_all_cpus_min_freq(p->min_freq_hz) != 0) {
-            LOG_WARN("[CPU] Failed to set min freq to %u Hz", p->min_freq_hz);
+            LOG_WARN("[CPU] Failed to set min freq to %" PRIu64 " Hz", p->min_freq_hz);
         }
     }
 
     /* Set max freq if specified (always apply safety limit) */
-    uint32_t hard_limit = get_hard_max_freq_hz();
-    uint32_t max_freq = p->max_freq_hz > 0 ? p->max_freq_hz : hard_limit;
+    uint64_t hard_limit = get_hard_max_freq_hz();
+    uint64_t max_freq = p->max_freq_hz > 0 ? p->max_freq_hz : hard_limit;
     if (max_freq > hard_limit) max_freq = hard_limit;
     if (set_all_cpus_max_freq(max_freq) != 0) {
-        LOG_WARN("[CPU] Failed to set max freq to %u Hz", max_freq);
+        LOG_WARN("[CPU] Failed to set max freq to %" PRIu64 " Hz", max_freq);
     }
 
     /* Set as active */
@@ -658,7 +662,7 @@ int cpu_profile_list(char *buffer, size_t buf_size) {
         char entry[256];
         const char *marker = (active && strcmp(active->name, p->name) == 0) ? " [*]" : "    ";
 
-        int written = snprintf(entry, sizeof(entry), "%s %s (gov=%s, min=%u Hz, max=%u Hz)\n",
+        int written = snprintf(entry, sizeof(entry), "%s %s (gov=%s, min=%" PRIu64 " Hz, max=%" PRIu64 " Hz)\n",
                               marker, p->name, enum_to_governor(p->governor),
                               p->min_freq_hz, p->max_freq_hz);
 
@@ -936,7 +940,7 @@ int cpu_profile_set_last_used(const char *name) {
 
 /* Create a new custom profile */
 int cpu_custom_profile_create(const char *name, CpuGovernor governor,
-                              uint32_t default_max_freq_hz, int apply_all_cores) {
+                              uint64_t default_max_freq_hz, int apply_all_cores) {
     if (!name || g_cpu_state.num_custom_profiles >= MAX_CPU_CUSTOM_PROFILES) {
         return -1;
     }
@@ -1018,12 +1022,32 @@ int cpu_custom_profile_rename(int idx, const char *new_name) {
 }
 
 /* Set per-core frequency in a custom profile */
+/* A per-core value below the core's hardware minimum cannot be a real
+ * setting (e.g. a number cut off by the old 256-byte GUI command limit).
+ * Writing it to sysfs would pin the core at its lowest frequency, so treat
+ * it as "not set" (0) instead. */
+static uint64_t sanitize_core_freq(int cpu_id, uint64_t hz, const char *what, const char *profile) {
+    if (hz == 0) return 0;
+    uint64_t hw_min = sysfs_read_freq(cpu_id, "cpufreq/cpuinfo_min_freq");
+    if (hw_min == 0) hw_min = 100000000ULL;   /* 100 MHz if unknown */
+    if (hz < hw_min) {
+        LOG_WARN("[CPU] Profile '%s' core %d: invalid %s frequency %" PRIu64 " Hz "
+                 "(below hardware minimum %" PRIu64 " Hz) - ignored, please re-save this profile",
+                 profile, cpu_id, what, hz, hw_min);
+        return 0;
+    }
+    return hz;
+}
+
 int cpu_custom_profile_set_core_freq(int profile_idx, int cpu_id,
-                                     uint32_t max_freq_hz, uint32_t min_freq_hz) {
+                                     uint64_t max_freq_hz, uint64_t min_freq_hz) {
     if (profile_idx < 0 || profile_idx >= g_cpu_state.num_custom_profiles) return -1;
     if (cpu_id < 0 || cpu_id >= MAX_CPUS) return -1;
 
     CpuCustomProfile *p = &g_cpu_state.custom_profiles[profile_idx];
+
+    max_freq_hz = sanitize_core_freq(cpu_id, max_freq_hz, "max", p->name);
+    min_freq_hz = sanitize_core_freq(cpu_id, min_freq_hz, "min", p->name);
 
     /* Apply safety limit */
     if (max_freq_hz > get_hard_max_freq_hz()) max_freq_hz = get_hard_max_freq_hz();
@@ -1031,7 +1055,7 @@ int cpu_custom_profile_set_core_freq(int profile_idx, int cpu_id,
     p->per_core_max_freq_hz[cpu_id] = max_freq_hz;
     p->per_core_min_freq_hz[cpu_id] = min_freq_hz;
 
-    LOG_INFO("[CPU] Set core %d freq in profile '%s': max=%u Hz, min=%u Hz",
+    LOG_INFO("[CPU] Set core %d freq in profile '%s': max=%" PRIu64 " Hz, min=%" PRIu64 " Hz",
              cpu_id, p->name, max_freq_hz, min_freq_hz);
     return 0;
 }
@@ -1228,9 +1252,9 @@ int cpu_custom_profile_load_json(void) {
         /* Read hard limit from JSON */
         cJSON *hard_limit_item = cJSON_GetObjectItem(cpu_section, "cpu_hard_limit_hz");
         if (hard_limit_item && hard_limit_item->valuedouble > 0) {
-            uint32_t loaded_limit = (uint32_t)hard_limit_item->valuedouble;
+            uint64_t loaded_limit = (uint64_t)hard_limit_item->valuedouble;
             set_hard_max_freq_hz(loaded_limit);
-            LOG_INFO("[CPU] Loaded hard limit from profiles.json: %u Hz (%.2f GHz)",
+            LOG_INFO("[CPU] Loaded hard limit from profiles.json: %" PRIu64 " Hz (%.2f GHz)",
                      loaded_limit, loaded_limit / 1e9);
         }
     }
@@ -1282,7 +1306,7 @@ int cpu_custom_profile_load_json(void) {
                 for (int j = 0; j < max_count && j < MAX_CPUS; j++) {
                     cJSON *freq_item = cJSON_GetArrayItem(max_freq_array, j);
                     if (freq_item) {
-                        p.per_core_max_freq_hz[j] = (uint32_t)freq_item->valuedouble;
+                        p.per_core_max_freq_hz[j] = (uint64_t)freq_item->valuedouble;
                     }
                 }
             }
@@ -1294,9 +1318,15 @@ int cpu_custom_profile_load_json(void) {
                 for (int j = 0; j < min_count && j < MAX_CPUS; j++) {
                     cJSON *freq_item = cJSON_GetArrayItem(min_freq_array, j);
                     if (freq_item) {
-                        p.per_core_min_freq_hz[j] = (uint32_t)freq_item->valuedouble;
+                        p.per_core_min_freq_hz[j] = (uint64_t)freq_item->valuedouble;
                     }
                 }
+            }
+
+            /* Drop impossible per-core values saved by older versions */
+            for (int j = 0; j < p.num_cores && j < MAX_CPUS; j++) {
+                p.per_core_max_freq_hz[j] = sanitize_core_freq(j, p.per_core_max_freq_hz[j], "max", p.name);
+                p.per_core_min_freq_hz[j] = sanitize_core_freq(j, p.per_core_min_freq_hz[j], "min", p.name);
             }
 
             g_cpu_state.custom_profiles[g_cpu_state.num_custom_profiles] = p;
@@ -1330,7 +1360,7 @@ int cpu_custom_profile_apply(int idx) {
     int errors = 0;
     for (int i = 0; i < p->num_cores && i < MAX_CPUS; i++) {
         if (p->per_core_max_freq_hz[i] > 0) {
-            uint32_t max_freq = p->per_core_max_freq_hz[i];
+            uint64_t max_freq = p->per_core_max_freq_hz[i];
             if (max_freq > get_hard_max_freq_hz()) max_freq = get_hard_max_freq_hz();
             if (set_cpu_max_freq(i, max_freq) != 0) {
                 errors++;

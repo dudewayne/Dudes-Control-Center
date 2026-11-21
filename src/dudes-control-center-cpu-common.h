@@ -7,6 +7,7 @@
 #define DUDES_CONTROL_CENTER_CPU_COMMON_H
 
 #include <stdint.h>
+#include <inttypes.h>   /* PRIu64 */
 #include <stddef.h>
 
 /* --- Socket configuration --- */
@@ -32,8 +33,8 @@
 #define HARD_MAX_FREQ_HZ_DEFAULT 3600000000U  /* 3600 MHz = 3.6 GHz in Hz, default */
 
 /* Runtime hard limit accessors */
-uint32_t get_hard_max_freq_hz(void);
-void set_hard_max_freq_hz(uint32_t freq_hz);
+uint64_t get_hard_max_freq_hz(void);
+void set_hard_max_freq_hz(uint64_t freq_hz);
 
 /* --- CPU Governor types --- */
 typedef enum {
@@ -63,8 +64,8 @@ typedef enum {
 typedef struct {
     char name[CPU_PROFILE_NAME_MAX];
     CpuGovernor governor;
-    uint32_t min_freq_hz;     /* Minimum frequency in Hz (0 = auto) */
-    uint32_t max_freq_hz;     /* Maximum frequency in Hz (0 = auto) */
+    uint64_t min_freq_hz;     /* Minimum frequency in Hz (0 = auto) */
+    uint64_t max_freq_hz;     /* Maximum frequency in Hz (0 = auto) */
 
     /* Automatic switching conditions */
     ConditionType condition_type;
@@ -76,8 +77,8 @@ typedef struct {
 typedef struct {
     char name[CPU_PROFILE_NAME_MAX];
     CpuGovernor governor;
-    uint32_t per_core_max_freq_hz[MAX_CPUS];  /* Max freq per core in Hz (0 = no limit) */
-    uint32_t per_core_min_freq_hz[MAX_CPUS];  /* Min freq per core in Hz (0 = default) */
+    uint64_t per_core_max_freq_hz[MAX_CPUS];  /* Max freq per core in Hz (0 = no limit) */
+    uint64_t per_core_min_freq_hz[MAX_CPUS];  /* Min freq per core in Hz (0 = default) */
     int apply_all_cores;          /* 1 = use single freq for all cores, 0 = per-core */
     int num_cores;                /* Number of cores this profile was created for */
 } CpuCustomProfile;
@@ -85,9 +86,9 @@ typedef struct {
 /* --- CPU information structure --- */
 typedef struct {
     int cpu_id;
-    uint32_t current_freq_hz;
-    uint32_t min_freq_hz;
-    uint32_t max_freq_hz;
+    uint64_t current_freq_hz;
+    uint64_t min_freq_hz;
+    uint64_t max_freq_hz;
     char governor[CPU_GOVERNOR_NAME_MAX];
     int online;               /* 1 if CPU is online, 0 if offline */
 } CpuInfo;
@@ -128,15 +129,15 @@ int get_all_governors(char **governor_list, int *count);  /* Get list of availab
 int get_current_governor(int cpu_id, char *buffer, size_t buf_size);  /* Get current governor */
 
 /* Frequency control */
-uint32_t get_cpu_min_freq(int cpu_id);                 /* Get minimum frequency in Hz */
-uint32_t get_cpu_max_freq(int cpu_id);                 /* Get maximum frequency in Hz */
-uint32_t get_cpu_current_freq(int cpu_id);             /* Get current frequency in Hz */
+uint64_t get_cpu_min_freq(int cpu_id);                 /* Get minimum frequency in Hz */
+uint64_t get_cpu_max_freq(int cpu_id);                 /* Get maximum frequency in Hz */
+uint64_t get_cpu_current_freq(int cpu_id);             /* Get current frequency in Hz */
 int set_cpu_governor(int cpu_id, const char *governor);  /* Set governor for CPU */
-int set_cpu_min_freq(int cpu_id, uint32_t freq_hz);    /* Set minimum frequency */
-int set_cpu_max_freq(int cpu_id, uint32_t freq_hz);    /* Set maximum frequency */
+int set_cpu_min_freq(int cpu_id, uint64_t freq_hz);    /* Set minimum frequency */
+int set_cpu_max_freq(int cpu_id, uint64_t freq_hz);    /* Set maximum frequency */
 int set_all_cpus_governor(const char *governor);       /* Set governor for all CPUs */
-int set_all_cpus_min_freq(uint32_t freq_hz);           /* Set min freq for all CPUs */
-int set_all_cpus_max_freq(uint32_t freq_hz);           /* Set max freq for all CPUs */
+int set_all_cpus_min_freq(uint64_t freq_hz);           /* Set min freq for all CPUs */
+int set_all_cpus_max_freq(uint64_t freq_hz);           /* Set max freq for all CPUs */
 int set_cpu_epp(int cpu_id, const char *epp);          /* Set EPP for a CPU */
 int set_all_cpus_epp(const char *epp);                 /* Set EPP for all CPUs */
 int set_intel_pstate_min_perf_pct(int pct);             /* Set intel_pstate min_perf_pct (0-100) */
@@ -150,7 +151,7 @@ double get_cpu_load_percent(void);                     /* Get CPU load percentag
 
 /* Profile management */
 int cpu_profile_create(const char *name, CpuGovernor governor,
-                       uint32_t min_freq, uint32_t max_freq);  /* Create new profile */
+                       uint64_t min_freq, uint64_t max_freq);  /* Create new profile */
 int cpu_profile_delete(const char *name);               /* Delete a profile */
 int cpu_profile_apply(const char *name);                /* Apply a profile to all CPUs */
 int cpu_profile_set_active(const char *name);           /* Set active profile (in memory) */
@@ -168,14 +169,14 @@ int cpu_profile_set_last_used(const char *name);        /* Set last used profile
 
 /* Custom profile management (JSON storage, per-core frequency control) */
 int cpu_custom_profile_create(const char *name, CpuGovernor governor,
-                              uint32_t default_max_freq_hz, int apply_all_cores);  /* Create new custom profile */
+                              uint64_t default_max_freq_hz, int apply_all_cores);  /* Create new custom profile */
 int cpu_custom_profile_delete(int idx);                  /* Delete a custom profile by index */
 int cpu_custom_profile_rename(int idx, const char *new_name);  /* Rename a custom profile by index */
 int cpu_custom_profile_save_json(void);                  /* Save all custom profiles to JSON file */
 int cpu_custom_profile_load_json(void);                  /* Load all custom profiles from JSON file */
 int cpu_custom_profile_apply(int idx);                   /* Apply a custom profile by index (set per-core frequencies) */
 int cpu_custom_profile_set_core_freq(int profile_idx, int cpu_id,
-                                     uint32_t max_freq_hz, uint32_t min_freq_hz);  /* Set per-core freq in profile */
+                                     uint64_t max_freq_hz, uint64_t min_freq_hz);  /* Set per-core freq in profile */
 int cpu_custom_profile_list(char *buffer, size_t buf_size);  /* List all custom profiles */
 const CpuCustomProfile* cpu_custom_profile_get(int idx); /* Get custom profile by index */
 int cpu_custom_profile_set_active(int idx);              /* Set active custom profile (in memory) */
@@ -184,8 +185,8 @@ char* cpu_custom_profile_list_json(void);                /* Return all custom pr
 /* Utility functions */
 int governor_to_enum(const char *governor_str, CpuGovernor *gov);  /* Convert governor string to enum */
 const char* enum_to_governor(CpuGovernor gov);           /* Convert enum to governor string */
-uint32_t parse_frequency(const char *str);               /* Parse "100MHz" or "2.5GHz" to Hz */
-void format_frequency(uint32_t freq_hz, char *buf, size_t buf_size);  /* Format Hz to human-readable */
+uint64_t parse_frequency(const char *str);               /* Parse "100MHz" or "2.5GHz" to Hz */
+void format_frequency(uint64_t freq_hz, char *buf, size_t buf_size);  /* Format Hz to human-readable */
 
 /* Exposed global state for read access */
 extern CpuControlState g_cpu_state;

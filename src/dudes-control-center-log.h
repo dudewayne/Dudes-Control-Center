@@ -51,7 +51,7 @@ void log_cleanup(void);
  * @param format Printf-style format string
  * @param ... Arguments for format string
  */
-void log_write(LogLevel level, const char* format, ...);
+void log_write(LogLevel level, const char* format, ...) __attribute__((format(printf, 2, 3)));
 
 /**
  * Check if a log level should be output

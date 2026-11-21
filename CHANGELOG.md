@@ -2,6 +2,17 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.16.4] - 2026-11-22
+
+### Fixed (CPU frequency control)
+- **Frequencies above 4.29 GHz overflowed**: all frequencies were stored as 32-bit Hz. The CPU daemon, CLI and GUI now use 64-bit Hz throughout. The IPC protocol and `profiles.json` (both in Hz) are unchanged. On a 5.3 GHz CPU, `cpuinfo_max_freq` used to read as ~1.0 GHz, and hard limits above 4.29 GHz were impossible.
+- **The hard limit also acted as a floor**: every 5 s the daemon raised each core's max to the hard limit, undoing lower per-core values from the active profile. The target per core is now the profile's value, capped by the hard limit (the hard limit itself if the profile sets none). Values are still re-applied every 5 s if something else changes them, but the hard limit is never exceeded. The enforcement log line only appears when something actually changed.
+- **Only ~10 of 24 cores were saved**: the GUI cut CPU commands at 256 bytes, so `SAVE_CUSTOM_PROFILE` lost the remaining cores and left a truncated number in the last one (seen as "3 Hz" for core 10 in existing profiles). Commands are now unlimited in the GUI, and up to 8 KB in the daemon (enough for 64 cores).
+- **Corrupt per-core values are ignored**: values below a core's hardware minimum (e.g. those truncated numbers) are treated as "not set", with a warning in the log, instead of pinning the core at its lowest frequency. **Existing profiles should be re-saved in the GUI** so that every core gets its intended value.
+- **CPU daemon served only one client**: a new connection (e.g. the CLI) orphaned the GUI's connection and leaked its descriptor. The daemon now serves up to 10 clients with newline-framed commands, non-blocking sends, and `select()` instead of polling every 100 ms. Commands without a trailing newline (older scripts) still work after 200 ms. The CLI now sends a newline.
+- CPU daemon signal handlers only set flags; SIGHUP reloading runs in the main loop instead of inside the signal handler.
+- `log_write` is now format-checked by the compiler; this found the 22 mismatched `%u` frequency formats fixed above.
+
 ## [1.16.3] - 2026-11-22
 
 ### Fixed

@@ -25,11 +25,19 @@
 #include "dudes-control-center-cpu-common.h"
 
 #define PROGRAM_NAME "dudes-control-center-cpu-daemon"
+#ifndef SOCKET_PATH   /* overridable for tests */
 #define SOCKET_PATH "/run/dudes-control-center-cpu.sock"
+#endif
+#ifndef CPU_LOG_DIR
+#define CPU_LOG_DIR "/var/log/dudes-control-center"
+#endif
 #define SOCKET_PERMISSIONS 0666
-#define BUFFER_SIZE 4096
-#define MAX_RESPONSE_LEN 8192
-#define MAX_CMD_LEN 2048
+#define MAX_RESPONSE_LEN 16384
+#define MAX_CMD_LEN 8192          /* SAVE_CUSTOM_PROFILE carries 2 values per core */
+#define ARG4_LEN 4096
+#define MAX_CLIENTS 10
+#define CLIENT_BUF_SIZE MAX_CMD_LEN
+#define UNTERMINATED_CMD_MS 200   /* treat a command without newline as complete after this idle time */
 
 /* Auto-switching timer */
 #define AUTO_CHECK_INTERVAL_SEC 5
@@ -39,25 +47,23 @@
 
 /* Global state */
 static volatile sig_atomic_t g_running = 1;
+static volatile sig_atomic_t g_reload = 0;
 static int server_fd = -1;
 
 /* --- Signal handlers --- */
+/* Signal handlers only set flags; the main loop does the work */
 static void on_sigint(int sig) {
     (void)sig;
-    LOG_INFO("[DAEMON] Received SIGINT, shutting down...");
     g_running = 0;
 }
 
 static void on_sighup(int sig) {
     (void)sig;
-    LOG_INFO("[DAEMON] Received SIGHUP, reloading configuration...");
-    cpu_profiles_load_all();
-    cpu_custom_profile_load_json();
+    g_reload = 1;
 }
 
 static void on_sigterm(int sig) {
     (void)sig;
-    LOG_INFO("[DAEMON] Received SIGTERM, shutting down...");
     g_running = 0;
 }
 
@@ -139,14 +145,14 @@ static void parse_command(const char *cmd, char *action, char *arg1, char *arg2,
 
     /* Extract arg4 */
     if (*pos != '\0') {
-        strncpy(arg4, pos, 1023);
-        arg4[1023] = '\0';
+        strncpy(arg4, pos, ARG4_LEN - 1);
+        arg4[ARG4_LEN - 1] = '\0';
     }
 }
 
 /* --- Handle client commands --- */
 static void handle_command(const char *cmd, char *response, size_t resp_size) {
-    char action[32], arg1[256], arg2[256], arg3[64], arg4[1024];
+    char action[32], arg1[256], arg2[256], arg3[64], arg4[ARG4_LEN];
 
     parse_command(cmd, action, arg1, arg2, arg3, arg4);
 
@@ -243,10 +249,10 @@ static void handle_command(const char *cmd, char *response, size_t resp_size) {
             return;
         }
 
-        uint32_t min_freq = arg3[0] ? parse_frequency(arg3) : 0;
-        uint32_t max_freq = arg4[0] ? parse_frequency(arg4) : 0;
+        uint64_t min_freq = arg3[0] ? parse_frequency(arg3) : 0;
+        uint64_t max_freq = arg4[0] ? parse_frequency(arg4) : 0;
 
-        LOG_INFO("[DAEMON] Creating governor policy: %s governor=%s min=%uHz max=%uHz",
+        LOG_INFO("[DAEMON] Creating governor policy: %s governor=%s min=%" PRIu64 "Hz max=%" PRIu64 "Hz",
                  arg1, arg2, min_freq, max_freq);
 
         if (cpu_profile_create(arg1, governor, min_freq, max_freq) == 0) {
@@ -320,7 +326,7 @@ static void handle_command(const char *cmd, char *response, size_t resp_size) {
             return;
         }
 
-        uint32_t freq = parse_frequency(arg1);
+        uint64_t freq = parse_frequency(arg1);
         if (set_all_cpus_min_freq(freq) == 0) {
             char freq_buf[32];
             format_frequency(freq, freq_buf, sizeof(freq_buf));
@@ -338,7 +344,7 @@ static void handle_command(const char *cmd, char *response, size_t resp_size) {
             return;
         }
 
-        uint32_t freq = parse_frequency(arg1);
+        uint64_t freq = parse_frequency(arg1);
         if (set_all_cpus_max_freq(freq) == 0) {
             char freq_buf[32];
             format_frequency(freq, freq_buf, sizeof(freq_buf));
@@ -471,9 +477,9 @@ static void handle_command(const char *cmd, char *response, size_t resp_size) {
         CpuGovernor gov = CPU_GOVERNOR_PERFORMANCE;
         governor_to_enum(arg2, &gov);
 
-        uint32_t max_freq = get_hard_max_freq_hz();
+        uint64_t max_freq = get_hard_max_freq_hz();
         if (arg3[0]) {
-            max_freq = (uint32_t)strtoul(arg3, NULL, 10);
+            max_freq = (uint64_t)strtoull(arg3, NULL, 10);
         }
 
         int apply_all = 1;
@@ -553,17 +559,17 @@ static void handle_command(const char *cmd, char *response, size_t resp_size) {
 
         int profile_idx = atoi(arg1);
         int cpu_id = atoi(arg2);
-        uint32_t max_freq = (uint32_t)strtoul(arg3, NULL, 10);
+        uint64_t max_freq = (uint64_t)strtoull(arg3, NULL, 10);
 
         /* Read current min freq so we don't overwrite it */
-        uint32_t current_min = 0;
+        uint64_t current_min = 0;
         const CpuCustomProfile *tmp = cpu_custom_profile_get(profile_idx);
         if (tmp && cpu_id >= 0 && cpu_id < tmp->num_cores && cpu_id < MAX_CPUS) {
             current_min = tmp->per_core_min_freq_hz[cpu_id];
         }
 
         if (cpu_custom_profile_set_core_freq(profile_idx, cpu_id, max_freq, current_min) == 0) {
-            snprintf(response, resp_size, "OK Core %d max frequency set to %u Hz\n", cpu_id, max_freq);
+            snprintf(response, resp_size, "OK Core %d max frequency set to %" PRIu64 " Hz\n", cpu_id, max_freq);
         } else {
             snprintf(response, resp_size, "ERROR Failed to set core frequency\n");
         }
@@ -579,17 +585,17 @@ static void handle_command(const char *cmd, char *response, size_t resp_size) {
 
         int profile_idx = atoi(arg1);
         int cpu_id = atoi(arg2);
-        uint32_t min_freq = (uint32_t)strtoul(arg3, NULL, 10);
+        uint64_t min_freq = (uint64_t)strtoull(arg3, NULL, 10);
 
         /* Read current max freq so we don't overwrite it */
-        uint32_t current_max = 0;
+        uint64_t current_max = 0;
         const CpuCustomProfile *tmp2 = cpu_custom_profile_get(profile_idx);
         if (tmp2 && cpu_id >= 0 && cpu_id < tmp2->num_cores && cpu_id < MAX_CPUS) {
             current_max = tmp2->per_core_max_freq_hz[cpu_id];
         }
 
         if (cpu_custom_profile_set_core_freq(profile_idx, cpu_id, current_max, min_freq) == 0) {
-            snprintf(response, resp_size, "OK Core %d min frequency set to %u Hz\n", cpu_id, min_freq);
+            snprintf(response, resp_size, "OK Core %d min frequency set to %" PRIu64 " Hz\n", cpu_id, min_freq);
         } else {
             snprintf(response, resp_size, "ERROR Failed to set core min frequency\n");
         }
@@ -605,17 +611,17 @@ static void handle_command(const char *cmd, char *response, size_t resp_size) {
 
         int profile_idx = atoi(arg1);
         int cpu_id = atoi(arg2);
-        uint32_t max_freq = (uint32_t)strtoul(arg3, NULL, 10);
+        uint64_t max_freq = (uint64_t)strtoull(arg3, NULL, 10);
 
         /* Read current min freq so we don't overwrite it */
-        uint32_t current_min = 0;
+        uint64_t current_min = 0;
         const CpuCustomProfile *tmp3 = cpu_custom_profile_get(profile_idx);
         if (tmp3 && cpu_id >= 0 && cpu_id < tmp3->num_cores && cpu_id < MAX_CPUS) {
             current_min = tmp3->per_core_min_freq_hz[cpu_id];
         }
 
         if (cpu_custom_profile_set_core_freq(profile_idx, cpu_id, max_freq, current_min) == 0) {
-            snprintf(response, resp_size, "OK Core %d max frequency set to %u Hz\n", cpu_id, max_freq);
+            snprintf(response, resp_size, "OK Core %d max frequency set to %" PRIu64 " Hz\n", cpu_id, max_freq);
         } else {
             snprintf(response, resp_size, "ERROR Failed to set core max frequency\n");
         }
@@ -688,15 +694,15 @@ static void handle_command(const char *cmd, char *response, size_t resp_size) {
         pos += snprintf(response + pos, resp_size - pos, "NUM_CORES:%d\n", cp->num_cores);
 
         for (int c = 0; c < cp->num_cores && c < MAX_CPUS && pos < resp_size - 128; c++) {
-            pos += snprintf(response + pos, resp_size - pos, "CORE_%d_MAX:%u\n", c, cp->per_core_max_freq_hz[c]);
-            pos += snprintf(response + pos, resp_size - pos, "CORE_%d_MIN:%u\n", c, cp->per_core_min_freq_hz[c]);
+            pos += snprintf(response + pos, resp_size - pos, "CORE_%d_MAX:%" PRIu64 "\n", c, cp->per_core_max_freq_hz[c]);
+            pos += snprintf(response + pos, resp_size - pos, "CORE_%d_MIN:%" PRIu64 "\n", c, cp->per_core_min_freq_hz[c]);
         }
         return;
     }
 
     /* --- GET_HARD_LIMIT --- */
     if (strcmp(action, "GET_HARD_LIMIT") == 0) {
-        snprintf(response, resp_size, "OK HARD_LIMIT=%u\n", get_hard_max_freq_hz());
+        snprintf(response, resp_size, "OK HARD_LIMIT=%" PRIu64 "\n", get_hard_max_freq_hz());
         return;
     }
 
@@ -707,7 +713,7 @@ static void handle_command(const char *cmd, char *response, size_t resp_size) {
             return;
         }
 
-        uint32_t new_limit = (uint32_t)atol(arg1);
+        uint64_t new_limit = (uint64_t)strtoull(arg1, NULL, 10);
         if (new_limit == 0) {
             snprintf(response, resp_size, "ERROR Invalid hard limit value: %s\n", arg1);
             return;
@@ -717,8 +723,8 @@ static void handle_command(const char *cmd, char *response, size_t resp_size) {
         cpu_custom_profile_save_json(); /* Persist hard limit to profiles.json */
         clamp_cpus_to_hard_limit();
         set_all_cpus_epp("performance");
-        snprintf(response, resp_size, "OK Hard limit set to %u Hz (%.2f GHz)\n", new_limit, new_limit / 1e9);
-        LOG_INFO("[DAEMON] Hard limit changed to %u Hz (%.2f GHz)", new_limit, new_limit / 1e9);
+        snprintf(response, resp_size, "OK Hard limit set to %" PRIu64 " Hz (%.2f GHz)\n", new_limit, new_limit / 1e9);
+        LOG_INFO("[DAEMON] Hard limit changed to %" PRIu64 " Hz (%.2f GHz)", new_limit, new_limit / 1e9);
         return;
     }
 
@@ -750,7 +756,7 @@ static void handle_command(const char *cmd, char *response, size_t resp_size) {
         /* Parse comma-separated core data: min0,max0,min1,max1,... */
         int cores_set = 0;
         if (arg4[0]) {
-            char core_data[1024];
+            char core_data[ARG4_LEN];
             strncpy(core_data, arg4, sizeof(core_data) - 1);
             core_data[sizeof(core_data) - 1] = '\0';
 
@@ -758,15 +764,15 @@ static void handle_command(const char *cmd, char *response, size_t resp_size) {
             char *token = strtok_r(core_data, ",", &save_ptr);
             int core_id = 0;
             int value_in_pair = 0; /* 0 = min, 1 = max */
-            uint32_t min_freq = 0, max_freq = 0;
+            uint64_t min_freq = 0, max_freq = 0;
 
             while (token != NULL && core_id < MAX_CPUS) {
                 uint64_t val = strtoull(token, NULL, 10);
 
                 if (value_in_pair == 0) {
-                    min_freq = (uint32_t)val;
+                    min_freq = (uint64_t)val;
                 } else {
-                    max_freq = (uint32_t)val;
+                    max_freq = (uint64_t)val;
                     /* Apply both values using the existing per-core setter */
                     cpu_custom_profile_set_core_freq(profile_idx, core_id, max_freq, min_freq);
                     cores_set++;
@@ -841,60 +847,170 @@ static void check_auto_conditions(void) {
     }
 }
 
-/* --- Handle client connection (non-blocking) --- */
-static int g_client_fd = -1;
+/* --- Client handling: several clients at once, newline-framed commands --- */
+typedef struct {
+    int fd;
+    char buf[CLIENT_BUF_SIZE];
+    size_t len;
+    double last_rx;          /* monotonic time of the last received data */
+} CpuClient;
 
-static void handle_client_nonblocking(int client_fd) {
-    /* Set client socket to non-blocking */
-    int flags = fcntl(client_fd, F_GETFL, 0);
-    fcntl(client_fd, F_SETFL, flags | O_NONBLOCK);
+static CpuClient g_clients[MAX_CLIENTS];
 
-    g_client_fd = client_fd;
-    LOG_INFO("[DAEMON] Client connected (non-blocking)");
+static double mono_now(void) {
+    struct timespec ts;
+    clock_gettime(CLOCK_MONOTONIC, &ts);
+    return (double)ts.tv_sec + ts.tv_nsec / 1e9;
 }
 
-/* Process pending client data (call from main loop) */
-static void process_client(void) {
-    if (g_client_fd < 0) return;
+static void client_drop(CpuClient *c, const char *why) {
+    if (c->fd < 0) return;
+    LOG_INFO("[DAEMON] Client fd %d disconnected: %s", c->fd, why);
+    close(c->fd);
+    c->fd = -1;
+    c->len = 0;
+}
 
-    char buffer[BUFFER_SIZE] = {0};
-    char response[MAX_RESPONSE_LEN] = {0};
-
-    memset(buffer, 0, sizeof(buffer));
-    ssize_t bytes_read = read(g_client_fd, buffer, sizeof(buffer) - 1);
-    if (bytes_read == 0) {
-        LOG_INFO("[DAEMON] Client disconnected");
-        close(g_client_fd);
-        g_client_fd = -1;
-        return;
-    } else if (bytes_read < 0) {
-        if (errno != EAGAIN && errno != EWOULDBLOCK) {
-            LOG_ERROR("[DAEMON] Client read error: %s", strerror(errno));
-            close(g_client_fd);
-            g_client_fd = -1;
+/* Never block the daemon on a client that stopped reading */
+static int client_send(CpuClient *c, const char *data, size_t len) {
+    size_t sent = 0;
+    while (sent < len) {
+        ssize_t w = send(c->fd, data + sent, len - sent, MSG_NOSIGNAL | MSG_DONTWAIT);
+        if (w < 0) {
+            if (errno == EINTR) continue;
+            return -1;
         }
-        return; /* No data available, that's OK */
+        sent += (size_t)w;
     }
+    return 0;
+}
 
-    buffer[bytes_read] = '\0';
-    memset(response, 0, sizeof(response));
-    handle_command(buffer, response, sizeof(response));
+/* Run one command and send its response. Returns -1 if the client was dropped. */
+static int client_run_command(CpuClient *c, const char *cmd) {
+    static char response[MAX_RESPONSE_LEN];
+    response[0] = '\0';
+    handle_command(cmd, response, sizeof(response));
+    if (client_send(c, response, strlen(response)) != 0) {
+        client_drop(c, "not reading responses");
+        return -1;
+    }
+    return 0;
+}
 
-    size_t total_len = strlen(response);
-    size_t total_sent = 0;
-    while (total_sent < total_len) {
-        ssize_t bytes_written = write(g_client_fd, response + total_sent, total_len - total_sent);
-        if (bytes_written < 0) {
-            if (errno == EAGAIN || errno == EWOULDBLOCK) {
-                usleep(1000); /* 1ms wait for non-blocking socket */
-                continue;
-            }
-            LOG_ERROR("[DAEMON] Error writing to client: %s", strerror(errno));
-            close(g_client_fd);
-            g_client_fd = -1;
+/* Process every complete (newline-terminated) command in the client buffer */
+static void client_process_lines(CpuClient *c) {
+    char *nl;
+    while (c->fd >= 0 && (nl = memchr(c->buf, '\n', c->len)) != NULL) {
+        size_t line_len = (size_t)(nl - c->buf);
+        char cmd[CLIENT_BUF_SIZE];
+        memcpy(cmd, c->buf, line_len);
+        cmd[line_len] = '\0';
+        if (line_len > 0 && cmd[line_len - 1] == '\r') cmd[line_len - 1] = '\0';
+
+        size_t rest = c->len - line_len - 1;
+        memmove(c->buf, nl + 1, rest);
+        c->len = rest;
+
+        if (cmd[0] != '\0' && client_run_command(c, cmd) != 0) return;
+    }
+}
+
+static void client_read(CpuClient *c) {
+    if (c->len >= sizeof(c->buf) - 1) {
+        client_drop(c, "command too long");
+        return;
+    }
+    ssize_t n = recv(c->fd, c->buf + c->len, sizeof(c->buf) - 1 - c->len, MSG_DONTWAIT);
+    if (n == 0) { client_drop(c, "closed by peer"); return; }
+    if (n < 0) {
+        if (errno != EAGAIN && errno != EWOULDBLOCK && errno != EINTR) client_drop(c, strerror(errno));
+        return;
+    }
+    c->len += (size_t)n;
+    c->last_rx = mono_now();
+    client_process_lines(c);
+}
+
+/* Older clients send a command without a trailing newline: run it once the
+ * client has been quiet for UNTERMINATED_CMD_MS */
+static void client_flush_unterminated(CpuClient *c, double now) {
+    if (c->fd < 0 || c->len == 0) return;
+    if ((now - c->last_rx) * 1000.0 < UNTERMINATED_CMD_MS) return;
+    char cmd[CLIENT_BUF_SIZE];
+    memcpy(cmd, c->buf, c->len);
+    cmd[c->len] = '\0';
+    c->len = 0;
+    client_run_command(c, cmd);
+}
+
+static void client_accept(void) {
+    int fd = accept4(server_fd, NULL, NULL, SOCK_NONBLOCK | SOCK_CLOEXEC);
+    if (fd < 0) {
+        if (errno != EAGAIN && errno != EWOULDBLOCK && errno != EINTR) {
+            LOG_ERROR("[DAEMON] Accept error: %s", strerror(errno));
+        }
+        return;
+    }
+    if (!dcc_peer_authorized(fd)) {
+        dcc_reject_client(fd);
+        return;
+    }
+    for (int i = 0; i < MAX_CLIENTS; i++) {
+        if (g_clients[i].fd < 0) {
+            g_clients[i].fd = fd;
+            g_clients[i].len = 0;
+            g_clients[i].last_rx = mono_now();
+            LOG_INFO("[DAEMON] Client connected (fd %d, slot %d)", fd, i);
             return;
         }
-        total_sent += bytes_written;
+    }
+    LOG_WARN("[DAEMON] Too many clients (%d), rejecting fd %d", MAX_CLIENTS, fd);
+    close(fd);
+}
+
+/* Re-apply frequency limits every few seconds (the kernel/thermald may change them).
+ * Per core the target max is the active custom profile's value, capped by the
+ * hard limit; without a profile value it is the hard limit itself. The hard
+ * limit is therefore a ceiling: lower per-core values are kept, not raised. */
+static void enforce_frequency_limits(void) {
+    uint64_t hard_limit = get_hard_max_freq_hz();
+    int cpu_count = get_cpu_count();
+
+    const CpuCustomProfile *active_profile = NULL;
+    if (g_cpu_state.active_custom_profile_idx >= 0 &&
+        g_cpu_state.active_custom_profile_idx < g_cpu_state.num_custom_profiles) {
+        active_profile = &g_cpu_state.custom_profiles[g_cpu_state.active_custom_profile_idx];
+    }
+
+    int max_changed = 0, min_changed = 0;
+    for (int i = 0; i < cpu_count && i < MAX_CPUS; i++) {
+        uint64_t target_max = hard_limit;
+        uint64_t target_min = 0;
+        if (active_profile && i < active_profile->num_cores) {
+            if (active_profile->per_core_max_freq_hz[i] > 0 &&
+                active_profile->per_core_max_freq_hz[i] < target_max) {
+                target_max = active_profile->per_core_max_freq_hz[i];
+            }
+            target_min = active_profile->per_core_min_freq_hz[i];
+            if (target_min > target_max) target_min = target_max;
+        }
+
+        uint64_t current_max = get_cpu_max_freq(i);
+        if (current_max != 0 && current_max != target_max) {
+            if (set_cpu_max_freq(i, target_max) == 0) max_changed++;
+        }
+
+        if (target_min > 0) {
+            uint64_t current_min = get_cpu_min_freq(i);
+            if (current_min != 0 && current_min < target_min) {
+                if (set_cpu_min_freq(i, target_min) == 0) min_changed++;
+            }
+        }
+    }
+
+    if (max_changed || min_changed) {
+        LOG_INFO("[ENFORCE] Re-applied limits: max on %d cores, min on %d cores (hard limit %" PRIu64 " Hz, profile %d)",
+                 max_changed, min_changed, hard_limit, g_cpu_state.active_custom_profile_idx);
     }
 }
 
@@ -942,7 +1058,7 @@ int main(int argc, char *argv[]) {
     }
 
     /* Initialize logging */
-    if (log_init("CPU_DAEMON", LOG_LEVEL_INFO, "/var/log/dudes-control-center") != 0) {
+    if (log_init("CPU_DAEMON", LOG_LEVEL_INFO, CPU_LOG_DIR) != 0) {
         fprintf(stderr, "Failed to initialize logging system\n");
     }
 
@@ -977,78 +1093,70 @@ int main(int argc, char *argv[]) {
     int flags = fcntl(server_fd, F_GETFL, 0);
     fcntl(server_fd, F_SETFL, flags | O_NONBLOCK);
 
+    for (int i = 0; i < MAX_CLIENTS; i++) g_clients[i].fd = -1;
+
     LOG_INFO("[DAEMON] Daemon ready, waiting for connections...");
 
-    /* Main loop */
-    while (g_running) {
-        struct sockaddr_un client_addr;
-        socklen_t client_len = sizeof(client_addr);
+    double last_check = 0, last_enforce = 0;
 
-        int client_fd = accept(server_fd, (struct sockaddr*)&client_addr, &client_len);
-        if (client_fd >= 0 && !dcc_peer_authorized(client_fd)) {
-            /* Reject before touching the current client connection */
-            dcc_reject_client(client_fd);
-        } else if (client_fd >= 0) {
-            handle_client_nonblocking(client_fd);
-        } else if (errno != EAGAIN && errno != EWOULDBLOCK) {
-            if (g_running) {
-                LOG_ERROR("[DAEMON] Accept error: %s", strerror(errno));
+    /* Main loop: sleep in select() until a client talks or a timer is due */
+    while (g_running) {
+        if (g_reload) {
+            g_reload = 0;
+            LOG_INFO("[DAEMON] SIGHUP: reloading configuration");
+            cpu_profiles_load_all();
+            cpu_custom_profile_load_json();
+        }
+
+        fd_set rfds;
+        FD_ZERO(&rfds);
+        FD_SET(server_fd, &rfds);
+        int max_fd = server_fd;
+        int pending_unterminated = 0;
+        for (int i = 0; i < MAX_CLIENTS; i++) {
+            if (g_clients[i].fd >= 0) {
+                FD_SET(g_clients[i].fd, &rfds);
+                if (g_clients[i].fd > max_fd) max_fd = g_clients[i].fd;
+                if (g_clients[i].len > 0) pending_unterminated = 1;
             }
         }
 
-        /* Process any pending client commands */
-        process_client();
+        struct timeval tv;
+        tv.tv_sec = pending_unterminated ? 0 : 1;
+        tv.tv_usec = pending_unterminated ? 50000 : 0;
+        int ready = select(max_fd + 1, &rfds, NULL, NULL, &tv);
+        if (ready < 0) {
+            if (errno == EINTR) continue;
+            LOG_ERROR("[DAEMON] select() failed: %s", strerror(errno));
+            break;
+        }
+
+        if (ready > 0) {
+            if (FD_ISSET(server_fd, &rfds)) client_accept();
+            for (int i = 0; i < MAX_CLIENTS; i++) {
+                if (g_clients[i].fd >= 0 && FD_ISSET(g_clients[i].fd, &rfds)) {
+                    client_read(&g_clients[i]);
+                }
+            }
+        }
+
+        double now = mono_now();
+        for (int i = 0; i < MAX_CLIENTS; i++) client_flush_unterminated(&g_clients[i], now);
 
         /* Check auto-switching conditions periodically */
-        time_t current_time = time(NULL);
-        static time_t last_check_time = 0;
-        if (current_time - last_check_time >= AUTO_CHECK_INTERVAL_SEC) {
+        if (now - last_check >= AUTO_CHECK_INTERVAL_SEC) {
             check_auto_conditions();
-            last_check_time = current_time;
+            last_check = now;
         }
 
-        /* Enforce hard limit and min freq periodically to counter thermald/kernel */
-        static time_t last_enforce_time = 0;
-        if (current_time - last_enforce_time >= HARD_LIMIT_ENFORCE_INTERVAL_SEC) {
-            uint32_t hard_limit = get_hard_max_freq_hz();
-            int cpu_count = get_cpu_count();
-
-            /* Get active custom profile for min freq enforcement */
-            CpuCustomProfile *active_profile = NULL;
-            if (g_cpu_state.active_custom_profile_idx >= 0 &&
-                g_cpu_state.active_custom_profile_idx < g_cpu_state.num_custom_profiles) {
-                active_profile = &g_cpu_state.custom_profiles[g_cpu_state.active_custom_profile_idx];
-            }
-
-            int max_restored = 0;
-            int min_restored = 0;
-            for (int i = 0; i < cpu_count; i++) {
-                /* Enforce hard limit on max freq */
-                uint32_t current_max = get_cpu_max_freq(i);
-                if (current_max < hard_limit) {
-                    set_cpu_max_freq(i, hard_limit);
-                    max_restored++;
-                }
-
-                /* Enforce min freq from active custom profile */
-                if (active_profile != NULL) {
-                    uint32_t profile_min = active_profile->per_core_min_freq_hz[i];
-                    if (profile_min > 0) {
-                        uint32_t current_min = get_cpu_min_freq(i);
-                        if (current_min < profile_min) {
-                            set_cpu_min_freq(i, profile_min);
-                            min_restored++;
-                        }
-                    }
-                }
-            }
-            LOG_INFO("[ENFORCE] max_restored=%d, min_restored=%d, active_profile_idx=%d",
-                     max_restored, min_restored, g_cpu_state.active_custom_profile_idx);
-            last_enforce_time = current_time;
+        /* Re-apply frequency limits periodically */
+        if (now - last_enforce >= HARD_LIMIT_ENFORCE_INTERVAL_SEC) {
+            enforce_frequency_limits();
+            last_enforce = now;
         }
-
-        usleep(100000);  /* 100ms */
     }
+
+    for (int i = 0; i < MAX_CLIENTS; i++) client_drop(&g_clients[i], "daemon shutting down");
 
     /* Cleanup */
     LOG_INFO("[DAEMON] Shutting down...");
