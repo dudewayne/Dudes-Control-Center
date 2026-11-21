@@ -4195,10 +4195,15 @@ static gboolean kbd_canvas_draw(GtkWidget *widget, cairo_t *cr, gpointer user_da
                 }
             }
             
-            /* Also check if this LED has a mapping from CSV (loaded wizard data) - only when wizard is not active */
+            /* Also check if this position has a mapping from CSV (loaded wizard data) - only when wizard is not active */
             int has_mapping = 0;
-            if (!app->kbd_wizard_active && led_id >= 0 && led_id < 120 && app->kbd_wizard_mapping[led_id] == i) {
-                has_mapping = 1;
+            if (!app->kbd_wizard_active) {
+                for (int led = 0; led < 120; led++) {
+                    if (app->kbd_wizard_mapping[led] == i) {
+                        has_mapping = 1;
+                        break;
+                    }
+                }
             }
             
             /* Draw overlay */
@@ -4281,11 +4286,10 @@ static gboolean kbd_canvas_button_press(GtkWidget *widget, GdkEventButton *event
                 app->kbd_wizard_mapping[current_led] = (int)i;
                 const char *key_name = (i < 120) ? kbd_key_names[i] : "Unknown";
                 
-                /* Highlight the just-clicked LED on canvas BEFORE advancing */
+                /* Highlight using the actual LED ID (not the wizard step index) */
                 app->kbd_num_selected_leds = 1;
-                app->kbd_selected_led_indices[0] = current_led;
+                app->kbd_selected_led_indices[0] = led_id;
                 kbd_redraw_canvas(app);
-                /* Force GTK to process the draw immediately */
                 while (gtk_events_pending()) {
                     gtk_main_iteration();
                 }
