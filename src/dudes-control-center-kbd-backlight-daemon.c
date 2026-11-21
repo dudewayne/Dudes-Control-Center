@@ -5,6 +5,7 @@
  */
 
 #define _POSIX_C_SOURCE 200809L
+#define _GNU_SOURCE
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -26,6 +27,7 @@
 /* Global state */
 static volatile sig_atomic_t g_running = 1;
 static int server_fd = -1;
+static int g_client_fd = -1;
 
 /* Signal handlers */
 static void on_sigint(int sig) {
@@ -571,30 +573,48 @@ static int handle_command(const char *cmd, char *response, size_t resp_size) {
     return -1;
 }
 
-/* Handle client connection */
-static void handle_client(int client_fd) {
-    char buffer[KBD_BUFFER_SIZE];
-    char response[KBD_MAX_RESPONSE_LEN];
-    ssize_t bytes_received;
+/* Handle new client connection (non-blocking, persistent) */
+static void handle_client_nonblocking(int client_fd) {
+    int flags = fcntl(client_fd, F_GETFL, 0);
+    fcntl(client_fd, F_SETFL, flags | O_NONBLOCK);
 
-    LOG_INFO("[KBD_DAEMON] Client connected");
-
-    bytes_received = read(client_fd, buffer, sizeof(buffer) - 1);
-    if (bytes_received <= 0) {
-        LOG_ERROR("[KBD_DAEMON] Failed to read from client or client disconnected");
-        close(client_fd);
-        return;
+    /* Close previous client if any */
+    if (g_client_fd >= 0) {
+        close(g_client_fd);
     }
 
-    buffer[bytes_received] = '\0';
+    g_client_fd = client_fd;
+    LOG_INFO("[KBD_DAEMON] Client connected (non-blocking)");
+}
+
+/* Process pending client data (call from main loop) */
+static void process_client(void) {
+    if (g_client_fd < 0) return;
+
+    char buffer[KBD_BUFFER_SIZE] = {0};
+    char response[KBD_MAX_RESPONSE_LEN] = {0};
+
+    memset(buffer, 0, sizeof(buffer));
+    ssize_t bytes_read = read(g_client_fd, buffer, sizeof(buffer) - 1);
+    if (bytes_read == 0) {
+        LOG_INFO("[KBD_DAEMON] Client disconnected");
+        close(g_client_fd);
+        g_client_fd = -1;
+        return;
+    } else if (bytes_read < 0) {
+        if (errno != EAGAIN && errno != EWOULDBLOCK) {
+            LOG_ERROR("[KBD_DAEMON] Client read error: %s", strerror(errno));
+            close(g_client_fd);
+            g_client_fd = -1;
+        }
+        return; /* No data available, that's OK */
+    }
+
+    buffer[bytes_read] = '\0';
 
     /* Remove trailing newline */
     size_t buf_len = strlen(buffer);
     if (buf_len > 0 && buffer[buf_len - 1] == '\n') {
-        buffer[buf_len - 1] = '\0';
-    }
-    buf_len = strlen(buffer);
-    if (buf_len > 0 && buffer[buf_len - 1] == '\r') {
         buffer[buf_len - 1] = '\0';
     }
 
@@ -605,12 +625,22 @@ static void handle_client(int client_fd) {
 
     LOG_DEBUG("[KBD_DAEMON] Sending response: '%s'", response);
 
-    ssize_t bytes_sent = write(client_fd, response, strlen(response));
-    if (bytes_sent < 0) {
-        LOG_ERROR("[KBD_DAEMON] Failed to send response: %s", strerror(errno));
+    size_t total_len = strlen(response);
+    size_t total_sent = 0;
+    while (total_sent < total_len) {
+        ssize_t bytes_written = write(g_client_fd, response + total_sent, total_len - total_sent);
+        if (bytes_written < 0) {
+            if (errno == EAGAIN || errno == EWOULDBLOCK) {
+                usleep(1000);
+                continue;
+            }
+            LOG_ERROR("[KBD_DAEMON] Error writing to client: %s", strerror(errno));
+            close(g_client_fd);
+            g_client_fd = -1;
+            return;
+        }
+        total_sent += bytes_written;
     }
-
-    close(client_fd);
 }
 
 /* Initialize Unix socket */
@@ -716,8 +746,11 @@ int main(int argc, char *argv[]) {
                 continue;
             }
 
-            handle_client(client_fd);
+            handle_client_nonblocking(client_fd);
         }
+
+        /* Process any pending client data */
+        process_client();
     }
 
     /* Cleanup */
@@ -726,6 +759,11 @@ int main(int argc, char *argv[]) {
     if (server_fd >= 0) {
         close(server_fd);
         unlink(KBD_SOCKET_PATH);
+    }
+
+    if (g_client_fd >= 0) {
+        close(g_client_fd);
+        g_client_fd = -1;
     }
 
     kbd_led_cleanup();
