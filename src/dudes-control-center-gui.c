@@ -302,6 +302,15 @@ typedef struct {
     int kbd_off_active; /* 1 when off switch is active */
     GtkWidget *kbd_apply_zones_btn;
     int kbd_num_zones;
+    
+    /* LED Wizard state */
+    int kbd_wizard_active; /* 1 when wizard is running */
+    int kbd_wizard_current_led; /* Current LED being assigned (0-119) */
+    int kbd_wizard_mapping[120]; /* LED ID -> key position index */
+    GtkWidget *kbd_led_wizard_btn; /* LED Wizard button */
+    GtkWidget *kbd_led_wizard_label; /* Label showing current LED */
+    GtkWidget *kbd_led_wizard_skip_btn; /* Skip button */
+    GtkWidget *kbd_led_wizard_cancel_btn; /* Cancel button */
 } AppData;
 
 /* Forward declarations for callbacks */
@@ -363,6 +372,11 @@ static void on_preset_color_clicked(GtkWidget *widget, AppData *app);
 static gboolean kbd_canvas_draw(GtkWidget *widget, cairo_t *cr, gpointer user_data);
 static gboolean kbd_canvas_button_press(GtkWidget *widget, GdkEventButton *event, gpointer user_data);
 static void kbd_redraw_canvas(AppData *app);
+static void on_led_wizard_start_clicked(GtkWidget *widget, gpointer user_data);
+static void on_led_wizard_skip_clicked(GtkWidget *widget, gpointer user_data);
+static void on_led_wizard_cancel_clicked(GtkWidget *widget, gpointer user_data);
+static void kbd_wizard_step(AppData *app);
+static void kbd_wizard_finish(AppData *app);
 static gboolean cpu_refresh_timer_callback(gpointer user_data);
 static void load_cpu_governors(AppData *app);
 static void on_cpu_governor_changed(GtkWidget *widget, gpointer user_data);
@@ -3892,6 +3906,91 @@ static void kbd_redraw_canvas(AppData *app) {
     }
 }
 
+/* LED Wizard: Start */
+static void on_led_wizard_start_clicked(GtkWidget *widget, gpointer user_data) {
+    AppData *app = (AppData *)user_data;
+    
+    /* Initialize wizard state */
+    app->kbd_wizard_active = 1;
+    app->kbd_wizard_current_led = 0;
+    memset(app->kbd_wizard_mapping, -1, sizeof(app->kbd_wizard_mapping));
+    
+    /* Update UI */
+    gtk_widget_set_sensitive(app->kbd_led_wizard_btn, FALSE);
+    gtk_widget_set_sensitive(app->kbd_led_wizard_skip_btn, TRUE);
+    gtk_widget_set_sensitive(app->kbd_led_wizard_cancel_btn, TRUE);
+    gtk_label_set_text(GTK_LABEL(app->kbd_led_wizard_label), 
+                      "LED Wizard: Click the key for LED 0 (or Skip to leave as-is)");
+    
+    g_print("[GUI] LED Wizard started\n");
+}
+
+/* LED Wizard: Skip current LED */
+static void on_led_wizard_skip_clicked(GtkWidget *widget, gpointer user_data) {
+    AppData *app = (AppData *)user_data;
+    
+    if (!app->kbd_wizard_active) return;
+    
+    g_print("[GUI] LED Wizard: Skipping LED %d\n", app->kbd_wizard_current_led);
+    
+    /* Move to next LED */
+    app->kbd_wizard_current_led++;
+    if (app->kbd_wizard_current_led >= 120) {
+        kbd_wizard_finish(app);
+    } else {
+        kbd_wizard_step(app);
+    }
+}
+
+/* LED Wizard: Cancel */
+static void on_led_wizard_cancel_clicked(GtkWidget *widget, gpointer user_data) {
+    AppData *app = (AppData *)user_data;
+    
+    app->kbd_wizard_active = 0;
+    
+    /* Update UI */
+    gtk_widget_set_sensitive(app->kbd_led_wizard_btn, TRUE);
+    gtk_widget_set_sensitive(app->kbd_led_wizard_skip_btn, FALSE);
+    gtk_widget_set_sensitive(app->kbd_led_wizard_cancel_btn, FALSE);
+    gtk_label_set_text(GTK_LABEL(app->kbd_led_wizard_label), "LED Wizard cancelled");
+    
+    /* Clear selection and redraw */
+    app->kbd_num_selected_leds = 0;
+    kbd_redraw_canvas(app);
+    
+    g_print("[GUI] LED Wizard cancelled\n");
+}
+
+/* LED Wizard: Update UI for current step */
+static void kbd_wizard_step(AppData *app) {
+    char buf[256];
+    snprintf(buf, sizeof(buf), "LED Wizard: Click the key for LED %d / 119", app->kbd_wizard_current_led);
+    gtk_label_set_text(GTK_LABEL(app->kbd_led_wizard_label), buf);
+    
+    /* Highlight the current LED in the selection */
+    app->kbd_num_selected_leds = 1;
+    app->kbd_selected_led_indices[0] = app->kbd_wizard_current_led;
+    kbd_redraw_canvas(app);
+}
+
+/* LED Wizard: Finish and save mapping */
+static void kbd_wizard_finish(AppData *app) {
+    app->kbd_wizard_active = 0;
+    
+    /* Update UI */
+    gtk_widget_set_sensitive(app->kbd_led_wizard_btn, TRUE);
+    gtk_widget_set_sensitive(app->kbd_led_wizard_skip_btn, FALSE);
+    gtk_widget_set_sensitive(app->kbd_led_wizard_cancel_btn, FALSE);
+    gtk_label_set_text(GTK_LABEL(app->kbd_led_wizard_label), "LED Wizard completed!");
+    
+    /* Clear selection and redraw */
+    app->kbd_num_selected_leds = 0;
+    kbd_redraw_canvas(app);
+    
+    g_print("[GUI] LED Wizard finished, mapping saved\n");
+    /* TODO: Save mapping to profiles.json */
+}
+
 /* Draw callback for keyboard canvas */
 static gboolean kbd_canvas_draw(GtkWidget *widget, cairo_t *cr, gpointer user_data) {
     (void)widget;
@@ -4001,7 +4100,24 @@ static gboolean kbd_canvas_button_press(GtkWidget *widget, GdkEventButton *event
             int led_id = kbd_position_to_led_id[i];
             g_print("[GUI] Clicked key at position %zu (LED ID %d)\n", i, led_id);
             
-            /* Toggle selection */
+            /* Handle wizard mode */
+            if (app->kbd_wizard_active) {
+                /* Assign this key position to the current LED */
+                app->kbd_wizard_mapping[app->kbd_wizard_current_led] = (int)i;
+                g_print("[GUI] LED Wizard: LED %d -> key position %zu\n", 
+                        app->kbd_wizard_current_led, i);
+                
+                /* Move to next LED */
+                app->kbd_wizard_current_led++;
+                if (app->kbd_wizard_current_led >= 120) {
+                    kbd_wizard_finish(app);
+                } else {
+                    kbd_wizard_step(app);
+                }
+                return TRUE;
+            }
+            
+            /* Normal mode: toggle selection */
             int found = 0;
             for (int s = 0; s < app->kbd_num_selected_leds; s++) {
                 if (app->kbd_selected_led_indices[s] == led_id) {
@@ -5896,6 +6012,27 @@ static GtkWidget *create_keyboard_page(AppData *app) {
     gtk_container_add(GTK_CONTAINER(zone_scrolled), app->kbd_zone_grid);
     gtk_box_pack_start(GTK_BOX(zone_vbox), zone_scrolled, FALSE, FALSE, 0);
 
+    /* LED Wizard controls */
+    GtkWidget *wizard_btn_row = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 6);
+    app->kbd_led_wizard_btn = gtk_button_new_with_label("LED Wizard");
+    g_signal_connect(app->kbd_led_wizard_btn, "clicked", G_CALLBACK(on_led_wizard_start_clicked), app);
+    app->kbd_led_wizard_skip_btn = gtk_button_new_with_label("Skip");
+    g_signal_connect(app->kbd_led_wizard_skip_btn, "clicked", G_CALLBACK(on_led_wizard_skip_clicked), app);
+    gtk_widget_set_sensitive(app->kbd_led_wizard_skip_btn, FALSE);
+    app->kbd_led_wizard_cancel_btn = gtk_button_new_with_label("Cancel");
+    g_signal_connect(app->kbd_led_wizard_cancel_btn, "clicked", G_CALLBACK(on_led_wizard_cancel_clicked), app);
+    gtk_widget_set_sensitive(app->kbd_led_wizard_cancel_btn, FALSE);
+    gtk_box_pack_start(GTK_BOX(wizard_btn_row), app->kbd_led_wizard_btn, FALSE, FALSE, 0);
+    gtk_box_pack_start(GTK_BOX(wizard_btn_row), app->kbd_led_wizard_skip_btn, FALSE, FALSE, 0);
+    gtk_box_pack_start(GTK_BOX(wizard_btn_row), app->kbd_led_wizard_cancel_btn, FALSE, FALSE, 0);
+    gtk_box_pack_start(GTK_BOX(zone_vbox), wizard_btn_row, FALSE, FALSE, 0);
+    
+    /* LED Wizard status label */
+    app->kbd_led_wizard_label = gtk_label_new("");
+    gtk_label_set_xalign(GTK_LABEL(app->kbd_led_wizard_label), 0.0);
+    gtk_widget_set_name(app->kbd_led_wizard_label, "kbd-wizard-label");
+    gtk_box_pack_start(GTK_BOX(zone_vbox), app->kbd_led_wizard_label, FALSE, FALSE, 0);
+    
     /* Keyboard schematic canvas */
     app->kbd_keyboard_canvas = gtk_drawing_area_new();
     g_signal_connect(app->kbd_keyboard_canvas, "draw", G_CALLBACK(kbd_canvas_draw), app);
