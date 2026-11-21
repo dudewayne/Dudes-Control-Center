@@ -5453,19 +5453,15 @@ static GtkWidget *create_keyboard_page(AppData *app) {
     g_signal_connect(app->kbd_profile_delete_btn, "clicked", G_CALLBACK(on_kbd_delete_profile_clicked), app);
     app->kbd_profile_rename_btn = gtk_button_new_with_label("Rename");
     g_signal_connect(app->kbd_profile_rename_btn, "clicked", G_CALLBACK(on_kbd_rename_profile_clicked), app);
-    gtk_box_pack_start(GTK_BOX(btn_row), app->kbd_profile_create_btn, FALSE, FALSE, 0);
-    gtk_box_pack_start(GTK_BOX(btn_row), app->kbd_profile_delete_btn, FALSE, FALSE, 0);
-    gtk_box_pack_start(GTK_BOX(btn_row), app->kbd_profile_rename_btn, FALSE, FALSE, 0);
-    gtk_box_pack_start(GTK_BOX(profile_vbox), btn_row, FALSE, FALSE, 0);
-
-    /* Save / Activate buttons row */
-    GtkWidget *save_row = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 6);
     app->kbd_profile_save_btn = gtk_button_new_with_label("Save Profile");
     g_signal_connect(app->kbd_profile_save_btn, "clicked", G_CALLBACK(on_kbd_save_profile_clicked), app);
     app->kbd_profile_activate_btn = gtk_button_new_with_label("Activate Profile");
-    gtk_box_pack_start(GTK_BOX(save_row), app->kbd_profile_save_btn, FALSE, FALSE, 0);
-    gtk_box_pack_start(GTK_BOX(save_row), app->kbd_profile_activate_btn, FALSE, FALSE, 0);
-    gtk_box_pack_start(GTK_BOX(profile_vbox), save_row, FALSE, FALSE, 0);
+    gtk_box_pack_start(GTK_BOX(btn_row), app->kbd_profile_create_btn, FALSE, FALSE, 0);
+    gtk_box_pack_start(GTK_BOX(btn_row), app->kbd_profile_delete_btn, FALSE, FALSE, 0);
+    gtk_box_pack_start(GTK_BOX(btn_row), app->kbd_profile_rename_btn, FALSE, FALSE, 0);
+    gtk_box_pack_start(GTK_BOX(btn_row), app->kbd_profile_save_btn, FALSE, FALSE, 0);
+    gtk_box_pack_start(GTK_BOX(btn_row), app->kbd_profile_activate_btn, FALSE, FALSE, 0);
+    gtk_box_pack_start(GTK_BOX(profile_vbox), btn_row, FALSE, FALSE, 0);
 
     /* Profile status label */
     app->kbd_profile_status_label = gtk_label_new("");
