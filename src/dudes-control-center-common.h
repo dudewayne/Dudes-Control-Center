@@ -57,9 +57,8 @@ int rpm_to_percentage(int rpm, int is_gpu);  /* Convert RPM to percentage (0-100
 int clamp(int v, int lo, int hi);
 
 /* --- Shared config path (used by all daemons and GUI) --- */
-#ifndef MAIN_PROFILES_PATH
-#define MAIN_PROFILES_PATH "/home/dude/.config/dudes-control-center/profiles.json"
-#endif
+/* profiles.json of the desktop user: dcc_profiles_path() (secure.h).
+ * MAIN_PROFILES_PATH can be defined at build time to force a path (tests). */
 #define CPU_CONFIG_DIR "dudes-control-center/cpu"
 
 /* --- Daemon socket communication --- */

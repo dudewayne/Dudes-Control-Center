@@ -12,8 +12,8 @@ pkill -9 -f dudes-control-center-fan-daemon 2>/dev/null || echo "   No additiona
 
 sleep 1
 
-echo "3. Updating systemd service file with HOME environment variable..."
-cp /home/dude/Code/ai\ projects/Dudes\ Control\ Center/dudes-control-center/dudes-control-center-fan-daemon.service /etc/systemd/system/dudes-control-center-fan-daemon.service
+echo "3. Updating systemd service file..."
+cp "$(dirname "$(readlink -f "$0")")/dudes-control-center-fan-daemon.service" /etc/systemd/system/dudes-control-center-fan-daemon.service
 systemctl daemon-reload
 echo "   ✓ Service file updated"
 

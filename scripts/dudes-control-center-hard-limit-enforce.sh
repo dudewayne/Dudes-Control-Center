@@ -8,8 +8,21 @@
 # as root, so it reads the file with the identity of the directory's owner
 # (setpriv) and never writes anything into the home directory.
 
-PROFILES_DIR="$HOME/.config/dudes-control-center"
-PROFILES_FILE="$PROFILES_DIR/profiles.json"
+# Whose profiles.json: same order as the daemons (dcc_profiles_path):
+# $DCC_PROFILES_PATH, the user in /etc/dudes-control-center/user, the first
+# member of group dudes-control-center, the user with uid 1000.
+DCC_USER_FILE="${DCC_USER_FILE:-/etc/dudes-control-center/user}"
+if [ -n "${DCC_PROFILES_PATH:-}" ] && [ "${DCC_PROFILES_PATH#/}" != "$DCC_PROFILES_PATH" ]; then
+    PROFILES_FILE="$DCC_PROFILES_PATH"
+else
+    DCC_USER=""
+    [ -r "$DCC_USER_FILE" ] && DCC_USER=$(head -n 1 "$DCC_USER_FILE" | tr -d '[:space:]')
+    [ -z "$DCC_USER" ] && DCC_USER=$(getent group dudes-control-center | cut -d: -f4 | cut -d, -f1)
+    [ -z "$DCC_USER" ] && DCC_USER=$(getent passwd 1000 | cut -d: -f1)
+    USER_HOME=$(getent passwd "$DCC_USER" | cut -d: -f6)
+    PROFILES_FILE="$USER_HOME/.config/dudes-control-center/profiles.json"
+fi
+PROFILES_DIR=$(dirname "$PROFILES_FILE")
 LOG_DIR="/var/log/dudes-control-center"
 LOG_FILE="$LOG_DIR/HARD_LIMIT_ENFORCER.log"
 LOG_MAX_BYTES=$((1024 * 1024))

@@ -626,7 +626,12 @@ void kbd_set_active_profile_index(int idx) {
 
 /* Save all keyboard profiles to profiles.json (keyboard_profiles section) */
 int kbd_profiles_save_json(void) {
+#ifdef MAIN_PROFILES_PATH
     const char *path = MAIN_PROFILES_PATH;
+#else
+    const char *path = dcc_profiles_path();
+    if (!path) return -1;
+#endif
 
     /* Read as the file's owner, never through a symlink (see secure.h) */
     cJSON *root = NULL;
@@ -691,7 +696,12 @@ int kbd_profiles_save_json(void) {
 int kbd_profiles_load_json(void) {
     g_num_profiles = 0;
 
+#ifdef MAIN_PROFILES_PATH
     const char *path = MAIN_PROFILES_PATH;
+#else
+    const char *path = dcc_profiles_path();
+    if (!path) return -1;
+#endif
 
     /* Read as the file's owner, never through a symlink (see secure.h) */
     char *file_content = dcc_user_file_read(path, 1024 * 1024, NULL);

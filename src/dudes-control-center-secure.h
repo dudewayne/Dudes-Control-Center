@@ -44,4 +44,18 @@ char *dcc_user_file_read(const char *path, size_t max_size, size_t *out_len);
 /* Atomically replace path with data. Returns 0 on success, -1 on error. */
 int dcc_user_file_write(const char *path, const char *data, size_t len);
 
+/*
+ * Which user's ~/.config/dudes-control-center/profiles.json the root daemons
+ * use (they run with HOME=/root). First match wins:
+ *   1. $DCC_PROFILES_PATH (absolute path, e.g. from a systemd drop-in)
+ *   2. the user named in DCC_USER_FILE (written by the package on install)
+ *   3. the first member of the DCC_AUTH_GROUP group
+ *   4. the user with uid 1000 (first desktop user on Debian/Ubuntu/Mint)
+ * Returns a static buffer, or NULL if no user was found.
+ */
+#ifndef DCC_USER_FILE
+#define DCC_USER_FILE "/etc/dudes-control-center/user"
+#endif
+const char *dcc_profiles_path(void);
+
 #endif /* DUDES_CONTROL_CENTER_SECURE_H */

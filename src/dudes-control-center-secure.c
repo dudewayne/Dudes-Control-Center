@@ -291,3 +291,64 @@ out:
     fs_restore(&id);
     return ret;
 }
+
+/* ------------------------------------------------------------------------ */
+/* Which user's profiles.json the daemons use (see secure.h)                 */
+
+static const struct passwd *dcc_config_user(const char **how) {
+    struct passwd *pw = NULL;
+
+    /* 2. user chosen at install time */
+    FILE *f = fopen(DCC_USER_FILE, "r");
+    if (f) {
+        char name[256] = "";
+        if (fscanf(f, "%255s", name) == 1 && name[0]) {
+            pw = getpwnam(name);
+            if (pw && pw->pw_uid != 0) { fclose(f); *how = DCC_USER_FILE; return pw; }
+            LOG_WARN("[CONFIG] %s names '%s', which is not a usable user", DCC_USER_FILE, name);
+        }
+        fclose(f);
+    }
+
+    /* 3. first regular member of the control group */
+    struct group *gr = getgrnam(DCC_AUTH_GROUP);
+    if (gr && gr->gr_mem) {
+        for (char **m = gr->gr_mem; *m; m++) {
+            pw = getpwnam(*m);
+            if (pw && pw->pw_uid != 0) { *how = "group " DCC_AUTH_GROUP; return pw; }
+        }
+    }
+
+    /* 4. first desktop user */
+    pw = getpwuid(1000);
+    if (pw) { *how = "uid 1000"; return pw; }
+    return NULL;
+}
+
+const char *dcc_profiles_path(void) {
+    static char path[PATH_MAX];
+    static char last[PATH_MAX];
+    const char *how = NULL;
+
+    const char *env = getenv("DCC_PROFILES_PATH");
+    if (env && env[0] == '/') {
+        snprintf(path, sizeof path, "%s", env);
+        how = "DCC_PROFILES_PATH";
+    } else {
+        const struct passwd *pw = dcc_config_user(&how);
+        if (!pw || !pw->pw_dir || pw->pw_dir[0] != '/') {
+            if (last[0] != '-') {
+                LOG_ERROR("[CONFIG] No desktop user found for profiles.json (set it in %s)", DCC_USER_FILE);
+                snprintf(last, sizeof last, "-");
+            }
+            return NULL;
+        }
+        snprintf(path, sizeof path, "%s/.config/dudes-control-center/profiles.json", pw->pw_dir);
+    }
+
+    if (strcmp(path, last) != 0) {   /* log once per change, not on every read */
+        LOG_INFO("[CONFIG] Using %s (from %s)", path, how);
+        snprintf(last, sizeof last, "%s", path);
+    }
+    return path;
+}

@@ -6679,12 +6679,20 @@ static void create_system_tray(AppData *app) {
         pixbuf = gdk_pixbuf_new_from_file_at_size("DudesControlCenter.png", 48, 48, NULL);
     }
     
-    /* Fallback to common development locations */
+    /* Fallback: next to the executable (running from the source tree) */
     if (!pixbuf) {
-        g_print("[GUI] Trying development icon location...\n");
-        pixbuf = gdk_pixbuf_new_from_file_at_size("/home/dude/Code/ai projects/Dudes Control Center/DudesControlCenter.png", 48, 48, NULL);
+        gchar *exe = g_file_read_link("/proc/self/exe", NULL);
+        if (exe) {
+            gchar *dir = g_path_get_dirname(exe);
+            gchar *icon = g_build_filename(dir, "DudesControlCenter.png", NULL);
+            g_print("[GUI] Trying %s...\n", icon);
+            pixbuf = gdk_pixbuf_new_from_file_at_size(icon, 48, 48, NULL);
+            g_free(icon);
+            g_free(dir);
+            g_free(exe);
+        }
     }
-    
+
     if (!pixbuf) {
         g_printerr("[GUI] Failed to load tray icon from any location\n");
         return;

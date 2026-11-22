@@ -28,7 +28,16 @@
 
 #define PROGRAM_NAME "dudes-control-center-fan-daemon"
 #define SOCKET_PATH "/run/dudes-control-center-fan.sock"
-#define PROFILE_PATH "/home/dude/.config/dudes-control-center/profiles.json"
+/* profiles.json of the desktop user (see dcc_profiles_path in secure.h) */
+static const char *profile_path(void) {
+#ifdef PROFILE_PATH_OVERRIDE
+    return PROFILE_PATH_OVERRIDE;
+#else
+    const char *p = dcc_profiles_path();
+    return p ? p : "(no desktop user)";
+#endif
+}
+#define PROFILE_PATH profile_path()
 #define MAX_CLIENTS 10
 #define BUFFER_SIZE 1024
 #define RESPONSE_SIZE 4096   /* large enough for a full 50-point GET_PROFILE */

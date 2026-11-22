@@ -2,6 +2,20 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.18.1] - 2026-11-22
+
+### Fixed
+- **No more hard-coded `/home/dude`**: the fan, CPU and keyboard daemons and the hard-limit enforcer read `profiles.json` from `/home/dude/.config/...`, so the app only worked for a user named `dude`. They now find the desktop user like this (first match wins):
+  1. `DCC_PROFILES_PATH` (absolute path, e.g. in a systemd drop-in),
+  2. the user in `/etc/dudes-control-center/user`, written by the package when it is installed with `sudo` (kept on upgrades, removed on purge),
+  3. the first member of the `dudes-control-center` group,
+  4. the user with uid 1000.
+
+  Root and unknown users in the user file are refused. The chosen path is logged once (`[CONFIG] Using ...`).
+- The hard-limit enforcer service no longer sets `HOME=/home/dude`.
+- The tray icon's development fallback looks next to the executable instead of an old project path; `restart-daemon.sh` uses its own folder.
+- Test suite: lookup of the profiles path (8 suites, 140 checks).
+
 ## [1.18.0] - 2026-11-22
 
 ### Added

@@ -40,18 +40,20 @@ void set_hard_max_freq_hz(uint64_t freq_hz) {
 #define CPUFREQ_SUBDIR "cpufreq"
 
 /* --- Config path helpers --- */
-/* Daemons run as root, so HOME=/root. Use the GUI user's config path directly. */
-#ifndef CONTROL_CENTER_CONFIG_DIR   /* overridable for tests */
-#define CONTROL_CENTER_CONFIG_DIR "/home/dude/.config/dudes-control-center"
-#endif
-
-/* Path to the main Control Center profiles.json (~/.config/dudes-control-center/profiles.json) */
+/* Daemons run as root (HOME=/root): profiles.json of the desktop user,
+ * see dcc_profiles_path() in secure.h. CONTROL_CENTER_CONFIG_DIR forces a
+ * directory (tests). */
 static const char* get_main_profiles_path(void) {
+#ifdef CONTROL_CENTER_CONFIG_DIR
     static char path[512] = {0};
     if (path[0] == '\0') {
         snprintf(path, sizeof(path), "%s/profiles.json", CONTROL_CENTER_CONFIG_DIR);
     }
     return path;
+#else
+    const char *p = dcc_profiles_path();
+    return p ? p : "/nonexistent/profiles.json";
+#endif
 }
 
 
