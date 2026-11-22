@@ -21,6 +21,30 @@
 #include <stdbool.h>
 #include <cjson/cJSON.h>
 #include <poll.h>
+#include <locale.h>
+#include <libintl.h>
+
+/* UI languages (1.31.0): gettext catalogs dudes-control-center.mo */
+#define DCC_TEXT_DOMAIN "dudes-control-center"
+#ifndef DCC_LOCALE_DIR
+#define DCC_LOCALE_DIR "/usr/share/locale"
+#endif
+#define _(s) gettext(s)
+#define N_(s) (s)
+
+typedef struct { const char *code, *label; } UiLanguage;
+static const UiLanguage ui_languages[] = {
+    { "system", N_("System default") },
+    { "en",     "English (US)" },
+    { "en_GB",  "English (UK)" },
+    { "de",     "Deutsch" },
+    { "es",     "Espa\u00f1ol" },
+    { "ja",     "\u65e5\u672c\u8a9e" },
+    { "ko",     "\ud55c\uad6d\uc5b4" },
+};
+#define UI_NUM_LANGUAGES ((int)(sizeof ui_languages / sizeof ui_languages[0]))
+static char ui_language_code[16] = "system";   /* as chosen (and running) */
+static char **gui_argv;   /* for "Restart now" in Settings */
 
 /* Define M_PI if not already defined */
 #ifndef M_PI
@@ -118,11 +142,11 @@ static char kbd_layout_code[8] = "de";
 
 typedef struct { const char *code, *label, *xkb; } KbdLayoutInfo;
 static const KbdLayoutInfo kbd_layouts[] = {
-    { "de", "German (DE)",   "de,at,ch" },
-    { "uk", "English (UK)",  "gb,uk,ie" },
-    { "es", "Spanish (ES)",  "es" },
-    { "jp", "Japanese (JP)", "jp" },
-    { "kr", "Korean (KR)",   "kr" },
+    { "de", N_("German (DE)"),   "de,at,ch" },
+    { "uk", N_("English (UK)"),  "gb,uk,ie" },
+    { "es", N_("Spanish (ES)"),  "es" },
+    { "jp", N_("Japanese (JP)"), "jp" },
+    { "kr", N_("Korean (KR)"),   "kr" },
 };
 #define KBD_NUM_LAYOUTS ((int)(sizeof kbd_layouts / sizeof kbd_layouts[0]))
 
@@ -681,6 +705,9 @@ typedef struct {
     int appearance;                    /* APPEARANCE_SYSTEM / _DARK / _LIGHT */
     int is_dark;                       /* the window is drawn dark right now */
     GtkWidget *settings_appearance_combo;
+    GtkWidget *settings_language_combo;   /* UI language (1.31.0) */
+    GtkWidget *settings_language_note;
+    GtkWidget *settings_restart_btn;
     GtkWidget *settings_appearance_note;
     GtkWidget *settings_layout_note;
     /* Zone editor (1.24.0) */
@@ -845,6 +872,7 @@ static void kbd_mapping_path(char *buf, size_t size, const char *code);
 static void kbd_load_layout_picture(AppData *app);
 static void kbd_highlight_zone(AppData *app);
 static cJSON *config_read(void);
+static void config_write(cJSON *json);
 static void kbd_layout_save_choice(void);
 static void settings_apply_visibility(AppData *app);
 static void on_tray_select_kbd_profile(GtkMenuItem *item, gpointer user_data);
@@ -940,12 +968,12 @@ static int check_unsaved_changes(AppData *app) {
                                                 NULL);
     
     gtk_message_dialog_set_markup(GTK_MESSAGE_DIALOG(dialog),
-                                  "<b>Warning:</b> You have unsaved changes to the curve points.\n\nWhat would you like to do?");
+                                  _("<b>Warning:</b> You have unsaved changes to the curve points.\n\nWhat would you like to do?"));
     
     /* Add buttons with custom response IDs */
-    gtk_dialog_add_button(GTK_DIALOG(dialog), "_Cancel", -102);
-    gtk_dialog_add_button(GTK_DIALOG(dialog), "_Discard Changes", -100);
-    gtk_dialog_add_button(GTK_DIALOG(dialog), "_Save Changes", -101);
+    gtk_dialog_add_button(GTK_DIALOG(dialog), _("_Cancel"), -102);
+    gtk_dialog_add_button(GTK_DIALOG(dialog), _("_Discard Changes"), -100);
+    gtk_dialog_add_button(GTK_DIALOG(dialog), _("_Save Changes"), -101);
     
     gtk_widget_show_all(dialog);
     gint response = gtk_dialog_run(GTK_DIALOG(dialog));
@@ -1218,7 +1246,7 @@ static void parse_cpu_status(AppData *app, const char *response) {
         app->cpu_core_count = core_count;
 
         for (int i = 0; i < core_count && i < 32; i++) {
-            gchar *label_text = g_strdup_printf("Core %d: %s", i, core_freqs[i]);
+            gchar *label_text = g_strdup_printf(_("Core %d: %s"), i, core_freqs[i]);
             app->cpu_core_freq_labels[i] = gtk_label_new(label_text);
             g_free(label_text);
             gtk_label_set_xalign(GTK_LABEL(app->cpu_core_freq_labels[i]), 0.0);
@@ -1236,7 +1264,7 @@ static void parse_cpu_status(AppData *app, const char *response) {
         for (int i = 0; i < app->cpu_core_count && i < 32; i++) {
             if (app->cpu_core_freq_labels[i] != NULL) {
                 char label_text[128];
-                snprintf(label_text, sizeof(label_text), "Core %d: %s", i, core_freqs[i]);
+                snprintf(label_text, sizeof(label_text), _("Core %d: %s"), i, core_freqs[i]);
                 gtk_label_set_text(GTK_LABEL(app->cpu_core_freq_labels[i]), label_text);
             }
         }
@@ -1480,12 +1508,12 @@ static void on_cpu_governor_changed(GtkWidget *widget, gpointer user_data) {
             const char *response = send_cpu_command(app, command);
             int ok = response && strncmp(response, "OK", 2) == 0;
             g_print("[GUI] Power mode '%s' for the active profile: %s\n", governor_name, response ? response : "NULL");
-            show_status(app, ok ? "Power mode applied - click Save to keep it in the profile"
-                                : "Failed to apply the power mode");
+            show_status(app, ok ? _("Power mode applied - click Save to keep it in the profile")
+                                : _("Failed to apply the power mode"));
         } else {
             g_print("[GUI] Power mode '%s' selected for an inactive profile (saved with Save, applied with Activate)\n",
                     governor_name);
-            show_status(app, "Power mode changed - click Save to store it in the profile, Activate to apply it");
+            show_status(app, _("Power mode changed - click Save to store it in the profile, Activate to apply it"));
         }
         g_free(governor_name);
         return;
@@ -1499,10 +1527,10 @@ static void on_cpu_governor_changed(GtkWidget *widget, gpointer user_data) {
 
     const char *response = send_cpu_command(app, command);
     if (response && strncmp(response, "OK", 2) == 0) {
-        show_status(app, "Governor applied successfully");
+        show_status(app, _("Governor applied successfully"));
         g_print("[GUI] Governor '%s' applied successfully\n", governor_name);
     } else {
-        show_status(app, "Failed to apply governor");
+        show_status(app, _("Failed to apply governor"));
         g_print("[GUI] Failed to apply governor: %s\n", response);
     }
 
@@ -1704,7 +1732,7 @@ static void on_cpu_custom_profile_changed(GtkWidget *widget, gpointer user_data)
     }
 
     cpu_take_snapshot(app);   /* the values as stored */
-    gtk_label_set_text(GTK_LABEL(app->cpu_freq_profile_status_label), "Profile selected - click Activate to use it");
+    gtk_label_set_text(GTK_LABEL(app->cpu_freq_profile_status_label), _("Profile selected - click Activate to use it"));
 }
 
 /* Extract clean profile name from stored display string.
@@ -1758,11 +1786,11 @@ static void on_cpu_create_freq_profile_clicked(GtkWidget *widget, gpointer user_
     g_print("[GUI] Create frequency profile clicked\n");
 
     /* Show dialog to enter profile name */
-    GtkWidget *dialog = gtk_dialog_new_with_buttons("Create CPU Frequency Profile",
+    GtkWidget *dialog = gtk_dialog_new_with_buttons(_("Create CPU Frequency Profile"),
                                                     GTK_WINDOW(app->window),
                                                     GTK_DIALOG_MODAL | GTK_DIALOG_DESTROY_WITH_PARENT,
-                                                    "_Cancel", GTK_RESPONSE_CANCEL,
-                                                    "_Create", GTK_RESPONSE_ACCEPT,
+                                                    _("_Cancel"), GTK_RESPONSE_CANCEL,
+                                                    _("_Create"), GTK_RESPONSE_ACCEPT,
                                                     NULL);
     gtk_window_set_resizable(GTK_WINDOW(dialog), FALSE);
     gtk_window_set_default_size(GTK_WINDOW(dialog), 350, -1);
@@ -1770,7 +1798,7 @@ static void on_cpu_create_freq_profile_clicked(GtkWidget *widget, gpointer user_
     GtkWidget *content = gtk_dialog_get_content_area(GTK_DIALOG(dialog));
     gtk_container_set_border_width(GTK_CONTAINER(content), 10);
 
-    GtkWidget *label = gtk_label_new("Enter profile name:");
+    GtkWidget *label = gtk_label_new(_("Enter profile name:"));
     gtk_box_pack_start(GTK_BOX(content), label, FALSE, FALSE, 0);
 
     GtkWidget *entry = gtk_entry_new();
@@ -1807,7 +1835,7 @@ static void on_cpu_create_freq_profile_clicked(GtkWidget *widget, gpointer user_
                                                                  GTK_DIALOG_MODAL | GTK_DIALOG_DESTROY_WITH_PARENT,
                                                                  GTK_MESSAGE_ERROR,
                                                                  GTK_BUTTONS_OK,
-                                                                 "A CPU frequency profile with the name '%s' already exists.",
+                                                                 _("A CPU frequency profile with the name '%s' already exists."),
                                                                  name);
                 gtk_dialog_run(GTK_DIALOG(error_dialog));
                 gtk_widget_destroy(error_dialog);
@@ -1895,7 +1923,7 @@ static void on_cpu_create_freq_profile_clicked(GtkWidget *widget, gpointer user_
             }
 
             gtk_label_set_text(GTK_LABEL(app->cpu_freq_profile_status_label),
-                              g_strconcat("Created profile: ", name, NULL));
+                              g_strconcat(_("Created profile: "), name, NULL));
         }
     }
 
@@ -1910,7 +1938,7 @@ static void on_cpu_delete_freq_profile_clicked(GtkWidget *widget, gpointer user_
 
     int idx = gtk_combo_box_get_active(GTK_COMBO_BOX(app->cpu_custom_profile_combo));
     if (idx < 0) {
-        gtk_label_set_text(GTK_LABEL(app->cpu_freq_profile_status_label), "No profile selected");
+        gtk_label_set_text(GTK_LABEL(app->cpu_freq_profile_status_label), _("No profile selected"));
         return;
     }
 
@@ -1922,7 +1950,7 @@ static void on_cpu_delete_freq_profile_clicked(GtkWidget *widget, gpointer user_
     }
 
     if (profile_name == NULL) {
-        gtk_label_set_text(GTK_LABEL(app->cpu_freq_profile_status_label), "Could not read profile name");
+        gtk_label_set_text(GTK_LABEL(app->cpu_freq_profile_status_label), _("Could not read profile name"));
         return;
     }
 
@@ -1931,7 +1959,7 @@ static void on_cpu_delete_freq_profile_clicked(GtkWidget *widget, gpointer user_
                                                GTK_DIALOG_MODAL | GTK_DIALOG_DESTROY_WITH_PARENT,
                                                GTK_MESSAGE_QUESTION,
                                                GTK_BUTTONS_YES_NO,
-                                               "Are you sure you want to delete the CPU frequency profile '%s'?",
+                                               _("Are you sure you want to delete the CPU frequency profile '%s'?"),
                                                profile_name);
 
     if (gtk_dialog_run(GTK_DIALOG(dialog)) == GTK_RESPONSE_YES) {
@@ -1963,7 +1991,7 @@ static void on_cpu_delete_freq_profile_clicked(GtkWidget *widget, gpointer user_
         }
 
         gtk_label_set_text(GTK_LABEL(app->cpu_freq_profile_status_label),
-                          g_strconcat("Deleted profile: ", profile_name, NULL));
+                          g_strconcat(_("Deleted profile: "), profile_name, NULL));
     }
 
     g_free(profile_name);
@@ -1978,7 +2006,7 @@ static void on_cpu_rename_freq_profile_clicked(GtkWidget *widget, gpointer user_
 
     int idx = gtk_combo_box_get_active(GTK_COMBO_BOX(app->cpu_custom_profile_combo));
     if (idx < 0) {
-        gtk_label_set_text(GTK_LABEL(app->cpu_freq_profile_status_label), "No profile selected");
+        gtk_label_set_text(GTK_LABEL(app->cpu_freq_profile_status_label), _("No profile selected"));
         return;
     }
 
@@ -1990,7 +2018,7 @@ static void on_cpu_rename_freq_profile_clicked(GtkWidget *widget, gpointer user_
     }
 
     if (current_name == NULL) {
-        gtk_label_set_text(GTK_LABEL(app->cpu_freq_profile_status_label), "Could not read profile name");
+        gtk_label_set_text(GTK_LABEL(app->cpu_freq_profile_status_label), _("Could not read profile name"));
         return;
     }
 
@@ -1998,11 +2026,11 @@ static void on_cpu_rename_freq_profile_clicked(GtkWidget *widget, gpointer user_
     const char *clean_name = cpu_profile_name_from_display(current_name);
 
     /* Show dialog to enter new name */
-    GtkWidget *dialog = gtk_dialog_new_with_buttons("Rename CPU Frequency Profile",
+    GtkWidget *dialog = gtk_dialog_new_with_buttons(_("Rename CPU Frequency Profile"),
                                                     GTK_WINDOW(app->window),
                                                     GTK_DIALOG_MODAL | GTK_DIALOG_DESTROY_WITH_PARENT,
-                                                    "_Cancel", GTK_RESPONSE_CANCEL,
-                                                    "_Rename", GTK_RESPONSE_ACCEPT,
+                                                    _("_Cancel"), GTK_RESPONSE_CANCEL,
+                                                    _("_Rename"), GTK_RESPONSE_ACCEPT,
                                                     NULL);
     gtk_window_set_resizable(GTK_WINDOW(dialog), FALSE);
     gtk_window_set_default_size(GTK_WINDOW(dialog), 350, -1);
@@ -2010,7 +2038,7 @@ static void on_cpu_rename_freq_profile_clicked(GtkWidget *widget, gpointer user_
     GtkWidget *content = gtk_dialog_get_content_area(GTK_DIALOG(dialog));
     gtk_container_set_border_width(GTK_CONTAINER(content), 10);
 
-    GtkWidget *label = gtk_label_new("Enter new profile name:");
+    GtkWidget *label = gtk_label_new(_("Enter new profile name:"));
     gtk_box_pack_start(GTK_BOX(content), label, FALSE, FALSE, 0);
 
     GtkWidget *entry = gtk_entry_new();
@@ -2045,9 +2073,9 @@ static void on_cpu_rename_freq_profile_clicked(GtkWidget *widget, gpointer user_
             gui_save_profiles_to_disk(app);
 
             gtk_label_set_text(GTK_LABEL(app->cpu_freq_profile_status_label),
-                              g_strconcat("Renamed profile to: ", new_name, NULL));
+                              g_strconcat(_("Renamed profile to: "), new_name, NULL));
         } else {
-            gtk_label_set_text(GTK_LABEL(app->cpu_freq_profile_status_label), "Name cannot be empty");
+            gtk_label_set_text(GTK_LABEL(app->cpu_freq_profile_status_label), _("Name cannot be empty"));
         }
     }
 
@@ -2109,7 +2137,7 @@ static gboolean cpu_save_freq_profile_idle(gpointer user_data) {
     LOG_INFO("Profile list reloaded");
 
     char status_msg[128];
-    snprintf(status_msg, sizeof(status_msg), "Saved profile");
+    snprintf(status_msg, sizeof(status_msg), _("Saved profile"));
     gtk_label_set_text(GTK_LABEL(app->cpu_freq_profile_status_label), status_msg);
 
     /* Re-enable the save button */
@@ -2189,10 +2217,10 @@ static int cpu_check_unsaved_changes(AppData *app) {
     GtkWidget *dialog = gtk_message_dialog_new(GTK_WINDOW(app->window), GTK_DIALOG_MODAL,
                                                GTK_MESSAGE_WARNING, GTK_BUTTONS_NONE, NULL);
     gtk_message_dialog_set_markup(GTK_MESSAGE_DIALOG(dialog),
-        "<b>Warning:</b> You have unsaved changes to the CPU profile.\n\nWhat would you like to do?");
-    gtk_dialog_add_button(GTK_DIALOG(dialog), "_Cancel", -102);
-    gtk_dialog_add_button(GTK_DIALOG(dialog), "_Discard Changes", -100);
-    gtk_dialog_add_button(GTK_DIALOG(dialog), "_Save Changes", -101);
+        _("<b>Warning:</b> You have unsaved changes to the CPU profile.\n\nWhat would you like to do?"));
+    gtk_dialog_add_button(GTK_DIALOG(dialog), _("_Cancel"), -102);
+    gtk_dialog_add_button(GTK_DIALOG(dialog), _("_Discard Changes"), -100);
+    gtk_dialog_add_button(GTK_DIALOG(dialog), _("_Save Changes"), -101);
     gtk_widget_show_all(dialog);
     gint response = gtk_dialog_run(GTK_DIALOG(dialog));
     gtk_widget_destroy(dialog);
@@ -2235,14 +2263,14 @@ static void on_cpu_save_freq_profile_clicked(GtkWidget *widget, gpointer user_da
 
     int idx = gtk_combo_box_get_active(GTK_COMBO_BOX(app->cpu_custom_profile_combo));
     if (idx < 0) {
-        gtk_label_set_text(GTK_LABEL(app->cpu_freq_profile_status_label), "No profile selected");
+        gtk_label_set_text(GTK_LABEL(app->cpu_freq_profile_status_label), _("No profile selected"));
         LOG_INFO("<<< Save aborted: no profile selected");
         return;
     }
 
     int num_cores = app->cpu_core_count;
     if (num_cores <= 0) {
-        gtk_label_set_text(GTK_LABEL(app->cpu_freq_profile_status_label), "Core count not available");
+        gtk_label_set_text(GTK_LABEL(app->cpu_freq_profile_status_label), _("Core count not available"));
         LOG_INFO("<<< Save aborted: core count not available");
         return;
     }
@@ -2252,7 +2280,7 @@ static void on_cpu_save_freq_profile_clicked(GtkWidget *widget, gpointer user_da
     /* Immediately disable the save button to clear its pressed visual state,
      * then re-enable it after the save completes in the idle callback. */
     gtk_widget_set_sensitive(app->cpu_freq_profile_save_btn, FALSE);
-    gtk_label_set_text(GTK_LABEL(app->cpu_freq_profile_status_label), "Saving...");
+    gtk_label_set_text(GTK_LABEL(app->cpu_freq_profile_status_label), _("Saving..."));
 
     /* Defer the heavy save work so GTK can process the button state change */
     g_idle_add((GSourceFunc)cpu_save_freq_profile_idle, ctx);
@@ -2284,7 +2312,7 @@ static gboolean activate_profile_idle_callback(gpointer user_data) {
     gui_save_profiles_to_disk(app);
 
     char status_msg[128];
-    snprintf(status_msg, sizeof(status_msg), "Activated profile");
+    snprintf(status_msg, sizeof(status_msg), _("Activated profile"));
     gtk_label_set_text(GTK_LABEL(app->cpu_freq_profile_status_label), status_msg);
 
     return FALSE; /* One-shot */
@@ -2299,7 +2327,7 @@ static void on_cpu_activate_freq_profile_clicked(GtkWidget *widget, gpointer use
 
     int idx = gtk_combo_box_get_active(GTK_COMBO_BOX(app->cpu_custom_profile_combo));
     if (idx < 0) {
-        gtk_label_set_text(GTK_LABEL(app->cpu_freq_profile_status_label), "No profile selected");
+        gtk_label_set_text(GTK_LABEL(app->cpu_freq_profile_status_label), _("No profile selected"));
         return;
     }
 
@@ -2310,7 +2338,7 @@ static void on_cpu_activate_freq_profile_clicked(GtkWidget *widget, gpointer use
     data->app = app;
     data->profile_idx = idx;
     g_idle_add(activate_profile_idle_callback, data);
-    gtk_label_set_text(GTK_LABEL(app->cpu_freq_profile_status_label), "Activating...");
+    gtk_label_set_text(GTK_LABEL(app->cpu_freq_profile_status_label), _("Activating..."));
 }
 
 /* Callback: Apply hard frequency limit */
@@ -2330,7 +2358,7 @@ static void on_cpu_hard_limit_apply_clicked(GtkWidget *widget, gpointer user_dat
 
     if (response && strncmp(response, "OK", 2) == 0) {
         char status_msg[256];
-        snprintf(status_msg, sizeof(status_msg), "Hard limit applied: %.2f GHz", ghz);
+        snprintf(status_msg, sizeof(status_msg), _("Hard limit applied: %.2f GHz"), ghz);
         gtk_label_set_text(GTK_LABEL(app->cpu_freq_profile_status_label), status_msg);
 
         /* Update core freq spinner upper bounds to match new hard limit */
@@ -2345,7 +2373,7 @@ static void on_cpu_hard_limit_apply_clicked(GtkWidget *widget, gpointer user_dat
         }
     } else {
         gtk_label_set_text(GTK_LABEL(app->cpu_freq_profile_status_label),
-            response ? response : "Failed to apply hard limit");
+            response ? response : _("Failed to apply hard limit"));
     }
 }
 
@@ -2479,7 +2507,7 @@ static void build_cpu_core_freq_grid(AppData *app, int num_cores) {
 
         /* Core label */
         char core_name[32];
-        snprintf(core_name, sizeof(core_name), "Core %d", i);
+        snprintf(core_name, sizeof(core_name), _("Core %d"), i);
         GtkWidget *core_label = gtk_label_new(core_name);
         gtk_widget_set_halign(core_label, GTK_ALIGN_END);
         gtk_grid_attach(GTK_GRID(app->cpu_core_freq_grid), core_label, col_label, row, 1, 1);
@@ -2524,12 +2552,12 @@ static void build_cpu_core_freq_grid(AppData *app, int num_cores) {
     }
 
     /* Add header labels */
-    GtkWidget *min_header = gtk_label_new("Min (MHz)");
+    GtkWidget *min_header = gtk_label_new(_("Min (MHz)"));
     gtk_widget_set_halign(min_header, GTK_ALIGN_CENTER);
     gtk_widget_set_margin_bottom(min_header, 2);
     gtk_grid_attach(GTK_GRID(app->cpu_core_freq_grid), min_header, col_min, num_cores, 1, 1);
 
-    GtkWidget *max_header = gtk_label_new("Max (MHz)");
+    GtkWidget *max_header = gtk_label_new(_("Max (MHz)"));
     gtk_widget_set_halign(max_header, GTK_ALIGN_CENTER);
     gtk_widget_set_margin_bottom(max_header, 2);
     gtk_grid_attach(GTK_GRID(app->cpu_core_freq_grid), max_header, col_max, num_cores, 1, 1);
@@ -2725,7 +2753,7 @@ static void apply_manual_speed(AppData *app, int pct) {
     snprintf(cmd, sizeof(cmd), "SET_MANUAL %d", pct);
     const char *response = send_command(app, cmd);
     if (pct == 0 && response && strncmp(response, "OK", 2) == 0)
-        show_status(app, "Fans stopped (0%) - they switch to 100% automatically at 95°C or on a sensor error");
+        show_status(app, _("Fans stopped (0%) - they switch to 100% automatically at 95°C or on a sensor error"));
     else
         show_status(app, response);
 }
@@ -2751,7 +2779,7 @@ static void on_apply_clicked(GtkWidget *widget, gpointer user_data) {
     
     int profile_idx = gtk_combo_box_get_active(GTK_COMBO_BOX(app->profile_combo));
     if (profile_idx < 0) {
-        show_status(app, "ERROR No profile selected");
+        show_status(app, _("ERROR No profile selected"));
         return;
     }
     
@@ -2815,15 +2843,15 @@ static void on_create_profile_clicked(GtkWidget *widget, gpointer user_data) {
         }
     }
 
-    GtkWidget *dialog = gtk_dialog_new_with_buttons("Create New Profile",
+    GtkWidget *dialog = gtk_dialog_new_with_buttons(_("Create New Profile"),
                                                     GTK_WINDOW(app->window),
                                                     GTK_DIALOG_MODAL,
-                                                    "Cancel", GTK_RESPONSE_CANCEL,
-                                                    "Create", GTK_RESPONSE_ACCEPT,
+                                                    _("Cancel"), GTK_RESPONSE_CANCEL,
+                                                    _("Create"), GTK_RESPONSE_ACCEPT,
                                                     NULL);
     
     GtkWidget *entry = gtk_entry_new();
-    gtk_entry_set_placeholder_text(GTK_ENTRY(entry), "Profile name");
+    gtk_entry_set_placeholder_text(GTK_ENTRY(entry), _("Profile name"));
     
     GtkWidget *content = gtk_dialog_get_content_area(GTK_DIALOG(dialog));
     gtk_box_pack_start(GTK_BOX(content), entry, TRUE, TRUE, 0);
@@ -2849,7 +2877,7 @@ static void on_create_profile_clicked(GtkWidget *widget, gpointer user_data) {
                                                                 GTK_DIALOG_MODAL,
                                                                 GTK_MESSAGE_ERROR,
                                                                 GTK_BUTTONS_OK,
-                                                                "A profile with the name '%s' already exists.",
+                                                                _("A profile with the name '%s' already exists."),
                                                                 name);
                 gtk_dialog_run(GTK_DIALOG(error_dialog));
                 gtk_widget_destroy(error_dialog);
@@ -2880,7 +2908,7 @@ static void on_create_profile_clicked(GtkWidget *widget, gpointer user_data) {
                 load_curve_points_for_profile(app, new_idx);
             }
         } else {
-            show_status(app, "ERROR Profile name cannot be empty");
+            show_status(app, _("ERROR Profile name cannot be empty"));
         }
     }
     gtk_widget_destroy(dialog);
@@ -2894,7 +2922,7 @@ static void on_delete_profile_clicked(GtkWidget *widget, gpointer user_data) {
     
     int idx = gtk_combo_box_get_active(GTK_COMBO_BOX(app->profile_combo));
     if (idx < 0 || idx >= app->num_profiles) {
-        show_status(app, "ERROR No profile selected");
+        show_status(app, _("ERROR No profile selected"));
         return;
     }
     
@@ -2902,7 +2930,7 @@ static void on_delete_profile_clicked(GtkWidget *widget, gpointer user_data) {
     
     /* Don't allow deleting the Default profile */
     if (strcmp(profile_name, "Default") == 0) {
-        show_status(app, "ERROR Cannot delete Default profile");
+        show_status(app, _("ERROR Cannot delete Default profile"));
         return;
     }
     
@@ -2910,7 +2938,7 @@ static void on_delete_profile_clicked(GtkWidget *widget, gpointer user_data) {
                                                GTK_DIALOG_MODAL,
                                                GTK_MESSAGE_QUESTION,
                                                GTK_BUTTONS_YES_NO,
-                                               "Are you sure you want to delete the profile '%s'?", profile_name);
+                                               _("Are you sure you want to delete the profile '%s'?"), profile_name);
     
     if (gtk_dialog_run(GTK_DIALOG(dialog)) == GTK_RESPONSE_YES) {
         char cmd[64];
@@ -2952,7 +2980,7 @@ static void on_rename_profile_clicked(GtkWidget *widget, gpointer user_data) {
 
     int idx = gtk_combo_box_get_active(GTK_COMBO_BOX(app->profile_combo));
     if (idx < 0 || idx >= app->num_profiles) {
-        show_status(app, "ERROR No profile selected");
+        show_status(app, _("ERROR No profile selected"));
         return;
     }
 
@@ -2960,15 +2988,15 @@ static void on_rename_profile_clicked(GtkWidget *widget, gpointer user_data) {
 
     /* Don't allow renaming the Default profile */
     if (strcmp(profile_name, "Default") == 0) {
-        show_status(app, "ERROR Cannot rename Default profile");
+        show_status(app, _("ERROR Cannot rename Default profile"));
         return;
     }
 
-    GtkWidget *dialog = gtk_dialog_new_with_buttons("Rename Profile",
+    GtkWidget *dialog = gtk_dialog_new_with_buttons(_("Rename Profile"),
                                                     GTK_WINDOW(app->window),
                                                     GTK_DIALOG_MODAL,
-                                                    "Cancel", GTK_RESPONSE_CANCEL,
-                                                    "Rename", GTK_RESPONSE_ACCEPT,
+                                                    _("Cancel"), GTK_RESPONSE_CANCEL,
+                                                    _("Rename"), GTK_RESPONSE_ACCEPT,
                                                     NULL);
 
     GtkWidget *entry = gtk_entry_new();
@@ -3004,7 +3032,7 @@ static void on_rename_profile_clicked(GtkWidget *widget, gpointer user_data) {
                 load_curve_points_for_profile(app, new_active);
             }
         } else {
-            show_status(app, "ERROR Profile name cannot be empty");
+            show_status(app, _("ERROR Profile name cannot be empty"));
         }
     }
     gtk_widget_destroy(dialog);
@@ -3043,11 +3071,11 @@ static int has_duplicate_temperature(AppData *app, int temp, gint index_to_exclu
 /* Callback: Add or edit curve point via dialog */
 static void show_curve_point_dialog(AppData *app, GtkTreeIter *edit_iter, int edit_temp, int edit_fan_pct) {
     GtkWidget *dialog = gtk_dialog_new_with_buttons(
-        edit_iter ? "Edit Curve Point" : "Add Curve Point",
+        edit_iter ? _("Edit Curve Point") : _("Add Curve Point"),
         GTK_WINDOW(app->window),
         GTK_DIALOG_MODAL,
-        "Cancel", GTK_RESPONSE_CANCEL,
-        edit_iter ? "Update" : "Add",
+        _("Cancel"), GTK_RESPONSE_CANCEL,
+        edit_iter ? _("Update") : _("Add"),
         GTK_RESPONSE_ACCEPT,
         NULL);
     
@@ -3056,11 +3084,11 @@ static void show_curve_point_dialog(AppData *app, GtkTreeIter *edit_iter, int ed
     gtk_grid_set_column_spacing(GTK_GRID(grid), 10);
     gtk_container_set_border_width(GTK_CONTAINER(grid), 20);
     
-    GtkWidget *temp_label = gtk_label_new("Temperature (°C):");
+    GtkWidget *temp_label = gtk_label_new(_("Temperature (°C):"));
     GtkWidget *temp_entry = gtk_spin_button_new_with_range(0, 100, 1);
     gtk_spin_button_set_value(GTK_SPIN_BUTTON(temp_entry), edit_temp);
     
-    GtkWidget *fan_label = gtk_label_new("Fan Speed (%)");
+    GtkWidget *fan_label = gtk_label_new(_("Fan Speed (%)"));
     GtkWidget *fan_entry = gtk_spin_button_new_with_range(0, 100, 10);
     gtk_spin_button_set_value(GTK_SPIN_BUTTON(fan_entry), edit_fan_pct);
     
@@ -3110,7 +3138,7 @@ static void show_curve_point_dialog(AppData *app, GtkTreeIter *edit_iter, int ed
             GTK_DIALOG_MODAL,
             GTK_MESSAGE_ERROR,
             GTK_BUTTONS_OK,
-            "A curve point with temperature %d°C already exists. Please use a different temperature.",
+            _("A curve point with temperature %d°C already exists. Please use a different temperature."),
             temp);
         gtk_dialog_run(GTK_DIALOG(msg_dialog));
         gtk_widget_destroy(msg_dialog);
@@ -3174,9 +3202,9 @@ static void show_curve_point_dialog(AppData *app, GtkTreeIter *edit_iter, int ed
     }
     
     if (edit_iter) {
-        show_status(app, "Curve point updated (click Save to keep it)");
+        show_status(app, _("Curve point updated (click Save to keep it)"));
     } else {
-        show_status(app, "Curve point added (click Save to keep it)");
+        show_status(app, _("Curve point added (click Save to keep it)"));
     }
     
     /* Mark curve points as modified */
@@ -3246,7 +3274,7 @@ static void on_delete_curve_point_clicked(GtkWidget *widget, gpointer user_data)
         /* Remove the selected row from the tree view (local only, not saved yet) */
         gtk_list_store_remove(app->curve_store, &iter);
         
-        show_status(app, "Curve point deleted (click Save to keep it)");
+        show_status(app, _("Curve point deleted (click Save to keep it)"));
         
         /* Mark curve points as modified */
         app->curve_points_modified = 1;
@@ -3254,7 +3282,7 @@ static void on_delete_curve_point_clicked(GtkWidget *widget, gpointer user_data)
         /* Update the graph visualization */
         update_curve_graph(app);
     } else {
-        show_status(app, "Please select a curve point to delete");
+        show_status(app, _("Please select a curve point to delete"));
     }
 }
 
@@ -3395,7 +3423,7 @@ static void refresh_profile_list(AppData *app) {
         g_signal_handler_block(app->profile_combo, app->profile_combo_signal_id);
         for (int i = 0; i < app->num_profiles; i++) {
             if (i == app->active_profile_idx) {
-                gchar *t = g_strdup_printf("%s (Active)", app->profile_names[i]);
+                gchar *t = g_strdup_printf(_("%s (Active)"), app->profile_names[i]);
                 gtk_combo_box_text_append_text(GTK_COMBO_BOX_TEXT(app->profile_combo), t);
                 g_free(t);
             } else {
@@ -3804,23 +3832,23 @@ static void on_window_destroy(GtkWidget *widget, gpointer user_data) {
 static void set_daemon_status(GtkWidget *label, const char *name, int connected) {
     if (!label || !GTK_IS_LABEL(label)) return;
     gchar *m = connected
-        ? g_markup_printf_escaped("%s daemon connected", name)
-        : g_markup_printf_escaped("<span foreground='#d9534f' weight='bold'>%s daemon not connected</span>", name);
+        ? g_markup_printf_escaped(_("%s daemon connected"), name)
+        : g_markup_printf_escaped(_("<span foreground='#d9534f' weight='bold'>%s daemon not connected</span>"), name);
     gtk_label_set_markup(GTK_LABEL(label), m);
     g_free(m);
 }
 
 /* Status lines of the Fan, CPU and Keyboard tabs */
 static void update_daemon_status_labels(AppData *app) {
-    set_daemon_status(app->fan_daemon_status_label, "Fan", app->connected && app->socket_fd >= 0);
-    set_daemon_status(app->cpu_daemon_status_label, "CPU", app->cpu_connected && app->cpu_socket_fd >= 0);
-    set_daemon_status(app->kbd_status_label, "Keyboard", app->kbd_connected && app->kbd_socket_fd >= 0);
+    set_daemon_status(app->fan_daemon_status_label, _("Fan"), app->connected && app->socket_fd >= 0);
+    set_daemon_status(app->cpu_daemon_status_label, _("CPU"), app->cpu_connected && app->cpu_socket_fd >= 0);
+    set_daemon_status(app->kbd_status_label, _("Keyboard"), app->kbd_connected && app->kbd_socket_fd >= 0);
     /* switched off in Settings: grey, not a red "not connected" (1.27.0) */
     GtkWidget *labels[COMP_COUNT] = { app->fan_daemon_status_label, app->cpu_daemon_status_label, app->kbd_status_label };
-    const char *names[COMP_COUNT] = { "Fan", "CPU", "Keyboard" };
+    const char *names[COMP_COUNT] = { _("Fan"), _("CPU"), _("Keyboard") };
     for (int c = 0; c < COMP_COUNT; c++)
         if (labels[c] && GTK_IS_LABEL(labels[c]) && dcc_component_disabled(c)) {
-            gchar *m = g_markup_printf_escaped("<span foreground='#888888'>%s control is switched off (Settings tab)</span>", names[c]);
+            gchar *m = g_markup_printf_escaped(_("<span foreground='#888888'>%s control is switched off (Settings tab)</span>"), names[c]);
             gtk_label_set_markup(GTK_LABEL(labels[c]), m);
             g_free(m);
         }
@@ -3828,9 +3856,9 @@ static void update_daemon_status_labels(AppData *app) {
         int up[COMP_COUNT] = { app->connected && app->socket_fd >= 0, app->cpu_connected && app->cpu_socket_fd >= 0,
                                app->kbd_connected && app->kbd_socket_fd >= 0 };
         for (int c = 0; c < COMP_COUNT; c++) {
-            const char *t = dcc_component_disabled(c) ? "<span foreground='#888888'>Switched off</span>"
-                          : up[c] ? "Running (daemon connected)"
-                                  : "<span foreground='#d9534f'>On, daemon not connected</span>";
+            const char *t = dcc_component_disabled(c) ? _("<span foreground='#888888'>Switched off</span>")
+                          : up[c] ? _("Running (daemon connected)")
+                                  : _("<span foreground='#d9534f'>On, daemon not connected</span>");
             gtk_label_set_markup(GTK_LABEL(app->settings_state[c]), t);
         }
     }
@@ -3850,12 +3878,12 @@ static void connect_to_daemon(AppData *app) {
                                                     GTK_DIALOG_MODAL | GTK_DIALOG_DESTROY_WITH_PARENT,
                                                     GTK_MESSAGE_ERROR,
                                                     GTK_BUTTONS_OK,
-                                                    "Daemon is not running!\n\n"
+                                                    _("Daemon is not running!\n\n"
                                                     "The socket file does not exist at: %s\n\n"
                                                     "To start the daemon, run in a terminal:\n"
                                                     "  sudo dcc-fan-daemon --foreground\n\n"
                                                     "Or enable the systemd service:\n"
-                                                    "  sudo systemctl enable --now dcc-fan-daemon",
+                                                    "  sudo systemctl enable --now dcc-fan-daemon"),
                                                     SOCKET_PATH);
         gtk_dialog_run(GTK_DIALOG(dialog));
         gtk_widget_destroy(dialog);
@@ -3875,7 +3903,7 @@ static void connect_to_daemon(AppData *app) {
                                                     GTK_DIALOG_MODAL | GTK_DIALOG_DESTROY_WITH_PARENT,
                                                     GTK_MESSAGE_ERROR,
                                                     GTK_BUTTONS_OK,
-                                                    "Failed to create socket: %s",
+                                                    _("Failed to create socket: %s"),
                                                     strerror(errno));
         gtk_dialog_run(GTK_DIALOG(dialog));
         gtk_widget_destroy(dialog);
@@ -3892,7 +3920,7 @@ static void connect_to_daemon(AppData *app) {
                                                     GTK_DIALOG_MODAL | GTK_DIALOG_DESTROY_WITH_PARENT,
                                                     GTK_MESSAGE_ERROR,
                                                     GTK_BUTTONS_OK,
-                                                    "Failed to connect to daemon: %s",
+                                                    _("Failed to connect to daemon: %s"),
                                                     strerror(errno));
         gtk_dialog_run(GTK_DIALOG(dialog));
         gtk_widget_destroy(dialog);
@@ -4336,11 +4364,11 @@ static int kbd_edit_zone_at_led(const KbdProfileEdit *e, int led) {
 
 /* NULL if name can be used for zone except_idx (-1: a new zone), else why not */
 static const char *kbd_zone_name_problem(const KbdProfileEdit *e, const char *name, int except_idx) {
-    if (!name || !*name) return "The name is empty.";
-    if (strlen(name) >= sizeof e->zones[0].name) return "The name is too long.";
-    if (strpbrk(name, "|;\n") || strstr(name, "::")) return "The name must not contain | ; or ::";
+    if (!name || !*name) return _("The name is empty.");
+    if (strlen(name) >= sizeof e->zones[0].name) return _("The name is too long.");
+    if (strpbrk(name, "|;\n") || strstr(name, "::")) return _("The name must not contain | ; or ::");
     for (int z = 0; z < e->num_zones; z++)
-        if (z != except_idx && strcmp(e->zones[z].name, name) == 0) return "A zone with this name already exists.";
+        if (z != except_idx && strcmp(e->zones[z].name, name) == 0) return _("A zone with this name already exists.");
     return NULL;
 }
 
@@ -4349,7 +4377,7 @@ static gchar *kbd_ask_name(AppData *app, const char *title, const char *prompt, 
                            const char *ok_label) {
     GtkWidget *dialog = gtk_dialog_new_with_buttons(title, GTK_WINDOW(app->window),
                                                     GTK_DIALOG_MODAL | GTK_DIALOG_DESTROY_WITH_PARENT,
-                                                    "_Cancel", GTK_RESPONSE_CANCEL,
+                                                    _("_Cancel"), GTK_RESPONSE_CANCEL,
                                                     ok_label, GTK_RESPONSE_ACCEPT, NULL);
     gtk_window_set_resizable(GTK_WINDOW(dialog), FALSE);
     gtk_window_set_default_size(GTK_WINDOW(dialog), 350, -1);
@@ -4371,14 +4399,14 @@ static gchar *kbd_ask_name(AppData *app, const char *title, const char *prompt, 
 
 static void kbd_message(AppData *app, GtkMessageType type, const char *text) {
     GtkWidget *d = gtk_message_dialog_new(GTK_WINDOW(app->window), GTK_DIALOG_MODAL | GTK_DIALOG_DESTROY_WITH_PARENT,
-                                          type, GTK_BUTTONS_OK, "%s", text);
+                                          type, GTK_BUTTONS_OK, _("%s"), text);
     gtk_dialog_run(GTK_DIALOG(d));
     gtk_widget_destroy(d);
 }
 
 static int kbd_confirm(AppData *app, const char *title, const char *text) {
     GtkWidget *d = gtk_message_dialog_new(GTK_WINDOW(app->window), GTK_DIALOG_MODAL | GTK_DIALOG_DESTROY_WITH_PARENT,
-                                          GTK_MESSAGE_QUESTION, GTK_BUTTONS_YES_NO, "%s", text);
+                                          GTK_MESSAGE_QUESTION, GTK_BUTTONS_YES_NO, _("%s"), text);
     gtk_window_set_title(GTK_WINDOW(d), title);
     int yes = gtk_dialog_run(GTK_DIALOG(d)) == GTK_RESPONSE_YES;
     gtk_widget_destroy(d);
@@ -4440,11 +4468,11 @@ static void kbd_update_mode_label(AppData *app) {
     int zi = app->kbd_sel_zone;
     gchar *t;
     if (zi >= 0 && zi < app->kbd_edit.num_zones)
-        t = g_strdup_printf("Coloring zone '%s' (%d LEDs): click keys on the picture or drag over an area to add or remove them.",
+        t = g_strdup_printf(_("Coloring zone '%s' (%d LEDs): click keys on the picture or drag over an area to add or remove them."),
                             app->kbd_edit.zones[zi].name, app->kbd_edit.zones[zi].n);
     else
-        t = g_strdup("Coloring the whole keyboard (base color; zones keep their colors). "
-                     "Select a zone in the list to color its keys.");
+        t = g_strdup(_("Coloring the whole keyboard (base color; zones keep their colors). "
+                     "Select a zone in the list to color its keys."));
     gtk_label_set_text(GTK_LABEL(app->kbd_mode_label), t);
     g_free(t);
 }
@@ -4532,14 +4560,14 @@ static int kbd_save_edit(AppData *app) {
     snprintf(cmd, sizeof cmd, "SAVE_PROFILE::%s", app->kbd_edit_name);
     const char *r = send_keyboard_command(app, cmd);
     if (!r || strncmp(r, "OK", 2) != 0) {
-        kbd_status(app, "Could not save '%s': %s", app->kbd_edit_name, r ? r : "no response");
+        kbd_status(app, _("Could not save '%s': %s"), app->kbd_edit_name, r ? r : "no response");
         return -1;
     }
     app->kbd_saved = app->kbd_edit;
     char name[256];
     snprintf(name, sizeof name, "%s", app->kbd_edit_name);
     load_keyboard_profiles_select(app, name);     /* stays on the profile just saved */
-    kbd_status(app, "Profile saved: %s", name);
+    kbd_status(app, _("Profile saved: %s"), name);
     return 0;
 }
 
@@ -4548,13 +4576,13 @@ static int kbd_check_unsaved_changes(AppData *app) {
     GtkWidget *dialog = gtk_message_dialog_new(GTK_WINDOW(app->window), GTK_DIALOG_MODAL,
                                                GTK_MESSAGE_WARNING, GTK_BUTTONS_NONE, NULL);
     gchar *markup = g_markup_printf_escaped(
-        "<b>Warning:</b> You have unsaved changes to the keyboard profile '%s'.\n\nWhat would you like to do?",
+        _("<b>Warning:</b> You have unsaved changes to the keyboard profile '%s'.\n\nWhat would you like to do?"),
         app->kbd_edit_name);
     gtk_message_dialog_set_markup(GTK_MESSAGE_DIALOG(dialog), markup);
     g_free(markup);
-    gtk_dialog_add_button(GTK_DIALOG(dialog), "_Cancel", -102);
-    gtk_dialog_add_button(GTK_DIALOG(dialog), "_Discard Changes", -100);
-    gtk_dialog_add_button(GTK_DIALOG(dialog), "_Save Changes", -101);
+    gtk_dialog_add_button(GTK_DIALOG(dialog), _("_Cancel"), -102);
+    gtk_dialog_add_button(GTK_DIALOG(dialog), _("_Discard Changes"), -100);
+    gtk_dialog_add_button(GTK_DIALOG(dialog), _("_Save Changes"), -101);
     gtk_widget_show_all(dialog);
     gint response = gtk_dialog_run(GTK_DIALOG(dialog));
     gtk_widget_destroy(dialog);
@@ -4563,7 +4591,7 @@ static int kbd_check_unsaved_changes(AppData *app) {
         app->kbd_edit = app->kbd_saved;
         app->kbd_sel_zone = -1;
         kbd_edit_changed(app, 1, 0);
-        kbd_status(app, "Changes discarded");
+        kbd_status(app, _("Changes discarded"));
         return 0;
     }
     return -1;
@@ -4617,8 +4645,8 @@ static void on_kbd_profile_changed(GtkComboBox *combo, gpointer user_data) {
         kbd_profile_exists(app, name, &is_active);
     }
     kbd_show_profile(app, name, is_active);
-    if (is_active) kbd_status(app, "Active profile: %s", name);
-    else kbd_status(app, "Preview: %s - Activate to use it, Save to keep changes", name);
+    if (is_active) kbd_status(app, _("Active profile: %s"), name);
+    else kbd_status(app, _("Preview: %s - Activate to use it, Save to keep changes"), name);
 }
 
 /* Callback: Create new keyboard profile */
@@ -4627,12 +4655,12 @@ static void on_kbd_create_profile_clicked(GtkWidget *widget, gpointer user_data)
     AppData *app = (AppData *)user_data;
     if (!kbd_ensure_connected(app)) return;
     if (kbd_check_unsaved_changes(app) < 0) return;
-    gchar *name = kbd_ask_name(app, "Create Keyboard Profile", "Enter profile name:", "", "_Create");
+    gchar *name = kbd_ask_name(app, _("Create Keyboard Profile"), _("Enter profile name:"), "", _("_Create"));
     if (!name) return;
     if (!*name || strstr(name, "::")) {
-        kbd_message(app, GTK_MESSAGE_ERROR, "Please enter a name (without ::).");
+        kbd_message(app, GTK_MESSAGE_ERROR, _("Please enter a name (without ::)."));
     } else if (kbd_profile_exists(app, name, NULL)) {
-        gchar *t = g_strdup_printf("A keyboard profile with the name '%s' already exists.", name);
+        gchar *t = g_strdup_printf(_("A keyboard profile with the name '%s' already exists."), name);
         kbd_message(app, GTK_MESSAGE_ERROR, t);
         g_free(t);
     } else {
@@ -4642,9 +4670,9 @@ static void on_kbd_create_profile_clicked(GtkWidget *widget, gpointer user_data)
         if (r && strncmp(r, "OK", 2) == 0) {
             load_keyboard_profiles_select(app, name);
             kbd_show_profile(app, name, 0);           /* new profiles start empty */
-            kbd_status(app, "Profile '%s' created: pick a color for the whole keyboard or create zones", name);
+            kbd_status(app, _("Profile '%s' created: pick a color for the whole keyboard or create zones"), name);
         } else {
-            kbd_status(app, "Could not create '%s': %s", name, r ? r : "no response");
+            kbd_status(app, _("Could not create '%s': %s"), name, r ? r : "no response");
         }
     }
     g_free(name);
@@ -4656,18 +4684,18 @@ static void on_kbd_delete_profile_clicked(GtkWidget *widget, gpointer user_data)
     AppData *app = (AppData *)user_data;
     if (!kbd_ensure_connected(app)) return;
     const char *sel = kbd_selected_profile_name(app, NULL);
-    if (!sel) { kbd_status(app, "No profile selected"); return; }
+    if (!sel) { kbd_status(app, _("No profile selected")); return; }
     char name[256];
     snprintf(name, sizeof name, "%s", sel);
-    gchar *q = g_strdup_printf("Are you sure you want to delete keyboard profile '%s'?", name);
-    int yes = kbd_confirm(app, "Delete Profile", q);
+    gchar *q = g_strdup_printf(_("Are you sure you want to delete keyboard profile '%s'?"), name);
+    int yes = kbd_confirm(app, _("Delete Profile"), q);
     g_free(q);
     if (!yes) return;
     char cmd[512];
     snprintf(cmd, sizeof cmd, "DELETE_PROFILE::%s", name);
     const char *r = send_keyboard_command(app, cmd);
     if (!r || strncmp(r, "OK", 2) != 0) {
-        kbd_status(app, "Could not delete '%s': %s", name, r ? r : "no response");
+        kbd_status(app, _("Could not delete '%s': %s"), name, r ? r : "no response");
         return;
     }
     /* back to the active profile (the one now at its place, if it was the active one) */
@@ -4675,7 +4703,7 @@ static void on_kbd_delete_profile_clicked(GtkWidget *widget, gpointer user_data)
     send_keyboard_command(app, "RESTORE_ACTIVE");
     kbd_enter_tab(app);
     kbd_sync_power_switch(app);
-    kbd_status(app, "Profile deleted: %s", name);
+    kbd_status(app, _("Profile deleted: %s"), name);
 }
 
 /* Callback: Rename keyboard profile */
@@ -4684,15 +4712,15 @@ static void on_kbd_rename_profile_clicked(GtkWidget *widget, gpointer user_data)
     AppData *app = (AppData *)user_data;
     if (!kbd_ensure_connected(app)) return;
     const char *sel = kbd_selected_profile_name(app, NULL);
-    if (!sel) { kbd_status(app, "No profile selected"); return; }
+    if (!sel) { kbd_status(app, _("No profile selected")); return; }
     char old[256];
     snprintf(old, sizeof old, "%s", sel);
-    gchar *name = kbd_ask_name(app, "Rename Keyboard Profile", "Enter new profile name:", old, "_Rename");
+    gchar *name = kbd_ask_name(app, _("Rename Keyboard Profile"), _("Enter new profile name:"), old, _("_Rename"));
     if (!name) return;
     if (!*name || strstr(name, "::")) {
-        kbd_message(app, GTK_MESSAGE_ERROR, "Please enter a name (without ::).");
+        kbd_message(app, GTK_MESSAGE_ERROR, _("Please enter a name (without ::)."));
     } else if (strcmp(name, old) != 0 && kbd_profile_exists(app, name, NULL)) {
-        gchar *t = g_strdup_printf("A keyboard profile with the name '%s' already exists.", name);
+        gchar *t = g_strdup_printf(_("A keyboard profile with the name '%s' already exists."), name);
         kbd_message(app, GTK_MESSAGE_ERROR, t);
         g_free(t);
     } else if (strcmp(name, old) != 0) {
@@ -4703,9 +4731,9 @@ static void on_kbd_rename_profile_clicked(GtkWidget *widget, gpointer user_data)
             if (strcmp(app->kbd_edit_name, old) == 0)
                 snprintf(app->kbd_edit_name, sizeof app->kbd_edit_name, "%s", name);
             load_keyboard_profiles_select(app, name);
-            kbd_status(app, "Profile renamed: %s", name);
+            kbd_status(app, _("Profile renamed: %s"), name);
         } else {
-            kbd_status(app, "Could not rename '%s': %s", old, r ? r : "no response");
+            kbd_status(app, _("Could not rename '%s': %s"), old, r ? r : "no response");
         }
     }
     g_free(name);
@@ -4715,7 +4743,7 @@ static void on_kbd_rename_profile_clicked(GtkWidget *widget, gpointer user_data)
 static void on_kbd_save_profile_clicked(GtkWidget *widget, gpointer user_data) {
     (void)widget;
     AppData *app = (AppData *)user_data;
-    if (!app->kbd_edit_loaded) { kbd_status(app, "No profile selected"); return; }
+    if (!app->kbd_edit_loaded) { kbd_status(app, _("No profile selected")); return; }
     kbd_save_edit(app);
 }
 
@@ -4725,7 +4753,7 @@ static void on_kbd_activate_profile_clicked(GtkWidget *widget, gpointer user_dat
     AppData *app = (AppData *)user_data;
     if (!kbd_ensure_connected(app)) return;
     const char *sel = kbd_selected_profile_name(app, NULL);
-    if (!sel) { kbd_status(app, "No profile selected"); return; }
+    if (!sel) { kbd_status(app, _("No profile selected")); return; }
     char name[256];
     snprintf(name, sizeof name, "%s", sel);
     if (kbd_check_unsaved_changes(app) < 0) return;
@@ -4733,13 +4761,13 @@ static void on_kbd_activate_profile_clicked(GtkWidget *widget, gpointer user_dat
     snprintf(cmd, sizeof cmd, "LOAD_PROFILE::%s", name);
     const char *r = send_keyboard_command(app, cmd);
     if (!r || strncmp(r, "OK", 2) != 0) {
-        kbd_status(app, "Could not activate '%s': %s", name, r ? r : "no response");
+        kbd_status(app, _("Could not activate '%s': %s"), name, r ? r : "no response");
         return;
     }
     load_keyboard_profiles_select(app, name);
     if (kbd_load_edit_profile(app, name) == 0) kbd_edit_changed(app, 0, 0);
     kbd_sync_power_switch(app);
-    kbd_status(app, "Activated profile: %s", name);
+    kbd_status(app, _("Activated profile: %s"), name);
 }
 
 /* --- Zone list --- */
@@ -4768,16 +4796,16 @@ static void on_kbd_whole_keyboard_clicked(GtkWidget *widget, AppData *app) {
 
 static void on_kbd_zone_create_clicked(GtkWidget *widget, AppData *app) {
     (void)widget;
-    if (!app->kbd_edit_loaded) { kbd_status(app, "Select a profile first"); return; }
+    if (!app->kbd_edit_loaded) { kbd_status(app, _("Select a profile first")); return; }
     KbdProfileEdit *e = &app->kbd_edit;
     if (e->num_zones >= KBD_GUI_MAX_ZONES) {
-        kbd_message(app, GTK_MESSAGE_ERROR, "A profile can have at most 32 zones.");
+        kbd_message(app, GTK_MESSAGE_ERROR, _("A profile can have at most 32 zones."));
         return;
     }
     char def[32];
     int n = e->num_zones + 1;
-    do snprintf(def, sizeof def, "Zone %d", n++); while (kbd_zone_name_problem(e, def, -1));
-    gchar *name = kbd_ask_name(app, "Create Zone", "Enter zone name:", def, "_Create");
+    do snprintf(def, sizeof def, _("Zone %d"), n++); while (kbd_zone_name_problem(e, def, -1));
+    gchar *name = kbd_ask_name(app, _("Create Zone"), _("Enter zone name:"), def, _("_Create"));
     if (!name) return;
     const char *problem = kbd_zone_name_problem(e, name, -1);
     if (problem) {
@@ -4789,7 +4817,7 @@ static void on_kbd_zone_create_clicked(GtkWidget *widget, AppData *app) {
         z->rgb[0] = z->rgb[1] = z->rgb[2] = 255;
         app->kbd_sel_zone = e->num_zones++;
         kbd_edit_changed(app, 1, 0);
-        kbd_status(app, "Zone '%s' created: click keys to add them, then choose its color", name);
+        kbd_status(app, _("Zone '%s' created: click keys to add them, then choose its color"), name);
     }
     g_free(name);
 }
@@ -4798,14 +4826,14 @@ static void on_kbd_zone_rename_clicked(GtkWidget *widget, AppData *app) {
     (void)widget;
     int zi = app->kbd_sel_zone;
     if (zi < 0 || zi >= app->kbd_edit.num_zones) return;
-    gchar *name = kbd_ask_name(app, "Rename Zone", "Enter new zone name:", app->kbd_edit.zones[zi].name, "_Rename");
+    gchar *name = kbd_ask_name(app, _("Rename Zone"), _("Enter new zone name:"), app->kbd_edit.zones[zi].name, _("_Rename"));
     if (!name) return;
     const char *problem = kbd_zone_name_problem(&app->kbd_edit, name, zi);
     if (problem) kbd_message(app, GTK_MESSAGE_ERROR, problem);
     else {
         snprintf(app->kbd_edit.zones[zi].name, sizeof app->kbd_edit.zones[zi].name, "%s", name);
         kbd_edit_changed(app, 1, 0);
-        kbd_status(app, "Zone renamed: %s - click Save to keep it", name);
+        kbd_status(app, _("Zone renamed: %s - click Save to keep it"), name);
     }
     g_free(name);
 }
@@ -4815,8 +4843,8 @@ static void on_kbd_zone_delete_clicked(GtkWidget *widget, AppData *app) {
     KbdProfileEdit *e = &app->kbd_edit;
     int zi = app->kbd_sel_zone;
     if (zi < 0 || zi >= e->num_zones) return;
-    gchar *q = g_strdup_printf("Delete zone '%s'? Its keys get the base color.", e->zones[zi].name);
-    int yes = kbd_confirm(app, "Delete Zone", q);
+    gchar *q = g_strdup_printf(_("Delete zone '%s'? Its keys get the base color."), e->zones[zi].name);
+    int yes = kbd_confirm(app, _("Delete Zone"), q);
     g_free(q);
     if (!yes) return;
     char name[64];
@@ -4825,7 +4853,7 @@ static void on_kbd_zone_delete_clicked(GtkWidget *widget, AppData *app) {
     e->num_zones--;
     app->kbd_sel_zone = -1;
     kbd_edit_changed(app, 1, 0);
-    kbd_status(app, "Zone deleted: %s - click Save to keep it", name);
+    kbd_status(app, _("Zone deleted: %s - click Save to keep it"), name);
 }
 
 static void on_kbd_zone_save_clicked(GtkWidget *widget, AppData *app) {
@@ -4835,8 +4863,8 @@ static void on_kbd_zone_save_clicked(GtkWidget *widget, AppData *app) {
 
 /* A color (preset or custom) for the zone being edited, or the whole keyboard */
 static void kbd_apply_color(AppData *app, int r, int g, int b, const char *what) {
-    if (!kbd_ensure_connected(app)) { kbd_status(app, "Keyboard daemon not connected"); return; }
-    if (!app->kbd_edit_loaded) { kbd_status(app, "Select or create a profile first"); return; }
+    if (!kbd_ensure_connected(app)) { kbd_status(app, _("Keyboard daemon not connected")); return; }
+    if (!app->kbd_edit_loaded) { kbd_status(app, _("Select or create a profile first")); return; }
     KbdProfileEdit *e = &app->kbd_edit;
     int zi = app->kbd_sel_zone;
     unsigned char *dst = (zi >= 0 && zi < e->num_zones) ? e->zones[zi].rgb : e->base;
@@ -4847,9 +4875,9 @@ static void kbd_apply_color(AppData *app, int r, int g, int b, const char *what)
     kbd_edit_changed(app, 1, 1);
     kbd_sync_power_switch(app);
     if (zi >= 0 && zi < e->num_zones)
-        kbd_status(app, "%s: zone '%s' - click Save to keep it", what, e->zones[zi].name);
+        kbd_status(app, _("%s: zone '%s' - click Save to keep it"), what, e->zones[zi].name);
     else
-        kbd_status(app, "%s: whole keyboard - click Save to keep it", what);
+        kbd_status(app, _("%s: whole keyboard - click Save to keep it"), what);
 }
 
 /* Callback: Keyboard backlight off switch toggled */
@@ -4868,14 +4896,14 @@ static gboolean on_kbd_off_switch_toggled(GtkSwitch *sw, gboolean new_state, gpo
         app->kbd_off_active = 1;
         const char *response = send_keyboard_command(app, "TURN_OFF");
         g_print("[GUI] TURN_OFF response: %s\n", response ? response : "NULL");
-        gtk_label_set_text(GTK_LABEL(app->kbd_profile_status_label), "Backlight turned OFF");
+        gtk_label_set_text(GTK_LABEL(app->kbd_profile_status_label), _("Backlight turned OFF"));
         g_print("[GUI] Keyboard backlight turned OFF (override active)\n");
     } else {
         /* Turn the backlight back on (the daemon restores the current colors) */
         app->kbd_off_active = 0;
         const char *response = send_keyboard_command(app, "TURN_ON");
         g_print("[GUI] TURN_ON response: %s\n", response ? response : "NULL");
-        gtk_label_set_text(GTK_LABEL(app->kbd_profile_status_label), "Backlight turned ON");
+        gtk_label_set_text(GTK_LABEL(app->kbd_profile_status_label), _("Backlight turned ON"));
         g_print("[GUI] Keyboard backlight turned ON\n");
     }
 
@@ -4941,7 +4969,7 @@ static void on_led_wizard_nokey_clicked(GtkWidget *widget, gpointer user_data) {
     if (app->kbd_wizard_current_led >= 120)
         kbd_wizard_finish(app);
     else
-        kbd_wizard_step(app, "no key");
+        kbd_wizard_step(app, _("no key"));
 }
 
 /* LED Wizard: Save & Finish */
@@ -4965,7 +4993,7 @@ AppData *app = (AppData *)user_data;
     gtk_widget_set_sensitive(app->kbd_led_wizard_nokey_btn, FALSE);
     gtk_widget_set_sensitive(app->kbd_led_wizard_save_btn, FALSE);
     gtk_widget_set_sensitive(app->kbd_led_wizard_cancel_btn, FALSE);
-    gtk_label_set_text(GTK_LABEL(app->kbd_led_wizard_label), "LED Wizard saved!");
+    gtk_label_set_text(GTK_LABEL(app->kbd_led_wizard_label), _("LED Wizard saved!"));
     gtk_widget_show(app->kbd_led_wizard_label);
     
     /* Back to the zone being edited and redraw */
@@ -4992,7 +5020,7 @@ static void on_led_wizard_cancel_clicked(GtkWidget *widget, gpointer user_data) 
     gtk_widget_set_sensitive(app->kbd_led_wizard_nokey_btn, FALSE);
     gtk_widget_set_sensitive(app->kbd_led_wizard_save_btn, FALSE);
     gtk_widget_set_sensitive(app->kbd_led_wizard_cancel_btn, FALSE);
-    gtk_label_set_text(GTK_LABEL(app->kbd_led_wizard_label), "LED Wizard cancelled");
+    gtk_label_set_text(GTK_LABEL(app->kbd_led_wizard_label), _("LED Wizard cancelled"));
     gtk_widget_show(app->kbd_led_wizard_label);
     
     /* Back to the zone being edited and redraw */
@@ -5005,14 +5033,14 @@ static void kbd_wizard_step(AppData *app, const char *prev_key_name) {
     char buf[320];
     int led = app->kbd_wizard_current_led;
     int cur = app->kbd_wizard_mapping[led];
-    const char *now = (cur >= 0 && (size_t)cur < kbd_num_keys) ? kbd_key_names[cur] : "no key";
+    const char *now = (cur >= 0 && (size_t)cur < kbd_num_keys) ? kbd_key_names[cur] : _("no key");
 
     /* Previous assignment, current LED and the key it has now */
     if (prev_key_name && led > 0) {
-        snprintf(buf, sizeof(buf), "LED %d -> %s | Click the key for LED %d / 119 (now: %s)",
+        snprintf(buf, sizeof(buf), _("LED %d -> %s | Click the key for LED %d / 119 (now: %s)"),
                  led - 1, prev_key_name, led, now);
     } else {
-        snprintf(buf, sizeof(buf), "LED Wizard: Click the key for LED %d / 119 (now: %s)", led, now);
+        snprintf(buf, sizeof(buf), _("LED Wizard: Click the key for LED %d / 119 (now: %s)"), led, now);
     }
     gtk_label_set_text(GTK_LABEL(app->kbd_led_wizard_label), buf);
     gtk_widget_show(app->kbd_led_wizard_label);
@@ -5042,7 +5070,7 @@ static void kbd_wizard_finish(AppData *app) {
     gtk_widget_set_sensitive(app->kbd_led_wizard_skip_btn, FALSE);
     gtk_widget_set_sensitive(app->kbd_led_wizard_nokey_btn, FALSE);
     gtk_widget_set_sensitive(app->kbd_led_wizard_cancel_btn, FALSE);
-    gtk_label_set_text(GTK_LABEL(app->kbd_led_wizard_label), "LED Wizard completed!");
+    gtk_label_set_text(GTK_LABEL(app->kbd_led_wizard_label), _("LED Wizard completed!"));
     gtk_widget_show(app->kbd_led_wizard_label);
     
     /* Back to the zone being edited and redraw */
@@ -5507,7 +5535,7 @@ static gboolean kbd_canvas_draw(GtkWidget *widget, cairo_t *cr, gpointer user_da
         cairo_select_font_face(cr, "sans", CAIRO_FONT_SLANT_NORMAL, CAIRO_FONT_WEIGHT_NORMAL);
         cairo_set_font_size(cr, 14);
         cairo_move_to(cr, width/2 - 80, height/2);
-        cairo_show_text(cr, "Keyboard schematic loading...");
+        cairo_show_text(cr, _("Keyboard schematic loading..."));
         cairo_stroke(cr);
     }
     
@@ -5573,7 +5601,7 @@ static gboolean kbd_canvas_click(GtkWidget *widget, double click_x, double click
             int n_leds = kbd_leds_for_key(app, kbd_key_group_primary(i), key_leds, 120);
             const char *kname = i < kbd_num_keys ? kbd_key_names[i] : "?";
             if (n_leds == 0) {
-                kbd_status(app, "Key '%s' has no LED in the mapping (run the LED wizard)", kname);
+                kbd_status(app, _("Key '%s' has no LED in the mapping (run the LED wizard)"), kname);
                 return TRUE;
             }
             if (!app->kbd_edit_loaded) return TRUE;
@@ -5581,17 +5609,17 @@ static gboolean kbd_canvas_click(GtkWidget *widget, double click_x, double click
             if (zi >= 0 && zi < app->kbd_edit.num_zones) {
                 int added = kbd_edit_toggle_leds(&app->kbd_edit, zi, key_leds, n_leds);
                 kbd_edit_changed(app, 1, 0);
-                kbd_status(app, "'%s' %s zone '%s' - click Save to keep it", kname,
-                           added ? "added to" : "removed from", app->kbd_edit.zones[zi].name);
+                if (added) kbd_status(app, _("'%s' added to zone '%s' - click Save to keep it"), kname, app->kbd_edit.zones[zi].name);
+                else kbd_status(app, _("'%s' removed from zone '%s' - click Save to keep it"), kname, app->kbd_edit.zones[zi].name);
             } else {
                 int z = kbd_edit_zone_at_led(&app->kbd_edit, key_leds[0]);
                 if (z >= 0) {
                     GtkTreePath *path = gtk_tree_path_new_from_indices(z, -1);
                     gtk_tree_selection_select_path(gtk_tree_view_get_selection(GTK_TREE_VIEW(app->kbd_zone_view)), path);
                     gtk_tree_path_free(path);
-                    kbd_status(app, "Zone '%s' selected", app->kbd_edit.zones[z].name);
+                    kbd_status(app, _("Zone '%s' selected"), app->kbd_edit.zones[z].name);
                 } else {
-                    kbd_status(app, "'%s' has the base color - select or create a zone to color single keys", kname);
+                    kbd_status(app, _("'%s' has the base color - select or create a zone to color single keys"), kname);
                 }
             }
             return TRUE;
@@ -5651,13 +5679,13 @@ static void kbd_drag_select(GtkWidget *widget, AppData *app) {
         }
     }
     if (n == 0) {
-        kbd_status(app, "No keys with an LED in the marked area");
+        kbd_status(app, _("No keys with an LED in the marked area"));
         return;
     }
     int added = kbd_edit_toggle_leds(&app->kbd_edit, zi, leds, n);
     kbd_edit_changed(app, 1, 0);
-    kbd_status(app, "%d key(s) %s zone '%s' - click Save to keep it", nk,
-               added ? "added to" : "removed from", app->kbd_edit.zones[zi].name);
+    if (added) kbd_status(app, _("%d key(s) added to zone '%s' - click Save to keep it"), nk, app->kbd_edit.zones[zi].name);
+    else kbd_status(app, _("%d key(s) removed from zone '%s' - click Save to keep it"), nk, app->kbd_edit.zones[zi].name);
 }
 
 /* Left button: in the zone editor a click or a dragged rectangle (decided
@@ -5716,14 +5744,14 @@ static void on_kbd_custom_color_clicked(GtkWidget *widget, AppData *app) {
     const unsigned char *cur = (zi >= 0 && zi < e->num_zones) ? e->zones[zi].rgb
                              : (e->has_base ? e->base : (const unsigned char *)"\xff\xff\xff");
     GtkWidget *dialog = gtk_color_chooser_dialog_new(
-        (zi >= 0 && zi < e->num_zones) ? "Zone Color" : "Keyboard Color", GTK_WINDOW(app->window));
+        (zi >= 0 && zi < e->num_zones) ? _("Zone Color") : _("Keyboard Color"), GTK_WINDOW(app->window));
     gtk_color_chooser_set_use_alpha(GTK_COLOR_CHOOSER(dialog), FALSE);
     GdkRGBA rgba = { cur[0] / 255.0, cur[1] / 255.0, cur[2] / 255.0, 1.0 };
     gtk_color_chooser_set_rgba(GTK_COLOR_CHOOSER(dialog), &rgba);
     if (gtk_dialog_run(GTK_DIALOG(dialog)) == GTK_RESPONSE_OK) {
         gtk_color_chooser_get_rgba(GTK_COLOR_CHOOSER(dialog), &rgba);
         kbd_apply_color(app, (int)(rgba.red * 255 + 0.5), (int)(rgba.green * 255 + 0.5),
-                        (int)(rgba.blue * 255 + 0.5), "Custom color");
+                        (int)(rgba.blue * 255 + 0.5), _("Custom color"));
     }
     gtk_widget_destroy(dialog);
 }
@@ -5769,11 +5797,11 @@ static void parse_status(AppData *app, const char *response) {
     
     /* Update labels */
     char cpu_text[32], gpu_text[32], cpu_rpm_text[64], gpu_rpm_text[64];
-    snprintf(cpu_text, sizeof(cpu_text), "CPU: %d°C", cpu_temp);
-    snprintf(gpu_text, sizeof(gpu_text), "GPU: %d°C", gpu_temp);
+    snprintf(cpu_text, sizeof(cpu_text), _("CPU: %d°C"), cpu_temp);
+    snprintf(gpu_text, sizeof(gpu_text), _("GPU: %d°C"), gpu_temp);
     /* Percent = duty set in the EC for each fan; RPM = measured speed */
-    format_fan_text(cpu_rpm_text, sizeof(cpu_rpm_text), "CPU Fan", cpu_fan_rpm, cpu_fan_duty);
-    format_fan_text(gpu_rpm_text, sizeof(gpu_rpm_text), "GPU Fan", gpu_fan_rpm, gpu_fan_duty);
+    format_fan_text(cpu_rpm_text, sizeof(cpu_rpm_text), _("CPU Fan"), cpu_fan_rpm, cpu_fan_duty);
+    format_fan_text(gpu_rpm_text, sizeof(gpu_rpm_text), _("GPU Fan"), gpu_fan_rpm, gpu_fan_duty);
     
     gtk_label_set_text(GTK_LABEL(app->cpu_temp_label), cpu_text);
     gtk_label_set_text(GTK_LABEL(app->gpu_temp_label), gpu_text);
@@ -5813,7 +5841,8 @@ static void parse_status(AppData *app, const char *response) {
         if (app->manual_speed_label) gtk_label_set_text(GTK_LABEL(app->manual_speed_label), "--");
         if (ended_by_emergency) {
             g_print("[GUI] Fan daemon switched to auto mode after an emergency temperature\n");
-            show_status(app, "Manual fan mode ended: the CPU/GPU reached 95\302\260C - fans at 100% until it cools down, then the fan curve (auto mode)");
+            /* xgettext:no-c-format */
+            show_status(app, _("Manual fan mode ended: the CPU/GPU reached 95\302\260C - fans at 100% until it cools down, then the fan curve (auto mode)"));
         }
     }
 
@@ -5843,18 +5872,18 @@ static GtkWidget *create_status_page(AppData *app) {
     gtk_container_set_border_width(GTK_CONTAINER(vbox), 20);
     
     /* Temperature display */
-    GtkWidget *temp_frame = gtk_frame_new("Temperatures");
+    GtkWidget *temp_frame = gtk_frame_new(_("Temperatures"));
     GtkWidget *temp_vbox = gtk_box_new(GTK_ORIENTATION_VERTICAL, 10);
     gtk_container_set_border_width(GTK_CONTAINER(temp_vbox), 15);
     
-    app->cpu_temp_label = gtk_label_new("CPU: --°C");
+    app->cpu_temp_label = gtk_label_new(_("CPU: --°C"));
     gtk_widget_set_halign(app->cpu_temp_label, GTK_ALIGN_START);
-    GtkWidget *gpu_temp_label_holder = gtk_label_new("GPU: --°C");
+    GtkWidget *gpu_temp_label_holder = gtk_label_new(_("GPU: --°C"));
     gtk_widget_set_halign(gpu_temp_label_holder, GTK_ALIGN_START);
     
-    app->cpu_temp_label = gtk_label_new("CPU: --°C");
+    app->cpu_temp_label = gtk_label_new(_("CPU: --°C"));
     gtk_widget_set_halign(app->cpu_temp_label, GTK_ALIGN_START);
-    app->gpu_temp_label = gtk_label_new("GPU: --°C");
+    app->gpu_temp_label = gtk_label_new(_("GPU: --°C"));
     gtk_widget_set_halign(app->gpu_temp_label, GTK_ALIGN_START);
     
     gtk_box_pack_start(GTK_BOX(temp_vbox), app->cpu_temp_label, FALSE, FALSE, 0);
@@ -5864,13 +5893,13 @@ static GtkWidget *create_status_page(AppData *app) {
     gtk_box_pack_start(GTK_BOX(vbox), temp_frame, FALSE, FALSE, 0);
     
     /* Fan speed display */
-    GtkWidget *fan_frame = gtk_frame_new("Fan Speed");
+    GtkWidget *fan_frame = gtk_frame_new(_("Fan Speed"));
     GtkWidget *fan_vbox = gtk_box_new(GTK_ORIENTATION_VERTICAL, 10);
     gtk_container_set_border_width(GTK_CONTAINER(fan_vbox), 15);
     
-    app->cpu_fan_rpm_label = gtk_label_new("CPU Fan: -- RPM (--%)");
+    app->cpu_fan_rpm_label = gtk_label_new(_("CPU Fan: -- RPM (--%)"));
     gtk_widget_set_halign(app->cpu_fan_rpm_label, GTK_ALIGN_START);
-    app->gpu_fan_rpm_label = gtk_label_new("GPU Fan: -- RPM (--%)");
+    app->gpu_fan_rpm_label = gtk_label_new(_("GPU Fan: -- RPM (--%)"));
     gtk_widget_set_halign(app->gpu_fan_rpm_label, GTK_ALIGN_START);
     
     gtk_box_pack_start(GTK_BOX(fan_vbox), app->cpu_fan_rpm_label, FALSE, FALSE, 0);
@@ -5880,14 +5909,14 @@ static GtkWidget *create_status_page(AppData *app) {
     gtk_box_pack_start(GTK_BOX(vbox), fan_frame, FALSE, FALSE, 0);
     
     /* Manual control */
-    GtkWidget *manual_frame = gtk_frame_new("Manual Fan Control");
+    GtkWidget *manual_frame = gtk_frame_new(_("Manual Fan Control"));
     GtkWidget *manual_vbox = gtk_box_new(GTK_ORIENTATION_VERTICAL, 15);
     gtk_container_set_border_width(GTK_CONTAINER(manual_vbox), 15);
     
     /* Manual mode switch */
     GtkWidget *switch_hbox = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 10);
     app->manual_mode_switch = GTK_WIDGET(gtk_switch_new());
-    GtkWidget *switch_label = gtk_label_new("Manual Mode:");
+    GtkWidget *switch_label = gtk_label_new(_("Manual Mode:"));
     gtk_box_pack_start(GTK_BOX(switch_hbox), switch_label, FALSE, FALSE, 0);
     gtk_box_pack_start(GTK_BOX(switch_hbox), app->manual_mode_switch, FALSE, FALSE, 0);
     
@@ -5928,7 +5957,7 @@ static GtkWidget *create_status_page(AppData *app) {
     gtk_box_pack_start(GTK_BOX(manual_vbox), speed_hbox, FALSE, FALSE, 0);
     
     /* Info label */
-    GtkWidget *info_label = gtk_label_new("Note: Enable Manual Mode to override automatic fan control. Changes take effect immediately.");
+    GtkWidget *info_label = gtk_label_new(_("Note: Enable Manual Mode to override automatic fan control. Changes take effect immediately."));
     gtk_label_set_line_wrap(GTK_LABEL(info_label), TRUE);
     gtk_box_pack_start(GTK_BOX(manual_vbox), info_label, FALSE, FALSE, 0);
     
@@ -5937,7 +5966,7 @@ static GtkWidget *create_status_page(AppData *app) {
     
     /* Per-Core CPU Frequencies */
     {
-        GtkWidget *core_frame = gtk_frame_new("Per-Core CPU Frequencies");
+        GtkWidget *core_frame = gtk_frame_new(_("Per-Core CPU Frequencies"));
         GtkWidget *core_scrolled = gtk_scrolled_window_new(NULL, NULL);
         gtk_scrolled_window_set_policy(GTK_SCROLLED_WINDOW(core_scrolled), GTK_POLICY_NEVER, GTK_POLICY_AUTOMATIC);
         gtk_scrolled_window_set_max_content_height(GTK_SCROLLED_WINDOW(core_scrolled), 400);
@@ -5947,12 +5976,12 @@ static GtkWidget *create_status_page(AppData *app) {
         GtkWidget *row = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 10);
         gtk_box_set_homogeneous(GTK_BOX(row), TRUE);
         gtk_box_pack_start(GTK_BOX(row), core_frame, TRUE, TRUE, 0);
-        GtkWidget *prof_frame = gtk_frame_new("Active Profiles");
+        GtkWidget *prof_frame = gtk_frame_new(_("Active Profiles"));
         GtkWidget *grid = gtk_grid_new();
         gtk_container_set_border_width(GTK_CONTAINER(grid), 10);
         gtk_grid_set_row_spacing(GTK_GRID(grid), 8);
         gtk_grid_set_column_spacing(GTK_GRID(grid), 12);
-        const char *names[4] = { "Fan profile:", "CPU profile:", "Power mode:", "Keyboard profile:" };
+        const char *names[4] = { _("Fan profile:"), _("CPU profile:"), _("Power mode:"), _("Keyboard profile:") };
         GtkWidget **vals[4] = { &app->active_fan_label, &app->active_cpu_label, &app->active_mode_label, &app->active_kbd_label };
         for (int r = 0; r < 4; r++) {
             GtkWidget *n = gtk_label_new(names[r]);
@@ -5990,7 +6019,7 @@ static void on_fan_activate_clicked(GtkWidget *widget, gpointer user_data) {
     AppData *app = (AppData *)user_data;
     int idx = gtk_combo_box_get_active(GTK_COMBO_BOX(app->profile_combo));
     if (idx < 0) {
-        show_status(app, "No profile selected");
+        show_status(app, _("No profile selected"));
         return;
     }
     if (app->curve_points_modified) {
@@ -6015,9 +6044,9 @@ static GtkWidget *create_curve_editor_page(AppData *app) {
     
     /* Daemon status (like the Keyboard tab) */
     {
-        GtkWidget *frame = gtk_frame_new("Fan Daemon Status");
+        GtkWidget *frame = gtk_frame_new(_("Fan Daemon Status"));
         gtk_container_set_border_width(GTK_CONTAINER(frame), 6);
-        app->fan_daemon_status_label = gtk_label_new("Fan daemon not connected");
+        app->fan_daemon_status_label = gtk_label_new(_("Fan daemon not connected"));
         gtk_label_set_xalign(GTK_LABEL(app->fan_daemon_status_label), 0.0);
         gtk_widget_set_margin_start(app->fan_daemon_status_label, 6);
         gtk_widget_set_margin_end(app->fan_daemon_status_label, 6);
@@ -6025,19 +6054,19 @@ static GtkWidget *create_curve_editor_page(AppData *app) {
         gtk_box_pack_start(GTK_BOX(vbox), frame, FALSE, FALSE, 0);
     }
 
-    GtkWidget *info_label = gtk_label_new("Choose a profile to edit its curve. Activate makes it control the fans; "
-                                          "\"(Active)\" marks the profile in use.");
+    GtkWidget *info_label = gtk_label_new(_("Choose a profile to edit its curve. Activate makes it control the fans; "
+                                          "\"(Active)\" marks the profile in use."));
     gtk_label_set_line_wrap(GTK_LABEL(info_label), TRUE);
     gtk_box_pack_start(GTK_BOX(vbox), info_label, FALSE, FALSE, 0);
 
     /* Manual mode warning and button (shown only in manual mode) */
     app->manual_mode_warning_label = gtk_label_new(NULL);
     gtk_label_set_markup(GTK_LABEL(app->manual_mode_warning_label),
-                         "<span size='x-large' weight='bold' foreground='#d9534f'>Manual Mode Active!</span>");
+                         _("<span size='x-large' weight='bold' foreground='#d9534f'>Manual Mode Active!</span>"));
     gtk_widget_set_halign(app->manual_mode_warning_label, GTK_ALIGN_CENTER);
     gtk_widget_set_no_show_all(app->manual_mode_warning_label, TRUE);
     gtk_box_pack_start(GTK_BOX(vbox), app->manual_mode_warning_label, FALSE, FALSE, 0);
-    app->disable_manual_mode_btn = gtk_button_new_with_label("Disable Manual Mode");
+    app->disable_manual_mode_btn = gtk_button_new_with_label(_("Disable Manual Mode"));
     gtk_widget_set_halign(app->disable_manual_mode_btn, GTK_ALIGN_CENTER);
     g_signal_connect(app->disable_manual_mode_btn, "clicked", G_CALLBACK(on_disable_manual_mode_clicked), app);
     gtk_widget_set_no_show_all(app->disable_manual_mode_btn, TRUE);
@@ -6045,7 +6074,7 @@ static GtkWidget *create_curve_editor_page(AppData *app) {
     
     /* Profile selection */
     GtkWidget *profile_box = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 10);
-    GtkWidget *profile_label = gtk_label_new("Profile:");
+    GtkWidget *profile_label = gtk_label_new(_("Profile:"));
     app->profile_combo = gtk_combo_box_text_new();
 
     /* Connect profile change to load curve points and store handler ID */
@@ -6056,27 +6085,27 @@ static GtkWidget *create_curve_editor_page(AppData *app) {
 
     /* Profile buttons, same names and order in every tab (1.22.1):
      * Create, Rename, Save, Delete, Activate */
-    GtkWidget *create_btn = gtk_button_new_with_label("Create");
+    GtkWidget *create_btn = gtk_button_new_with_label(_("Create"));
     g_signal_connect(create_btn, "clicked", G_CALLBACK(on_create_profile_clicked), app);
     gtk_box_pack_start(GTK_BOX(profile_box), create_btn, FALSE, FALSE, 0);
 
-    GtkWidget *rename_profile_btn = gtk_button_new_with_label("Rename");
+    GtkWidget *rename_profile_btn = gtk_button_new_with_label(_("Rename"));
     g_signal_connect(rename_profile_btn, "clicked", G_CALLBACK(on_rename_profile_clicked), app);
     gtk_box_pack_start(GTK_BOX(profile_box), rename_profile_btn, FALSE, FALSE, 0);
 
     /* Save: stores the curve points of the selected profile (was "Apply"
      * under the curve) */
-    GtkWidget *save_btn = gtk_button_new_with_label("Save");
-    gtk_widget_set_tooltip_text(save_btn, "Save the curve points of the selected profile");
+    GtkWidget *save_btn = gtk_button_new_with_label(_("Save"));
+    gtk_widget_set_tooltip_text(save_btn, _("Save the curve points of the selected profile"));
     g_signal_connect(save_btn, "clicked", G_CALLBACK(on_apply_clicked), app);
     gtk_box_pack_start(GTK_BOX(profile_box), save_btn, FALSE, FALSE, 0);
 
-    GtkWidget *delete_profile_btn = gtk_button_new_with_label("Delete");
+    GtkWidget *delete_profile_btn = gtk_button_new_with_label(_("Delete"));
     g_signal_connect(delete_profile_btn, "clicked", G_CALLBACK(on_delete_profile_clicked), app);
     gtk_box_pack_start(GTK_BOX(profile_box), delete_profile_btn, FALSE, FALSE, 0);
 
     /* Activate the selected profile (was the radio list in the old Fan Profiles tab) */
-    app->fan_activate_btn = gtk_button_new_with_label("Activate");
+    app->fan_activate_btn = gtk_button_new_with_label(_("Activate"));
     g_signal_connect(app->fan_activate_btn, "clicked", G_CALLBACK(on_fan_activate_clicked), app);
     gtk_box_pack_start(GTK_BOX(profile_box), app->fan_activate_btn, FALSE, FALSE, 0);
     
@@ -6086,7 +6115,7 @@ static GtkWidget *create_curve_editor_page(AppData *app) {
     GtkWidget *hbox = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 10);
     
     /* Left side: Curve points tree view */
-    GtkWidget *tree_frame = gtk_frame_new("Temperature Curve Points");
+    GtkWidget *tree_frame = gtk_frame_new(_("Temperature Curve Points"));
     GtkWidget *scrolled = gtk_scrolled_window_new(NULL, NULL);
     gtk_scrolled_window_set_policy(GTK_SCROLLED_WINDOW(scrolled), GTK_POLICY_AUTOMATIC, GTK_POLICY_AUTOMATIC);
     
@@ -6098,14 +6127,14 @@ static GtkWidget *create_curve_editor_page(AppData *app) {
     /* Temperature column */
     GtkCellRenderer *renderer = gtk_cell_renderer_text_new();
     GtkTreeViewColumn *temp_col = gtk_tree_view_column_new_with_attributes(
-        "Temperature", renderer, "text", 0, NULL);
+        _("Temperature"), renderer, "text", 0, NULL);
     gtk_tree_view_column_set_fixed_width(temp_col, 80);
     gtk_tree_view_append_column(GTK_TREE_VIEW(app->curve_treeview), temp_col);
     
     /* Fan % column */
     renderer = gtk_cell_renderer_text_new();
     GtkTreeViewColumn *fan_col = gtk_tree_view_column_new_with_attributes(
-        "Fan Speed (%)", renderer, "text", 1, NULL);
+        _("Fan Speed (%)"), renderer, "text", 1, NULL);
     gtk_tree_view_column_set_fixed_width(fan_col, 70);
     gtk_tree_view_append_column(GTK_TREE_VIEW(app->curve_treeview), fan_col);
     
@@ -6118,7 +6147,7 @@ static GtkWidget *create_curve_editor_page(AppData *app) {
     gtk_box_pack_start(GTK_BOX(hbox), tree_frame, FALSE, FALSE, 0);
     
     /* Right side: Temperature curve graph */
-    GtkWidget *graph_frame = gtk_frame_new("Temperature Curve Graph");
+    GtkWidget *graph_frame = gtk_frame_new(_("Temperature Curve Graph"));
     app->curve_graph = gtk_drawing_area_new();
     gtk_widget_set_size_request(app->curve_graph, 1000, 430);
     
@@ -6133,15 +6162,15 @@ static GtkWidget *create_curve_editor_page(AppData *app) {
     /* Curve point controls */
     GtkWidget *point_controls = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 10);
     
-    GtkWidget *add_btn = gtk_button_new_with_label("Add Point");
+    GtkWidget *add_btn = gtk_button_new_with_label(_("Add Point"));
     g_signal_connect(add_btn, "clicked", G_CALLBACK(on_add_curve_point_clicked), app);
     gtk_box_pack_start(GTK_BOX(point_controls), add_btn, FALSE, FALSE, 0);
     
-    GtkWidget *delete_btn = gtk_button_new_with_label("Delete Point");
+    GtkWidget *delete_btn = gtk_button_new_with_label(_("Delete Point"));
     g_signal_connect(delete_btn, "clicked", G_CALLBACK(on_delete_curve_point_clicked), app);
     gtk_box_pack_start(GTK_BOX(point_controls), delete_btn, FALSE, FALSE, 0);
     
-    GtkWidget *control_label = gtk_label_new("  (Double-click to edit, points are auto-sorted by temperature)");
+    GtkWidget *control_label = gtk_label_new(_("  (Double-click to edit, points are auto-sorted by temperature)"));
     gtk_box_pack_start(GTK_BOX(point_controls), control_label, FALSE, FALSE, 10);
     
     gtk_box_pack_start(GTK_BOX(vbox), point_controls, FALSE, FALSE, 5);
@@ -6249,14 +6278,14 @@ static gboolean draw_curve_graph(GtkWidget *widget, cairo_t *cr, gpointer user_d
     cairo_translate(cr, width / 2, height - bottom_margin + 35);
     cairo_rotate(cr, 0);
     cairo_move_to(cr, -40, 0);
-    cairo_show_text(cr, "Temperature (°C)");
+    cairo_show_text(cr, _("Temperature (°C)"));
     cairo_restore(cr);
     
     cairo_save(cr);
     cairo_translate(cr, 15, height / 2);
     cairo_rotate(cr, -M_PI_2);
     cairo_move_to(cr, -10, 0);
-    cairo_show_text(cr, "Fan Speed (%)");
+    cairo_show_text(cr, _("Fan Speed (%)"));
     cairo_restore(cr);
     
     /* Get curve points from the list store */
@@ -6362,7 +6391,7 @@ static void on_apply_profile_clicked(GtkWidget *widget, gpointer user_data) {
         /* Persist the active_profile_index to profiles.json */
         gui_save_profiles_to_disk(app);
     } else {
-        show_status(app, "No profile selected");
+        show_status(app, _("No profile selected"));
     }
 }
 
@@ -6431,16 +6460,16 @@ static void on_disable_manual_mode_clicked(GtkWidget *widget, gpointer user_data
             if (strncmp(response, "OK", 2) == 0) {
                 /* Update profile list to reflect the reactivated profile */
                 refresh_profile_list(app);
-                show_status(app, "Manual mode disabled - returned to auto mode");
+                show_status(app, _("Manual mode disabled - returned to auto mode"));
             } else {
-                show_status(app, "Failed to reactivate previous profile");
+                show_status(app, _("Failed to reactivate previous profile"));
             }
         }
         
         /* Update the profile tab UI */
         update_profile_tab_for_manual_mode(app, 0);
     } else {
-        show_status(app, "Failed to disable manual mode");
+        show_status(app, _("Failed to disable manual mode"));
     }
 }
 
@@ -6637,7 +6666,7 @@ static GtkWidget *create_log_page(AppData *app) {
         app->gui_log_buffer = gtk_text_view_get_buffer(GTK_TEXT_VIEW(app->gui_log_view));
         gtk_container_add(GTK_CONTAINER(scrolled), app->gui_log_view);
         
-        gtk_notebook_append_page(GTK_NOTEBOOK(notebook), scrolled, gtk_label_new("GUI Log"));
+        gtk_notebook_append_page(GTK_NOTEBOOK(notebook), scrolled, gtk_label_new(_("GUI Log")));
     }
     
     /* Tab 2: CPU Daemon Log */
@@ -6655,7 +6684,7 @@ static GtkWidget *create_log_page(AppData *app) {
         app->cpu_daemon_log_buffer = gtk_text_view_get_buffer(GTK_TEXT_VIEW(app->cpu_daemon_log_view));
         gtk_container_add(GTK_CONTAINER(scrolled), app->cpu_daemon_log_view);
         
-        gtk_notebook_append_page(GTK_NOTEBOOK(notebook), scrolled, gtk_label_new("CPU Daemon Log"));
+        gtk_notebook_append_page(GTK_NOTEBOOK(notebook), scrolled, gtk_label_new(_("CPU Daemon Log")));
     }
     
     /* Tab 3: Fan Daemon Log */
@@ -6673,7 +6702,7 @@ static GtkWidget *create_log_page(AppData *app) {
         app->daemon_log_buffer = gtk_text_view_get_buffer(GTK_TEXT_VIEW(app->daemon_log_view));
         gtk_container_add(GTK_CONTAINER(scrolled), app->daemon_log_view);
         
-        gtk_notebook_append_page(GTK_NOTEBOOK(notebook), scrolled, gtk_label_new("Fan Daemon Log"));
+        gtk_notebook_append_page(GTK_NOTEBOOK(notebook), scrolled, gtk_label_new(_("Fan Daemon Log")));
     }
     
     /* Tab 4: Keyboard Backlight Log */
@@ -6691,7 +6720,7 @@ static GtkWidget *create_log_page(AppData *app) {
         app->kbd_daemon_log_buffer = gtk_text_view_get_buffer(GTK_TEXT_VIEW(app->kbd_daemon_log_view));
         gtk_container_add(GTK_CONTAINER(scrolled), app->kbd_daemon_log_view);
         
-        gtk_notebook_append_page(GTK_NOTEBOOK(notebook), scrolled, gtk_label_new("Keyboard Backlight Log"));
+        gtk_notebook_append_page(GTK_NOTEBOOK(notebook), scrolled, gtk_label_new(_("Keyboard Backlight Log")));
     }
     
     /* Start the log refresh timer (every 500ms) */
@@ -6851,7 +6880,7 @@ static void load_daemon_logs(AppData *app) {
         
         if (current_length == 0) {
             gtk_text_buffer_insert_markup(app->daemon_log_buffer, &start_iter, 
-                "<span foreground='#e74c3c'>Unable to read daemon log. Check permissions or ensure the daemon is running.</span>\n", -1);
+                _("<span foreground='#e74c3c'>Unable to read daemon log. Check permissions or ensure the daemon is running.</span>\n"), -1);
         }
         return;
     }
@@ -6971,7 +7000,7 @@ static void load_cpu_daemon_logs(AppData *app) {
         
         if (current_length == 0) {
             gtk_text_buffer_insert_markup(app->cpu_daemon_log_buffer, &start_iter,
-                "<span foreground='#e74c3c'>Unable to read CPU daemon log. Check permissions or ensure the daemon is running.</span>\n", -1);
+                _("<span foreground='#e74c3c'>Unable to read CPU daemon log. Check permissions or ensure the daemon is running.</span>\n"), -1);
         }
         return;
     }
@@ -7079,7 +7108,7 @@ static void load_kbd_daemon_logs(AppData *app) {
         
         if (current_length == 0) {
             gtk_text_buffer_insert_markup(app->kbd_daemon_log_buffer, &start_iter,
-                "<span foreground='#e74c3c'>Unable to read Keyboard daemon log. Check permissions or ensure the daemon is running.</span>\n", -1);
+                _("<span foreground='#e74c3c'>Unable to read Keyboard daemon log. Check permissions or ensure the daemon is running.</span>\n"), -1);
         }
         return;
     }
@@ -7207,8 +7236,8 @@ static GtkWidget *create_about_page(void) {
     GtkWidget *title = gtk_label_new(NULL);
     {
         char t[256];
-        snprintf(t, sizeof(t), "<span size='xx-large' weight='bold'>Dudes Control Center</span>\n"
-                               "<span size='large' foreground='#7f8c8d'>Version %s</span>", APP_VERSION);
+        snprintf(t, sizeof(t), _("<span size='xx-large' weight='bold'>Dudes Control Center</span>\n"
+                               "<span size='large' foreground='#7f8c8d'>Version %s</span>"), APP_VERSION);
         gtk_label_set_markup(GTK_LABEL(title), t);
         gtk_label_set_justify(GTK_LABEL(title), GTK_JUSTIFY_CENTER);   /* version under the name */
     }
@@ -7222,12 +7251,12 @@ static GtkWidget *create_about_page(void) {
     GtkWidget *left = gtk_box_new(GTK_ORIENTATION_VERTICAL, 16);
     gtk_widget_set_valign(left, GTK_ALIGN_CENTER);
     gtk_box_pack_start(GTK_BOX(left), about_credit(
-        "Coded with <b>Claude</b> (Claude Code) by <b>Anthropic</b>", "https://www.anthropic.com/", NULL), FALSE, FALSE, 0);
+        _("Coded with <b>Claude</b> (Claude Code) by <b>Anthropic</b>"), "https://www.anthropic.com/", NULL), FALSE, FALSE, 0);
     gtk_box_pack_start(GTK_BOX(left), about_credit(
-        "Fan control code based on <b>fan-control</b> by steiiin, a fork of <b>clevo-fan-control</b> by agramian (GPL-2.0)",
+        _("Fan control code based on <b>fan-control</b> by steiiin, a fork of <b>clevo-fan-control</b> by agramian (GPL-2.0)"),
         "https://github.com/steiiin/fan-control", "https://github.com/agramian/clevo-fan-control"), FALSE, FALSE, 0);
     gtk_box_pack_start(GTK_BOX(left), about_credit(
-        "Keyboard backlight driver <b>ite_829x</b> by <b>TUXEDO Computers</b> (tuxedo-drivers, GPL-2.0-or-later)",
+        _("Keyboard backlight driver <b>ite_829x</b> by <b>TUXEDO Computers</b> (tuxedo-drivers, GPL-2.0-or-later)"),
         "https://github.com/tuxedocomputers/tuxedo-drivers", NULL), FALSE, FALSE, 0);
     gtk_box_pack_start(GTK_BOX(top), left, TRUE, TRUE, 0);
 
@@ -7249,14 +7278,14 @@ static GtkWidget *create_about_page(void) {
     GtkWidget *right = gtk_box_new(GTK_ORIENTATION_VERTICAL, 16);
     gtk_widget_set_valign(right, GTK_ALIGN_CENTER);
     gtk_box_pack_start(GTK_BOX(right), about_credit(
-        "Special thanks to the creators of <b>Bionic AI Agent</b>", "https://lmstudio.ai/", NULL), FALSE, FALSE, 0);
+        _("Special thanks to the creators of <b>Bionic AI Agent</b>"), "https://lmstudio.ai/", NULL), FALSE, FALSE, 0);
     gtk_box_pack_start(GTK_BOX(right), about_credit(
-        "Honoring <b>Linus Torvalds</b>, the visionary founder of Linux", "https://torvalds-family.blogspot.com/", NULL),
+        _("Honoring <b>Linus Torvalds</b>, the visionary founder of Linux"), "https://torvalds-family.blogspot.com/", NULL),
         FALSE, FALSE, 0);
     gtk_box_pack_start(GTK_BOX(right), about_credit(
-        "Appreciation for the <b>Great Linux Community</b>", NULL, NULL), FALSE, FALSE, 0);
+        _("Appreciation for the <b>Great Linux Community</b>"), NULL, NULL), FALSE, FALSE, 0);
     gtk_box_pack_start(GTK_BOX(right), about_credit(
-        "Thanks to <b>Clevo</b> for producing &amp; selling awesome Laptops", "https://www.clevo.com.tw/", NULL),
+        _("Thanks to <b>Clevo</b> for producing &amp; selling awesome Laptops"), "https://www.clevo.com.tw/", NULL),
         FALSE, FALSE, 0);
     gtk_box_pack_start(GTK_BOX(top), right, TRUE, TRUE, 0);
     gtk_box_pack_start(GTK_BOX(vbox), top, FALSE, FALSE, 0);
@@ -7264,14 +7293,14 @@ static GtkWidget *create_about_page(void) {
     /* Below the logo: the AI note, contact */
 
     GtkWidget *ai_text = gtk_label_new(NULL);
-    gtk_label_set_markup(GTK_LABEL(ai_text), "<span weight='bold'>This application was completely coded by AI</span>");
+    gtk_label_set_markup(GTK_LABEL(ai_text), _("<span weight='bold'>This application was completely coded by AI</span>"));
     gtk_widget_set_halign(ai_text, GTK_ALIGN_CENTER);
     gtk_box_pack_start(GTK_BOX(vbox), ai_text, FALSE, FALSE, 0);
 
     GtkWidget *contact = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 8);
     gtk_widget_set_halign(contact, GTK_ALIGN_CENTER);
     GtkWidget *contact_text = gtk_label_new(NULL);
-    gtk_label_set_markup(GTK_LABEL(contact_text), "<b>Contact:</b> <b>Dudemeister</b>  GitHub:");
+    gtk_label_set_markup(GTK_LABEL(contact_text), _("<b>Contact:</b> <b>Dudemeister</b>  GitHub:"));
     gtk_box_pack_start(GTK_BOX(contact), contact_text, FALSE, FALSE, 0);
     gtk_box_pack_start(GTK_BOX(contact), create_clickable_link("https://github.com/dudewayne/Dudes-Control-Center"),
                        FALSE, FALSE, 0);
@@ -7280,8 +7309,8 @@ static GtkWidget *create_about_page(void) {
     gtk_box_pack_start(GTK_BOX(vbox), gtk_separator_new(GTK_ORIENTATION_HORIZONTAL), FALSE, FALSE, 4);
     GtkWidget *license_label = gtk_label_new(NULL);
     gtk_label_set_markup(GTK_LABEL(license_label),
-        "<span size='small'>Licensed under the GNU General Public License version 2. "
-        "The keyboard driver is GPL-2.0-or-later (TUXEDO Computers).</span>");
+        _("<span size='small'>Licensed under the GNU General Public License version 2. "
+        "The keyboard driver is GPL-2.0-or-later (TUXEDO Computers).</span>"));
     gtk_widget_set_halign(license_label, GTK_ALIGN_CENTER);
     gtk_box_pack_start(GTK_BOX(vbox), license_label, FALSE, FALSE, 0);
 
@@ -7300,9 +7329,9 @@ static GtkWidget *create_cpu_page(AppData *app) {
 
     /* Daemon status (like the Keyboard tab) */
     {
-        GtkWidget *frame = gtk_frame_new("CPU Daemon Status");
+        GtkWidget *frame = gtk_frame_new(_("CPU Daemon Status"));
         gtk_container_set_border_width(GTK_CONTAINER(frame), 6);
-        app->cpu_daemon_status_label = gtk_label_new("CPU daemon not connected");
+        app->cpu_daemon_status_label = gtk_label_new(_("CPU daemon not connected"));
         gtk_label_set_xalign(GTK_LABEL(app->cpu_daemon_status_label), 0.0);
         gtk_widget_set_margin_start(app->cpu_daemon_status_label, 6);
         gtk_widget_set_margin_end(app->cpu_daemon_status_label, 6);
@@ -7311,7 +7340,7 @@ static GtkWidget *create_cpu_page(AppData *app) {
     }
 
     /* Section: CPU Info */
-    GtkWidget *info_frame = gtk_frame_new("CPU Information");
+    GtkWidget *info_frame = gtk_frame_new(_("CPU Information"));
     GtkWidget *info_box = gtk_box_new(GTK_ORIENTATION_VERTICAL, 5);
     gtk_container_set_border_width(GTK_CONTAINER(info_box), 10);
     gtk_container_add(GTK_CONTAINER(info_frame), info_box);
@@ -7329,11 +7358,11 @@ static GtkWidget *create_cpu_page(AppData *app) {
     /* CPU Temperature */
     {
         GtkWidget *row = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 10);
-        GtkWidget *label = gtk_label_new("CPU Temperature:");
+        GtkWidget *label = gtk_label_new(_("CPU Temperature:"));
         gtk_widget_set_halign(label, GTK_ALIGN_END);
         gtk_label_set_width_chars(GTK_LABEL(label), 20);
         gtk_box_pack_start(GTK_BOX(row), label, FALSE, FALSE, 0);
-        app->cpu_page_temp_label = gtk_label_new("N/A");
+        app->cpu_page_temp_label = gtk_label_new(_("N/A"));
         gtk_widget_set_halign(app->cpu_page_temp_label, GTK_ALIGN_START);
         gtk_box_pack_start(GTK_BOX(row), app->cpu_page_temp_label, TRUE, TRUE, 0);
         gtk_box_pack_start(GTK_BOX(info_left), row, FALSE, FALSE, 0);
@@ -7342,11 +7371,11 @@ static GtkWidget *create_cpu_page(AppData *app) {
     /* CPU Load */
     {
         GtkWidget *row = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 10);
-        GtkWidget *label = gtk_label_new("CPU Load:");
+        GtkWidget *label = gtk_label_new(_("CPU Load:"));
         gtk_widget_set_halign(label, GTK_ALIGN_END);
         gtk_label_set_width_chars(GTK_LABEL(label), 20);
         gtk_box_pack_start(GTK_BOX(row), label, FALSE, FALSE, 0);
-        app->cpu_page_load_label = gtk_label_new("N/A");
+        app->cpu_page_load_label = gtk_label_new(_("N/A"));
         gtk_widget_set_halign(app->cpu_page_load_label, GTK_ALIGN_START);
         gtk_box_pack_start(GTK_BOX(row), app->cpu_page_load_label, TRUE, TRUE, 0);
         gtk_box_pack_start(GTK_BOX(info_left), row, FALSE, FALSE, 0);
@@ -7355,11 +7384,11 @@ static GtkWidget *create_cpu_page(AppData *app) {
     /* Number of CPUs */
     {
         GtkWidget *row = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 10);
-        GtkWidget *label = gtk_label_new("Number of CPUs:");
+        GtkWidget *label = gtk_label_new(_("Number of CPUs:"));
         gtk_widget_set_halign(label, GTK_ALIGN_END);
         gtk_label_set_width_chars(GTK_LABEL(label), 20);
         gtk_box_pack_start(GTK_BOX(row), label, FALSE, FALSE, 0);
-        app->cpu_page_num_label = gtk_label_new("N/A");
+        app->cpu_page_num_label = gtk_label_new(_("N/A"));
         gtk_widget_set_halign(app->cpu_page_num_label, GTK_ALIGN_START);
         gtk_box_pack_start(GTK_BOX(row), app->cpu_page_num_label, TRUE, TRUE, 0);
         gtk_box_pack_start(GTK_BOX(info_left), row, FALSE, FALSE, 0);
@@ -7368,11 +7397,11 @@ static GtkWidget *create_cpu_page(AppData *app) {
     /* Current Frequency */
     {
         GtkWidget *row = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 10);
-        GtkWidget *label = gtk_label_new("Current Frequency:");
+        GtkWidget *label = gtk_label_new(_("Current Frequency:"));
         gtk_widget_set_halign(label, GTK_ALIGN_END);
         gtk_label_set_width_chars(GTK_LABEL(label), 20);
         gtk_box_pack_start(GTK_BOX(row), label, FALSE, FALSE, 0);
-        app->cpu_page_freq_label = gtk_label_new("N/A");
+        app->cpu_page_freq_label = gtk_label_new(_("N/A"));
         gtk_widget_set_halign(app->cpu_page_freq_label, GTK_ALIGN_START);
         gtk_box_pack_start(GTK_BOX(row), app->cpu_page_freq_label, TRUE, TRUE, 0);
         gtk_box_pack_start(GTK_BOX(info_right), row, FALSE, FALSE, 0);
@@ -7381,11 +7410,11 @@ static GtkWidget *create_cpu_page(AppData *app) {
     /* Min/Max Frequency */
     {
         GtkWidget *row = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 10);
-        GtkWidget *label = gtk_label_new("Min / Max Frequency:");
+        GtkWidget *label = gtk_label_new(_("Min / Max Frequency:"));
         gtk_widget_set_halign(label, GTK_ALIGN_END);
         gtk_label_set_width_chars(GTK_LABEL(label), 20);
         gtk_box_pack_start(GTK_BOX(row), label, FALSE, FALSE, 0);
-        app->cpu_page_min_max_freq_label = gtk_label_new("N/A");
+        app->cpu_page_min_max_freq_label = gtk_label_new(_("N/A"));
         gtk_widget_set_halign(app->cpu_page_min_max_freq_label, GTK_ALIGN_START);
         gtk_box_pack_start(GTK_BOX(row), app->cpu_page_min_max_freq_label, TRUE, TRUE, 0);
         gtk_box_pack_start(GTK_BOX(info_right), row, FALSE, FALSE, 0);
@@ -7394,18 +7423,18 @@ static GtkWidget *create_cpu_page(AppData *app) {
     /* Active Governor */
     {
         GtkWidget *row = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 10);
-        GtkWidget *label = gtk_label_new("Active Power Mode:");
+        GtkWidget *label = gtk_label_new(_("Active Power Mode:"));
         gtk_widget_set_halign(label, GTK_ALIGN_END);
         gtk_label_set_width_chars(GTK_LABEL(label), 20);
         gtk_box_pack_start(GTK_BOX(row), label, FALSE, FALSE, 0);
-        app->cpu_page_governor_label = gtk_label_new("N/A");
+        app->cpu_page_governor_label = gtk_label_new(_("N/A"));
         gtk_widget_set_halign(app->cpu_page_governor_label, GTK_ALIGN_START);
         gtk_box_pack_start(GTK_BOX(row), app->cpu_page_governor_label, TRUE, TRUE, 0);
         gtk_box_pack_start(GTK_BOX(info_right), row, FALSE, FALSE, 0);
     }
 
     /* Section: Governor Profiles */
-    GtkWidget *profile_frame = gtk_frame_new("Governor Profiles");
+    GtkWidget *profile_frame = gtk_frame_new(_("Governor Profiles"));
     GtkWidget *profile_box = gtk_box_new(GTK_ORIENTATION_VERTICAL, 5);
     gtk_container_set_border_width(GTK_CONTAINER(profile_box), 10);
     gtk_container_add(GTK_CONTAINER(profile_frame), profile_box);
@@ -7414,7 +7443,7 @@ static GtkWidget *create_cpu_page(AppData *app) {
     /* Profile combo box */
     {
         GtkWidget *row = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 10);
-        GtkWidget *label = gtk_label_new("Power mode:");
+        GtkWidget *label = gtk_label_new(_("Power mode:"));
         gtk_widget_set_halign(label, GTK_ALIGN_END);
         gtk_label_set_width_chars(GTK_LABEL(label), 20);
         gtk_box_pack_start(GTK_BOX(row), label, FALSE, FALSE, 0);
@@ -7435,7 +7464,7 @@ static GtkWidget *create_cpu_page(AppData *app) {
 
     /* Section: Per-Core Frequency Profiles */
     {
-        GtkWidget *freq_frame = gtk_frame_new("Per-Core Frequency Profiles");
+        GtkWidget *freq_frame = gtk_frame_new(_("Per-Core Frequency Profiles"));
         GtkWidget *freq_box = gtk_box_new(GTK_ORIENTATION_VERTICAL, 5);
         gtk_container_set_border_width(GTK_CONTAINER(freq_box), 10);
         gtk_container_add(GTK_CONTAINER(freq_frame), freq_box);
@@ -7444,7 +7473,7 @@ static GtkWidget *create_cpu_page(AppData *app) {
         /* Profile combo box */
         {
             GtkWidget *row = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 10);
-            GtkWidget *label = gtk_label_new("Frequency Profile:");
+            GtkWidget *label = gtk_label_new(_("Frequency Profile:"));
             gtk_widget_set_halign(label, GTK_ALIGN_END);
             gtk_label_set_width_chars(GTK_LABEL(label), 20);
             gtk_box_pack_start(GTK_BOX(row), label, FALSE, FALSE, 0);
@@ -7464,7 +7493,7 @@ static GtkWidget *create_cpu_page(AppData *app) {
 
         /* Apply to All Cores checkbox */
         {
-            app->cpu_apply_all_cores_checkbox = gtk_check_button_new_with_label("Apply values to all cores");
+            app->cpu_apply_all_cores_checkbox = gtk_check_button_new_with_label(_("Apply values to all cores"));
             gtk_box_pack_start(GTK_BOX(freq_box), app->cpu_apply_all_cores_checkbox, FALSE, FALSE, 0);
             gtk_widget_set_sensitive(app->cpu_apply_all_cores_checkbox, FALSE); /* Disabled until profile selected */
             app->cpu_apply_all_cores_signal_id = g_signal_connect(app->cpu_apply_all_cores_checkbox, "toggled", G_CALLBACK(on_cpu_apply_all_cores_toggled), app);
@@ -7488,26 +7517,26 @@ static GtkWidget *create_cpu_page(AppData *app) {
             GtkWidget *btn_box = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 10);
             gtk_box_pack_start(GTK_BOX(freq_box), btn_box, FALSE, FALSE, 0);
 
-            app->cpu_freq_profile_create_btn = gtk_button_new_with_label("Create");
+            app->cpu_freq_profile_create_btn = gtk_button_new_with_label(_("Create"));
             gtk_box_pack_start(GTK_BOX(btn_box), app->cpu_freq_profile_create_btn, FALSE, FALSE, 0);
             g_signal_connect(app->cpu_freq_profile_create_btn, "clicked", G_CALLBACK(on_cpu_create_freq_profile_clicked), app);
 
-            app->cpu_freq_profile_rename_btn = gtk_button_new_with_label("Rename");
+            app->cpu_freq_profile_rename_btn = gtk_button_new_with_label(_("Rename"));
             gtk_box_pack_start(GTK_BOX(btn_box), app->cpu_freq_profile_rename_btn, FALSE, FALSE, 0);
             g_signal_connect(app->cpu_freq_profile_rename_btn, "clicked", G_CALLBACK(on_cpu_rename_freq_profile_clicked), app);
             gtk_widget_set_sensitive(app->cpu_freq_profile_rename_btn, FALSE); /* Disabled until profile selected */
 
-            app->cpu_freq_profile_save_btn = gtk_button_new_with_label("Save");
+            app->cpu_freq_profile_save_btn = gtk_button_new_with_label(_("Save"));
             gtk_box_pack_start(GTK_BOX(btn_box), app->cpu_freq_profile_save_btn, FALSE, FALSE, 0);
             g_signal_connect(app->cpu_freq_profile_save_btn, "clicked", G_CALLBACK(on_cpu_save_freq_profile_clicked), app);
             gtk_widget_set_sensitive(app->cpu_freq_profile_save_btn, FALSE); /* Disabled until profile selected */
 
-            app->cpu_freq_profile_delete_btn = gtk_button_new_with_label("Delete");
+            app->cpu_freq_profile_delete_btn = gtk_button_new_with_label(_("Delete"));
             gtk_box_pack_start(GTK_BOX(btn_box), app->cpu_freq_profile_delete_btn, FALSE, FALSE, 0);
             g_signal_connect(app->cpu_freq_profile_delete_btn, "clicked", G_CALLBACK(on_cpu_delete_freq_profile_clicked), app);
             gtk_widget_set_sensitive(app->cpu_freq_profile_delete_btn, FALSE); /* Disabled until profile selected */
 
-            app->cpu_freq_profile_activate_btn = gtk_button_new_with_label("Activate");
+            app->cpu_freq_profile_activate_btn = gtk_button_new_with_label(_("Activate"));
             gtk_box_pack_start(GTK_BOX(btn_box), app->cpu_freq_profile_activate_btn, FALSE, FALSE, 0);
             g_signal_connect(app->cpu_freq_profile_activate_btn, "clicked", G_CALLBACK(on_cpu_activate_freq_profile_clicked), app);
             gtk_widget_set_sensitive(app->cpu_freq_profile_activate_btn, FALSE); /* Disabled until profile selected */
@@ -7523,7 +7552,7 @@ static GtkWidget *create_cpu_page(AppData *app) {
 
     /* Section: Hard Frequency Limit */
     {
-        GtkWidget *limit_frame = gtk_frame_new("Hard Frequency Limit");
+        GtkWidget *limit_frame = gtk_frame_new(_("Hard Frequency Limit"));
         GtkWidget *limit_box = gtk_box_new(GTK_ORIENTATION_VERTICAL, 5);
         gtk_container_set_border_width(GTK_CONTAINER(limit_box), 10);
         gtk_container_add(GTK_CONTAINER(limit_frame), limit_box);
@@ -7533,10 +7562,10 @@ static GtkWidget *create_cpu_page(AppData *app) {
         {
             GtkWidget *warning_label = gtk_label_new("");
             gtk_label_set_markup(GTK_LABEL(warning_label),
-                "<span foreground='#e74c3c' weight='bold'>WARNING:</span> "
+                _("<span foreground='#e74c3c' weight='bold'>WARNING:</span> "
                 "This is a safety limit to protect your hardware. "
                 "Setting it too high may cause CPU instability, overheating, or permanent damage. "
-                "Only increase this if you know your CPU's safe operating limits.");
+                "Only increase this if you know your CPU's safe operating limits."));
             gtk_label_set_line_wrap(GTK_LABEL(warning_label), TRUE);
             gtk_widget_set_hexpand(warning_label, TRUE);
             gtk_box_pack_start(GTK_BOX(limit_box), warning_label, FALSE, FALSE, 0);
@@ -7545,7 +7574,7 @@ static GtkWidget *create_cpu_page(AppData *app) {
         /* Hard limit spinner (in GHz, step 0.1, range 0.5 - 8.0) */
         {
             GtkWidget *row = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 10);
-            GtkWidget *label = gtk_label_new("Hard Limit (GHz):");
+            GtkWidget *label = gtk_label_new(_("Hard Limit (GHz):"));
             gtk_widget_set_halign(label, GTK_ALIGN_END);
             gtk_label_set_width_chars(GTK_LABEL(label), 20);
             gtk_box_pack_start(GTK_BOX(row), label, FALSE, FALSE, 0);
@@ -7555,7 +7584,7 @@ static GtkWidget *create_cpu_page(AppData *app) {
             gtk_widget_set_halign(app->cpu_hard_limit_spinner, GTK_ALIGN_START);
             gtk_box_pack_start(GTK_BOX(row), app->cpu_hard_limit_spinner, FALSE, FALSE, 0);
 
-            app->cpu_hard_limit_apply_btn = gtk_button_new_with_label("Apply");
+            app->cpu_hard_limit_apply_btn = gtk_button_new_with_label(_("Apply"));
             gtk_widget_set_halign(app->cpu_hard_limit_apply_btn, GTK_ALIGN_START);
             gtk_box_pack_start(GTK_BOX(row), app->cpu_hard_limit_apply_btn, FALSE, FALSE, 0);
             g_signal_connect(app->cpu_hard_limit_apply_btn, "clicked", G_CALLBACK(on_cpu_hard_limit_apply_clicked), app);
@@ -7609,25 +7638,25 @@ static GtkWidget *create_keyboard_page(AppData *app) {
 
     /* --- Status section --- */
     GtkWidget *status_box = gtk_box_new(GTK_ORIENTATION_VERTICAL, 4);
-    app->kbd_status_label = gtk_label_new("Keyboard daemon not connected");
+    app->kbd_status_label = gtk_label_new(_("Keyboard daemon not connected"));
     gtk_label_set_xalign(GTK_LABEL(app->kbd_status_label), 0.0);
     gtk_widget_set_hexpand(app->kbd_status_label, TRUE);
     gtk_box_pack_start(GTK_BOX(status_box), app->kbd_status_label, FALSE, FALSE, 0);
 
-    GtkWidget *status_frame = gtk_frame_new("Keyboard Daemon Status");
+    GtkWidget *status_frame = gtk_frame_new(_("Keyboard Daemon Status"));
     gtk_container_set_border_width(GTK_CONTAINER(status_frame), 6);
     gtk_container_add(GTK_CONTAINER(status_frame), status_box);
     gtk_box_pack_start(GTK_BOX(vbox), status_frame, FALSE, FALSE, 0);
 
     /* --- Profile management section --- */
-    GtkWidget *profile_frame = gtk_frame_new("Keyboard Profiles");
+    GtkWidget *profile_frame = gtk_frame_new(_("Keyboard Profiles"));
     gtk_container_set_border_width(GTK_CONTAINER(profile_frame), 6);
     GtkWidget *profile_vbox = gtk_box_new(GTK_ORIENTATION_VERTICAL, 6);
 
     /* Profile combo box */
     GtkWidget *profile_hbox = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 6);
-    gtk_label_set_xalign(GTK_LABEL(gtk_label_new("Profile:")), 0.0);
-    GtkWidget *profile_label = gtk_label_new("Profile:");
+    gtk_label_set_xalign(GTK_LABEL(gtk_label_new(_("Profile:"))), 0.0);
+    GtkWidget *profile_label = gtk_label_new(_("Profile:"));
     gtk_box_pack_start(GTK_BOX(profile_hbox), profile_label, FALSE, FALSE, 0);
 
     app->kbd_profile_store = gtk_list_store_new(1, G_TYPE_STRING);
@@ -7646,15 +7675,15 @@ static GtkWidget *create_keyboard_page(AppData *app) {
 
     /* Profile buttons row */
     GtkWidget *btn_row = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 6);
-    app->kbd_profile_create_btn = gtk_button_new_with_label("Create");
+    app->kbd_profile_create_btn = gtk_button_new_with_label(_("Create"));
     g_signal_connect(app->kbd_profile_create_btn, "clicked", G_CALLBACK(on_kbd_create_profile_clicked), app);
-    app->kbd_profile_delete_btn = gtk_button_new_with_label("Delete");
+    app->kbd_profile_delete_btn = gtk_button_new_with_label(_("Delete"));
     g_signal_connect(app->kbd_profile_delete_btn, "clicked", G_CALLBACK(on_kbd_delete_profile_clicked), app);
-    app->kbd_profile_rename_btn = gtk_button_new_with_label("Rename");
+    app->kbd_profile_rename_btn = gtk_button_new_with_label(_("Rename"));
     g_signal_connect(app->kbd_profile_rename_btn, "clicked", G_CALLBACK(on_kbd_rename_profile_clicked), app);
-    app->kbd_profile_save_btn = gtk_button_new_with_label("Save");
+    app->kbd_profile_save_btn = gtk_button_new_with_label(_("Save"));
     g_signal_connect(app->kbd_profile_save_btn, "clicked", G_CALLBACK(on_kbd_save_profile_clicked), app);
-    app->kbd_profile_activate_btn = gtk_button_new_with_label("Activate");
+    app->kbd_profile_activate_btn = gtk_button_new_with_label(_("Activate"));
     g_signal_connect(app->kbd_profile_activate_btn, "clicked", G_CALLBACK(on_kbd_activate_profile_clicked), app);
     gtk_box_pack_start(GTK_BOX(btn_row), app->kbd_profile_create_btn, FALSE, FALSE, 0);
     gtk_box_pack_start(GTK_BOX(btn_row), app->kbd_profile_rename_btn, FALSE, FALSE, 0);
@@ -7673,12 +7702,12 @@ static GtkWidget *create_keyboard_page(AppData *app) {
     gtk_box_pack_start(GTK_BOX(vbox), profile_frame, FALSE, FALSE, 0);
 
     /* --- Off Switch section --- */
-    GtkWidget *off_switch_frame = gtk_frame_new("Backlight");
+    GtkWidget *off_switch_frame = gtk_frame_new(_("Backlight"));
     gtk_container_set_border_width(GTK_CONTAINER(off_switch_frame), 6);
     GtkWidget *off_switch_vbox = gtk_box_new(GTK_ORIENTATION_VERTICAL, 6);
 
     GtkWidget *off_switch_hbox = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 6);
-    GtkWidget *off_switch_label = gtk_label_new("Backlight Off:");
+    GtkWidget *off_switch_label = gtk_label_new(_("Backlight Off:"));
     gtk_label_set_xalign(GTK_LABEL(off_switch_label), 0.0);
     gtk_box_pack_start(GTK_BOX(off_switch_hbox), off_switch_label, FALSE, FALSE, 0);
 
@@ -7691,7 +7720,7 @@ static GtkWidget *create_keyboard_page(AppData *app) {
     /* Brightness (keyboard hardware brightness, also set by the desktop's keyboard slider) */
     {
         GtkWidget *row = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 6);
-        GtkWidget *label = gtk_label_new("Brightness:");
+        GtkWidget *label = gtk_label_new(_("Brightness:"));
         gtk_box_pack_start(GTK_BOX(row), label, FALSE, FALSE, 0);
         app->kbd_brightness_max = 10;
         app->kbd_brightness_scale = gtk_scale_new_with_range(GTK_ORIENTATION_HORIZONTAL, 0, 10, 1);
@@ -7705,7 +7734,7 @@ static GtkWidget *create_keyboard_page(AppData *app) {
         gtk_box_pack_start(GTK_BOX(off_switch_vbox), row, FALSE, FALSE, 0);
     }
 
-    GtkWidget *off_switch_note = gtk_label_new("When ON, overrides all profile settings until disabled.");
+    GtkWidget *off_switch_note = gtk_label_new(_("When ON, overrides all profile settings until disabled."));
     gtk_widget_set_name(off_switch_note, "kbd-off-switch-note");
     gtk_label_set_xalign(GTK_LABEL(off_switch_note), 0.0);
     gtk_box_pack_start(GTK_BOX(off_switch_vbox), off_switch_note, FALSE, FALSE, 0);
@@ -7718,11 +7747,11 @@ static GtkWidget *create_keyboard_page(AppData *app) {
     GtkWidget *wizard_box = gtk_box_new(GTK_ORIENTATION_VERTICAL, 6);
     {
         GtkWidget *wizard_title = gtk_label_new(NULL);
-        gtk_label_set_markup(GTK_LABEL(wizard_title), "<b>LED Wizard</b>");
+        gtk_label_set_markup(GTK_LABEL(wizard_title), _("<b>LED Wizard</b>"));
         gtk_label_set_xalign(GTK_LABEL(wizard_title), 0.0);
         gtk_box_pack_start(GTK_BOX(wizard_box), wizard_title, FALSE, FALSE, 0);
-        GtkWidget *wizard_note = gtk_label_new("Lights one LED after the other; click the matching key on the picture "
-                                               "below. Needed once for per-key colors.");
+        GtkWidget *wizard_note = gtk_label_new(_("Lights one LED after the other; click the matching key on the picture "
+                                               "below. Needed once for per-key colors."));
         gtk_label_set_xalign(GTK_LABEL(wizard_note), 0.0);
         gtk_label_set_line_wrap(GTK_LABEL(wizard_note), TRUE);
         gtk_widget_set_name(wizard_note, "kbd-off-switch-note");
@@ -7733,7 +7762,7 @@ static GtkWidget *create_keyboard_page(AppData *app) {
     gtk_box_pack_start(GTK_BOX(vbox), off_switch_frame, FALSE, FALSE, 0);
 
     /* --- Preset Colors section --- */
-    GtkWidget *preset_frame = gtk_frame_new("Preset Colors");
+    GtkWidget *preset_frame = gtk_frame_new(_("Preset Colors"));
     gtk_container_set_border_width(GTK_CONTAINER(preset_frame), 6);
     GtkWidget *preset_vbox = gtk_box_new(GTK_ORIENTATION_VERTICAL, 6);
 
@@ -7744,7 +7773,7 @@ static GtkWidget *create_keyboard_page(AppData *app) {
     GtkWidget *preset_hbox = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 6);
 
     /* Define preset colors: {label, R, G, B} */
-    const char *preset_names[] = {"White", "Red", "Green", "Blue", "Yellow", "Cyan", "Magenta", "Orange", "Purple"};
+    const char *preset_names[] = {_("White"), _("Red"), _("Green"), _("Blue"), _("Yellow"), _("Cyan"), _("Magenta"), _("Orange"), _("Purple")};
     uint8_t preset_r[] = {255, 255, 0, 0, 255, 0, 255, 255, 128};
     uint8_t preset_g[] = {255, 0, 255, 0, 255, 255, 0, 165, 0};
     uint8_t preset_b[] = {255, 0, 0, 255, 0, 255, 255, 0, 128};
@@ -7764,12 +7793,12 @@ static GtkWidget *create_keyboard_page(AppData *app) {
     }
 
     {
-        GtkWidget *custom_btn = gtk_button_new_with_label("Custom…");
-        gtk_widget_set_tooltip_text(custom_btn, "Choose any color");
+        GtkWidget *custom_btn = gtk_button_new_with_label(_("Custom…"));
+        gtk_widget_set_tooltip_text(custom_btn, _("Choose any color"));
         g_signal_connect(custom_btn, "clicked", G_CALLBACK(on_kbd_custom_color_clicked), app);
         gtk_box_pack_start(GTK_BOX(preset_hbox), custom_btn, FALSE, FALSE, 0);
-        GtkWidget *whole_btn = gtk_button_new_with_label("Whole Keyboard");
-        gtk_widget_set_tooltip_text(whole_btn, "Stop editing a zone: colors go to the whole keyboard (base color)");
+        GtkWidget *whole_btn = gtk_button_new_with_label(_("Whole Keyboard"));
+        gtk_widget_set_tooltip_text(whole_btn, _("Stop editing a zone: colors go to the whole keyboard (base color)"));
         g_signal_connect(whole_btn, "clicked", G_CALLBACK(on_kbd_whole_keyboard_clicked), app);
         gtk_box_pack_end(GTK_BOX(preset_hbox), whole_btn, FALSE, FALSE, 0);
     }
@@ -7778,28 +7807,28 @@ static GtkWidget *create_keyboard_page(AppData *app) {
     gtk_box_pack_start(GTK_BOX(vbox), preset_frame, FALSE, FALSE, 0);
 
     /* --- Visual Zone Editor section --- */
-    GtkWidget *zone_frame = gtk_frame_new("Visual Zone Editor");
+    GtkWidget *zone_frame = gtk_frame_new(_("Visual Zone Editor"));
     gtk_container_set_border_width(GTK_CONTAINER(zone_frame), 6);
     GtkWidget *zone_vbox = gtk_box_new(GTK_ORIENTATION_VERTICAL, 6);
 
 
     /* LED Wizard controls */
     GtkWidget *wizard_btn_row = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 6);
-    app->kbd_led_wizard_btn = gtk_button_new_with_label("LED Wizard");
+    app->kbd_led_wizard_btn = gtk_button_new_with_label(_("LED Wizard"));
     g_signal_connect(app->kbd_led_wizard_btn, "clicked", G_CALLBACK(on_led_wizard_start_clicked), app);
-    app->kbd_led_wizard_skip_btn = gtk_button_new_with_label("Skip");
-    gtk_widget_set_tooltip_text(app->kbd_led_wizard_skip_btn, "Keep this LED's current key and go to the next LED");
+    app->kbd_led_wizard_skip_btn = gtk_button_new_with_label(_("Skip"));
+    gtk_widget_set_tooltip_text(app->kbd_led_wizard_skip_btn, _("Keep this LED's current key and go to the next LED"));
     g_signal_connect(app->kbd_led_wizard_skip_btn, "clicked", G_CALLBACK(on_led_wizard_skip_clicked), app);
     gtk_widget_set_sensitive(app->kbd_led_wizard_skip_btn, FALSE);
-    app->kbd_led_wizard_nokey_btn = gtk_button_new_with_label("No Key");
-    gtk_widget_set_tooltip_text(app->kbd_led_wizard_nokey_btn, "This LED lights no key: remove its key and go to the next LED");
+    app->kbd_led_wizard_nokey_btn = gtk_button_new_with_label(_("No Key"));
+    gtk_widget_set_tooltip_text(app->kbd_led_wizard_nokey_btn, _("This LED lights no key: remove its key and go to the next LED"));
     g_signal_connect(app->kbd_led_wizard_nokey_btn, "clicked", G_CALLBACK(on_led_wizard_nokey_clicked), app);
     gtk_widget_set_sensitive(app->kbd_led_wizard_nokey_btn, FALSE);
     gtk_widget_set_sensitive(app->kbd_led_wizard_nokey_btn, FALSE);
-    app->kbd_led_wizard_cancel_btn = gtk_button_new_with_label("Cancel");
+    app->kbd_led_wizard_cancel_btn = gtk_button_new_with_label(_("Cancel"));
     g_signal_connect(app->kbd_led_wizard_cancel_btn, "clicked", G_CALLBACK(on_led_wizard_cancel_clicked), app);
     gtk_widget_set_sensitive(app->kbd_led_wizard_cancel_btn, FALSE);
-    app->kbd_led_wizard_save_btn = gtk_button_new_with_label("Save & Finish");
+    app->kbd_led_wizard_save_btn = gtk_button_new_with_label(_("Save & Finish"));
     g_signal_connect(app->kbd_led_wizard_save_btn, "clicked", G_CALLBACK(on_led_wizard_save_finish_clicked), app);
     gtk_widget_set_sensitive(app->kbd_led_wizard_save_btn, FALSE);
     gtk_box_pack_start(GTK_BOX(wizard_btn_row), app->kbd_led_wizard_btn, FALSE, FALSE, 0);
@@ -7830,21 +7859,21 @@ static GtkWidget *create_keyboard_page(AppData *app) {
     GtkWidget *canvas_row = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 8);
     gtk_box_pack_start(GTK_BOX(canvas_row), app->kbd_keyboard_canvas, TRUE, TRUE, 0);
     {
-        GtkWidget *zframe = gtk_frame_new("Zones");
+        GtkWidget *zframe = gtk_frame_new(_("Zones"));
         GtkWidget *zbox = gtk_box_new(GTK_ORIENTATION_VERTICAL, 4);
         gtk_container_set_border_width(GTK_CONTAINER(zbox), 4);
         app->kbd_zone_store = gtk_list_store_new(3, G_TYPE_STRING, G_TYPE_STRING, G_TYPE_INT);
         app->kbd_zone_view = gtk_tree_view_new_with_model(GTK_TREE_MODEL(app->kbd_zone_store));
         GtkCellRenderer *rc = gtk_cell_renderer_text_new();
         gtk_tree_view_append_column(GTK_TREE_VIEW(app->kbd_zone_view),
-            gtk_tree_view_column_new_with_attributes("Color", rc, "markup", 0, NULL));
+            gtk_tree_view_column_new_with_attributes(_("Color"), rc, "markup", 0, NULL));
         GtkCellRenderer *rn = gtk_cell_renderer_text_new();
         g_object_set(rn, "ellipsize", PANGO_ELLIPSIZE_END, NULL);
-        GtkTreeViewColumn *cn = gtk_tree_view_column_new_with_attributes("Zone", rn, "text", 1, NULL);
+        GtkTreeViewColumn *cn = gtk_tree_view_column_new_with_attributes(_("Zone"), rn, "text", 1, NULL);
         gtk_tree_view_column_set_expand(cn, TRUE);
         gtk_tree_view_append_column(GTK_TREE_VIEW(app->kbd_zone_view), cn);
         gtk_tree_view_append_column(GTK_TREE_VIEW(app->kbd_zone_view),
-            gtk_tree_view_column_new_with_attributes("LEDs", gtk_cell_renderer_text_new(), "text", 2, NULL));
+            gtk_tree_view_column_new_with_attributes(_("LEDs"), gtk_cell_renderer_text_new(), "text", 2, NULL));
         GtkTreeSelection *zsel = gtk_tree_view_get_selection(GTK_TREE_VIEW(app->kbd_zone_view));
         gtk_tree_selection_set_mode(zsel, GTK_SELECTION_SINGLE);
         app->kbd_zone_sel_signal_id = g_signal_connect(zsel, "changed", G_CALLBACK(on_kbd_zone_selection_changed), app);
@@ -7854,14 +7883,14 @@ static GtkWidget *create_keyboard_page(AppData *app) {
         gtk_box_pack_start(GTK_BOX(zbox), zscroll, TRUE, TRUE, 0);
         /* Create, Rename, Save, Delete (like the profile buttons) */
         GtkWidget *zbtns = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 4);
-        GtkWidget *zc = gtk_button_new_with_label("Create");
+        GtkWidget *zc = gtk_button_new_with_label(_("Create"));
         g_signal_connect(zc, "clicked", G_CALLBACK(on_kbd_zone_create_clicked), app);
-        app->kbd_zone_rename_btn = gtk_button_new_with_label("Rename");
+        app->kbd_zone_rename_btn = gtk_button_new_with_label(_("Rename"));
         g_signal_connect(app->kbd_zone_rename_btn, "clicked", G_CALLBACK(on_kbd_zone_rename_clicked), app);
-        GtkWidget *zs = gtk_button_new_with_label("Save");
-        gtk_widget_set_tooltip_text(zs, "Save the profile with its zones");
+        GtkWidget *zs = gtk_button_new_with_label(_("Save"));
+        gtk_widget_set_tooltip_text(zs, _("Save the profile with its zones"));
         g_signal_connect(zs, "clicked", G_CALLBACK(on_kbd_zone_save_clicked), app);
-        app->kbd_zone_delete_btn = gtk_button_new_with_label("Delete");
+        app->kbd_zone_delete_btn = gtk_button_new_with_label(_("Delete"));
         g_signal_connect(app->kbd_zone_delete_btn, "clicked", G_CALLBACK(on_kbd_zone_delete_clicked), app);
         gtk_widget_set_sensitive(app->kbd_zone_rename_btn, FALSE);
         gtk_widget_set_sensitive(app->kbd_zone_delete_btn, FALSE);
@@ -7889,7 +7918,7 @@ static GtkWidget *create_keyboard_page(AppData *app) {
 /* Create main window */
 static GtkWidget *create_main_window(AppData *app) {
     app->window = gtk_window_new(GTK_WINDOW_TOPLEVEL);
-    gtk_window_set_title(GTK_WINDOW(app->window), "Dudes Control Center");
+    gtk_window_set_title(GTK_WINDOW(app->window), _("Dudes Control Center"));
     
     /* Set application icon */
     GdkPixbuf *pixbuf = gdk_pixbuf_new_from_file("DudesControlCenter.png", NULL);
@@ -7930,13 +7959,13 @@ GtkWidget *page4 = create_log_page(app);
     app->page_widgets[PAGE_SETTINGS] = settings_page;
     app->page_widgets[PAGE_LOGS] = page4;
     app->page_widgets[PAGE_ABOUT] = page6;
-    gtk_notebook_append_page(GTK_NOTEBOOK(app->notebook), page1, gtk_label_new("Status"));
-    gtk_notebook_append_page(GTK_NOTEBOOK(app->notebook), page2, gtk_label_new("Fan Profiles"));
-    gtk_notebook_append_page(GTK_NOTEBOOK(app->notebook), cpu_scrolled, gtk_label_new("CPU Profiles"));
-    gtk_notebook_append_page(GTK_NOTEBOOK(app->notebook), kbd_scrolled, gtk_label_new("Keyboard Backlight"));
-    gtk_notebook_append_page(GTK_NOTEBOOK(app->notebook), settings_page, gtk_label_new("Settings"));
-    gtk_notebook_append_page(GTK_NOTEBOOK(app->notebook), page4, gtk_label_new("Logs"));
-    gtk_notebook_append_page(GTK_NOTEBOOK(app->notebook), page6, gtk_label_new("About"));
+    gtk_notebook_append_page(GTK_NOTEBOOK(app->notebook), page1, gtk_label_new(_("Status")));
+    gtk_notebook_append_page(GTK_NOTEBOOK(app->notebook), page2, gtk_label_new(_("Fan Profiles")));
+    gtk_notebook_append_page(GTK_NOTEBOOK(app->notebook), cpu_scrolled, gtk_label_new(_("CPU Profiles")));
+    gtk_notebook_append_page(GTK_NOTEBOOK(app->notebook), kbd_scrolled, gtk_label_new(_("Keyboard Backlight")));
+    gtk_notebook_append_page(GTK_NOTEBOOK(app->notebook), settings_page, gtk_label_new(_("Settings")));
+    gtk_notebook_append_page(GTK_NOTEBOOK(app->notebook), page4, gtk_label_new(_("Logs")));
+    gtk_notebook_append_page(GTK_NOTEBOOK(app->notebook), page6, gtk_label_new(_("About")));
     
     settings_apply_visibility(app);   /* hide the tabs of switched-off components */
     /* desktop theme changes while following the system (1.29.0) */
@@ -8035,7 +8064,7 @@ static void settings_helper_done(GObject *source, GAsyncResult *res, gpointer us
     app->settings_busy = 0;
     if (status == 0) {
         g_print("[GUI] Settings: %s control %s\n", name, job->enable ? "switched on" : "switched off");
-        show_status(app, job->enable ? "Component switched on" : "Component switched off");
+        show_status(app, job->enable ? _("Component switched on") : _("Component switched off"));
         if (!job->enable) {                          /* stop talking to that daemon */
             if (job->comp == COMP_FAN) disconnect_from_daemon(app);
             if (job->comp == COMP_CPU && app->cpu_socket_fd >= 0) {
@@ -8052,8 +8081,8 @@ static void settings_helper_done(GObject *source, GAsyncResult *res, gpointer us
         /* 126/127: authentication dismissed or failed */
         g_print("[GUI] Settings: switching %s %s failed (exit %d%s%s)\n", name, job->enable ? "on" : "off",
                 status, err ? ": " : "", err ? err->message : "");
-        show_status(app, status == 126 || status == 127 ? "Not changed: authentication was cancelled or failed"
-                                                       : "Could not change the component (see the GUI log)");
+        show_status(app, status == 126 || status == 127 ? _("Not changed: authentication was cancelled or failed")
+                                                       : _("Could not change the component (see the GUI log)"));
     }
     if (err) g_error_free(err);
     settings_apply_visibility(app);
@@ -8070,10 +8099,10 @@ static gboolean on_settings_switch(GtkSwitch *sw, gboolean state, gpointer user_
     if (!state && comp == COMP_FAN) {
         GtkWidget *d = gtk_message_dialog_new(GTK_WINDOW(app->window), GTK_DIALOG_MODAL | GTK_DIALOG_DESTROY_WITH_PARENT,
                                               GTK_MESSAGE_WARNING, GTK_BUTTONS_OK_CANCEL,
-                                              "Switch fan control off?");
+                                              _("Switch fan control off?"));
         gtk_message_dialog_format_secondary_text(GTK_MESSAGE_DIALOG(d),
-            "The fans will run at 100%% until the next reboot. After the reboot the laptop's firmware "
-            "controls them again (there is no known way to hand them back to it earlier).");
+            _("The fans will run at 100%% until the next reboot. After the reboot the laptop's firmware "
+            "controls them again (there is no known way to hand them back to it earlier)."));
         int r = gtk_dialog_run(GTK_DIALOG(d));
         gtk_widget_destroy(d);
         if (r != GTK_RESPONSE_OK) {
@@ -8086,7 +8115,7 @@ static gboolean on_settings_switch(GtkSwitch *sw, gboolean state, gpointer user_
                                          state ? "enable" : "disable", dcc_component_names[comp], NULL);
     if (!proc) {
         g_print("[GUI] Settings: cannot run pkexec: %s\n", err ? err->message : "?");
-        show_status(app, "Could not run pkexec");
+        show_status(app, _("Could not run pkexec"));
         if (err) g_error_free(err);
         settings_sync_switches(app);
         return TRUE;
@@ -8097,10 +8126,69 @@ static gboolean on_settings_switch(GtkSwitch *sw, gboolean state, gpointer user_
     job->enable = state ? 1 : 0;
     app->settings_busy = 1;
     for (int c = 0; c < COMP_COUNT; c++) gtk_widget_set_sensitive(app->settings_switch[c], FALSE);
-    show_status(app, "Waiting for authentication...");
+    show_status(app, _("Waiting for authentication..."));
     g_subprocess_wait_async(proc, NULL, settings_helper_done, job);
     g_object_unref(proc);
     return TRUE;   /* the state is set when the helper is done */
+}
+
+/* Language (1.31.0): the choice is stored; it applies after a restart */
+static void settings_update_language_note(AppData *app) {
+    if (!app->settings_language_note) return;
+    const char *chosen = gtk_combo_box_get_active_id(GTK_COMBO_BOX(app->settings_language_combo));
+    int pending = 0;
+    if (chosen) {
+        cJSON *json = config_read();
+        cJSON *v = cJSON_GetObjectItem(json, "language");
+        const char *saved = cJSON_IsString(v) ? v->valuestring : "system";
+        pending = strcmp(saved, ui_language_code) != 0;
+        cJSON_Delete(json);
+    }
+    gtk_label_set_text(GTK_LABEL(app->settings_language_note),
+        pending ? _("Restart the GUI to use the new language.")
+                : _("Japanese and Korean translations were made without a native speaker's review."));
+    gtk_widget_set_sensitive(app->settings_restart_btn, pending);
+}
+
+static void on_settings_language_changed(GtkComboBox *combo, gpointer user_data) {
+    AppData *app = (AppData *)user_data;
+    const char *code = gtk_combo_box_get_active_id(combo);
+    if (!code) return;
+    cJSON *json = config_read();
+    cJSON_DeleteItemFromObject(json, "language");
+    cJSON_AddStringToObject(json, "language", code);
+    config_write(json);
+    cJSON_Delete(json);
+    g_print("[GUI] Language set to '%s' (after a restart)\n", code);
+    settings_update_language_note(app);
+}
+
+/* Restart the GUI in place (same process, new program image), after the
+ * same unsaved-changes questions as quitting */
+static void on_settings_restart_clicked(GtkWidget *widget, gpointer user_data) {
+    (void)widget;
+    AppData *app = (AppData *)user_data;
+    if (app->curve_points_modified) {
+        int r = check_unsaved_changes(app);
+        if (r < 0) return;
+        if (r == 1) on_apply_clicked(NULL, app);
+        app->curve_points_modified = 0;
+    }
+    if (cpu_check_unsaved_changes(app) < 0) return;
+    if (kbd_leave_tab(app) < 0) return;
+    if (gtk_widget_get_visible(app->window)) {
+        gtk_window_get_position(GTK_WINDOW(app->window), &app->window_x, &app->window_y);
+        app->window_width = gtk_widget_get_allocated_width(app->window);
+        app->window_height = gtk_widget_get_allocated_height(app->window);
+        save_window_position(app);
+    }
+    g_print("[GUI] Restarting for the new language\n");
+    disconnect_from_daemon(app);
+    disconnect_from_cpu_daemon(app);
+    if (app->kbd_socket_fd >= 0) { close(app->kbd_socket_fd); app->kbd_socket_fd = -1; }
+    execv("/proc/self/exe", gui_argv);
+    g_print("[GUI] Restart failed: %s\n", strerror(errno));
+    show_status(app, _("Restart failed - please quit and start the GUI again"));
 }
 
 /* Which theme is in use and whether it is dark */
@@ -8108,9 +8196,9 @@ static void settings_update_appearance_note(AppData *app) {
     if (!app->settings_appearance_note) return;
     gchar *theme = NULL;
     g_object_get(gtk_settings_get_default(), "gtk-theme-name", &theme, NULL);
-    gchar *t = g_strdup_printf("%sTheme in use: %s (%s). The keyboard picture and the fan curve graph follow it.",
-                               app->appearance == APPEARANCE_SYSTEM ? "Uses the desktop's theme and follows its changes. " : "",
-                               theme ? theme : "?", app->is_dark ? "dark" : "light");
+    gchar *t = g_strdup_printf(_("%sTheme in use: %s (%s). The keyboard picture and the fan curve graph follow it."),
+                               app->appearance == APPEARANCE_SYSTEM ? _("Uses the desktop's theme and follows its changes. ") : "",
+                               theme ? theme : "?", app->is_dark ? _("dark") : _("light"));
     gtk_label_set_text(GTK_LABEL(app->settings_appearance_note), t);
     g_free(t);
     g_free(theme);
@@ -8124,7 +8212,7 @@ static void on_settings_appearance_changed(GtkComboBox *combo, gpointer user_dat
     appearance_save_choice(mode);
     appearance_apply_theme(mode);
     appearance_refresh(app);
-    show_status(app, "Appearance changed");
+    show_status(app, _("Appearance changed"));
 }
 
 /* What the LED mapping of the current layout is based on */
@@ -8134,15 +8222,15 @@ static void settings_update_layout_note(AppData *app) {
     kbd_mapping_path(path, sizeof path, kbd_layout_code);
     const char *t;
     if (access(path, F_OK) == 0)
-        t = "The picture shows this layout. LED mapping: saved by the LED Wizard for this layout.";
+        t = _("The picture shows this layout. LED mapping: saved by the LED Wizard for this layout.");
     else if (!strcmp(kbd_layout_code, "de"))
-        t = "The picture shows this layout. LED mapping: built in, checked on a German keyboard.";
+        t = _("The picture shows this layout. LED mapping: built in, checked on a German keyboard.");
     else if (!strcmp(kbd_layout_code, "uk") || !strcmp(kbd_layout_code, "es"))
-        t = "The picture shows this layout. LED mapping: derived from the German layout by key position "
-            "(not checked) - run the LED Wizard once (Keyboard Backlight tab) to make sure every key is right.";
+        t = _("The picture shows this layout. LED mapping: derived from the German layout by key position "
+            "(not checked) - run the LED Wizard once (Keyboard Backlight tab) to make sure every key is right.");
     else
-        t = "The picture shows this layout. LED mapping: derived from the German layout where the keys match; "
-            "keys this layout has in addition have no LED yet - run the LED Wizard once (Keyboard Backlight tab).";
+        t = _("The picture shows this layout. LED mapping: derived from the German layout where the keys match; "
+            "keys this layout has in addition have no LED yet - run the LED Wizard once (Keyboard Backlight tab).");
     gtk_label_set_text(GTK_LABEL(app->settings_layout_note), t);
 }
 
@@ -8153,12 +8241,12 @@ static void on_settings_layout_changed(GtkComboBox *combo, gpointer user_data) {
     const char *code = gtk_combo_box_get_active_id(combo);
     if (!code || !strcmp(code, kbd_layout_code)) return;
     if (app->kbd_wizard_active) {
-        show_status(app, "Finish or cancel the LED Wizard first");
+        show_status(app, _("Finish or cancel the LED Wizard first"));
         gtk_combo_box_set_active_id(combo, kbd_layout_code);
         return;
     }
     if (kbd_layout_load(code) != 0) {
-        show_status(app, "Could not load this keyboard layout");
+        show_status(app, _("Could not load this keyboard layout"));
         gtk_combo_box_set_active_id(combo, kbd_layout_code);
         return;
     }
@@ -8168,25 +8256,26 @@ static void on_settings_layout_changed(GtkComboBox *combo, gpointer user_data) {
     kbd_highlight_zone(app);
     kbd_redraw_canvas(app);
     settings_update_layout_note(app);
-    show_status(app, "Keyboard layout changed");
+    show_status(app, _("Keyboard layout changed"));
 }
 
 static GtkWidget *create_settings_page(AppData *app) {
     GtkWidget *vbox = gtk_box_new(GTK_ORIENTATION_VERTICAL, 10);
     gtk_container_set_border_width(GTK_CONTAINER(vbox), 12);
 
-    GtkWidget *frame = gtk_frame_new("Components");
+    GtkWidget *frame = gtk_frame_new(_("Components"));
     GtkWidget *grid = gtk_grid_new();
     gtk_container_set_border_width(GTK_CONTAINER(grid), 10);
     gtk_grid_set_row_spacing(GTK_GRID(grid), 14);
     gtk_grid_set_column_spacing(GTK_GRID(grid), 14);
-    const char *titles[COMP_COUNT] = { "Fan control", "CPU control", "Keyboard backlight" };
+    const char *titles[COMP_COUNT] = { _("Fan control"), _("CPU control"), _("Keyboard backlight") };
     const char *texts[COMP_COUNT] = {
-        "Fan daemon, Status and Fan Profiles tabs, fan profiles in the tray menu. Switched off, the fans run at "
-        "100% until the next reboot; after it the laptop's firmware controls them.",
-        "CPU daemon and hard-limit timer, CPU Profiles tab, CPU profiles in the tray menu. Governor and "
-        "frequencies stay as they were last set.",
-        "Keyboard daemon, Keyboard Backlight tab, keyboard profiles in the tray menu. The LEDs keep their last colors.",
+        /* xgettext:no-c-format */
+        _("Fan daemon, Status and Fan Profiles tabs, fan profiles in the tray menu. Switched off, the fans run at "
+        "100% until the next reboot; after it the laptop's firmware controls them."),
+        _("CPU daemon and hard-limit timer, CPU Profiles tab, CPU profiles in the tray menu. Governor and "
+        "frequencies stay as they were last set."),
+        _("Keyboard daemon, Keyboard Backlight tab, keyboard profiles in the tray menu. The LEDs keep their last colors."),
     };
     /* Alphabetical like the tabs and the tray menu: CPU, Fan, Keyboard */
     static const int row_order[COMP_COUNT] = { COMP_CPU, COMP_FAN, COMP_KEYBOARD };
@@ -8222,17 +8311,52 @@ static GtkWidget *create_settings_page(AppData *app) {
     gtk_container_add(GTK_CONTAINER(frame), grid);
     gtk_box_pack_start(GTK_BOX(vbox), frame, FALSE, FALSE, 0);
 
+    /* Language (1.31.0) */
+    {
+        GtkWidget *lframe2 = gtk_frame_new(_("Language"));
+        GtkWidget *lbox2 = gtk_box_new(GTK_ORIENTATION_VERTICAL, 6);
+        gtk_container_set_border_width(GTK_CONTAINER(lbox2), 10);
+        GtkWidget *row = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 10);
+        gtk_box_pack_start(GTK_BOX(row), gtk_label_new(_("Language:")), FALSE, FALSE, 0);
+        app->settings_language_combo = gtk_combo_box_text_new();
+        for (int i = 0; i < UI_NUM_LANGUAGES; i++)
+            gtk_combo_box_text_append(GTK_COMBO_BOX_TEXT(app->settings_language_combo), ui_languages[i].code,
+                                      i == 0 ? _(ui_languages[i].label) : ui_languages[i].label);
+        {
+            cJSON *json = config_read();
+            cJSON *v = cJSON_GetObjectItem(json, "language");
+            gtk_combo_box_set_active_id(GTK_COMBO_BOX(app->settings_language_combo),
+                                        cJSON_IsString(v) ? v->valuestring : "system");
+            if (gtk_combo_box_get_active(GTK_COMBO_BOX(app->settings_language_combo)) < 0)
+                gtk_combo_box_set_active(GTK_COMBO_BOX(app->settings_language_combo), 0);
+            cJSON_Delete(json);
+        }
+        g_signal_connect(app->settings_language_combo, "changed", G_CALLBACK(on_settings_language_changed), app);
+        gtk_box_pack_start(GTK_BOX(row), app->settings_language_combo, FALSE, FALSE, 0);
+        app->settings_restart_btn = gtk_button_new_with_label(_("Restart now"));
+        g_signal_connect(app->settings_restart_btn, "clicked", G_CALLBACK(on_settings_restart_clicked), app);
+        gtk_box_pack_start(GTK_BOX(row), app->settings_restart_btn, FALSE, FALSE, 0);
+        gtk_box_pack_start(GTK_BOX(lbox2), row, FALSE, FALSE, 0);
+        app->settings_language_note = gtk_label_new("");
+        gtk_label_set_xalign(GTK_LABEL(app->settings_language_note), 0.0);
+        gtk_label_set_line_wrap(GTK_LABEL(app->settings_language_note), TRUE);
+        gtk_box_pack_start(GTK_BOX(lbox2), app->settings_language_note, FALSE, FALSE, 0);
+        gtk_container_add(GTK_CONTAINER(lframe2), lbox2);
+        gtk_box_pack_start(GTK_BOX(vbox), lframe2, FALSE, FALSE, 0);
+        settings_update_language_note(app);
+    }
+
     /* Appearance (1.29.0) */
     {
-        GtkWidget *aframe = gtk_frame_new("Appearance");
+        GtkWidget *aframe = gtk_frame_new(_("Appearance"));
         GtkWidget *abox = gtk_box_new(GTK_ORIENTATION_VERTICAL, 6);
         gtk_container_set_border_width(GTK_CONTAINER(abox), 10);
         GtkWidget *row = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 10);
-        gtk_box_pack_start(GTK_BOX(row), gtk_label_new("Mode:"), FALSE, FALSE, 0);
+        gtk_box_pack_start(GTK_BOX(row), gtk_label_new(_("Mode:")), FALSE, FALSE, 0);
         app->settings_appearance_combo = gtk_combo_box_text_new();
-        gtk_combo_box_text_append(GTK_COMBO_BOX_TEXT(app->settings_appearance_combo), "system", "Follow the system");
-        gtk_combo_box_text_append(GTK_COMBO_BOX_TEXT(app->settings_appearance_combo), "dark", "Dark");
-        gtk_combo_box_text_append(GTK_COMBO_BOX_TEXT(app->settings_appearance_combo), "light", "Light");
+        gtk_combo_box_text_append(GTK_COMBO_BOX_TEXT(app->settings_appearance_combo), "system", _("Follow the system"));
+        gtk_combo_box_text_append(GTK_COMBO_BOX_TEXT(app->settings_appearance_combo), "dark", _("Dark"));
+        gtk_combo_box_text_append(GTK_COMBO_BOX_TEXT(app->settings_appearance_combo), "light", _("Light"));
         gtk_combo_box_set_active(GTK_COMBO_BOX(app->settings_appearance_combo), app->appearance);
         g_signal_connect(app->settings_appearance_combo, "changed", G_CALLBACK(on_settings_appearance_changed), app);
         gtk_box_pack_start(GTK_BOX(row), app->settings_appearance_combo, FALSE, FALSE, 0);
@@ -8248,14 +8372,14 @@ static GtkWidget *create_settings_page(AppData *app) {
 
     /* Keyboard layout (1.28.0) */
     {
-        GtkWidget *lframe = gtk_frame_new("Keyboard Layout");
+        GtkWidget *lframe = gtk_frame_new(_("Keyboard Layout"));
         GtkWidget *lbox = gtk_box_new(GTK_ORIENTATION_VERTICAL, 6);
         gtk_container_set_border_width(GTK_CONTAINER(lbox), 10);
         GtkWidget *row = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 10);
-        gtk_box_pack_start(GTK_BOX(row), gtk_label_new("Layout:"), FALSE, FALSE, 0);
+        gtk_box_pack_start(GTK_BOX(row), gtk_label_new(_("Layout:")), FALSE, FALSE, 0);
         app->settings_layout_combo = gtk_combo_box_text_new();
         for (int i = 0; i < KBD_NUM_LAYOUTS; i++)
-            gtk_combo_box_text_append(GTK_COMBO_BOX_TEXT(app->settings_layout_combo), kbd_layouts[i].code, kbd_layouts[i].label);
+            gtk_combo_box_text_append(GTK_COMBO_BOX_TEXT(app->settings_layout_combo), kbd_layouts[i].code, _(kbd_layouts[i].label));
         gtk_combo_box_set_active_id(GTK_COMBO_BOX(app->settings_layout_combo), kbd_layout_code);
         g_signal_connect(app->settings_layout_combo, "changed", G_CALLBACK(on_settings_layout_changed), app);
         gtk_box_pack_start(GTK_BOX(row), app->settings_layout_combo, FALSE, FALSE, 0);
@@ -8270,8 +8394,8 @@ static GtkWidget *create_settings_page(AppData *app) {
         settings_update_layout_note(app);
     }
 
-    GtkWidget *note = gtk_label_new("Switching asks for the administrator password and takes effect right away. "
-                                    "The setting applies to the whole system and stays after reboots and updates.");
+    GtkWidget *note = gtk_label_new(_("Switching asks for the administrator password and takes effect right away. "
+                                    "The setting applies to the whole system and stays after reboots and updates."));
     gtk_label_set_xalign(GTK_LABEL(note), 0.0);
     gtk_label_set_line_wrap(GTK_LABEL(note), TRUE);
     gtk_widget_set_name(note, "kbd-off-switch-note");
@@ -8352,7 +8476,7 @@ static GtkWidget* create_tray_menu(AppData *app) {
     GtkWidget *menu = gtk_menu_new();
     
     /* Show/Hide application */
-    GtkWidget *show_item = gtk_menu_item_new_with_label("Show Application");
+    GtkWidget *show_item = gtk_menu_item_new_with_label(_("Show Application"));
     g_signal_connect(show_item, "activate", G_CALLBACK(on_tray_show_app), app);
     gtk_container_add(GTK_CONTAINER(menu), show_item);
     gtk_widget_show(show_item);
@@ -8364,7 +8488,7 @@ static GtkWidget* create_tray_menu(AppData *app) {
     
     /* CPU Profiles submenu (alphabetical: C before F) */
     if (app->cpu_connected) {
-        GtkWidget *cpu_profiles_menuitem = gtk_menu_item_new_with_label("CPU Profiles");
+        GtkWidget *cpu_profiles_menuitem = gtk_menu_item_new_with_label(_("CPU Profiles"));
         GtkWidget *cpu_profiles_submenu = gtk_menu_new();
         gtk_menu_item_set_submenu(GTK_MENU_ITEM(cpu_profiles_menuitem), cpu_profiles_submenu);
         gtk_container_add(GTK_CONTAINER(menu), cpu_profiles_menuitem);
@@ -8385,13 +8509,13 @@ static GtkWidget* create_tray_menu(AppData *app) {
             if (raw_name) {
                 const char *clean_name = cpu_profile_name_from_display(raw_name);
                 if (i == app->cpu_active_custom_profile_idx) {
-                    snprintf(label, sizeof(label), "%s (Active)", clean_name);
+                    snprintf(label, sizeof(label), _("%s (Active)"), clean_name);
                 } else {
                     snprintf(label, sizeof(label), "%s", clean_name);
                 }
                 g_free(raw_name);
             } else {
-                snprintf(label, sizeof(label), "Profile %d", i);
+                snprintf(label, sizeof(label), _("Profile %d"), i);
             }
             
             g_print("[GUI] Adding CPU profile item: %s\n", label);
@@ -8424,7 +8548,7 @@ static GtkWidget* create_tray_menu(AppData *app) {
     
     /* Fan Profiles submenu */
     if (!dcc_component_disabled(COMP_FAN)) {
-        GtkWidget *profiles_menuitem = gtk_menu_item_new_with_label("Fan Profiles");
+        GtkWidget *profiles_menuitem = gtk_menu_item_new_with_label(_("Fan Profiles"));
         GtkWidget *profiles_submenu = gtk_menu_new();
         gtk_menu_item_set_submenu(GTK_MENU_ITEM(profiles_menuitem), profiles_submenu);
         gtk_container_add(GTK_CONTAINER(menu), profiles_menuitem);
@@ -8434,7 +8558,7 @@ static GtkWidget* create_tray_menu(AppData *app) {
         for (int i = 0; i < app->num_profiles; i++) {
             char label[128];
             if (i == app->active_profile_idx) {
-                snprintf(label, sizeof(label), "%s (Active)", app->profile_names[i]);
+                snprintf(label, sizeof(label), _("%s (Active)"), app->profile_names[i]);
             } else {
                 snprintf(label, sizeof(label), "%s", app->profile_names[i]);
             }
@@ -8468,7 +8592,7 @@ static GtkWidget* create_tray_menu(AppData *app) {
     if (app->kbd_connected && app->kbd_socket_fd >= 0) {
         const char *r = send_keyboard_command_once(app, "LIST_PROFILES");
         if (r && strncmp(r, "PROFILES_START", 14) == 0) {
-            GtkWidget *kbd_item = gtk_menu_item_new_with_label("Keyboard Profiles");
+            GtkWidget *kbd_item = gtk_menu_item_new_with_label(_("Keyboard Profiles"));
             GtkWidget *kbd_submenu = gtk_menu_new();
             gtk_menu_item_set_submenu(GTK_MENU_ITEM(kbd_item), kbd_submenu);
             gtk_container_add(GTK_CONTAINER(menu), kbd_item);
@@ -8483,7 +8607,7 @@ static GtkWidget* create_tray_menu(AppData *app) {
                 if (!marker || !name || !name[2]) continue;
                 int active = marker[1] == '*';
                 gchar *clean = g_strchomp(g_strdup(name + 2));
-                gchar *label = active ? g_strdup_printf("%s (Active)", clean) : g_strdup(clean);
+                gchar *label = active ? g_strdup_printf(_("%s (Active)"), clean) : g_strdup(clean);
                 GtkWidget *it = first_radio
                     ? gtk_radio_menu_item_new_with_label_from_widget(GTK_RADIO_MENU_ITEM(first_radio), label)
                     : gtk_radio_menu_item_new_with_label(NULL, label);
@@ -8507,7 +8631,7 @@ static GtkWidget* create_tray_menu(AppData *app) {
     /* Version label (greyed out) - wrapped in menu item */
     {
         char version_label[256];
-        snprintf(version_label, sizeof(version_label), "Version %s", APP_VERSION);
+        snprintf(version_label, sizeof(version_label), _("Version %s"), APP_VERSION);
         GtkWidget *version_menuitem = gtk_menu_item_new_with_label(version_label);
         gtk_widget_set_sensitive(version_menuitem, FALSE); /* Greyed out effect */
         gtk_container_add(GTK_CONTAINER(menu), version_menuitem);
@@ -8520,7 +8644,7 @@ static GtkWidget* create_tray_menu(AppData *app) {
     gtk_widget_show(separator3);
     
     /* Exit */
-    GtkWidget *exit_item = gtk_menu_item_new_with_label("Exit");
+    GtkWidget *exit_item = gtk_menu_item_new_with_label(_("Exit"));
     g_signal_connect(exit_item, "activate", G_CALLBACK(on_tray_exit), app);
     gtk_container_add(GTK_CONTAINER(menu), exit_item);
     gtk_widget_show(exit_item);
@@ -8681,7 +8805,7 @@ static void on_tray_select_profile(GtkRadioMenuItem *radiomenuitem, gpointer use
         const char *response = send_command(app, cmd);
         if (response && strstr(response, "OK")) {
             g_print("[GUI] Profile activated successfully\n");
-            show_status(app, g_strdup_printf("Profile '%s' activated", app->profile_names[selected_idx]));
+            show_status(app, g_strdup_printf(_("Profile '%s' activated"), app->profile_names[selected_idx]));
             
             /* Update active profile index */
             app->active_profile_idx = selected_idx;
@@ -8693,7 +8817,7 @@ static void on_tray_select_profile(GtkRadioMenuItem *radiomenuitem, gpointer use
             /* Update tray menu to reflect new active profile */
             update_tray_menu(app);
         } else {
-            show_status(app, "Failed to activate profile");
+            show_status(app, _("Failed to activate profile"));
         }
     }
 }
@@ -8724,7 +8848,7 @@ static void on_tray_select_kbd_profile(GtkMenuItem *item, gpointer user_data) {
         if (ok && kbd_load_edit_profile(app, pname) == 0) kbd_edit_changed(app, 0, 0);
     }
     kbd_sync_power_switch(app);
-    show_status(app, ok ? "Keyboard profile activated" : "Failed to activate keyboard profile");
+    show_status(app, ok ? _("Keyboard profile activated") : _("Failed to activate keyboard profile"));
     update_tray_menu(app);
 }
 
@@ -8770,7 +8894,7 @@ static void on_tray_select_cpu_profile(GtkRadioMenuItem *radiomenuitem, gpointer
         const char *response = send_cpu_command(app, cmd);
         if (response && strncmp(response, "OK", 2) == 0) {
             g_print("[GUI] CPU profile activated successfully\n");
-            show_status(app, g_strdup_printf("CPU profile '%s' activated", profile_name ? profile_name : "Unknown"));
+            show_status(app, g_strdup_printf(_("CPU profile '%s' activated"), profile_name ? profile_name : _("Unknown")));
             
             /* Update active index */
             app->cpu_active_custom_profile_idx = selected_idx;
@@ -8784,7 +8908,7 @@ static void on_tray_select_cpu_profile(GtkRadioMenuItem *radiomenuitem, gpointer
             /* Update tray menu to reflect new active profile */
             update_tray_menu(app);
         } else {
-            show_status(app, "Failed to activate CPU profile");
+            show_status(app, _("Failed to activate CPU profile"));
         }
     }
     
@@ -9205,22 +9329,22 @@ static void status_update_active_profiles(AppData *app) {
     if (!app->active_fan_label) return;
     char buf[256];
     /* fan */
-    if (dcc_component_disabled(COMP_FAN)) status_set(app->active_fan_label, "Fan control switched off", 1);
-    else if (!app->connected) status_set(app->active_fan_label, "Fan daemon not connected", 1);
+    if (dcc_component_disabled(COMP_FAN)) status_set(app->active_fan_label, _("Fan control switched off"), 1);
+    else if (!app->connected) status_set(app->active_fan_label, _("Fan daemon not connected"), 1);
     else {
         const char *name = (app->profile_names && app->active_profile_idx >= 0 && app->active_profile_idx < app->num_profiles)
                          ? app->profile_names[app->active_profile_idx] : "--";
-        if (app->in_manual_mode) snprintf(buf, sizeof buf, "%s (manual mode: %d%%)", name, app->manual_current_speed);
+        if (app->in_manual_mode) snprintf(buf, sizeof buf, _("%s (manual mode: %d%%)"), name, app->manual_current_speed);
         else snprintf(buf, sizeof buf, "%s", name);
         status_set(app->active_fan_label, buf, 0);
     }
     /* CPU profile and power mode */
     if (dcc_component_disabled(COMP_CPU)) {
-        status_set(app->active_cpu_label, "CPU control switched off", 1);
-        status_set(app->active_mode_label, "CPU control switched off", 1);
+        status_set(app->active_cpu_label, _("CPU control switched off"), 1);
+        status_set(app->active_mode_label, _("CPU control switched off"), 1);
     } else if (!app->cpu_connected) {
-        status_set(app->active_cpu_label, "CPU daemon not connected", 1);
-        status_set(app->active_mode_label, "CPU daemon not connected", 1);
+        status_set(app->active_cpu_label, _("CPU daemon not connected"), 1);
+        status_set(app->active_mode_label, _("CPU daemon not connected"), 1);
     } else {
         const char *cpu = "--";
         gchar *disp = NULL;
@@ -9236,8 +9360,8 @@ static void status_update_active_profiles(AppData *app) {
         status_set(app->active_mode_label, mode && *mode ? mode : "--", 0);
     }
     /* keyboard: asked over an existing connection only (no reconnect here) */
-    if (dcc_component_disabled(COMP_KEYBOARD)) status_set(app->active_kbd_label, "Keyboard backlight switched off", 1);
-    else if (!app->kbd_connected || app->kbd_socket_fd < 0) status_set(app->active_kbd_label, "Keyboard daemon not connected", 1);
+    if (dcc_component_disabled(COMP_KEYBOARD)) status_set(app->active_kbd_label, _("Keyboard backlight switched off"), 1);
+    else if (!app->kbd_connected || app->kbd_socket_fd < 0) status_set(app->active_kbd_label, _("Keyboard daemon not connected"), 1);
     else {
         const char *r = send_keyboard_command_once(app, "LIST_PROFILES");
         const char *act = r ? strstr(r, "[*] ") : NULL;
@@ -9294,6 +9418,41 @@ static gboolean refresh_timer_callback(gpointer user_data) {
     return G_SOURCE_CONTINUE;
 }
 
+/* UI language (1.31.0): config.json "language" ("system" or a code). The
+ * catalog is chosen through LANGUAGE before GTK starts; "en" (the texts as
+ * written) has no catalog, so it shows the original English even when the
+ * system language has one. A change takes effect after a restart. */
+
+/* gettext ignores LANGUAGE in the C locale (on glibc also in C.UTF-8): use
+ * an installed UTF-8 locale for the messages then */
+static void ui_language_ensure_messages_locale(void) {
+    const char *cur = setlocale(LC_MESSAGES, NULL);
+    if (cur && strcmp(cur, "C") && strcmp(cur, "POSIX") && strncmp(cur, "C.", 2)) return;
+    const char *cands[] = { "en_US.UTF-8", "en_GB.UTF-8", "de_DE.UTF-8", "de_AT.UTF-8", "es_ES.UTF-8",
+                            "ja_JP.UTF-8", "ko_KR.UTF-8", NULL };
+    for (int i = 0; cands[i]; i++)
+        if (setlocale(LC_MESSAGES, cands[i])) return;
+}
+
+static cJSON *config_read(void);
+static void ui_language_init(void) {
+    setlocale(LC_ALL, "");
+    cJSON *json = config_read();
+    cJSON *v = cJSON_GetObjectItem(json, "language");
+    if (cJSON_IsString(v))
+        for (int i = 0; i < UI_NUM_LANGUAGES; i++)
+            if (!strcmp(v->valuestring, ui_languages[i].code))
+                snprintf(ui_language_code, sizeof ui_language_code, "%s", ui_languages[i].code);
+    cJSON_Delete(json);
+    if (strcmp(ui_language_code, "system") != 0) {
+        setenv("LANGUAGE", ui_language_code, 1);
+        ui_language_ensure_messages_locale();
+    }
+    bindtextdomain(DCC_TEXT_DOMAIN, DCC_LOCALE_DIR);
+    bind_textdomain_codeset(DCC_TEXT_DOMAIN, "UTF-8");
+    textdomain(DCC_TEXT_DOMAIN);
+}
+
 /* Check if another instance is already running */
 static int check_single_instance(void) {
     char pid_path[256];
@@ -9312,8 +9471,9 @@ static int check_single_instance(void) {
         if (fgets(line, sizeof(line), fp)) {
             old_pid = atoi(line);
             
-            /* Check if process is still running */
-            if (kill(old_pid, 0) == 0) {
+            /* Check if process is still running (not this process itself:
+             * "Restart now" in Settings re-executes with the same PID) */
+            if (old_pid != getpid() && kill(old_pid, 0) == 0) {
                 /* Process exists and we can signal it (it's running) */
                 fclose(fp);
                 return old_pid;
@@ -9349,6 +9509,7 @@ static void write_pid_file(void) {
 }
 
 int main(int argc, char *argv[]) {
+    gui_argv = argv;
     /* --debug: include DEBUG-level detail in GUI.log */
     LogLevel gui_log_level = LOG_LEVEL_INFO;
     for (int i = 1; i < argc; i++) {
@@ -9375,6 +9536,7 @@ int main(int argc, char *argv[]) {
     write_pid_file();
     LOG_INFO("PID file written, process ID: %d", getpid());
     
+    ui_language_init();   /* before GTK builds anything (1.31.0) */
     gtk_init(&argc, &argv);
     
     g_print("[GUI] GTK initialized successfully\n");

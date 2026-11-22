@@ -109,6 +109,10 @@ deb: all
 	@mkdir -p $(DEB_BUILD_DIR)/$(PACKAGE)-$(VERSION)/usr/share/dudes-control-center
 	@cp -r resources/layouts $(DEB_BUILD_DIR)/$(PACKAGE)-$(VERSION)/usr/share/dudes-control-center/
 	@cp resources/logo.png $(DEB_BUILD_DIR)/$(PACKAGE)-$(VERSION)/usr/share/dudes-control-center/logo.png
+	@# UI translations (1.31.0)
+	@for l in $(UI_LANGS); do msgfmt -c -o /dev/null po/$$l.po && \
+	  mkdir -p $(DEB_BUILD_DIR)/$(PACKAGE)-$(VERSION)/usr/share/locale/$$l/LC_MESSAGES && \
+	  msgfmt -o $(DEB_BUILD_DIR)/$(PACKAGE)-$(VERSION)/usr/share/locale/$$l/LC_MESSAGES/dudes-control-center.mo po/$$l.po; done
 	@cp dudes-control-center.desktop $(DEB_BUILD_DIR)/$(PACKAGE)-$(VERSION)/usr/share/applications/
 	@cp DudesControlCenter.png $(DEB_BUILD_DIR)/$(PACKAGE)-$(VERSION)/usr/share/pixmaps/ 2>/dev/null || true
 	@cp DudesControlCenter.png $(DEB_BUILD_DIR)/$(PACKAGE)-$(VERSION)/usr/share/icons/hicolor/256x256/apps/dudes-control-center.png 2>/dev/null || true
@@ -183,6 +187,8 @@ install: all
 	install -D -m 644 packaging/org.dudes-control-center.component.policy /usr/share/polkit-1/actions/org.dudes-control-center.component.policy
 	mkdir -p /usr/share/dudes-control-center && cp -r resources/layouts /usr/share/dudes-control-center/
 	install -m 644 resources/logo.png /usr/share/dudes-control-center/logo.png
+	for l in $(UI_LANGS); do mkdir -p /usr/share/locale/$$l/LC_MESSAGES && \
+	  msgfmt -o /usr/share/locale/$$l/LC_MESSAGES/dudes-control-center.mo po/$$l.po; done
 	systemctl daemon-reload
 	systemctl enable dcc-fan-daemon
 	systemctl enable dcc-cpu-daemon
@@ -234,6 +240,25 @@ uninstall:
 # runs tests/run_tests.sh. Needs no root and no hardware: daemons are built
 # with relative socket/sysfs/config paths and run in temporary directories.
 # ---------------------------------------------------------------------------
+# UI translations (1.31.0): po/<lang>.po -> <lang>.mo
+UI_LANGS = de es ja ko en_GB
+MO_BUILD = build-po
+MO_FILES = $(UI_LANGS:%=$(MO_BUILD)/%.mo)
+
+$(MO_BUILD)/%.mo: po/%.po | $(MO_BUILD)
+	msgfmt -c -o $@ $<
+
+$(MO_BUILD):
+	mkdir -p $@
+
+mo: $(MO_FILES)
+
+# regenerate the .pot and the .po files after GUI texts changed
+po-update:
+	xgettext --language=C --from-code=UTF-8 --keyword=_ --keyword=N_ --add-comments=TRANSLATORS \
+	  --package-name=dudes-control-center -o po/dudes-control-center.pot src/dcc-gui.c
+	python3 po/tools/make_po.py
+
 TEST_BUILD = build-test
 TEST_CFLAGS = -g -O1 -fno-omit-frame-pointer -fsanitize=address,undefined -fno-sanitize-recover=undefined -Isrc
 # The current user's group plays the role of "dudes-control-center" in tests
@@ -247,8 +272,13 @@ TEST_BINS = $(TEST_BUILD)/test_fan_responses $(TEST_BUILD)/test_fan_safety \
             $(TEST_BUILD)/cpud_test $(TEST_BUILD)/test_gui_save $(TEST_BUILD)/kbdd_test \
             $(TEST_BUILD)/test_paths
 
-test: $(TEST_BINS)
+test: $(TEST_BINS) test-locale
 	bash tests/run_tests.sh $(TEST_BUILD)
+
+# catalogs for the GUI test (DCC_LOCALE_DIR=build-test/locale)
+test-locale: $(MO_FILES)
+	@for l in $(UI_LANGS); do mkdir -p $(TEST_BUILD)/locale/$$l/LC_MESSAGES; \
+	  cp $(MO_BUILD)/$$l.mo $(TEST_BUILD)/locale/$$l/LC_MESSAGES/dudes-control-center.mo; done
 
 $(TEST_BUILD):
 	mkdir -p $@
@@ -284,6 +314,7 @@ $(TEST_BUILD)/test_gui_save: tests/test_gui_save.c src/dcc-gui.c $(COMMON_SRC) $
 	$(CC) $(TEST_CFLAGS) -w $(GTK_CFLAGS) $(CJSON_CFLAGS) -DAPP_VERSION='"$(VERSION)"' \
 	  -DSOCKET_PATH='"fan.sock"' -DCPU_SOCKET_PATH='"cpu.sock"' -DKBD_SOCKET_PATH='"kbd.sock"' \
 	  -DDCC_COMPONENT_DIR='"components"' -DDCC_LAYOUT_DIR='"$(CURDIR)/resources/layouts"' \
+	  -DDCC_LOCALE_DIR='"$(CURDIR)/$(TEST_BUILD)/locale"' \
 	  -o $@ tests/test_gui_save.c $(COMMON_SRC) $(LOG_SRC) $(GTK_LIBS) $(CJSON_LIBS) -lm
 
 # Check the built package: names, units, maintainer scripts (CI runs it after "make deb")

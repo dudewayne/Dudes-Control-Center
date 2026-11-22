@@ -42,6 +42,9 @@ done
 check "grep -q '^Depends:.*librsvg2-common' '$TMP/ctrl/control'" "package depends on the SVG loader (librsvg2-common)"
 
 check "[ -s '$R/usr/share/dudes-control-center/logo.png' ]" "About page logo installed"
+for l in de es ja ko en_GB; do
+    check "[ -s '$R/usr/share/locale/$l/LC_MESSAGES/dudes-control-center.mo' ]" "UI translation $l installed"
+done
 
 # Settings tab (1.27.0): root helper, polkit action, unit conditions
 H="$R/usr/local/sbin/dcc-component"

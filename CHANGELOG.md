@@ -2,6 +2,17 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.31.0] - 2026-11-22
+
+### Added
+- **UI languages: German, English (UK), Spanish, Japanese and Korean**, besides the original English (US). The Settings tab has a **Language** section above Appearance: *System default* (the desktop's language) or one of the languages, stored in `config.json`. The texts are set when the window is built, so a change takes effect after a restart; **Restart now** restarts the GUI right away (after the usual questions about unsaved changes).
+- All visible texts (tabs, sections, buttons, labels, tooltips, dialogs, status messages; about 316) are translatable through gettext: `po/dudes-control-center.pot`, `po/<lang>.po`, installed as `/usr/share/locale/<lang>/LC_MESSAGES/dudes-control-center.mo`. Logs, daemon commands and the key names on the keyboard pictures stay as they are.
+- The **Japanese and Korean translations were made without a native speaker's review**; the Settings tab says so. Corrections go into `po/tools/translations.py` (`make po-update` regenerates the files).
+- Tests: the catalogs load (German, Spanish, Japanese, Korean, English UK spelling), "English (US)" shows the original texts, translated format strings keep their placeholders; `make deb-check` checks that all five catalogs are installed. The package build checks every catalog with `msgfmt -c`.
+
+### Fixed
+- The GUI restarted with "Restart now" is not mistaken for a second instance (same process ID).
+
 ## [1.30.0] - 2026-11-22
 
 ### Added

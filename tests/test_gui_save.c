@@ -220,6 +220,45 @@ int main(int argc, char **argv) {
         printf("SKIP  U: unsaved CPU profile changes (no display)\n");
     }
 
+    /* I: UI languages (v1.31.0): catalogs from build-test/locale */
+    {
+        /* glibc notices a changed LANGUAGE only after setlocale() */
+        #define RELOAD_LANG() do { char cur_[64]; snprintf(cur_, sizeof cur_, "%s", setlocale(LC_MESSAGES, NULL)); \
+                                   setlocale(LC_MESSAGES, "C"); setlocale(LC_MESSAGES, cur_); } while (0)
+        const char *old_lang = getenv("LANGUAGE");
+        char *saved = old_lang ? strdup(old_lang) : NULL;
+        setlocale(LC_MESSAGES, "C");
+        ui_language_ensure_messages_locale();   /* as the GUI does in the C locale */
+        bindtextdomain(DCC_TEXT_DOMAIN, DCC_LOCALE_DIR);
+        bind_textdomain_codeset(DCC_TEXT_DOMAIN, "UTF-8");
+        textdomain(DCC_TEXT_DOMAIN);
+        struct { const char *lang, *want; } cases[] = {
+            { "de", "Einstellungen" }, { "es", "Ajustes" }, { "ja", "\u8a2d\u5b9a" }, { "ko", "\uc124\uc815" },
+        };
+        int ok = 1;
+        for (int i = 0; i < 4; i++) {
+            setenv("LANGUAGE", cases[i].lang, 1);
+            RELOAD_LANG();
+            const char *got = _("Settings");
+            if (strcmp(got, cases[i].want)) { printf("      %s: Settings -> %s\n", cases[i].lang, got); ok = 0; }
+        }
+        CHECK(ok, "I: 'Settings' in German, Spanish, Japanese and Korean");
+        setenv("LANGUAGE", "en_GB", 1);
+        RELOAD_LANG();
+        CHECK(!strcmp(_("Custom color"), "Custom colour"), "I: English (UK) spelling (colour)");
+        setenv("LANGUAGE", "en", 1);
+        RELOAD_LANG();
+        CHECK(!strcmp(_("Settings"), "Settings"), "I: 'en' shows the original English texts");
+        char buf[128];
+        setenv("LANGUAGE", "de", 1);
+        RELOAD_LANG();
+        snprintf(buf, sizeof buf, _("Profile '%s' activated"), "Silent");
+        CHECK(!strcmp(buf, "Profil 'Silent' aktiviert"), "I: translated format string keeps its placeholder");
+        if (saved) { setenv("LANGUAGE", saved, 1); free(saved); } else unsetenv("LANGUAGE");
+        setlocale(LC_MESSAGES, "C");
+        CHECK(UI_NUM_LANGUAGES == 7, "I: language list: system, US, UK, German, Spanish, Japanese, Korean");
+    }
+
     /* A: appearance (v1.29.0): theme variants and light pictures */
     {
         char c[4][128];
