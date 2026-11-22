@@ -26,6 +26,7 @@
 #define CPU_PROFILE_NAME_MAX 64
 #define CPU_GOVERNOR_NAME_MAX 32
 #define CPU_CONDITION_TYPE_MAX 32
+#define CPU_EPP_NAME_MAX 32       /* energy_performance_preference value, "" = derive from governor */
 
 /* --- Config directory --- */
 /* Resolved at runtime: ~/.config/dudes-control-center/cpu/ */
@@ -66,6 +67,7 @@ typedef enum {
 typedef struct {
     char name[CPU_PROFILE_NAME_MAX];
     CpuGovernor governor;
+    char epp[CPU_EPP_NAME_MAX];   /* EPP applied with the governor ("" = derive from governor) */
     uint64_t min_freq_hz;     /* Minimum frequency in Hz (0 = auto) */
     uint64_t max_freq_hz;     /* Maximum frequency in Hz (0 = auto) */
 
@@ -79,6 +81,7 @@ typedef struct {
 typedef struct {
     char name[CPU_PROFILE_NAME_MAX];
     CpuGovernor governor;
+    char epp[CPU_EPP_NAME_MAX];   /* EPP applied with the governor ("" = derive from governor) */
     uint64_t per_core_max_freq_hz[MAX_CPUS];  /* Max freq per core in Hz (0 = no limit) */
     uint64_t per_core_min_freq_hz[MAX_CPUS];  /* Min freq per core in Hz (0 = default) */
     int apply_all_cores;          /* 1 = use single freq for all cores, 0 = per-core */
@@ -188,6 +191,14 @@ char* cpu_custom_profile_list_json(void);                /* Return all custom pr
 int cpu_governor_available(const char *gov);              /* 1 if offered by the driver */
 const char* cpu_governor_resolve(const char *wanted);     /* wanted if available, else closest available, NULL if none */
 CpuGovernor cpu_governor_resolve_enum(CpuGovernor gov, const char *context);  /* same, for enums; logs a warning on change */
+
+/* Power modes = governor + energy performance preference (EPP).
+ * With intel_pstate in active mode "Balanced" is powersave + balance_performance. */
+int cpu_epp_available(const char *epp);                   /* 1 if listed in energy_performance_available_preferences */
+const char* cpu_default_epp_for(const char *requested_governor);  /* EPP that matches a governor's intent, or NULL */
+int cpu_apply_governor_and_epp(const char *requested_governor, const char *epp, const char *context);
+void cpu_parse_mode(const char *arg, char *gov, size_t gov_size, char *epp, size_t epp_size);  /* "gov[:epp]" */
+void cpu_store_mode(CpuGovernor *gov_out, char *epp_out, const char *mode_arg, const char *context);
 
 /* Utility functions */
 int governor_to_enum(const char *governor_str, CpuGovernor *gov);  /* Convert governor string to enum */

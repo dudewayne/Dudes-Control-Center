@@ -122,6 +122,24 @@ int main(int argc, char **argv) {
     CHECK(lg && strstr(lg, "Profile save aborted"), "F: aborted save logged as error");
     g_free(lg);
 
+    /* G: power-mode list matching (v1.17.1) */
+    GtkListStore *st = gtk_list_store_new(2, G_TYPE_STRING, G_TYPE_STRING);
+    GtkTreeIter it;
+    gtk_list_store_append(st, &it); gtk_list_store_set(st, &it, 0, "Performance", 1, "performance", -1);
+    gtk_list_store_append(st, &it); gtk_list_store_set(st, &it, 0, "Balanced", 1, "powersave:balance_performance", -1);
+    gtk_list_store_append(st, &it); gtk_list_store_set(st, &it, 0, "Power Save", 1, "powersave:power", -1);
+    CHECK(gui_find_power_mode_row(st, "performance", "") == 0, "G: performance -> Performance");
+    CHECK(gui_find_power_mode_row(st, "powersave", "balance_performance") == 1, "G: powersave+balance_performance -> Balanced (exact)");
+    CHECK(gui_find_power_mode_row(st, "powersave", "power") == 2, "G: powersave+power -> Power Save (exact)");
+    CHECK(gui_find_power_mode_row(st, "schedutil", "") == 1, "G: old 'schedutil' profile shows as Balanced");
+    CHECK(gui_find_power_mode_row(st, "powersave", "") == 2, "G: old 'powersave' profile shows as Power Save");
+    CHECK(gui_find_power_mode_row(st, "", "") == -1, "G: no governor -> no selection");
+    GtkListStore *st2 = gtk_list_store_new(2, G_TYPE_STRING, G_TYPE_STRING);
+    gtk_list_store_append(st2, &it); gtk_list_store_set(st2, &it, 0, "Balanced", 1, "schedutil", -1);
+    CHECK(gui_find_power_mode_row(st2, "schedutil", "") == 0, "G: schedutil system: exact schedutil row");
+    g_object_unref(st);
+    g_object_unref(st2);
+
     printf("\n%d failure(s)\n", fails);
     return fails != 0;
 }

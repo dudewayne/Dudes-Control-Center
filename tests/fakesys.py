@@ -22,9 +22,12 @@ def make_sysfs(sysfs, ncpu=24, max_khz=5300000, min_khz=800000, cur_khz=5100000)
         wr(f"{d}/scaling_min_freq", min_khz)
         wr(f"{d}/scaling_cur_freq", cur_khz)
         wr(f"{d}/scaling_governor", "powersave")
-        wr(f"{d}/energy_performance_preference", "balance_performance")
+        # EPP starts at "default" so tests can see whether anything wrote it
+        wr(f"{d}/energy_performance_preference", "default")
+        wr(f"{d}/energy_performance_available_preferences",
+           "default performance balance_performance balance_power power \n")
     wr(f"{sysfs}/cpufreq/policy0/scaling_available_governors", "performance powersave\n")
-    wr(f"{sysfs}/intel_pstate/min_perf_pct", 20)
+    wr(f"{sysfs}/intel_pstate/min_perf_pct", 100)   # as left behind by versions before 1.17.1
 
 
 def read_khz(sysfs, cpu, name):

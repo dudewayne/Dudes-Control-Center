@@ -267,6 +267,101 @@ CpuGovernor cpu_governor_resolve_enum(CpuGovernor gov, const char *context) {
     return out;
 }
 
+/* --- Power modes: governor + EPP ---------------------------------------- */
+int cpu_epp_available(const char *epp) {
+    if (!epp || !*epp) return 0;
+    char buf[256];
+    if (sysfs_read_string(0, "cpufreq/energy_performance_available_preferences", buf, sizeof(buf)) != 0) {
+        return 0;   /* driver without EPP support */
+    }
+    char *save = NULL;
+    for (char *tok = strtok_r(buf, " \t\n", &save); tok; tok = strtok_r(NULL, " \t\n", &save)) {
+        if (strcmp(tok, epp) == 0) return 1;
+    }
+    return 0;
+}
+
+/* The EPP that expresses what a governor name means: dynamic governors are
+ * "balanced", powersave is "power saving". performance needs none (the
+ * performance governor pins EPP itself). */
+const char *cpu_default_epp_for(const char *requested_governor) {
+    if (!requested_governor) return NULL;
+    if (strcmp(requested_governor, "schedutil") == 0 || strcmp(requested_governor, "ondemand") == 0 ||
+        strcmp(requested_governor, "conservative") == 0) {
+        return "balance_performance";
+    }
+    if (strcmp(requested_governor, "powersave") == 0) return "power";
+    return NULL;
+}
+
+void cpu_parse_mode(const char *arg, char *gov, size_t gov_size, char *epp, size_t epp_size) {
+    gov[0] = '\0';
+    epp[0] = '\0';
+    if (!arg) return;
+    const char *colon = strchr(arg, ':');
+    size_t glen = colon ? (size_t)(colon - arg) : strlen(arg);
+    if (glen >= gov_size) glen = gov_size - 1;
+    memcpy(gov, arg, glen);
+    gov[glen] = '\0';
+    if (colon && colon[1] && strcmp(colon + 1, "-") != 0) {
+        snprintf(epp, epp_size, "%s", colon + 1);
+    }
+}
+
+/* Turn a requested "gov[:epp]" into what is stored in a profile: an
+ * available governor and an explicit EPP (or "" where none applies). */
+void cpu_store_mode(CpuGovernor *gov_out, char *epp_out, const char *mode_arg, const char *context) {
+    char gov[CPU_GOVERNOR_NAME_MAX], epp[CPU_EPP_NAME_MAX];
+    cpu_parse_mode(mode_arg, gov, sizeof(gov), epp, sizeof(epp));
+    CpuGovernor g;
+    if (governor_to_enum(gov, &g) != 0) return;   /* unknown name: leave unchanged */
+    CpuGovernor resolved = cpu_governor_resolve_enum(g, context);
+    *gov_out = resolved;
+
+    epp_out[0] = '\0';
+    if (resolved == CPU_GOVERNOR_PERFORMANCE) return;          /* EPP fixed by the governor */
+    const char *want = epp[0] ? epp : cpu_default_epp_for(gov);
+    if (want && cpu_epp_available(want)) {
+        snprintf(epp_out, CPU_EPP_NAME_MAX, "%s", want);
+    }
+}
+
+/* Apply governor (resolved to an available one) and the matching EPP.
+ * Returns -1 if the governor could not be set. */
+int cpu_apply_governor_and_epp(const char *requested_governor, const char *epp, const char *context) {
+    const char *gov = cpu_governor_resolve(requested_governor);
+    if (!gov) gov = requested_governor;
+    if (strcmp(gov, requested_governor) != 0) {
+        LOG_WARN("[CPU] %s: governor '%s' is not available - using '%s' (re-save the profile to store it)",
+                 context, requested_governor, gov);
+    }
+    int ret = 0;
+    if (set_all_cpus_governor(gov) != 0) {
+        LOG_WARN("[CPU] %s: failed to set governor '%s'", context, gov);
+        ret = -1;
+    }
+
+    /* EPP after the governor (switching governors can reset it) */
+    const char *want = (epp && *epp) ? epp : cpu_default_epp_for(requested_governor);
+    if (strcmp(gov, "performance") == 0) {
+        want = NULL;   /* the performance governor pins EPP itself */
+    }
+    if (want) {
+        if (cpu_epp_available(want)) {
+            set_all_cpus_epp(want);
+        } else {
+            LOG_INFO("[CPU] %s: EPP '%s' not supported here - left unchanged", context, want);
+        }
+    }
+    LOG_INFO("[CPU] %s: governor=%s epp=%s", context, gov, want ? want : "(unchanged)");
+    return ret;
+}
+
+static void cpu_profile_set_epp(const char *name, const char *epp) {
+    CpuProfile *p = (CpuProfile *)cpu_profile_get(name);
+    if (p) snprintf(p->epp, sizeof(p->epp), "%s", epp ? epp : "");
+}
+
 /* --- Initialize CPU control subsystem --- */
 int cpu_control_init(void) {
     LOG_INFO("[CPU] Initializing CPU control subsystem");
@@ -280,12 +375,26 @@ int cpu_control_init(void) {
         int have_perf  = cpu_governor_available("performance");
         int have_sched = cpu_governor_available("schedutil");
         int have_save  = cpu_governor_available("powersave");
+        int have_bal_epp   = cpu_epp_available("balance_performance");
+        int have_power_epp = cpu_epp_available("power");
         int unknown    = !have_perf && !have_sched && !have_save;
-        if (have_perf || unknown)  cpu_profile_create("Performance", CPU_GOVERNOR_PERFORMANCE, 0, 0);
-        if (have_sched || unknown) cpu_profile_create("Balanced", CPU_GOVERNOR_SCHEDUTIL, 0, 0);
-        if (have_save || unknown)  cpu_profile_create("Power Save", CPU_GOVERNOR_POWERSAVE, 0, 0);
-        if (!have_sched && !unknown) {
-            LOG_INFO("[CPU] Governor 'schedutil' not offered by the cpufreq driver - 'Balanced' policy not created");
+
+        if (have_perf || unknown) cpu_profile_create("Performance", CPU_GOVERNOR_PERFORMANCE, 0, 0);
+
+        /* Balanced: schedutil where it exists, otherwise (intel_pstate active)
+         * powersave with EPP balance_performance */
+        if (have_sched || unknown) {
+            cpu_profile_create("Balanced", CPU_GOVERNOR_SCHEDUTIL, 0, 0);
+        } else if (have_save && have_bal_epp) {
+            cpu_profile_create("Balanced", CPU_GOVERNOR_POWERSAVE, 0, 0);
+            cpu_profile_set_epp("Balanced", "balance_performance");
+        } else {
+            LOG_INFO("[CPU] Neither schedutil nor EPP balance_performance available - no 'Balanced' policy");
+        }
+
+        if (have_save || unknown) {
+            cpu_profile_create("Power Save", CPU_GOVERNOR_POWERSAVE, 0, 0);
+            if (have_power_epp) cpu_profile_set_epp("Power Save", "power");
         }
 
         /* Default: Balanced if available, otherwise Power Save, otherwise the first one */
@@ -303,11 +412,22 @@ int cpu_control_init(void) {
              hard_limit, hard_limit / 1e9);
     set_all_cpus_max_freq(hard_limit);
 
-    /* Set EPP to performance so the CPU actually pushes to the configured max frequency */
-    set_all_cpus_epp("performance");
-
-    /* Set min_perf_pct to 100 so HWP firmware stays near scaling_max_freq during load */
-    set_intel_pstate_min_perf_pct(100);
+    /* EPP and intel_pstate min_perf_pct are no longer forced here: the active
+     * power mode decides EPP. Versions before 1.17.1 set min_perf_pct=100,
+     * which kept every core near its maximum frequency regardless of load.
+     * Undo that once; the driver clamps 0 to its own hardware minimum. */
+    {
+        char pct_buf[16] = "";
+        FILE *pf = fopen(CPUSYSFS "/intel_pstate/min_perf_pct", "r");
+        if (pf) {
+            if (!fgets(pct_buf, sizeof(pct_buf), pf)) pct_buf[0] = '\0';
+            fclose(pf);
+        }
+        if (atoi(pct_buf) == 100) {
+            LOG_INFO("[CPU] intel_pstate min_perf_pct is 100 (set by an older version) - restoring the driver minimum");
+            set_intel_pstate_min_perf_pct(0);
+        }
+    }
 
     return 0;
 }
@@ -639,20 +759,9 @@ int cpu_profile_apply(const char *name) {
         return -1;
     }
 
-    const char *gov_str = cpu_governor_resolve(enum_to_governor(p->governor));
-    if (!gov_str) {
-        LOG_ERROR("[CPU] No usable governor for profile '%s'", name);
-        return -1;
-    }
-    if (strcmp(gov_str, enum_to_governor(p->governor)) != 0) {
-        LOG_WARN("[CPU] Profile '%s': governor '%s' is not available - using '%s'",
-                 name, enum_to_governor(p->governor), gov_str);
-    }
-    LOG_INFO("[CPU] Applying profile '%s' (governor=%s)", name, gov_str);
-
-    /* Set governor */
-    if (set_all_cpus_governor(gov_str) != 0) {
-        LOG_ERROR("[CPU] Failed to set governor '%s'", gov_str);
+    LOG_INFO("[CPU] Applying policy '%s'", name);
+    if (cpu_apply_governor_and_epp(enum_to_governor(p->governor), p->epp, name) != 0) {
+        LOG_ERROR("[CPU] Failed to apply policy '%s'", name);
         return -1;
     }
 
@@ -728,8 +837,9 @@ int cpu_profile_list(char *buffer, size_t buf_size) {
         char entry[256];
         const char *marker = (active && strcmp(active->name, p->name) == 0) ? " [*]" : "    ";
 
-        int written = snprintf(entry, sizeof(entry), "%s %s (gov=%s, min=%" PRIu64 " Hz, max=%" PRIu64 " Hz)\n",
+        int written = snprintf(entry, sizeof(entry), "%s %s (gov=%s, epp=%s, min=%" PRIu64 " Hz, max=%" PRIu64 " Hz)\n",
                               marker, p->name, enum_to_governor(p->governor),
+                              p->epp[0] ? p->epp : "-",
                               p->min_freq_hz, p->max_freq_hz);
 
         if (offset + written >= (int)buf_size) break;
@@ -1187,6 +1297,7 @@ static cJSON* cpu_custom_profile_to_json(const CpuCustomProfile *p) {
     cJSON *profile_obj = cJSON_CreateObject();
     cJSON_AddStringToObject(profile_obj, "name", p->name);
     cJSON_AddStringToObject(profile_obj, "governor", enum_to_governor(p->governor));
+    cJSON_AddStringToObject(profile_obj, "epp", p->epp);
     cJSON_AddNumberToObject(profile_obj, "apply_all_cores", p->apply_all_cores);
     cJSON_AddNumberToObject(profile_obj, "num_cores", p->num_cores);
 
@@ -1358,6 +1469,10 @@ int cpu_custom_profile_load_json(void) {
             if (gov_item && gov_item->valuestring) {
                 governor_to_enum(gov_item->valuestring, &p.governor);
             }
+            cJSON *epp_item = cJSON_GetObjectItem(profile_obj, "epp");
+            if (cJSON_IsString(epp_item) && epp_item->valuestring) {
+                snprintf(p.epp, sizeof(p.epp), "%s", epp_item->valuestring);
+            }
 
             cJSON *apply_all_item = cJSON_GetObjectItem(profile_obj, "apply_all_cores");
             if (apply_all_item) p.apply_all_cores = apply_all_item->valueint;
@@ -1422,19 +1537,9 @@ int cpu_custom_profile_apply(int idx) {
 
     /* Set governor (non-fatal: continue with frequencies even if governor fails).
      * A governor this system does not offer is replaced by the closest one. */
-    const char *wanted_gov = enum_to_governor(p->governor);
-    const char *gov_str = cpu_governor_resolve(wanted_gov);
-    if (!gov_str) gov_str = wanted_gov;
-    if (strcmp(gov_str, wanted_gov) != 0) {
-        LOG_WARN("[CPU] Profile '%s': governor '%s' is not available - using '%s' (re-save the profile to store it)",
-                 p->name, wanted_gov, gov_str);
+    if (cpu_apply_governor_and_epp(enum_to_governor(p->governor), p->epp, p->name) != 0) {
+        LOG_WARN("[CPU] Continuing with frequencies for profile '%s' despite governor error", p->name);
     }
-    if (set_all_cpus_governor(gov_str) != 0) {
-        LOG_WARN("[CPU] Failed to set governor '%s' for profile '%s', continuing with frequencies", gov_str, p->name);
-    }
-
-    /* Set EPP to performance so cores actually push to the configured max */
-    set_all_cpus_epp("performance");
 
     /* Set per-core frequencies */
     int errors = 0;

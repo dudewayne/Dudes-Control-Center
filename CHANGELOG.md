@@ -5,9 +5,16 @@ All notable changes to this project will be documented in this file.
 ## [1.17.1] - 2026-11-22
 
 ### Fixed
-- **CPU governor choices now match what the system offers**: the CPU daemon always created the policies Performance, Balanced (`schedutil`) and Power Save, but the `intel_pstate` driver in active mode (common on Intel laptops) only offers `performance` and `powersave`. Choosing "Balanced" failed silently, and profiles saved with it stored `schedutil`, so their governor never applied. Policies are now only created for available governors.
-- **Profiles naming an unavailable governor use the closest available one**: for dynamic governors (`schedutil`, `ondemand`, `conservative`) that is `schedutil` if present, otherwise `powersave`, which scales dynamically with load under `intel_pstate`. A warning is logged at startup and on apply. Saving a profile (GUI batch save, create, set governor) stores only available governors, so existing profiles are corrected the next time they are saved.
-- The test suite now checks governor handling against a driver that offers only `performance` and `powersave` (87 checks).
+- **Power modes work with `intel_pstate` (Balanced restored)**: the CPU daemon offered Performance, Balanced (`schedutil`) and Power Save, but `intel_pstate` in active mode (common on Intel laptops) only has the `performance` and `powersave` governors. Choosing "Balanced" failed silently, and profiles saved with it stored `schedutil`, so their governor never applied. A power mode is now a governor plus the CPU's energy performance preference (EPP), like the power profiles of Mint/GNOME/Windows:
+  - **Performance**: `performance` governor.
+  - **Balanced**: `schedutil` where available, otherwise `powersave` + EPP `balance_performance`.
+  - **Power Save**: `powersave` + EPP `power`.
+
+  Modes are only offered when the system supports them. EPP is stored per policy and per profile (`"epp"` in `profiles.json`, `governor:epp` in the protocol).
+- **The CPU daemon no longer forces full speed**: it set intel_pstate `min_perf_pct = 100` at every start (keeping every core near its maximum frequency regardless of load), and forced EPP `performance` at startup, on every profile apply and on every hard-limit change. That made Balanced and Power Save meaningless. EPP is now set by the active power mode only, and a `min_perf_pct` of 100 left behind by older versions is reset once to the driver's minimum.
+- **Profiles from older versions keep working**: a profile naming an unavailable governor uses the closest available mode (`schedutil` → Balanced, `powersave` → Power Save), with a warning at startup and on apply. Saving stores only available governors/EPPs, so profiles are corrected the next time they are saved.
+- **GUI**: the "Select Profile" list is now "Power mode". With a per-core profile loaded it shows that profile's mode and changes it for that profile (stored on Save, applied on Activate) instead of switching the whole system immediately.
+- Tests cover power modes, EPP handling, `min_perf_pct` reset and the GUI mode matching (104 checks).
 
 ## [1.17.0] - 2026-11-22
 

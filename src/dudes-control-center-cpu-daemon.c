@@ -475,8 +475,8 @@ static void handle_command(const char *cmd, char *response, size_t resp_size) {
         }
 
         CpuGovernor gov = CPU_GOVERNOR_PERFORMANCE;
-        governor_to_enum(arg2, &gov);
-        gov = cpu_governor_resolve_enum(gov, "CREATE_CUSTOM_PROFILE");
+        char mode_epp[CPU_EPP_NAME_MAX] = "";
+        cpu_store_mode(&gov, mode_epp, arg2, "CREATE_CUSTOM_PROFILE");
 
         uint64_t max_freq = get_hard_max_freq_hz();
         if (arg3[0]) {
@@ -489,6 +489,8 @@ static void handle_command(const char *cmd, char *response, size_t resp_size) {
         }
 
         if (cpu_custom_profile_create(arg1, gov, max_freq, apply_all) == 0) {
+            snprintf(g_cpu_state.custom_profiles[g_cpu_state.num_custom_profiles - 1].epp,
+                     CPU_EPP_NAME_MAX, "%s", mode_epp);
             snprintf(response, resp_size, "OK Custom profile '%s' created\n", arg1);
         } else {
             snprintf(response, resp_size, "ERROR Failed to create custom profile '%s'\n", arg1);
@@ -664,14 +666,17 @@ static void handle_command(const char *cmd, char *response, size_t resp_size) {
             return;
         }
 
-        if (governor_to_enum(arg2, &gov) != 0) {
+        char gov_part[CPU_GOVERNOR_NAME_MAX], epp_part[CPU_EPP_NAME_MAX];
+        cpu_parse_mode(arg2, gov_part, sizeof(gov_part), epp_part, sizeof(epp_part));
+        if (governor_to_enum(gov_part, &gov) != 0) {
             snprintf(response, resp_size, "ERROR Unknown governor: %s\n", arg2);
             return;
         }
 
-        gov = cpu_governor_resolve_enum(gov, "SET_PROFILE_GOVERNOR");
-        g_cpu_state.custom_profiles[profile_idx].governor = gov;
-        snprintf(response, resp_size, "OK governor set to %s for profile %d\n", enum_to_governor(gov), profile_idx);
+        CpuCustomProfile *sp = &g_cpu_state.custom_profiles[profile_idx];
+        cpu_store_mode(&sp->governor, sp->epp, arg2, "SET_PROFILE_GOVERNOR");
+        snprintf(response, resp_size, "OK governor set to %s (epp=%s) for profile %d\n",
+                 enum_to_governor(sp->governor), sp->epp[0] ? sp->epp : "-", profile_idx);
         return;
     }
 
@@ -692,6 +697,7 @@ static void handle_command(const char *cmd, char *response, size_t resp_size) {
         size_t pos = 0;
         pos += snprintf(response + pos, resp_size - pos, "NAME:%s\n", cp->name);
         pos += snprintf(response + pos, resp_size - pos, "GOVERNOR:%s\n", enum_to_governor(cp->governor));
+        pos += snprintf(response + pos, resp_size - pos, "EPP:%s\n", cp->epp);
         pos += snprintf(response + pos, resp_size - pos, "APPLY_ALL:%d\n", cp->apply_all_cores);
         pos += snprintf(response + pos, resp_size - pos, "NUM_CORES:%d\n", cp->num_cores);
 
@@ -724,7 +730,6 @@ static void handle_command(const char *cmd, char *response, size_t resp_size) {
         set_hard_max_freq_hz(new_limit);
         cpu_custom_profile_save_json(); /* Persist hard limit to profiles.json */
         clamp_cpus_to_hard_limit();
-        set_all_cpus_epp("performance");
         snprintf(response, resp_size, "OK Hard limit set to %" PRIu64 " Hz (%.2f GHz)\n", new_limit, new_limit / 1e9);
         LOG_INFO("[DAEMON] Hard limit changed to %" PRIu64 " Hz (%.2f GHz)", new_limit, new_limit / 1e9);
         return;
@@ -747,11 +752,10 @@ static void handle_command(const char *cmd, char *response, size_t resp_size) {
 
         /* Set governor */
         CpuGovernor gov;
-        if (governor_to_enum(arg2, &gov) == 0) {
-            /* Store only governors this system offers */
-            g_cpu_state.custom_profiles[profile_idx].governor =
-                cpu_governor_resolve_enum(gov, "SAVE_CUSTOM_PROFILE");
-        }
+        (void)gov;
+        /* arg2 = "governor[:epp]"; only available governors/EPPs are stored */
+        cpu_store_mode(&g_cpu_state.custom_profiles[profile_idx].governor,
+                       g_cpu_state.custom_profiles[profile_idx].epp, arg2, "SAVE_CUSTOM_PROFILE");
 
         /* Set apply_all_cores */
         int apply_all = atoi(arg3);

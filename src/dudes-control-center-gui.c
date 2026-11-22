@@ -925,6 +925,41 @@ static gboolean cpu_refresh_timer_callback(gpointer user_data) {
 }
 
 /* Load governor profiles into the CPU combo box */
+/* Power-mode list rows: column 0 = name (Performance/Balanced/Power Save),
+ * column 1 = key sent to the daemon, "governor" or "governor:epp".
+ * Returns the row for a profile's governor + EPP, or -1. Exact key first,
+ * then by meaning, so profiles saved before EPP support (e.g. "schedutil"
+ * on a system without it) still show the mode they were meant to use. */
+static int gui_find_power_mode_row(GtkListStore *store, const char *gov, const char *epp) {
+    if (!store || !gov || !*gov) return -1;
+    char key[96];
+    if (epp && *epp) snprintf(key, sizeof key, "%s:%s", gov, epp);
+    else snprintf(key, sizeof key, "%s", gov);
+
+    const char *meaning = NULL;
+    if (strcmp(gov, "performance") == 0) meaning = "Performance";
+    else if (strcmp(gov, "schedutil") == 0 || strcmp(gov, "ondemand") == 0 || strcmp(gov, "conservative") == 0)
+        meaning = "Balanced";
+    else if (strcmp(gov, "powersave") == 0)
+        meaning = (epp && strncmp(epp, "balance_performance", 19) == 0) ? "Balanced" : "Power Save";
+
+    int by_meaning = -1, idx = 0;
+    GtkTreeIter it;
+    gboolean ok = gtk_tree_model_get_iter_first(GTK_TREE_MODEL(store), &it);
+    while (ok) {
+        gchar *name = NULL, *row_key = NULL;
+        gtk_tree_model_get(GTK_TREE_MODEL(store), &it, 0, &name, 1, &row_key, -1);
+        int exact = row_key && strcmp(row_key, key) == 0;
+        if (by_meaning < 0 && meaning && name && strcmp(name, meaning) == 0) by_meaning = idx;
+        g_free(name);
+        g_free(row_key);
+        if (exact) return idx;
+        ok = gtk_tree_model_iter_next(GTK_TREE_MODEL(store), &it);
+        idx++;
+    }
+    return by_meaning;
+}
+
 static void load_cpu_governors(AppData *app) {
     if (!app->cpu_connected) {
         g_print("[GUI] CPU not connected, skipping governor load\n");
@@ -970,7 +1005,7 @@ static void load_cpu_governors(AppData *app) {
         }
 
         /* Extract governor string from "gov=xxx" BEFORE truncating the line */
-        char gov_str[32] = "schedutil";
+        char gov_str[80] = "schedutil";
         char *gov_ptr = strstr(line, "gov=");
         if (gov_ptr) {
             char *gov_start = gov_ptr + 4;
@@ -981,6 +1016,26 @@ static void load_cpu_governors(AppData *app) {
                     memcpy(gov_str, gov_start, gov_len);
                     gov_str[gov_len] = '\0';
                 }
+            }
+        }
+
+        /* EPP of the policy ("epp=balance_performance," or "epp=-,") */
+        char epp_str[32] = "";
+        char *epp_ptr = strstr(line, "epp=");
+        if (epp_ptr) {
+            char *epp_start = epp_ptr + 4;
+            size_t epp_len = strcspn(epp_start, ",)");
+            if (epp_len > 0 && epp_len < sizeof(epp_str) && strncmp(epp_start, "-", epp_len) != 0) {
+                memcpy(epp_str, epp_start, epp_len);
+                epp_str[epp_len] = '\0';
+            }
+        }
+        if (epp_str[0]) {
+            /* key sent to the daemon when a profile is saved: governor:epp */
+            size_t gl = strlen(gov_str);
+            if (gl + 1 + strlen(epp_str) < sizeof(gov_str)) {
+                gov_str[gl] = ':';
+                memcpy(gov_str + gl + 1, epp_str, strlen(epp_str) + 1);
             }
         }
 
@@ -1034,6 +1089,18 @@ static void on_cpu_governor_changed(GtkWidget *widget, gpointer user_data) {
     gchar *governor_name = NULL;
     gtk_tree_model_get(GTK_TREE_MODEL(app->cpu_profile_store), &iter, 0, &governor_name, -1);
     if (!governor_name) {
+        return;
+    }
+
+    /* With a per-core profile loaded, the power mode belongs to that profile:
+     * it is stored on Save and applied on Activate (it used to switch the
+     * whole system immediately, which made it impossible to set per profile). */
+    if (app->cpu_active_custom_profile_idx >= 0) {
+        mark_cpu_freq_profiles_modified(app);
+        g_print("[GUI] Power mode '%s' selected for the loaded profile (saved with Save, applied with Activate)\n",
+                governor_name);
+        show_status(app, "Power mode changed - click Save to store it in the profile, Activate to apply it");
+        g_free(governor_name);
         return;
     }
 
@@ -1966,6 +2033,7 @@ static void update_cpu_core_freq_spinners(AppData *app, int profile_idx) {
     }
 
     /* Parse response: lines like CORE_0_MAX:3600000000 and CORE_0_MIN:800000000 */
+    char profile_gov[32] = "", profile_epp[32] = "";
     char response_copy[BUFFER_SIZE];
     strncpy(response_copy, response, sizeof(response_copy) - 1);
     response_copy[sizeof(response_copy) - 1] = '\0';
@@ -1979,7 +2047,11 @@ static void update_cpu_core_freq_spinners(AppData *app, int profile_idx) {
         int core_id = -1;
         unsigned long long freq_hz = 0;
 
-        if (sscanf(p, "CORE_%d_MAX:%llu", &core_id, &freq_hz) == 2) {
+        if (strncmp(p, "GOVERNOR:", 9) == 0) {
+            snprintf(profile_gov, sizeof profile_gov, "%s", p + 9);
+        } else if (strncmp(p, "EPP:", 4) == 0) {
+            snprintf(profile_epp, sizeof profile_epp, "%s", p + 4);
+        } else if (sscanf(p, "CORE_%d_MAX:%llu", &core_id, &freq_hz) == 2) {
             if (core_id >= 0 && core_id < MAX_CPUS && app->cpu_core_max_adjustments[core_id] != NULL) {
                 /* Convert Hz to MHz for spinner */
                 double freq_mhz = (double)freq_hz / 1000000.0;
@@ -1994,6 +2066,16 @@ static void update_cpu_core_freq_spinners(AppData *app, int profile_idx) {
 
         line = strtok(NULL, "\n");
     }
+
+    /* Show the profile's power mode (without triggering the change handler) */
+    int mode_row = gui_find_power_mode_row(app->cpu_profile_store, profile_gov, profile_epp);
+    if (mode_row >= 0 && app->cpu_profile_combo) {
+        g_signal_handler_block(app->cpu_profile_combo, app->cpu_profile_combo_signal_id);
+        gtk_combo_box_set_active(GTK_COMBO_BOX(app->cpu_profile_combo), mode_row);
+        g_signal_handler_unblock(app->cpu_profile_combo, app->cpu_profile_combo_signal_id);
+    }
+    g_print("[GUI] Profile %d power mode: governor=%s epp=%s -> row %d\n",
+            profile_idx, profile_gov, profile_epp[0] ? profile_epp : "-", mode_row);
 
     g_print("[GUI] Spinner values updated from profile %d\n", profile_idx);
 }
@@ -6052,7 +6134,7 @@ static GtkWidget *create_cpu_page(AppData *app) {
     /* Profile combo box */
     {
         GtkWidget *row = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 10);
-        GtkWidget *label = gtk_label_new("Select Profile:");
+        GtkWidget *label = gtk_label_new("Power mode:");
         gtk_widget_set_halign(label, GTK_ALIGN_END);
         gtk_label_set_width_chars(GTK_LABEL(label), 20);
         gtk_box_pack_start(GTK_BOX(row), label, FALSE, FALSE, 0);

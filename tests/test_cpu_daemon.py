@@ -47,6 +47,12 @@ try:
     a = connect("cpu.sock", timeout=5)
     time.sleep(1.2)   # first enforcement pass
 
+    # no forced settings at startup (v1.17.1)
+    epp0 = open("sys/cpu0/cpufreq/energy_performance_preference").read().strip()
+    check(epp0 == "default", f"startup no longer forces EPP 'performance' (EPP is '{epp0}')")
+    pct = open("sys/intel_pstate/min_perf_pct").read().strip()
+    check(pct == "0", f"min_perf_pct=100 left by older versions reset to the driver minimum (got {pct})")
+
     # 64-bit frequencies
     r = ask(a, "GET_HARD_LIMIT")
     check("HARD_LIMIT=5000000000" in r, "hard limit above 4.29 GHz round-trips")
@@ -68,16 +74,27 @@ try:
     check(read_khz("sys", 7, "scaling_max_freq") == 5000000, "core lowered externally is restored")
     check(read_khz("sys", 0, "scaling_max_freq") == 3000000, "profile value still not raised to the limit")
 
-    # governors: only what the driver offers (v1.17.1)
+    # power modes = governor + EPP; the fake driver offers only performance/powersave (v1.17.1)
+    def gov_epp(cpu=0):
+        g = open(f"sys/cpu{cpu}/cpufreq/scaling_governor").read().strip()
+        e = open(f"sys/cpu{cpu}/cpufreq/energy_performance_preference").read().strip()
+        return g, e
+
     r = ask(a, "LIST_GOVERNORS")
-    check("Performance" in r and "Power Save" in r and "Balanced" not in r,
-          "governor policies only for available governors (no 'Balanced'/schedutil)")
-    r = ask(a, "APPLY_CUSTOM_PROFILE|0")
-    gov = open("sys/cpu0/cpufreq/scaling_governor").read().strip()
-    check(gov == "powersave", f"profile asking for schedutil gets the closest available governor (got {gov})")
+    check("Performance (gov=performance, epp=-" in r, "Performance policy: performance governor, EPP untouched")
+    check("Balanced (gov=powersave, epp=balance_performance" in r,
+          "Balanced policy without schedutil: powersave + EPP balance_performance")
+    check("Power Save (gov=powersave, epp=power" in r, "Power Save policy: powersave + EPP power")
+    check("schedutil" not in r, "no policy uses the unavailable schedutil")
+
+    ask(a, "APPLY_CUSTOM_PROFILE|0")
+    check(gov_epp(0) == ("powersave", "balance_performance") and gov_epp(23) == ("powersave", "balance_performance"),
+          f"old profile with 'schedutil' applies as Balanced (got {gov_epp(0)})")
+    ask(a, "APPLY_GOVERNOR|Power Save")
+    check(gov_epp(5) == ("powersave", "power"), f"Power Save applies powersave + power (got {gov_epp(5)})")
     r = ask(a, "APPLY_GOVERNOR|Performance")
-    gov = open("sys/cpu0/cpufreq/scaling_governor").read().strip()
-    check("OK" in r and gov == "performance", "available governor applied as-is")
+    check("OK" in r and gov_epp(5) == ("performance", "power"),
+          "Performance sets the governor and leaves EPP to it")
 
     # several clients at once
     b = connect("cpu.sock")
@@ -95,11 +112,21 @@ try:
 
     pairs_sched = ",".join(f"800000000,{4000000000}" for _ in range(NCPU))
     ask(a, f"SAVE_CUSTOM_PROFILE|0|schedutil|0|{pairs_sched}")
-    check("GOVERNOR:powersave" in ask(a, "GET_CUSTOM_PROFILE_INFO|0"),
-          "saving with an unavailable governor stores an available one")
+    r = ask(a, "GET_CUSTOM_PROFILE_INFO|0")
+    check("GOVERNOR:powersave" in r and "EPP:balance_performance" in r,
+          "saving 'schedutil' stores the Balanced equivalent (powersave + balance_performance)")
+    ask(a, f"SAVE_CUSTOM_PROFILE|0|powersave:power|0|{pairs_sched}")
+    r = ask(a, "GET_CUSTOM_PROFILE_INFO|0")
+    check("GOVERNOR:powersave" in r and "EPP:power" in r, "explicit 'powersave:power' stored as given")
+    ask(a, f"SAVE_CUSTOM_PROFILE|0|performance:power|0|{pairs_sched}")
+    r = ask(a, "GET_CUSTOM_PROFILE_INFO|0")
+    check("GOVERNOR:performance" in r and "EPP:\n" in r, "no EPP stored for the performance governor")
+    check('"epp"' in ask(a, "LIST_CUSTOM_PROFILES_JSON"), "EPP included in the profile JSON")
 
-    # saving keeps the other sections
+    # saving keeps the other sections; the hard limit no longer touches EPP
+    wr("sys/cpu1/cpufreq/energy_performance_preference", "balance_power")
     ask(a, "SET_HARD_LIMIT|4800000000")
+    check(gov_epp(1)[1] == "balance_power", "SET_HARD_LIMIT no longer forces EPP 'performance'")
     data = json.load(open("cfg/profiles.json"))
     check(data["cpu_freq_profiles"]["cpu_hard_limit_hz"] == 4800000000, "new hard limit persisted")
     check("keyboard_profiles" in data, "keyboard section preserved by the daemon's save")
