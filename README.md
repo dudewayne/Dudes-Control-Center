@@ -7,6 +7,13 @@ A control center for Clevo-based notebooks on Linux: fan control through the Emb
 ![Release](https://img.shields.io/github/v/release/dudewayne/Dudes-Control-Center)
 ![CI](https://github.com/dudewayne/Dudes-Control-Center/actions/workflows/ci.yml/badge.svg)
 ![Platform](https://img.shields.io/badge/platform-Linux-lightgrey.svg)
+![License](https://img.shields.io/badge/license-GPL--2.0-blue.svg)
+
+[![Keyboard Backlight tab with the zone editor](docs/screenshots/keyboard-backlight.png)](#screenshots)
+
+> **Requirements:** a Clevo-based notebook with the Embedded Controller at I/O ports 0x62/0x66 (fan control) and an ITE 829x keyboard controller (per-key lighting); a Debian-based distribution on amd64 (Ubuntu, Linux Mint, ...) with systemd and GTK 3. On other hardware the fan and keyboard parts may not work or may misbehave: they can be switched off in the GUI's Settings tab. See [Hardware](#hardware).
+
+**Contents:** [Components](#components) · [Installation](#installation) · [Quick start](#quick-start) · [GUI](#gui) · [Screenshots](#screenshots) · [Command line](#command-line) · [Safety features](#safety-features) · [Configuration](#configuration) · [Building from source](#building-from-source) · [Hardware](#hardware) · [Troubleshooting](#troubleshooting) · [Credits](#credits--acknowledgments) · [License](#license)
 
 ## Components
 
@@ -38,7 +45,14 @@ The package:
 
 Uninstall with `sudo apt remove dudes-control-center`; `sudo apt purge dudes-control-center` also removes the configuration and logs.
 
-Upgrading from a version before 1.19.0 stops the old `dudes-control-center-*` services and starts the new `dcc-*` ones automatically. The old command names `dudes-control-center-gui`, `-fan-cli` and `-cpu-cli` still work for now (they link to the new ones).
+Upgrades from versions before 1.19.0 (old `dudes-control-center-*` names) are handled automatically; the old command names still link to the new ones.
+
+## Quick start
+
+1. Open **Dudes Control Center** from the application menu (or run `dcc-gui`); it starts in the system tray, a left click on the tray icon shows the window.
+2. **Keyboard Backlight** tab: run the **LED Wizard** once so per-key colors hit the right keys (a built-in mapping is used until then), then pick a color or build zones.
+3. **Fan Profiles** and **CPU Profiles** tabs: choose a profile and press **Activate**; the curve and the frequencies can be edited and saved.
+4. **Settings** tab: language, keyboard layout, dark/light appearance, and switches for parts that do not work on your laptop.
 
 ## GUI
 
@@ -53,7 +67,7 @@ dcc-gui --debug    # more output in GUI.log
 | **Fan Profiles** | One dropdown for all fan profiles (the one in use is marked "(Active)"): Create, Rename, Save, Delete, **Activate**, and the graphical temperature-to-fan-speed curve of the selected profile (add, edit, delete points; Save keeps them, unsaved changes are asked about before switching profiles or leaving the tab). Shows a warning with "Disable Manual Mode" while manual mode is on. |
 | **CPU Profiles** | Power mode (**Performance / Balanced / Power Save**), per-core min/max frequency profiles (Create, Rename, Save, Delete, Activate; unsaved changes are asked about before switching profiles, leaving the tab or closing), the CPU hard limit. |
 | **Keyboard Backlight** | Keyboard profiles, **brightness slider**, backlight off switch, preset and custom colors, the **zone editor** (keyboard picture + zone list) for per-key lighting, the LED wizard. |
-| **Settings** | Switch **fan control, CPU control or keyboard backlight** off when it does not work on your laptop or causes problems (and on again). Asks for the administrator password; applies system wide and stays after reboots and updates. The tabs and tray submenus of a switched-off part are hidden. Fan control switched off: fans at 100% until the next reboot, then the firmware controls them. **Keyboard layout**: German, English (UK), Spanish, Japanese or Korean picture and keys (preselected from the system's keyboard layout). **Language**: system default, English (US), English (UK), German, Spanish, Japanese or Korean (after a restart of the GUI; Japanese and Korean are not reviewed by a native speaker yet). **Appearance**: follow the system, dark or light (theme, keyboard picture and fan curve graph). |
+| **Settings** | Components on/off, language, appearance, keyboard layout (see [Settings](#settings)). |
 | **Logs** | Live GUI, CPU daemon, fan daemon and keyboard daemon logs (newest on top). |
 | **About** | Version, credits, links. |
 
@@ -69,6 +83,13 @@ dcc-gui --debug    # more output in GUI.log
 6. **Backlight Off** switches the keyboard off until you switch it on again, choose a color or activate a profile, also across reboots. Opening the GUI does not change the backlight.
 7. **Brightness** (0-10) is the keyboard's hardware brightness and works on top of the colors. It is the same setting as the keyboard slider of the desktop (e.g. Linux Mint's battery/power applet), so either one can be used; the level is kept across reboots.
 
+### Settings
+
+- **Components**: switch **CPU control, fan control or the keyboard backlight** off when it does not work on your laptop or causes problems, and on again. Asks for the administrator password, applies system wide and stays after reboots and updates; the tabs and tray submenus of a switched-off part are hidden. Fan control switched off: the fans run at 100% until the next reboot, then the firmware controls them.
+- **Language**: system default, English (US), English (UK), German, Spanish, Japanese or Korean, after a restart of the GUI (**Restart now**). Japanese and Korean are not reviewed by a native speaker yet. The command-line tools stay in English.
+- **Appearance**: follow the system, dark or light; the theme, the keyboard picture and the fan curve graph follow it.
+- **Keyboard layout**: German, English (UK), Spanish, Japanese or Korean picture and keys, preselected from the system's keyboard layout. The LED wizard mapping is kept per layout.
+
 ### CPU power modes
 
 A power mode is a governor plus the CPU's energy performance preference (EPP), like the power profiles of GNOME/Mint/Windows:
@@ -81,7 +102,7 @@ A power mode is a governor plus the CPU's energy performance preference (EPP), l
 
 Only modes the system supports are offered. Each per-core profile stores its mode (changed in the list, stored with **Save**). For the active profile a new mode takes effect right away; for another profile when it is activated. `power-profiles-daemon` also sets EPP; to give this application full control: `sudo systemctl mask --now power-profiles-daemon`.
 
-### Screenshots
+## Screenshots
 
 Click a picture for the full size.
 
@@ -122,14 +143,12 @@ dcc-kbd-cli --show-profile "Gaming"
 
 ## Safety features
 
-⚠️ These applications access hardware I/O ports to control the Embedded Controller. Use at your own risk.
-
 1. **Watchdog**: the fan daemon pings the systemd watchdog (`WatchdogSec=30`); if its main loop hangs, systemd restarts it. Whenever the daemon stops for any reason (crash, watchdog, stop, upgrade), `ExecStopPost=` sets the fans to 100% directly through the EC.
 2. **Sensor fail-safe** (auto and manual mode): invalid readings (below 10°C, above 110°C, no answer from the EC) count as failures; after 2 in a row (~10 s) the fans are held at 100% until valid readings return. Afterwards the previous mode and speed are restored.
 3. **Emergency temperature** (auto and manual mode): at 95°C or more (CPU or GPU) the fans go to 100% until the temperature drops below 90°C. In manual mode the emergency **ends manual mode**: when it clears, the fan curve (auto mode) takes over instead of going back to a low manual speed. The GUI switches to auto and says why.
 4. **Safe curve fallback**: a missing or empty fan profile uses the built-in default curve, never a fixed low speed.
 5. **CPU hard limit**: a maximum frequency for all cores, enforced by the CPU daemon and, independently, by a systemd timer every 10 s.
-6. **Access control**: the daemons accept commands only from root and members of `dudes-control-center` (checked with `SO_PEERCRED`). Files in the user's home directory are read and written with the user's identity, never through symlinks.
+6. **Access control**: the daemons accept commands only from root and members of `dudes-control-center` (checked with `SO_PEERCRED`). Files in the user's home directory are read and written with the user's identity, never through symlinks. The Settings tab's component switches run the root helper `/usr/local/sbin/dcc-component` through polkit, which asks for the administrator password.
 
 `STATUS` of the fan daemon reports `FAILSAFE=1` while an override is active.
 
@@ -174,7 +193,7 @@ Each daemon logs the chosen path once: `[CONFIG] Using ...`.
 ## Building from source
 
 ```bash
-sudo apt install build-essential pkg-config libgtk-3-dev libcjson-dev python3 dkms
+sudo apt install build-essential pkg-config libgtk-3-dev libcjson-dev python3 gettext dkms
 make -j$(nproc)          # all applications
 make deb -j$(nproc)      # Debian package in build-deb/
 make test -j$(nproc)     # test suite
@@ -189,7 +208,7 @@ make deb-check           # check the built package
 
 Designed for Clevo-based notebooks with EC access at I/O ports 0x62/0x66 and an ITE 829x keyboard controller. The fan code is based on the open-source [fan-control](https://github.com/steiiin/fan-control) project; the keyboard driver `ite_829x` comes from TUXEDO Computers' [tuxedo-drivers](https://github.com/tuxedocomputers/tuxedo-drivers).
 
-**Tested on:** Intel Core Ultra 9, NVIDIA RTX 5090 Mobile, standard Clevo EC layout, Linux Mint.
+**Tested on:** Clevo X58xWNx (X580WNT-G) with Intel Core Ultra 9, NVIDIA RTX 5090 Mobile, standard Clevo EC layout, Linux Mint.
 
 ### EC registers
 
@@ -222,7 +241,9 @@ sudo systemctl restart dcc-fan-daemon
 
 **Keyboard backlight does nothing**: check that the module is loaded (`lsmod | grep ite_829x`, `dkms status ite_829x`) and that `/sys/class/leds/rgb:kbd_backlight*` exists. With Secure Boot the module must be signed with an enrolled MOK key. Per-key colors need the LED wizard mapping.
 
-**Keys light the wrong LEDs**: run the LED wizard again.
+**Keys light the wrong LEDs**: check the keyboard layout in the Settings tab, then run the LED wizard again for that layout.
+
+**No tray icon (GNOME)**: the GUI uses the classic system tray icon. Plain GNOME shows it only with the [AppIndicator and KStatusNotifierItem Support](https://extensions.gnome.org/extension/615/appindicator-support/) extension (Ubuntu ships it); other desktops (Cinnamon, MATE, Xfce, KDE) show it directly.
 
 **The desktop's keyboard brightness slider does nothing**: it talks to UPower, which has to see the current keyboard driver. The package restarts UPower after updating the driver; if the slider still does not react, run `sudo systemctl restart upower` (or log out and in).
 
@@ -255,12 +276,7 @@ Dudes Control Center was **initially coded with [Bionic AI Agent](https://lmstud
 
 ## License
 
-Dudes Control Center is licensed under the **GNU General Public License version 2** (GPL-2.0-only): license text in [LICENSE](LICENSE), copyright and origins in [COPYRIGHT.md](COPYRIGHT.md).
-
-- **Fan control code**: the Embedded Controller access is based on [fan-control](https://github.com/steiiin/fan-control) by steiiin, a fork of [clevo-fan-control](https://github.com/agramian/clevo-fan-control) by agramian (GPL-2.0), which in turn is based on [Clevo Fan Control Indicator](https://github.com/SkyLandTW/clevo-indicator) by AqD and on `fanctrl.c` by Jonas Diemer. fan-control has no license file of its own; as a fork of GPL-2.0 code it is used under the GPL-2.0, which is why this project is GPL-2.0.
-- **Keyboard driver**: `drivers/ite_829x.c` is copyright 2019-2023 TUXEDO Computers GmbH, from [tuxedo-drivers](https://github.com/tuxedocomputers/tuxedo-drivers), licensed GPL-2.0-or-later and used here under the GPL-2.0 ([drivers/LICENSE](drivers/LICENSE)).
-
-The package installs `/usr/share/doc/dudes-control-center/copyright` (machine-readable, all origins and licenses) and `LICENSE`, plus the driver's license with its source (`/usr/src/ite_829x-<version>/LICENSE`).
+Dudes Control Center is licensed under the **GNU General Public License version 2** (GPL-2.0-only); the license text is in [LICENSE](LICENSE). It contains fan control code based on fan-control / clevo-fan-control (GPL-2.0) and the `ite_829x` keyboard driver by TUXEDO Computers (GPL-2.0-or-later, used under the GPL-2.0); see [COPYRIGHT.md](COPYRIGHT.md) for the origins and licenses. The package installs the details as `/usr/share/doc/dudes-control-center/copyright`.
 
 ## References
 
