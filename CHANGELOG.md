@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.21.9] - 2026-11-22
+
+### Fixed
+- **Logs tab: live keyboard daemon log**: a new "Keyboard Backlight Log" view shows `/var/log/dudes-control-center/KBD_BACKLIGHT_DAEMON.log` like the other logs (newest message on top, updated every 0.5 s while the Logs tab is open).
+- The log views are now ordered GUI Log, CPU Daemon Log, Fan Daemon Log, Keyboard Backlight Log.
+
 ## [1.21.8] - 2026-11-22
 
 ### Fixed

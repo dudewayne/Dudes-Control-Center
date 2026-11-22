@@ -51,7 +51,7 @@ dcc-gui --debug    # more output in GUI.log
 | **Fan Profiles** | One dropdown for all fan profiles (the one in use is marked "(Active)"): **Activate**, New, Rename, Delete, and the graphical temperature-to-fan-speed curve of the selected profile (add, edit, delete points; Apply). Shows a warning with "Disable Manual Mode" while manual mode is on. |
 | **CPU Profiles** | Power mode (**Performance / Balanced / Power Save**), per-core min/max frequency profiles, the CPU hard limit. |
 | **Keyboard Backlight** | Keyboard profiles, **brightness slider**, backlight off switch, colors, the keyboard picture for **per-key lighting**, the LED wizard. |
-| **Logs** | Live GUI, fan daemon and CPU daemon logs. |
+| **Logs** | Live GUI, CPU daemon, fan daemon and keyboard daemon logs (newest on top). |
 | **About** | Version, credits, links. |
 
 **Tray icon:** left click shows/hides the window, right click opens a menu with fan and CPU profiles. Closing the window minimizes to the tray. Window position and size are remembered; only one GUI instance can run.
