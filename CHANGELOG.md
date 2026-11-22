@@ -2,6 +2,15 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.25.0] - 2026-11-22
+
+### Added
+- **Zone editor: drag to mark an area**: while a zone is selected, holding the left mouse button and dragging over the keyboard picture draws a frame; on release every key whose center lies inside joins the zone (and leaves any other zone). If all of them were already in the zone, they leave it instead, like a click on a single key. A click without moving still adds or removes one key.
+
+### Fixed
+- A double-click on the keyboard picture counted as three clicks (GTK sends an extra double-click event), which could, for example, make the LED wizard skip an LED. Only real presses count now.
+- Tests for the marked area.
+
 ## [1.24.4] - 2026-11-22
 
 ### Fixed

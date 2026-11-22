@@ -453,6 +453,9 @@ typedef struct {
     int kbd_edit_loaded;
     int kbd_sel_zone;                  /* zone being edited, -1: whole keyboard */
     int kbd_canvas_width_used;         /* canvas width its height was computed for */
+    int kbd_drag_active;               /* left button down on the picture (1.25.0) */
+    int kbd_drag_moved;                /* moved far enough: a rectangle, not a click */
+    double kbd_drag_x0, kbd_drag_y0, kbd_drag_x1, kbd_drag_y1;   /* widget coordinates */
     int kbd_canvas_height_want;
     GtkListStore *kbd_zone_store;
     GtkWidget *kbd_zone_view;
@@ -4144,7 +4147,7 @@ static void kbd_update_mode_label(AppData *app) {
     int zi = app->kbd_sel_zone;
     gchar *t;
     if (zi >= 0 && zi < app->kbd_edit.num_zones)
-        t = g_strdup_printf("Coloring zone '%s' (%d LEDs): click keys on the picture to add or remove them.",
+        t = g_strdup_printf("Coloring zone '%s' (%d LEDs): click keys on the picture or drag over an area to add or remove them.",
                             app->kbd_edit.zones[zi].name, app->kbd_edit.zones[zi].n);
     else
         t = g_strdup("Coloring the whole keyboard (base color; zones keep their colors). "
@@ -5132,6 +5135,20 @@ static gboolean kbd_canvas_draw(GtkWidget *widget, cairo_t *cr, gpointer user_da
                 cairo_stroke(cr);
             }
         }
+        /* Rectangle being dragged (1.25.0) */
+        if (app->kbd_drag_active && app->kbd_drag_moved) {
+            double x = MIN(app->kbd_drag_x0, app->kbd_drag_x1), y = MIN(app->kbd_drag_y0, app->kbd_drag_y1);
+            double w = ABS(app->kbd_drag_x1 - app->kbd_drag_x0), h = ABS(app->kbd_drag_y1 - app->kbd_drag_y0);
+            cairo_rectangle(cr, x, y, w, h);
+            cairo_set_source_rgba(cr, 0.3, 0.7, 1.0, 0.18);
+            cairo_fill_preserve(cr);
+            double dash[] = { 5.0, 3.0 };
+            cairo_set_dash(cr, dash, 2, 0);
+            cairo_set_line_width(cr, 1.5);
+            cairo_set_source_rgb(cr, 0.3, 0.7, 1.0);
+            cairo_stroke(cr);
+            cairo_set_dash(cr, NULL, 0, 0);
+        }
     } else {
         /* No image loaded, show placeholder text */
         cairo_set_source_rgb(cr, 0.7, 0.7, 0.7);
@@ -5146,13 +5163,10 @@ static gboolean kbd_canvas_draw(GtkWidget *widget, cairo_t *cr, gpointer user_da
 }
 
 /* Click handler for keyboard canvas */
-static gboolean kbd_canvas_button_press(GtkWidget *widget, GdkEventButton *event, gpointer user_data) {
-    AppData *app = (AppData *)user_data;
-    
-    if (!app->kbd_keyboard_image || event->button != 1) {
-        return FALSE;
-    }
-    
+/* Click on the picture at widget position x, y (wizard or zone editor) */
+static gboolean kbd_canvas_click(GtkWidget *widget, double click_x, double click_y, AppData *app) {
+    if (!app->kbd_keyboard_image) return FALSE;
+
     int width = gtk_widget_get_allocated_width(widget);
     int height = gtk_widget_get_allocated_height(widget);
     double img_width = cairo_image_surface_get_width(app->kbd_keyboard_image);
@@ -5168,8 +5182,8 @@ static gboolean kbd_canvas_button_press(GtkWidget *widget, GdkEventButton *event
     double offset_y = 0;   /* picture at the top (1.24.2) */
     
     /* Convert click to image coordinates */
-    double unscaled_x = (event->x - offset_x) / scale;
-    double unscaled_y = (event->y - offset_y) / scale;
+    double unscaled_x = (click_x - offset_x) / scale;
+    double unscaled_y = (click_y - offset_y) / scale;
     
     /* Find which key was clicked */
     size_t num_keys = sizeof(kbd_key_positions) / sizeof(kbd_key_positions[0]);
@@ -5233,6 +5247,106 @@ static gboolean kbd_canvas_button_press(GtkWidget *widget, GdkEventButton *event
     }
     
     return FALSE;
+}
+
+/* Widget -> picture coordinates, as in the draw callback */
+static int kbd_canvas_to_image(GtkWidget *widget, AppData *app, double wx, double wy, double *ix, double *iy) {
+    if (!app->kbd_keyboard_image) return -1;
+    double iw = cairo_image_surface_get_width(app->kbd_keyboard_image);
+    double ih = cairo_image_surface_get_height(app->kbd_keyboard_image);
+    double width = gtk_widget_get_allocated_width(widget), height = gtk_widget_get_allocated_height(widget);
+    double scale = MIN(width / iw, height / ih);
+    if (scale <= 0) return -1;
+    double offset_x = (width - iw * scale) / 2.0;
+    *ix = (wx - offset_x) / scale;
+    *iy = wy / scale;   /* picture at the top */
+    return 0;
+}
+
+/* Keys (one entry per key, see kbd_key_group_primary) whose center lies in
+ * the rectangle between two corners in picture coordinates (1.25.0) */
+static int kbd_keys_in_rect(double ax, double ay, double bx, double by, size_t *out, int max) {
+    double x0 = MIN(ax, bx), x1 = MAX(ax, bx), y0 = MIN(ay, by), y1 = MAX(ay, by);
+    int n = 0;
+    for (size_t i = 0; i < KBD_NUM_KEYS && n < max; i++) {
+        if (kbd_key_group_primary(i) != i) continue;
+        const KeyPos *k = &kbd_key_positions[i];
+        double cx = k->x + k->w / 2.0, cy = k->y + k->h / 2.0;
+        if (cx >= x0 && cx <= x1 && cy >= y0 && cy <= y1) out[n++] = i;
+    }
+    return n;
+}
+
+/* Rectangle dragged over the picture: its keys join the zone being edited,
+ * or leave it if all of them were in it already (like a click on one key) */
+static void kbd_drag_select(GtkWidget *widget, AppData *app) {
+    int zi = app->kbd_sel_zone;
+    if (!app->kbd_edit_loaded || zi < 0 || zi >= app->kbd_edit.num_zones) return;
+    double ax, ay, bx, by;
+    if (kbd_canvas_to_image(widget, app, app->kbd_drag_x0, app->kbd_drag_y0, &ax, &ay) != 0 ||
+        kbd_canvas_to_image(widget, app, app->kbd_drag_x1, app->kbd_drag_y1, &bx, &by) != 0)
+        return;
+    size_t keys[KBD_NUM_KEYS];
+    int nk = kbd_keys_in_rect(ax, ay, bx, by, keys, KBD_NUM_KEYS);
+    int leds[120], n = 0;
+    for (int k = 0; k < nk; k++) {
+        int kl[120];
+        int m = kbd_leds_for_key(app, keys[k], kl, 120);
+        for (int j = 0; j < m && n < 120; j++) {
+            int dup = 0;
+            for (int d = 0; d < n; d++) if (leds[d] == kl[j]) dup = 1;
+            if (!dup) leds[n++] = kl[j];
+        }
+    }
+    if (n == 0) {
+        kbd_status(app, "No keys with an LED in the marked area");
+        return;
+    }
+    int added = kbd_edit_toggle_leds(&app->kbd_edit, zi, leds, n);
+    kbd_edit_changed(app, 1, 0);
+    kbd_status(app, "%d key(s) %s zone '%s' - click Save to keep it", nk,
+               added ? "added to" : "removed from", app->kbd_edit.zones[zi].name);
+}
+
+/* Left button: in the zone editor a click or a dragged rectangle (decided
+ * on release); otherwise (wizard, no zone selected) a click right away.
+ * Only real presses count: GTK also sends a double-click event, which used
+ * to count as one more click. */
+static gboolean kbd_canvas_button_press(GtkWidget *widget, GdkEventButton *event, gpointer user_data) {
+    AppData *app = (AppData *)user_data;
+    if (!app->kbd_keyboard_image || event->button != 1 || event->type != GDK_BUTTON_PRESS) return FALSE;
+    if (!app->kbd_wizard_active && app->kbd_edit_loaded &&
+        app->kbd_sel_zone >= 0 && app->kbd_sel_zone < app->kbd_edit.num_zones) {
+        app->kbd_drag_active = 1;
+        app->kbd_drag_moved = 0;
+        app->kbd_drag_x0 = app->kbd_drag_x1 = event->x;
+        app->kbd_drag_y0 = app->kbd_drag_y1 = event->y;
+        return TRUE;
+    }
+    return kbd_canvas_click(widget, event->x, event->y, app);
+}
+
+static gboolean kbd_canvas_motion(GtkWidget *widget, GdkEventMotion *event, gpointer user_data) {
+    (void)widget;
+    AppData *app = (AppData *)user_data;
+    if (!app->kbd_drag_active) return FALSE;
+    app->kbd_drag_x1 = event->x;
+    app->kbd_drag_y1 = event->y;
+    if (ABS(app->kbd_drag_x1 - app->kbd_drag_x0) > 4 || ABS(app->kbd_drag_y1 - app->kbd_drag_y0) > 4)
+        app->kbd_drag_moved = 1;
+    if (app->kbd_drag_moved) kbd_redraw_canvas(app);
+    return TRUE;
+}
+
+static gboolean kbd_canvas_button_release(GtkWidget *widget, GdkEventButton *event, gpointer user_data) {
+    AppData *app = (AppData *)user_data;
+    if (!app->kbd_drag_active || event->button != 1) return FALSE;
+    app->kbd_drag_active = 0;
+    if (app->kbd_drag_moved) kbd_drag_select(widget, app);
+    else kbd_canvas_click(widget, app->kbd_drag_x0, app->kbd_drag_y0, app);
+    app->kbd_drag_moved = 0;
+    kbd_redraw_canvas(app);
+    return TRUE;
 }
 
 /* Callback: Preset color button clicked */
@@ -7294,9 +7408,12 @@ static GtkWidget *create_keyboard_page(AppData *app) {
     
     /* Keyboard schematic canvas */
     app->kbd_keyboard_canvas = gtk_drawing_area_new();
-    gtk_widget_set_events(app->kbd_keyboard_canvas, GDK_BUTTON_PRESS_MASK);
+    gtk_widget_set_events(app->kbd_keyboard_canvas,
+                          GDK_BUTTON_PRESS_MASK | GDK_BUTTON_RELEASE_MASK | GDK_BUTTON1_MOTION_MASK);
     g_signal_connect(app->kbd_keyboard_canvas, "draw", G_CALLBACK(kbd_canvas_draw), app);
     g_signal_connect(app->kbd_keyboard_canvas, "button-press-event", G_CALLBACK(kbd_canvas_button_press), app);
+    g_signal_connect(app->kbd_keyboard_canvas, "motion-notify-event", G_CALLBACK(kbd_canvas_motion), app);
+    g_signal_connect(app->kbd_keyboard_canvas, "button-release-event", G_CALLBACK(kbd_canvas_button_release), app);
     g_signal_connect(app->kbd_keyboard_canvas, "size-allocate", G_CALLBACK(on_kbd_canvas_size_allocate), app);
     /* Picture on the left, zone list on the right */
     GtkWidget *canvas_row = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 8);

@@ -380,6 +380,24 @@ int main(int argc, char **argv) {
         kbd_edit_encode(&f, g);
         CHECK(!strcmp(g->str, "-::"), "Z: empty profile -> no base, no zones");
         g_string_free(g, TRUE);
+        /* dragged rectangle (v1.25.0): keys whose center is inside */
+        {
+            size_t ks[KBD_NUM_KEYS];
+            int nk = kbd_keys_in_rect(330, 220, 120, 150, ks, KBD_NUM_KEYS);   /* corners in any order */
+            int q = 0, w = 0, ee = 0, other = 0;
+            for (int k = 0; k < nk; k++) {
+                const char *nm = kbd_key_names[ks[k]];
+                if (!strcmp(nm, "Q")) q = 1; else if (!strcmp(nm, "W")) w = 1;
+                else if (!strcmp(nm, "E")) ee = 1; else other = 1;
+            }
+            CHECK(nk == 3 && q && w && ee && !other, "Z: rectangle over Q W E selects exactly those keys");
+            nk = kbd_keys_in_rect(900, 150, 1045, 290, ks, KBD_NUM_KEYS);
+            int enters = 0;
+            for (int k = 0; k < nk; k++) if (!strcmp(kbd_key_names[ks[k]], "Enter")) enters++;
+            CHECK(enters == 1, "Z: a key with several entries (Enter) counts once");
+            CHECK(kbd_keys_in_rect(0, 0, 5, 5, ks, KBD_NUM_KEYS) == 0, "Z: rectangle without key centers selects nothing");
+            CHECK(kbd_keys_in_rect(0, 0, 2000, 1000, ks, KBD_NUM_KEYS) > 90, "Z: rectangle over the whole picture selects all keys");
+        }
         kbd_parse_zone_colors(&kb, "ZONES_START COUNT=0\nBASE color=1,2,3\nZONES_END\n");
         CHECK(kb.kbd_led_has_color[77] && kb.kbd_led_rgb[77][2] == 3, "Z: GET_ZONES base color shown on the picture");
     }
