@@ -48,7 +48,7 @@ dcc-gui --debug    # more output in GUI.log
 | Tab | Contents |
 |---|---|
 | **Status** | CPU/GPU temperature, each fan's RPM and duty (from the EC), auto/manual fan mode. Manual mode: +/- in 10% steps from **0% (fans off)** to 100%. |
-| **Fan Profiles** | One dropdown for all fan profiles (the one in use is marked "(Active)"): **Activate**, New, Rename, Delete, and the graphical temperature-to-fan-speed curve of the selected profile (add, edit, delete points; Apply). Shows a warning with "Disable Manual Mode" while manual mode is on. |
+| **Fan Profiles** | One dropdown for all fan profiles (the one in use is marked "(Active)"): Create, Rename, Save, Delete, **Activate**, and the graphical temperature-to-fan-speed curve of the selected profile (add, edit, delete points; Save keeps them, Cancel discards them). Shows a warning with "Disable Manual Mode" while manual mode is on. |
 | **CPU Profiles** | Power mode (**Performance / Balanced / Power Save**), per-core min/max frequency profiles, the CPU hard limit. |
 | **Keyboard Backlight** | Keyboard profiles, **brightness slider**, backlight off switch, colors, the keyboard picture for **per-key lighting**, the LED wizard. |
 | **Logs** | Live GUI, CPU daemon, fan daemon and keyboard daemon logs (newest on top). |
@@ -60,7 +60,7 @@ dcc-gui --debug    # more output in GUI.log
 
 1. Run the **LED Wizard** once: it lights each LED in turn and you click the matching key on the picture. The mapping is saved in `~/.config/dudes-control-center/keyboard_led_mapping.csv`. Keys with several LEDs (Space, Enter, ...) get all of them. "Skip" keeps an LED's current key, "No Key" marks an LED that lights no key; the label shows the key each LED has now. Until the wizard has run, a built-in mapping for this keyboard is used.
 2. Click keys on the picture to select them, then click a color: exactly those keys change, the others keep their color. With no keys selected, the color applies to the whole keyboard. **Clear selection** deselects all keys.
-3. **Save Profile** stores the colors in the keyboard profile; **Activate Profile** brings them back. The keyboard daemon restores the active profile when it starts.
+3. **Save** stores the colors in the keyboard profile; **Activate** brings them back. The keyboard daemon restores the active profile when it starts.
 4. **Backlight Off** switches the keyboard off until you switch it on again, choose a color or activate a profile, also across reboots. Opening the GUI does not change the backlight.
 5. **Brightness** (0-10) is the keyboard's hardware brightness and works on top of the colors. It is the same setting as the keyboard slider of the desktop (e.g. Linux Mint's battery/power applet), so either one can be used; the level is kept across reboots.
 

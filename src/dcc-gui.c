@@ -643,7 +643,7 @@ static int check_unsaved_changes(AppData *app) {
     /* Add buttons with custom response IDs */
     gtk_dialog_add_button(GTK_DIALOG(dialog), "_Cancel", -102);
     gtk_dialog_add_button(GTK_DIALOG(dialog), "_Discard Changes", -100);
-    gtk_dialog_add_button(GTK_DIALOG(dialog), "_Apply Changes", -101);
+    gtk_dialog_add_button(GTK_DIALOG(dialog), "_Save Changes", -101);
     
     gtk_widget_show_all(dialog);
     gint response = gtk_dialog_run(GTK_DIALOG(dialog));
@@ -1386,7 +1386,7 @@ static void on_cpu_custom_profile_changed(GtkWidget *widget, gpointer user_data)
         g_print("[GUI] Core count not yet available, skipping grid build\n");
     }
 
-    gtk_label_set_text(GTK_LABEL(app->cpu_freq_profile_status_label), "Profile selected - click Apply to activate");
+    gtk_label_set_text(GTK_LABEL(app->cpu_freq_profile_status_label), "Profile selected - click Activate to use it");
 }
 
 /* Extract clean profile name from stored display string.
@@ -2764,9 +2764,9 @@ static void show_curve_point_dialog(AppData *app, GtkTreeIter *edit_iter, int ed
     }
     
     if (edit_iter) {
-        show_status(app, "Curve point updated (click Apply to save)");
+        show_status(app, "Curve point updated (click Save to keep it)");
     } else {
-        show_status(app, "Curve point added (click Apply to save)");
+        show_status(app, "Curve point added (click Save to keep it)");
     }
     
     /* Mark curve points as modified */
@@ -2836,7 +2836,7 @@ static void on_delete_curve_point_clicked(GtkWidget *widget, gpointer user_data)
         /* Remove the selected row from the tree view (local only, not saved yet) */
         gtk_list_store_remove(app->curve_store, &iter);
         
-        show_status(app, "Curve point deleted (click Apply to save)");
+        show_status(app, "Curve point deleted (click Save to keep it)");
         
         /* Mark curve points as modified */
         app->curve_points_modified = 1;
@@ -4826,9 +4826,9 @@ static void on_preset_color_clicked(GtkWidget *widget, AppData *app) {
     if (!ok)
         msg = g_strdup_printf("Could not set color: %s", response ? response : "no response");
     else if (app->kbd_num_selected_leds > 0)
-        msg = g_strdup_printf("%s: %d LED(s) - click Save Profile to keep it", name, app->kbd_num_selected_leds);
+        msg = g_strdup_printf("%s: %d LED(s) - click Save to keep it", name, app->kbd_num_selected_leds);
     else
-        msg = g_strdup_printf("%s: whole keyboard - click Save Profile to keep it", name);
+        msg = g_strdup_printf("%s: whole keyboard - click Save to keep it", name);
     gtk_label_set_text(GTK_LABEL(app->kbd_profile_status_label), msg);
     g_free(msg);
 
@@ -5146,25 +5146,31 @@ static GtkWidget *create_curve_editor_page(AppData *app) {
     gtk_box_pack_start(GTK_BOX(profile_box), profile_label, FALSE, FALSE, 0);
     gtk_box_pack_start(GTK_BOX(profile_box), app->profile_combo, TRUE, TRUE, 0);
 
+    /* Profile buttons, same names and order in every tab (1.22.1):
+     * Create, Rename, Save, Delete, Activate */
+    GtkWidget *create_btn = gtk_button_new_with_label("Create");
+    g_signal_connect(create_btn, "clicked", G_CALLBACK(on_create_profile_clicked), app);
+    gtk_box_pack_start(GTK_BOX(profile_box), create_btn, FALSE, FALSE, 0);
+
+    GtkWidget *rename_profile_btn = gtk_button_new_with_label("Rename");
+    g_signal_connect(rename_profile_btn, "clicked", G_CALLBACK(on_rename_profile_clicked), app);
+    gtk_box_pack_start(GTK_BOX(profile_box), rename_profile_btn, FALSE, FALSE, 0);
+
+    /* Save: stores the curve points of the selected profile (was "Apply"
+     * under the curve) */
+    GtkWidget *save_btn = gtk_button_new_with_label("Save");
+    gtk_widget_set_tooltip_text(save_btn, "Save the curve points of the selected profile");
+    g_signal_connect(save_btn, "clicked", G_CALLBACK(on_apply_clicked), app);
+    gtk_box_pack_start(GTK_BOX(profile_box), save_btn, FALSE, FALSE, 0);
+
+    GtkWidget *delete_profile_btn = gtk_button_new_with_label("Delete");
+    g_signal_connect(delete_profile_btn, "clicked", G_CALLBACK(on_delete_profile_clicked), app);
+    gtk_box_pack_start(GTK_BOX(profile_box), delete_profile_btn, FALSE, FALSE, 0);
+
     /* Activate the selected profile (was the radio list in the old Fan Profiles tab) */
     app->fan_activate_btn = gtk_button_new_with_label("Activate");
     g_signal_connect(app->fan_activate_btn, "clicked", G_CALLBACK(on_fan_activate_clicked), app);
     gtk_box_pack_start(GTK_BOX(profile_box), app->fan_activate_btn, FALSE, FALSE, 0);
-    
-    /* Create profile button */
-    GtkWidget *create_btn = gtk_button_new_with_label("New Profile");
-    g_signal_connect(create_btn, "clicked", G_CALLBACK(on_create_profile_clicked), app);
-    gtk_box_pack_end(GTK_BOX(profile_box), create_btn, FALSE, FALSE, 0);
-    
-    /* Delete profile button */
-    GtkWidget *delete_profile_btn = gtk_button_new_with_label("Delete Profile");
-    g_signal_connect(delete_profile_btn, "clicked", G_CALLBACK(on_delete_profile_clicked), app);
-    gtk_box_pack_end(GTK_BOX(profile_box), delete_profile_btn, FALSE, FALSE, 0);
-
-    /* Rename profile button */
-    GtkWidget *rename_profile_btn = gtk_button_new_with_label("Rename Profile");
-    g_signal_connect(rename_profile_btn, "clicked", G_CALLBACK(on_rename_profile_clicked), app);
-    gtk_box_pack_end(GTK_BOX(profile_box), rename_profile_btn, FALSE, FALSE, 0);
     
     gtk_box_pack_start(GTK_BOX(vbox), profile_box, FALSE, FALSE, 0);
     
@@ -5232,14 +5238,12 @@ static GtkWidget *create_curve_editor_page(AppData *app) {
     
     gtk_box_pack_start(GTK_BOX(vbox), point_controls, FALSE, FALSE, 5);
     
-    /* Cancel and Apply buttons */
+    /* Cancel discards unsaved curve changes (saving is "Save" in the profile row) */
     GtkWidget *button_box = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 10);
     GtkWidget *cancel_btn = gtk_button_new_with_label("Cancel");
+    gtk_widget_set_tooltip_text(cancel_btn, "Discard unsaved curve changes");
     g_signal_connect(cancel_btn, "clicked", G_CALLBACK(on_cancel_clicked), app);
-    GtkWidget *apply_btn = gtk_button_new_with_label("Apply");
-    g_signal_connect(apply_btn, "clicked", G_CALLBACK(on_apply_clicked), app);
     gtk_box_pack_start(GTK_BOX(button_box), cancel_btn, FALSE, FALSE, 0);
-    gtk_box_pack_start(GTK_BOX(button_box), apply_btn, FALSE, FALSE, 0);   /* next to Cancel */
     gtk_box_pack_start(GTK_BOX(vbox), button_box, FALSE, FALSE, 15);
     
     return vbox;
@@ -6567,31 +6571,31 @@ static GtkWidget *create_cpu_page(AppData *app) {
             /* Grid will be populated when a profile is selected */
         }
 
-        /* Create/Delete/Apply buttons */
+        /* Create, Rename, Save, Delete, Activate (same order in every tab) */
         {
             GtkWidget *btn_box = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 10);
             gtk_box_pack_start(GTK_BOX(freq_box), btn_box, FALSE, FALSE, 0);
 
-            app->cpu_freq_profile_create_btn = gtk_button_new_with_label("Create Profile");
+            app->cpu_freq_profile_create_btn = gtk_button_new_with_label("Create");
             gtk_box_pack_start(GTK_BOX(btn_box), app->cpu_freq_profile_create_btn, FALSE, FALSE, 0);
             g_signal_connect(app->cpu_freq_profile_create_btn, "clicked", G_CALLBACK(on_cpu_create_freq_profile_clicked), app);
 
-            app->cpu_freq_profile_delete_btn = gtk_button_new_with_label("Delete Profile");
-            gtk_box_pack_start(GTK_BOX(btn_box), app->cpu_freq_profile_delete_btn, FALSE, FALSE, 0);
-            g_signal_connect(app->cpu_freq_profile_delete_btn, "clicked", G_CALLBACK(on_cpu_delete_freq_profile_clicked), app);
-            gtk_widget_set_sensitive(app->cpu_freq_profile_delete_btn, FALSE); /* Disabled until profile selected */
-
-            app->cpu_freq_profile_rename_btn = gtk_button_new_with_label("Rename Profile");
+            app->cpu_freq_profile_rename_btn = gtk_button_new_with_label("Rename");
             gtk_box_pack_start(GTK_BOX(btn_box), app->cpu_freq_profile_rename_btn, FALSE, FALSE, 0);
             g_signal_connect(app->cpu_freq_profile_rename_btn, "clicked", G_CALLBACK(on_cpu_rename_freq_profile_clicked), app);
             gtk_widget_set_sensitive(app->cpu_freq_profile_rename_btn, FALSE); /* Disabled until profile selected */
 
-            app->cpu_freq_profile_save_btn = gtk_button_new_with_label("Save Profile");
+            app->cpu_freq_profile_save_btn = gtk_button_new_with_label("Save");
             gtk_box_pack_start(GTK_BOX(btn_box), app->cpu_freq_profile_save_btn, FALSE, FALSE, 0);
             g_signal_connect(app->cpu_freq_profile_save_btn, "clicked", G_CALLBACK(on_cpu_save_freq_profile_clicked), app);
             gtk_widget_set_sensitive(app->cpu_freq_profile_save_btn, FALSE); /* Disabled until profile selected */
 
-            app->cpu_freq_profile_activate_btn = gtk_button_new_with_label("Activate Profile");
+            app->cpu_freq_profile_delete_btn = gtk_button_new_with_label("Delete");
+            gtk_box_pack_start(GTK_BOX(btn_box), app->cpu_freq_profile_delete_btn, FALSE, FALSE, 0);
+            g_signal_connect(app->cpu_freq_profile_delete_btn, "clicked", G_CALLBACK(on_cpu_delete_freq_profile_clicked), app);
+            gtk_widget_set_sensitive(app->cpu_freq_profile_delete_btn, FALSE); /* Disabled until profile selected */
+
+            app->cpu_freq_profile_activate_btn = gtk_button_new_with_label("Activate");
             gtk_box_pack_start(GTK_BOX(btn_box), app->cpu_freq_profile_activate_btn, FALSE, FALSE, 0);
             g_signal_connect(app->cpu_freq_profile_activate_btn, "clicked", G_CALLBACK(on_cpu_activate_freq_profile_clicked), app);
             gtk_widget_set_sensitive(app->cpu_freq_profile_activate_btn, FALSE); /* Disabled until profile selected */
@@ -6728,20 +6732,20 @@ static GtkWidget *create_keyboard_page(AppData *app) {
 
     /* Profile buttons row */
     GtkWidget *btn_row = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 6);
-    app->kbd_profile_create_btn = gtk_button_new_with_label("Add");
+    app->kbd_profile_create_btn = gtk_button_new_with_label("Create");
     g_signal_connect(app->kbd_profile_create_btn, "clicked", G_CALLBACK(on_kbd_create_profile_clicked), app);
-    app->kbd_profile_delete_btn = gtk_button_new_with_label("Remove");
+    app->kbd_profile_delete_btn = gtk_button_new_with_label("Delete");
     g_signal_connect(app->kbd_profile_delete_btn, "clicked", G_CALLBACK(on_kbd_delete_profile_clicked), app);
     app->kbd_profile_rename_btn = gtk_button_new_with_label("Rename");
     g_signal_connect(app->kbd_profile_rename_btn, "clicked", G_CALLBACK(on_kbd_rename_profile_clicked), app);
-    app->kbd_profile_save_btn = gtk_button_new_with_label("Save Profile");
+    app->kbd_profile_save_btn = gtk_button_new_with_label("Save");
     g_signal_connect(app->kbd_profile_save_btn, "clicked", G_CALLBACK(on_kbd_save_profile_clicked), app);
-    app->kbd_profile_activate_btn = gtk_button_new_with_label("Activate Profile");
+    app->kbd_profile_activate_btn = gtk_button_new_with_label("Activate");
     g_signal_connect(app->kbd_profile_activate_btn, "clicked", G_CALLBACK(on_kbd_activate_profile_clicked), app);
     gtk_box_pack_start(GTK_BOX(btn_row), app->kbd_profile_create_btn, FALSE, FALSE, 0);
-    gtk_box_pack_start(GTK_BOX(btn_row), app->kbd_profile_delete_btn, FALSE, FALSE, 0);
     gtk_box_pack_start(GTK_BOX(btn_row), app->kbd_profile_rename_btn, FALSE, FALSE, 0);
     gtk_box_pack_start(GTK_BOX(btn_row), app->kbd_profile_save_btn, FALSE, FALSE, 0);
+    gtk_box_pack_start(GTK_BOX(btn_row), app->kbd_profile_delete_btn, FALSE, FALSE, 0);
     gtk_box_pack_start(GTK_BOX(btn_row), app->kbd_profile_activate_btn, FALSE, FALSE, 0);
     gtk_box_pack_start(GTK_BOX(profile_vbox), btn_row, FALSE, FALSE, 0);
 
@@ -6801,7 +6805,7 @@ static GtkWidget *create_keyboard_page(AppData *app) {
     GtkWidget *preset_vbox = gtk_box_new(GTK_ORIENTATION_VERTICAL, 6);
 
     GtkWidget *preset_label = gtk_label_new(
-        "Color for the keys selected below (none selected: whole keyboard). Save Profile keeps it:");
+        "Color for the keys selected below (none selected: whole keyboard). Save keeps it:");
     gtk_label_set_xalign(GTK_LABEL(preset_label), 0.0);
     gtk_box_pack_start(GTK_BOX(preset_vbox), preset_label, FALSE, FALSE, 0);
 

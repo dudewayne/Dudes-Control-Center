@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.22.1] - 2026-11-22
+
+### Fixed
+- **Same profile buttons in every tab**: the Fan Profiles, CPU and Keyboard tabs now all show **Create, Rename, Save, Delete, Activate**, in that order and with the same short names (before: "New Profile" / "Create Profile" / "Add", "Delete Profile" / "Remove", "Save Profile", "Activate Profile", and three different orders).
+- **Fan Profiles: "Save" in the profile row** stores the curve points of the selected profile; it replaces the "Apply" button under the curve. "Cancel" stays there to discard unsaved curve changes, and the unsaved-changes dialog offers "Save Changes".
+- Status messages name the new buttons ("click Save to keep it", "click Activate to use it").
+
 ## [1.22.0] - 2026-11-22
 
 ### Added
