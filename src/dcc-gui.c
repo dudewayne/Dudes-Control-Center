@@ -5608,20 +5608,20 @@ static GtkWidget *create_profile_list_page(AppData *app) {
 }
 
 /* Callback for clickable links - destroys the duplicated URL string */
+/* The URL belongs to the link widget and is freed when the widget is
+ * destroyed (g_signal_connect_data below). It used to be freed here on every
+ * left click, so a second click used freed memory and crashed the GUI
+ * (double free). Only a single left press opens the link (no second browser
+ * tab from the double-click event GTK also sends). */
 static gboolean on_link_clicked(GtkWidget *widget __attribute__((unused)), GdkEventButton *event, gpointer user_data) {
-    if (event->button == 1) { /* Left click */
-        const gchar *url = (const gchar *)user_data;
-        GError *error = NULL;
-        gboolean success = g_app_info_launch_default_for_uri(url, NULL, &error);
-        if (!success && error) {
-            g_printerr("[GUI] Failed to open URI: %s\n", error->message);
-            g_error_free(error);
-        }
-        /* Free the duplicated URL string */
-        g_free((gpointer)url);
-        return TRUE; /* Event handled */
+    if (event->button != 1 || event->type != GDK_BUTTON_PRESS) return FALSE;
+    const gchar *url = (const gchar *)user_data;
+    GError *error = NULL;
+    if (!g_app_info_launch_default_for_uri(url, NULL, &error) && error) {
+        g_printerr("[GUI] Failed to open URI: %s\n", error->message);
+        g_error_free(error);
     }
-    return FALSE; /* Event not handled */
+    return TRUE; /* Event handled */
 }
 
 /* Helper function to create clickable link label */
@@ -5640,7 +5640,8 @@ static GtkWidget *create_clickable_link(const char *url) {
     gtk_widget_set_halign(event_box, GTK_ALIGN_CENTER);
     
     /* Connect the button-press-event to the event box */
-    g_signal_connect(event_box, "button-press-event", G_CALLBACK(on_link_clicked), g_strdup(url));
+    g_signal_connect_data(event_box, "button-press-event", G_CALLBACK(on_link_clicked),
+                          g_strdup(url), (GClosureNotify)(void (*)(void))g_free, 0);
     
     return event_box;
 }

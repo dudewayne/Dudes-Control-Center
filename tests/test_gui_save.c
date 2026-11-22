@@ -219,6 +219,22 @@ int main(int argc, char **argv) {
         if (ka.kbd_socket_fd >= 0) close(ka.kbd_socket_fd);
     }
 
+    /* L: About page links can be clicked repeatedly (v1.19.1: was a double free).
+     * The scheme is unknown, so nothing is opened. ASan aborts on a use after free. */
+    {
+        gchar *url = g_strdup("dcc-test-no-handler://about");
+        GdkEventButton ev = { .type = GDK_BUTTON_PRESS, .button = 1 };
+        on_link_clicked(NULL, &ev, url);
+        on_link_clicked(NULL, &ev, url);
+        ev.button = 3;
+        gboolean right = on_link_clicked(NULL, &ev, url);
+        ev.button = 1; ev.type = GDK_2BUTTON_PRESS;
+        gboolean dbl = on_link_clicked(NULL, &ev, url);
+        CHECK(strcmp(url, "dcc-test-no-handler://about") == 0 && !right && !dbl,
+              "L: repeated left/right clicks keep the link URL; double-click event ignored");
+        g_free(url);   /* owned by the caller (the widget), freed exactly once */
+    }
+
     printf("\n%d failure(s)\n", fails);
     return fails != 0;
 }

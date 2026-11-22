@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.19.1] - 2026-11-22
+
+### Fixed
+- **GUI crashed when a link on the About page was clicked twice**: the link's URL was freed on every left click although it belongs to the link, so the next click used freed memory and freed it again (glibc aborted the GUI with "double free"). Clicking quickly made it likely. The URL is now freed once, when the link widget is destroyed. Only a single left press opens the link, so a double click no longer opens two browser tabs.
+- Test: repeated clicks on a link under AddressSanitizer (8 suites, 172 checks).
+
 ## [1.19.0] - 2026-11-22
 
 ### Changed
