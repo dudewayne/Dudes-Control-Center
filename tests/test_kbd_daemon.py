@@ -168,7 +168,10 @@ try:
     check(r.startswith("OK") and len(prof["zones"]) == 2 and prof.get("base") == {"r": 255, "g": 255, "b": 255},
           f"profile saved with its 2 color zones and the base color ({len(prof['zones'])}, {prof.get('base')})")
     check(data.get("cpu_freq_profiles") == {"keep": 1}, "saving keeps the other sections of profiles.json")
-    ask(s, "LOAD_PROFILE::Empty")
+    r = ask(s, "LOAD_PROFILE::Empty")
+    log = open(sorted(os.path.join("logs", f) for f in os.listdir("logs"))[0]).read()
+    check(r.startswith("OK") and set(colors()) == {(0, 0, 0)} and "No zones to apply" not in log,
+          "activating a profile without colors switches all keys off, no error (v1.24.1)")
     check(ask(s, "SAVE_PROFILE::Empty").startswith("OK"), "a profile without colors can be saved")
 
     # zone editor (v1.24.0): GET_PROFILE, PREVIEW, RESTORE_ACTIVE, old "Base" zone

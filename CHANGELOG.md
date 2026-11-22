@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.24.1] - 2026-11-22
+
+### Fixed
+- **Activating a keyboard profile without colors** (no base color, no zones) now switches all keys off, the same as its preview. It used to leave the previous profile's colors on the keyboard and log "No zones to apply" as an error.
+- Test for activating an empty profile.
+
 ## [1.24.0] - 2026-11-22
 
 ### Added

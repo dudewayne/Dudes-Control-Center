@@ -640,13 +640,14 @@ int profile_apply(const char *name) {
     /* Persist the active profile index to profiles.json */
     kbd_profiles_save_json();
 
-    /* Apply zones - OK if 0 zones (empty profile) */
-    int result = apply_zones();
-    if (result != 0 && g_num_zones == 0) {
-        LOG_INFO("[KBD] Profile '%s' has no zones to apply", name);
+    /* A profile without any color shows all keys off, like its preview
+     * (it used to leave the previous colors on and log an error) */
+    if (!kbd_has_colors()) {
+        LOG_INFO("[KBD] Profile '%s' has no colors - all keys off", name);
+        set_all_leds_color(0, 0, 0);
         return 0;
     }
-    return result;
+    return apply_zones();
 }
 
 int kbd_apply_active_profile(void) {
