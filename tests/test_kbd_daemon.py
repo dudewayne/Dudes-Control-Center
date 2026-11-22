@@ -262,14 +262,32 @@ try:
     proc.send_signal(signal.SIGTERM)
     proc.wait(timeout=5)
 
-    # no colors and not switched off -> white at start (the GUI no longer sends TURN_ON)
+    # active profile without colors and not switched off -> keys off at start
     d = json.load(open("cfg/profiles.json"))
     d["keyboard_profiles"]["active_profile_index"] = [p["name"] for p in d["keyboard_profiles"]["profiles"]].index("Empty")
     json.dump(d, open("cfg/profiles.json", "w"))
     proc, s = start()
     time.sleep(0.3)
+    check(set(colors()) == {(0, 0, 0)} and "IS_ON=1" in ask(s, "STATUS"),
+          "active profile without colors -> keys stay off at start (v1.24.1)")
+    ask(s, "LOAD_PROFILE::Start")
+    ask(s, "LOAD_PROFILE::Empty")
+    ask(s, "RESTORE_ACTIVE")
+    check(set(colors()) == {(0, 0, 0)}, "RESTORE_ACTIVE of a profile without colors keeps the keys off (v1.24.1)")
+    s.close()
+    proc.send_signal(signal.SIGTERM)
+    proc.wait(timeout=5)
+
+    # no keyboard profile at all -> white at start (the GUI no longer sends TURN_ON)
+    d = json.load(open("cfg/profiles.json"))
+    del d["keyboard_profiles"]
+    json.dump(d, open("cfg/profiles.json", "w"))
+    proc, s = start()
+    time.sleep(0.3)
     check(set(colors()) == {(255, 255, 255)} and "IS_ON=1" in ask(s, "STATUS"),
-          "no profile colors -> the daemon starts white by itself")
+          "no keyboard profile -> the daemon starts white by itself")
+    ask(s, "RESTORE_ACTIVE")
+    check(set(colors()) == {(255, 255, 255)}, "RESTORE_ACTIVE without any profile -> white")
     s.close()
     proc.send_signal(signal.SIGTERM)
     proc.wait(timeout=5)

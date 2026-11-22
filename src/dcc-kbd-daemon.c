@@ -911,13 +911,15 @@ int main(int argc, char *argv[]) {
     LOG_INFO("[KBD_DAEMON] Loaded %d keyboard profiles", g_num_profiles);
     kbd_led_migrate_numbering();   /* once: data saved with the old LED numbering */
     /* Start in the state the user left: off if switched off, otherwise the
-     * active profile's colors (lost at reboot), otherwise white. The GUI no
-     * longer turns the backlight on when it starts (1.18.6). */
+     * active profile's colors (lost at reboot; a profile without colors
+     * keeps the keys off), otherwise - no profile at all - white. The GUI
+     * no longer turns the backlight on when it starts (1.18.6). */
     if (kbd_led_off_flag_set()) {
         LOG_INFO("[KBD_DAEMON] Backlight was switched off - keeping it off");
         turn_off_all_leds();
         kbd_led_set_mode(KBD_LED_MODE_OFF);
-    } else if (kbd_apply_active_profile() == 0) {
+    } else if (kbd_active_profile_valid()) {
+        kbd_restore_active(1);
         kbd_led_set_power(1);
         kbd_led_set_mode(KBD_LED_MODE_STATIC);
     } else if (set_all_leds_color(255, 255, 255) == 0) {

@@ -1252,6 +1252,10 @@ void kbd_base_set(int has_base, uint8_t r, uint8_t g, uint8_t b) {
     g_base_b = b;
 }
 
+int kbd_active_profile_valid(void) {
+    return g_active_profile_index >= 0 && g_active_profile_index < g_num_profiles;
+}
+
 int kbd_has_colors(void) {
     return g_num_zones > 0 || g_base_set;
 }
@@ -1339,6 +1343,8 @@ int kbd_restore_active(int light_on) {
     else
         zone_clear_all();
     if (!light_on && !g_led_state.is_on) return 0;
-    if (kbd_has_colors()) return apply_zones();
-    return set_all_leds_color(255, 255, 255);   /* like the start without colors */
+    /* An active profile without colors keeps the keys off (like activating
+     * it); white only when there is no profile at all (1.24.1) */
+    if (kbd_active_profile_valid()) return kbd_show_colors();
+    return set_all_leds_color(255, 255, 255);
 }

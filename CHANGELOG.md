@@ -6,7 +6,8 @@ All notable changes to this project will be documented in this file.
 
 ### Fixed
 - **Activating a keyboard profile without colors** (no base color, no zones) now switches all keys off, the same as its preview. It used to leave the previous profile's colors on the keyboard and log "No zones to apply" as an error.
-- Test for activating an empty profile.
+- **An active profile without colors stays dark** when the GUI closes or leaves the Keyboard tab and when the keyboard daemon starts; it lit up white. White is only used when there is no keyboard profile at all (fresh install).
+- Tests for activating, restoring and starting with an empty profile.
 
 ## [1.24.0] - 2026-11-22
 
