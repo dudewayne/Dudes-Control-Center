@@ -150,6 +150,8 @@ deb: all
 	@cp drivers/LICENSE $(DEB_BUILD_DIR)/$(PACKAGE)-$(VERSION)/usr/src/$(DKMS_MODULE_NAME)-$(DKMS_MODULE_VERSION)/LICENSE
 	@cp packaging/copyright $(DEB_BUILD_DIR)/$(PACKAGE)-$(VERSION)/usr/share/doc/dudes-control-center/copyright
 	@cp LICENSE $(DEB_BUILD_DIR)/$(PACKAGE)-$(VERSION)/usr/share/doc/dudes-control-center/LICENSE
+	@# Help tab (1.34.0): the GUI shows these uncompressed
+	@cp README.md CHANGELOG.md $(DEB_BUILD_DIR)/$(PACKAGE)-$(VERSION)/usr/share/doc/dudes-control-center/
 	@sed 's/^PACKAGE_VERSION=.*/PACKAGE_VERSION="$(DKMS_MODULE_VERSION)"/' drivers/dkms.conf > $(DEB_BUILD_DIR)/$(PACKAGE)-$(VERSION)/usr/src/$(DKMS_MODULE_NAME)-$(DKMS_MODULE_VERSION)/dkms.conf
 	@echo 'Package: $(PACKAGE)' > $(DEB_BUILD_DIR)/$(PACKAGE)-$(VERSION)/DEBIAN/control
 	@echo 'Version: $(VERSION)' >> $(DEB_BUILD_DIR)/$(PACKAGE)-$(VERSION)/DEBIAN/control
@@ -202,6 +204,7 @@ install: all
 	install -D -m 644 packaging/org.dudes-control-center.component.policy /usr/share/polkit-1/actions/org.dudes-control-center.component.policy
 	mkdir -p /usr/share/dudes-control-center && cp -r resources/layouts /usr/share/dudes-control-center/
 	install -m 644 resources/logo.png /usr/share/dudes-control-center/logo.png
+	install -D -m 644 -t /usr/share/doc/dudes-control-center README.md CHANGELOG.md LICENSE
 	for p in $(MAN_PAGES); do n=$${p##*.}; mkdir -p /usr/local/share/man/man$$n && \
 	  sed 's/@VERSION@/$(VERSION)/g' man/$$p | gzip -9n > /usr/local/share/man/man$$n/$$p.gz; done
 	mandb -q 2>/dev/null || true
@@ -337,7 +340,7 @@ $(TEST_BUILD)/kbdd_test: $(KBD_DAEMON_DEPS) | $(TEST_BUILD)
 $(TEST_BUILD)/test_gui_save: tests/test_gui_save.c src/dcc-gui.c $(COMMON_SRC) $(LOG_SRC) $(LOG_HDR) | $(TEST_BUILD)
 	$(CC) $(TEST_CFLAGS) -w $(GTK_CFLAGS) $(CJSON_CFLAGS) -DAPP_VERSION='"$(VERSION)"' \
 	  -DSOCKET_PATH='"fan.sock"' -DCPU_SOCKET_PATH='"cpu.sock"' -DKBD_SOCKET_PATH='"kbd.sock"' \
-	  -DDCC_COMPONENT_DIR='"components"' -DDCC_LAYOUT_DIR='"$(CURDIR)/resources/layouts"' \
+	  -DDCC_COMPONENT_DIR='"components"' -DDCC_LAYOUT_DIR='"$(CURDIR)/resources/layouts"' -DDCC_DOC_DIR='"$(CURDIR)"' \
 	  -DDCC_LOCALE_DIR='"$(CURDIR)/$(TEST_BUILD)/locale"' \
 	  -o $@ tests/test_gui_save.c $(COMMON_SRC) $(LOG_SRC) $(GTK_LIBS) $(CJSON_LIBS) -lm
 

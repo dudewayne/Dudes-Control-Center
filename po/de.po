@@ -608,6 +608,25 @@ msgstr "<span foreground='#e74c3c'>CPU-Daemon-Protokoll kann nicht gelesen werde
 msgid "<span foreground='#e74c3c'>Unable to read Keyboard daemon log. Check permissions or ensure the daemon is running.</span>\n"
 msgstr "<span foreground='#e74c3c'>Tastatur-Daemon-Protokoll kann nicht gelesen werden. Berechtigungen prüfen oder sicherstellen, dass der Daemon läuft.</span>\n"
 
+#, c-format
+msgid "File not found: %s"
+msgstr "Datei nicht gefunden: %s"
+
+msgid "Not found"
+msgstr "Nicht gefunden"
+
+msgid "Search"
+msgstr "Suchen"
+
+msgid "Enter: next match, Shift+Enter: previous match"
+msgstr "Eingabe: nächster Treffer, Umschalt+Eingabe: vorheriger Treffer"
+
+msgid "Changelog"
+msgstr "Änderungsprotokoll"
+
+msgid "License"
+msgstr "Lizenz"
+
 msgid "Coded with <b>Claude</b> (Claude Code) by <b>Anthropic</b>"
 msgstr "Programmiert mit <b>Claude</b> (Claude Code) von <b>Anthropic</b>"
 
@@ -793,6 +812,9 @@ msgstr "Einstellungen"
 
 msgid "Logs"
 msgstr "Protokolle"
+
+msgid "Help"
+msgstr "Hilfe"
 
 msgid "About"
 msgstr "Über"

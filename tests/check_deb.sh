@@ -43,6 +43,12 @@ check "grep -q '^Depends:.*librsvg2-common' '$TMP/ctrl/control'" "package depend
 
 check "[ -s '$R/usr/share/dudes-control-center/logo.png' ]" "About page logo installed"
 
+# Help tab (1.34.0): README, Changelog and License uncompressed in the doc folder
+for f in README.md CHANGELOG.md LICENSE; do
+    check "[ -s '$R/usr/share/doc/dudes-control-center/$f' ]" "Help tab file $f installed"
+done
+check "grep -q '^## \\[$(dpkg-deb -f "$DEB" Version)\\]' '$R/usr/share/doc/dudes-control-center/CHANGELOG.md'" "packaged Changelog has an entry for this version"
+
 # Man pages (1.33.0): installed compressed, version filled in, render without warnings
 for p in dudes-control-center.7 dcc-gui.1 dcc-fan-cli.1 dcc-cpu-cli.1 dcc-kbd-cli.1 dcc-fan-daemon.8 dcc-cpu-daemon.8 dcc-kbd-daemon.8 dcc-component.8; do
     f="$R/usr/local/share/man/man${p##*.}/$p.gz"

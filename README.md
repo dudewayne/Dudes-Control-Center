@@ -69,6 +69,7 @@ dcc-gui --debug    # more output in GUI.log
 | **Keyboard Backlight** | Keyboard profiles, **brightness slider**, backlight off switch, preset and custom colors, the **zone editor** (keyboard picture + zone list) for per-key lighting, the LED wizard. |
 | **Settings** | Components on/off, language, appearance, keyboard layout (see [Settings](#settings)). |
 | **Logs** | Live GUI, CPU daemon, fan daemon and keyboard daemon logs (newest on top). |
+| **Help** | This README, the changelog and the license, formatted, with clickable links and a search field. |
 | **About** | Version, credits, links. |
 
 **Tray icon:** left click shows/hides the window, right click opens a menu with CPU, fan and keyboard profiles (choosing one activates it). Closing the window minimizes to the tray. Window position and size are remembered; only one GUI instance can run.

@@ -6,6 +6,14 @@ Programs and services were named `dudes-control-center-*` before 1.19.0 (for exa
 
 ## [Unreleased]
 
+## [1.34.0] - 2026-11-22
+
+### Added
+- **Help tab** between Logs and About, with the sub-tabs **README**, **Changelog** and **License**, switched like the log views. README and Changelog are Markdown and shown formatted: headings, bold, italic, `code`, lists, quotes, code blocks and tables (small tables in aligned columns, wide ones one row per line); badges and images are left out, a linked screenshot becomes a link with its caption. Links can be clicked: web links open in the browser, the README's contents line and `#` links jump to the heading, `LICENSE` and `CHANGELOG.md` switch the sub-tab, other files of the repository open on GitHub, and the Changelog's version headings open the changes on GitHub. A **search field** finds text in the shown sub-tab (Enter: next match, Shift+Enter: previous; case is ignored, the search wraps around).
+- The package installs `README.md` and `CHANGELOG.md` next to `LICENSE` in `/usr/share/doc/dudes-control-center/`, where the Help tab reads them (once, when the tab is first opened). A missing file is named in the sub-tab.
+- Translations of the new texts (tab names, search, messages); the documents themselves stay in English.
+- Tests: the Markdown display (headings, inline formatting, lists, code blocks, tables, reference links, images, anchors), where each kind of link leads, the real README, Changelog and License load without leftover Markdown syntax, and the search; `make deb-check` checks the three files and that the packaged Changelog has an entry for the package version.
+
 ## [1.33.0] - 2026-11-22
 
 ### Added
@@ -870,7 +878,8 @@ Programs and services were named `dudes-control-center-*` before 1.19.0 (for exa
 - Unix socket IPC between GUI and daemon
 - Watchdog timer and fail-safe mode in daemon
 
-[Unreleased]: https://github.com/dudewayne/Dudes-Control-Center/compare/v1.33.0...HEAD
+[Unreleased]: https://github.com/dudewayne/Dudes-Control-Center/compare/v1.34.0...HEAD
+[1.34.0]: https://github.com/dudewayne/Dudes-Control-Center/compare/v1.33.0...v1.34.0
 [1.33.0]: https://github.com/dudewayne/Dudes-Control-Center/compare/v1.32.1...v1.33.0
 [1.32.1]: https://github.com/dudewayne/Dudes-Control-Center/compare/v1.32.0...v1.32.1
 [1.32.0]: https://github.com/dudewayne/Dudes-Control-Center/compare/v1.31.0...v1.32.0

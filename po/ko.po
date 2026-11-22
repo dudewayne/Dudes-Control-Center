@@ -613,6 +613,25 @@ msgid "<span foreground='#e74c3c'>Unable to read Keyboard daemon log. Check perm
 msgstr "<span foreground='#e74c3c'>키보드 데몬 로그를 읽을 수 없습니다. 권한을 확인하거나 데몬이 실행 중인지 확인하세요.</span>\n"
 
 #, c-format
+msgid "File not found: %s"
+msgstr "파일을 찾을 수 없습니다: %s"
+
+msgid "Not found"
+msgstr "찾을 수 없음"
+
+msgid "Search"
+msgstr "검색"
+
+msgid "Enter: next match, Shift+Enter: previous match"
+msgstr "Enter: 다음 항목, Shift+Enter: 이전 항목"
+
+msgid "Changelog"
+msgstr "변경 내역"
+
+msgid "License"
+msgstr "라이선스"
+
+#, c-format
 msgid "<span size='xx-large' weight='bold'>Dudes Control Center</span>\n<span size='large' foreground='#7f8c8d'>Version %s</span>"
 msgstr "<span size='xx-large' weight='bold'>Dudes Control Center</span>\n<span size='large' foreground='#7f8c8d'>버전 %s</span>"
 
@@ -819,6 +838,9 @@ msgstr "설정"
 
 msgid "Logs"
 msgstr "로그"
+
+msgid "Help"
+msgstr "도움말"
 
 msgid "About"
 msgstr "정보"

@@ -613,6 +613,25 @@ msgid "<span foreground='#e74c3c'>Unable to read Keyboard daemon log. Check perm
 msgstr "<span foreground='#e74c3c'>No se puede leer el registro del daemon del teclado. Compruebe los permisos o que el daemon esté en ejecución.</span>\n"
 
 #, c-format
+msgid "File not found: %s"
+msgstr "Archivo no encontrado: %s"
+
+msgid "Not found"
+msgstr "No encontrado"
+
+msgid "Search"
+msgstr "Buscar"
+
+msgid "Enter: next match, Shift+Enter: previous match"
+msgstr "Intro: siguiente coincidencia, Mayús+Intro: coincidencia anterior"
+
+msgid "Changelog"
+msgstr "Registro de cambios"
+
+msgid "License"
+msgstr "Licencia"
+
+#, c-format
 msgid "<span size='xx-large' weight='bold'>Dudes Control Center</span>\n<span size='large' foreground='#7f8c8d'>Version %s</span>"
 msgstr "<span size='xx-large' weight='bold'>Dudes Control Center</span>\n<span size='large' foreground='#7f8c8d'>Versión %s</span>"
 
@@ -813,6 +832,9 @@ msgstr "Ajustes"
 
 msgid "Logs"
 msgstr "Registros"
+
+msgid "Help"
+msgstr "Ayuda"
 
 msgid "About"
 msgstr "Acerca de"

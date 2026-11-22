@@ -659,6 +659,107 @@ int main(int argc, char **argv) {
         g_free(url);   /* owned by the caller (the widget), freed exactly once */
     }
 
+    /* H: Help tab (v1.34.0): Markdown shown with text tags */
+    if (gtk_init_check(NULL, NULL)) {
+        GtkTextBuffer *b = gtk_text_buffer_new(NULL);
+        md_render(b,
+            "# Title\n\n"
+            "![badge](https://img.example/b.svg)\n"
+            "Some **bold** and *italic* text with `co*de` and a [link](https://example.com).\n"
+            "- item one\n"
+            "  - nested\n"
+            "1. first\n"
+            "> quoted\n"
+            "```\n"
+            "raw **not bold**\n"
+            "```\n"
+            "| A | B |\n|---|---|\n| `x` | **y** |\n"
+            "See [License](LICENSE), [docs](docs/a.md) and [Title](#title).\n"
+            "## [1.0.0] - 2026-01-01\n"
+            "[![Shot](docs/s.png)](docs/s.png)\n"
+            "\n"
+            "[1.0.0]: https://example.com/compare\n");
+        GtkTextIter s, e;
+        gtk_text_buffer_get_bounds(b, &s, &e);
+        gchar *t = gtk_text_buffer_get_text(b, &s, &e, FALSE);
+        CHECK(g_str_has_prefix(t, "Title\n") && !strstr(t, "badge") && !strstr(t, "img.example"),
+              "H: heading without '#', image line left out");
+        CHECK(strstr(t, "Some bold and italic text with co*de and a link.\n") != NULL,
+              "H: inline bold, italic, code and link markers removed");
+        CHECK(strstr(t, "\xe2\x80\xa2 item one\n\xe2\x97\xa6 nested\n1. first\nquoted\n") != NULL, "H: lists and quote");
+        CHECK(strstr(t, "raw **not bold**\n") != NULL, "H: code block shown as written");
+        CHECK(strstr(t, "A   B\nx   y\n") != NULL, "H: small table aligned in columns");
+        CHECK(strstr(t, "1.0.0 - 2026-01-01\nShot\n") != NULL && !strstr(t, "https://example.com/compare"),
+              "H: reference link in a heading, linked image shows its text, definitions hidden");
+        /* tags and URLs */
+        GtkTextIter it;
+        const char *p = strstr(t, "bold");
+        if (!p) p = t;   /* the CHECKs above report it */
+        gtk_text_buffer_get_iter_at_offset(b, &it, (gint)g_utf8_pointer_to_offset(t, p));
+        CHECK(gtk_text_iter_has_tag(&it, gtk_text_tag_table_lookup(gtk_text_buffer_get_tag_table(b), "bold")), "H: bold text has the bold tag");
+        p = strstr(t, "link.");
+        if (!p) p = t;   /* the CHECKs above report it */
+        gtk_text_buffer_get_iter_at_offset(b, &it, (gint)g_utf8_pointer_to_offset(t, p));
+        const char *u = help_url_at(&it);
+        CHECK(u && strcmp(u, "https://example.com") == 0, "H: link carries its URL");
+        p = strstr(t, "1.0.0 -");
+        if (!p) p = t;   /* the CHECKs above report it */
+        gtk_text_buffer_get_iter_at_offset(b, &it, (gint)g_utf8_pointer_to_offset(t, p));
+        u = help_url_at(&it);
+        CHECK(u && strcmp(u, "https://example.com/compare") == 0, "H: reference link resolved from its definition");
+        CHECK(gtk_text_buffer_get_mark(b, "md:title") && gtk_text_buffer_get_mark(b, "md:100---2026-01-01"),
+              "H: headings get GitHub-style anchors");
+        g_free(t);
+        g_object_unref(b);
+
+        int tab; gchar *target;
+        CHECK(help_link_target("#quick-start", &tab, &target) == HELP_LINK_ANCHOR && strcmp(target, "quick-start") == 0, "H: #anchor scrolls in the same text");
+        g_free(target);
+        CHECK(help_link_target("LICENSE", &tab, &target) == HELP_LINK_TAB && tab == HELP_LICENSE && !target, "H: LICENSE opens the License sub-tab");
+        g_free(target);
+        CHECK(help_link_target("CHANGELOG.md#1330", &tab, &target) == HELP_LINK_TAB && tab == HELP_CHANGELOG && strcmp(target, "1330") == 0, "H: CHANGELOG.md#x opens the Changelog at x");
+        g_free(target);
+        CHECK(help_link_target("drivers/README.md", &tab, &target) == HELP_LINK_WEB &&
+              strcmp(target, DCC_REPO_URL "/blob/main/drivers/README.md") == 0, "H: other files open on GitHub");
+        g_free(target);
+        gchar *slug = md_slug("Credits & Acknowledgments");
+        CHECK(strcmp(slug, "credits--acknowledgments") == 0, "H: anchor of a heading with '&' like on GitHub");
+        g_free(slug);
+
+        /* the real files from the repository (DCC_DOC_DIR in the test build) */
+        GtkWidget *page = create_help_page();
+        g_object_ref_sink(page);
+        gtk_widget_show_all(page);   /* the notebook only switches to shown pages */
+        help_load();
+        const char *expect[HELP_COUNT] = { "Dudes Control Center\n", "Changelog - Dudes Control Center\n", "GNU GENERAL PUBLIC LICENSE" };
+        for (int i = 0; i < HELP_COUNT; i++) {
+            GtkTextBuffer *hb = gtk_text_view_get_buffer(GTK_TEXT_VIEW(help.views[i]));
+            gtk_text_buffer_get_bounds(hb, &s, &e);
+            gchar *ht = gtk_text_buffer_get_text(hb, &s, &e, FALSE);
+            char msg[128];
+            snprintf(msg, sizeof msg, "H: %s loaded and shown", help_files[i]);
+            CHECK(strstr(ht, expect[i]) != NULL, msg);
+            if (i != HELP_LICENSE) {
+                snprintf(msg, sizeof msg, "H: no Markdown link or image syntax left in %s", help_files[i]);
+                CHECK(!strstr(ht, "](") && !strstr(ht, "![") && !strstr(ht, "\n#"), msg);
+            }
+            g_free(ht);
+        }
+        CHECK(gtk_text_buffer_get_mark(gtk_text_view_get_buffer(GTK_TEXT_VIEW(help.views[HELP_README])), "md:quick-start") != NULL,
+              "H: README contents links have their headings");
+        gtk_entry_set_text(GTK_ENTRY(help.search), "hard limit");
+        gtk_notebook_set_current_page(GTK_NOTEBOOK(help.notebook), HELP_README);
+        help_search(0, 1);
+        GtkTextBuffer *rb = gtk_text_view_get_buffer(GTK_TEXT_VIEW(help.views[HELP_README]));
+        gchar *sel = gtk_text_buffer_get_selection_bounds(rb, &s, &e) ? gtk_text_buffer_get_text(rb, &s, &e, FALSE) : NULL;
+        CHECK(sel && g_ascii_strcasecmp(sel, "hard limit") == 0, "H: search selects the match (case ignored)");
+        g_free(sel);
+        gtk_entry_set_text(GTK_ENTRY(help.search), "zzqx-no-such-text");
+        help_search(0, 1);
+        CHECK(strcmp(gtk_label_get_text(GTK_LABEL(help.search_status)), _("Not found")) == 0, "H: search says when nothing matches");
+        g_object_unref(page);
+    }
+
     printf("\n%d failure(s)\n", fails);
     return fails != 0;
 }
