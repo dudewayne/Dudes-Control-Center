@@ -6128,14 +6128,15 @@ static GtkWidget *create_curve_editor_page(AppData *app) {
     GtkCellRenderer *renderer = gtk_cell_renderer_text_new();
     GtkTreeViewColumn *temp_col = gtk_tree_view_column_new_with_attributes(
         _("Temperature"), renderer, "text", 0, NULL);
-    gtk_tree_view_column_set_fixed_width(temp_col, 80);
+    /* sized to header and content: translated headers are longer (1.31.0) */
+    gtk_tree_view_column_set_sizing(temp_col, GTK_TREE_VIEW_COLUMN_AUTOSIZE);
     gtk_tree_view_append_column(GTK_TREE_VIEW(app->curve_treeview), temp_col);
     
     /* Fan % column */
     renderer = gtk_cell_renderer_text_new();
     GtkTreeViewColumn *fan_col = gtk_tree_view_column_new_with_attributes(
         _("Fan Speed (%)"), renderer, "text", 1, NULL);
-    gtk_tree_view_column_set_fixed_width(fan_col, 70);
+    gtk_tree_view_column_set_sizing(fan_col, GTK_TREE_VIEW_COLUMN_AUTOSIZE);
     gtk_tree_view_append_column(GTK_TREE_VIEW(app->curve_treeview), fan_col);
     
     /* Connect double-click to edit curve point */
@@ -6189,6 +6190,27 @@ static void update_curve_graph(AppData *app) {
 }
 
 /* Draw callback for the temperature curve graph using Cairo */
+/* Text for the fan curve graph, drawn with Pango (fonts with fallback, so
+ * every language shows): (x, y) is the anchor, align 0 left / 1 center /
+ * 2 right of it, vertically centered; vertical = rotated to read upwards */
+static void graph_text(cairo_t *cr, const char *text, double x, double y, double size, int align, int vertical) {
+    PangoLayout *layout = pango_cairo_create_layout(cr);
+    PangoFontDescription *fd = pango_font_description_from_string("Sans");
+    pango_font_description_set_absolute_size(fd, size * PANGO_SCALE);
+    pango_layout_set_font_description(layout, fd);
+    pango_layout_set_text(layout, text, -1);
+    int w = 0, h = 0;
+    pango_layout_get_pixel_size(layout, &w, &h);
+    cairo_save(cr);
+    cairo_translate(cr, x, y);
+    if (vertical) cairo_rotate(cr, -M_PI_2);
+    cairo_move_to(cr, align == 1 ? -w / 2.0 : align == 2 ? -w : 0, -h / 2.0);
+    pango_cairo_show_layout(cr, layout);
+    cairo_restore(cr);
+    pango_font_description_free(fd);
+    g_object_unref(layout);
+}
+
 static gboolean draw_curve_graph(GtkWidget *widget, cairo_t *cr, gpointer user_data) {
     AppData *app = (AppData *)user_data;
     
@@ -6250,44 +6272,31 @@ static gboolean draw_curve_graph(GtkWidget *widget, cairo_t *cr, gpointer user_d
     cairo_line_to(cr, left_margin, height - bottom_margin);
     cairo_stroke(cr);
     
-    /* Draw axis labels */
-    cairo_set_font_size(cr, 10.0);
+    /* Axis labels and titles with Pango (1.31.0): cairo's toy text API has
+     * no font fallback, so Japanese and Korean showed as boxes */
     cairo_set_source_rgb(cr, fg, fg, fg);   /* labels */
-    
-    /* Y-axis labels (fan speed %) - every 20% */
+
+    /* Y-axis labels (fan speed %) - every 20%, right-aligned next to the axis */
     for (int i = 0; i <= 5; i++) {
         double y = top_margin + (graph_height * (1.0 - (i * 0.2)));
         char label[16];
         snprintf(label, sizeof(label), "%d%%", i * 20);
-        cairo_move_to(cr, left_margin - 55, y + 4);
-        cairo_show_text(cr, label);
+        graph_text(cr, label, left_margin - 6, y, 10, 2, 0);
     }
-    
-    /* X-axis labels (temperature °C) - every 10°C */
+
+    /* X-axis labels (temperature °C) - every 10°C, centered under the ticks */
     for (int i = 0; i <= 10; i++) {
         double x = left_margin + (graph_width * (i * 0.1));
         char label[16];
         snprintf(label, sizeof(label), "%d", i * 10);
-        cairo_move_to(cr, x - 5, height - bottom_margin + 15);
-        cairo_show_text(cr, label);
+        graph_text(cr, label, x, height - bottom_margin + 12, 10, 1, 0);
     }
-    
-    /* Axis titles */
-    cairo_set_font_size(cr, 12.0);
-    cairo_save(cr);
-    cairo_translate(cr, width / 2, height - bottom_margin + 35);
-    cairo_rotate(cr, 0);
-    cairo_move_to(cr, -40, 0);
-    cairo_show_text(cr, _("Temperature (°C)"));
-    cairo_restore(cr);
-    
-    cairo_save(cr);
-    cairo_translate(cr, 15, height / 2);
-    cairo_rotate(cr, -M_PI_2);
-    cairo_move_to(cr, -10, 0);
-    cairo_show_text(cr, _("Fan Speed (%)"));
-    cairo_restore(cr);
-    
+
+    /* Axis titles: centered on their axis; the vertical one at the left
+     * edge, clear of the percentage labels */
+    graph_text(cr, _("Temperature (°C)"), left_margin + graph_width / 2, height - bottom_margin + 34, 12, 1, 0);
+    graph_text(cr, _("Fan Speed (%)"), 12, top_margin + graph_height / 2, 12, 1, 1);
+
     /* Get curve points from the list store */
     GtkTreeIter iter;
     gboolean has_iter = gtk_tree_model_get_iter_first(GTK_TREE_MODEL(app->curve_store), &iter);
