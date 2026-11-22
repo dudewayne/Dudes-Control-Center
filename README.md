@@ -1,407 +1,199 @@
 # Dudes Control Center
 
-A comprehensive suite of applications for controlling notebook fans on Linux, specifically designed for Clevo-based notebooks using EC (Embedded Controller) I/O port access. This application was completely coded by AI with [Bionic AI Agent](https://lmstudio.ai/).
+A control center for Clevo-based notebooks on Linux: fan control through the Embedded Controller (EC), CPU power modes and frequency limits, and per-key RGB keyboard lighting. Root daemons do the hardware work; a GTK3 GUI and two command-line tools talk to them. This application was completely coded by AI with [Bionic AI Agent](https://lmstudio.ai/).
 
-![Version](https://img.shields.io/badge/version-1.0-blue.svg)
-![License](https://img.shields.io/badge/license-MIT-green.svg)
+![Release](https://img.shields.io/github/v/release/dudewayne/Dudes-Control-Center)
+![CI](https://github.com/dudewayne/Dudes-Control-Center/actions/workflows/ci.yml/badge.svg)
 ![Platform](https://img.shields.io/badge/platform-Linux-lightgrey.svg)
 
-## Applications Overview
+## Components
 
-### 1. dudes-control-center-fan-cli
-Command-line interface for reading temperatures and controlling fan speed.
+| Component | What it does |
+|---|---|
+| `dudes-control-center-fan-daemon` | Fan control via EC I/O ports: fan curves (profiles), manual speed, safety overrides. systemd service with watchdog. |
+| `dudes-control-center-cpu-daemon` | CPU power modes (governor + energy preference), per-core frequency profiles, a hard frequency limit. |
+| `dudes-control-center-kbd-backlight-daemon` | Keyboard backlight: whole-keyboard and per-key colors, brightness, keyboard profiles. |
+| `ite_829x` kernel module (DKMS) | Driver for the ITE 829x keyboard controller: one RGB LED class device per key (`rgb:kbd_backlight*`). |
+| `dudes-control-center-hard-limit-enforcer` | systemd timer (every 10 s) that re-applies the CPU hard limit independently of the CPU daemon. |
+| `dudes-control-center-gui` | GTK3 GUI for everything above, with system tray icon. |
+| `dudes-control-center-fan-cli`, `dudes-control-center-cpu-cli` | Command-line tools for the fan and CPU daemons. |
 
-**Features:**
-- Read CPU temperature (Intel Ultra 9 and other CPUs)
-- Read GPU temperature (NVIDIA RTX 5090 Mobile and other GPUs)
-- Read fan RPM and calculate percentage (~1130 RPM = 10%)
-- Set manual fan speed in 10% steps (10%, 20%, ..., 100%)
-- Auto mode for automatic temperature-based control
-- Real-time status display
+## Installation
 
-**Usage:**
+Download the `.deb` from the [latest release](https://github.com/dudewayne/Dudes-Control-Center/releases/latest) and install it with `sudo` (so the package knows your user name):
+
 ```bash
-# Show current status (default)
-sudo ./dudes-control-center-fan-cli
-
-# Set fan to specific speed (10, 20, ..., 100%)
-sudo ./dudes-control-center-fan-cli --set 50
-
-# Enable automatic temperature-based control
-sudo ./dudes-control-center-fan-cli --auto
-
-# Show help
-./dudes-control-center-fan-cli --help
+sudo dpkg -i dudes-control-center_<version>_amd64.deb
 ```
 
-### 2. dudes-control-center-fan-daemon
-Background daemon that runs as a systemd service, providing IPC via Unix socket for the GUI application. Includes safety features like watchdog timer and fail-safe mode.
+The package:
+- installs the daemons, GUI, CLIs and systemd units, and starts the services
+- builds and loads the `ite_829x` keyboard module with DKMS (signed with your MOK key if Secure Boot is set up)
+- creates the group `dudes-control-center` and adds your user to it (only its members and root may control the daemons)
+- writes your user name to `/etc/dudes-control-center/user`, so the root daemons use your `~/.config/dudes-control-center/profiles.json` (see [Configuration](#configuration))
 
-**Features:**
-- Runs as background service (foreground or systemd)
-- Provides temperature and fan status monitoring
-- Supports multiple fan control profiles with custom temperature curves
-- Communicates via Unix socket at `/run/dudes-control-center-fan.sock`
-- **Watchdog Timer**: 10-second timeout triggers fail-safe mode
-- **Fail-Safe Mode**: Automatically sets fans to 100% on errors or unresponsive main loop
-- **Logging System**: Comprehensive logging with rotation (5 files, 10MB each)
-- Profile persistence to `~/.config/dudes-control-center/profiles.json`
+Uninstall with `sudo apt remove dudes-control-center`; `sudo apt purge dudes-control-center` also removes the configuration and logs.
 
-**Usage:**
+## GUI
+
 ```bash
-# Run in foreground (for debugging)
-sudo ./dudes-control-center-fan-daemon --foreground
-
-# Or install as systemd service:
-sudo make install
-sudo systemctl start dudes-control-center-fan-daemon
-sudo systemctl enable dudes-control-center-fan-daemon
+dudes-control-center-gui            # starts minimized to the tray
+dudes-control-center-gui --debug    # more output in GUI.log
 ```
 
-### 3. dudes-control-center-gui
-Full-featured GTK4 graphical interface for fan control with profile management, real-time monitoring, and system tray integration.
+| Tab | Contents |
+|---|---|
+| **Status** | CPU/GPU temperature, fan RPM and duty, auto/manual fan mode. Manual mode: +/- in 10% steps from **0% (fans off)** to 100%. |
+| **Curve Editor** | Graphical temperature-to-fan-speed curve per fan profile; add, edit and delete points. |
+| **Fan Profiles** | Create, rename, delete and activate fan profiles. |
+| **CPU Profiles** | Power mode (**Performance / Balanced / Power Save**), per-core min/max frequency profiles, the CPU hard limit. |
+| **Keyboard Backlight** | Keyboard profiles, backlight off switch, colors, the keyboard picture for **per-key lighting**, the LED wizard. |
+| **Logs** | Live GUI, fan daemon and CPU daemon logs. |
+| **About** | Version, credits, links. |
 
-**Features:**
+**Tray icon:** left click shows/hides the window, right click opens a menu with fan and CPU profiles. Closing the window minimizes to the tray. Window position and size are remembered; only one GUI instance can run.
 
-#### Tab 1: Status Monitor
-- Real-time CPU temperature display
-- Real-time GPU temperature display
-- Fan speed in RPM and percentage
-- Current active profile indicator
-- Auto/Manual mode status
+### Per-key keyboard lighting
 
-#### Tab 2: Curve Editor
-- **Graphical Temperature Curve Visualization**: Cairo-based graph showing temperature vs. fan speed curve
-- Add, edit, and delete temperature-fan curve points
-- Profile selection combo box
-- Enter key to quickly add curve points
-- Unsaved changes detection with Apply/Discard dialog when switching tabs
-- Real-time curve updates as you modify points
+1. Run the **LED Wizard** once: it lights each LED in turn and you click the matching key on the picture. The mapping is saved in `~/.config/dudes-control-center/keyboard_led_mapping.csv`. Keys with several LEDs (Space, Enter, ...) get all of them.
+2. Click keys on the picture to select them, then click a color: exactly those keys change, the others keep their color. With no keys selected, the color applies to the whole keyboard. **Clear selection** deselects all keys.
+3. **Save Profile** stores the colors in the keyboard profile; **Activate Profile** brings them back. The keyboard daemon restores the active profile when it starts.
 
-#### Tab 3: Profiles Management
-- Create new fan control profiles
-- Rename existing profiles
-- Delete unwanted profiles
-- Radio button selection for profile activation
-- Manual mode warning indicator (shows when daemon is in manual control)
-- Profile list refresh on tab switch
+### CPU power modes
 
-#### Tab 4: Logs Viewer
-- **Live GUI logs**: Real-time display of GUI application log output
-- **Live Daemon logs**: Real-time display of daemon log output
-- Auto-refresh every 500ms when on the Logs tab
-- Separate scrolled windows for GUI and daemon logs
-- Bold section headers for easy navigation
+A power mode is a governor plus the CPU's energy performance preference (EPP), like the power profiles of GNOME/Mint/Windows:
 
-#### Tab 5: About Page
-- Application version (1.0)
-- AI-coded information with clickable link to [LM Studio](https://lmstudio.ai/)
-- Thank you messages with clickable links:
-  - [Original fan-control creator](https://github.com/steiiin/fan-control)
-  - [Linus Torvalds](https://torvalds-family.blogspot.com/)
-  - The Great Linux Community
-  - [Clevo](https://www.clevo.com.tw/) for awesome laptops
-- Contact information:
-  - Dudemeister
-  - GitHub: [Dudes-Control-Center](https://github.com/dudewayne/Dudes-Control-Center) (clickable link)
+| Mode | With `intel_pstate` (most Intel laptops) | With `schedutil` available |
+|---|---|---|
+| Performance | `performance` governor | `performance` governor |
+| Balanced | `powersave` + EPP `balance_performance` | `schedutil` |
+| Power Save | `powersave` + EPP `power` | `powersave` + EPP `power` |
 
-#### System Tray Integration
-- **Minimize to tray**: Close button minimizes to system tray instead of quitting
-- **Left-click toggle**: Click tray icon to show/hide window
-- **Right-click context menu**:
-  - Profile selection submenu
-  - Version label (greyed out with separators)
-  - "Show Application" menu item
-  - Exit option
-- Starts minimized to tray by default
+Only modes the system supports are offered. Each per-core profile stores its mode (changed in the list, stored with **Save**, applied with **Activate**). `power-profiles-daemon` also sets EPP; to give this application full control: `sudo systemctl mask --now power-profiles-daemon`.
 
-#### Window Management
-- **Position saving**: Remembers window position and size between sessions
-- **Center on first run**: If no saved position, centers window on screen
-- **Single instance check**: Prevents multiple GUI instances via PID file (`~/.config/dudes-control-center/gui.pid`)
+## Command line
 
-**Usage:**
 ```bash
-# First start the daemon
-sudo ./dudes-control-center-fan-daemon --foreground &
+dudes-control-center-fan-cli                  # temperatures and fan status
+sudo dudes-control-center-fan-cli --set 40    # fan speed 0,10,...,100 (0 = fans off)
+sudo dudes-control-center-fan-cli --auto      # automatic, temperature-based
+dudes-control-center-fan-cli --log-level DEBUG
 
-# Then run the GUI
-./dudes-control-center-gui
+dudes-control-center-cpu-cli                  # CPU status
+dudes-control-center-cpu-cli --list-profiles
+dudes-control-center-cpu-cli --apply-profile 0
+dudes-control-center-cpu-cli --hard-limit 3.8 # GHz
+dudes-control-center-cpu-cli --hard-limit-get
 ```
 
-## Building
+`--help` shows all options. `--set` and `--auto` access the EC directly and need root.
 
-### Prerequisites
-```bash
-# Install build dependencies (Debian/Ubuntu)
-sudo apt install build-essential libgtk-3-dev pkg-config
+## Safety features
 
-# For Fedora/RHEL:
-sudo dnf install gcc gtk3-devel pkgconf-pkgconfig
+⚠️ These applications access hardware I/O ports to control the Embedded Controller. Use at your own risk.
 
-# For Arch Linux:
-sudo pacman -S base-devel gtk3 pkgconf
-```
+1. **Watchdog**: the fan daemon pings the systemd watchdog (`WatchdogSec=30`); if its main loop hangs, systemd restarts it. Whenever the daemon stops for any reason (crash, watchdog, stop, upgrade), `ExecStopPost=` sets the fans to 100% directly through the EC.
+2. **Sensor fail-safe** (auto and manual mode): invalid readings (below 10°C, above 110°C, no answer from the EC) count as failures; after 2 in a row (~10 s) the fans are held at 100% until valid readings return. Afterwards the previous mode and speed are restored.
+3. **Emergency temperature** (auto and manual mode): at 95°C or more (CPU or GPU) the fans go to 100% until the temperature drops below 90°C. In manual mode the emergency **ends manual mode**: when it clears, the fan curve (auto mode) takes over instead of going back to a low manual speed. The GUI switches to auto and says why.
+4. **Safe curve fallback**: a missing or empty fan profile uses the built-in default curve, never a fixed low speed.
+5. **CPU hard limit**: a maximum frequency for all cores, enforced by the CPU daemon and, independently, by a systemd timer every 10 s.
+6. **Access control**: the daemons accept commands only from root and members of `dudes-control-center` (checked with `SO_PEERCRED`). Files in the user's home directory are read and written with the user's identity, never through symlinks.
 
-### Dependencies
-**Compile-time:**
-- GCC or Clang compiler
-- GTK+ 3.24 or higher (for GUI)
-- pkg-config
-- Make
-
-**Runtime:**
-- GTK+ 3.24 libraries
-- Linux kernel with I/O port access support
-- Root/sudo privileges for daemon and CLI
-
-### Build All Applications
-```bash
-make all
-```
-
-### Build Individual Applications
-```bash
-make cli      # Build CLI only
-make daemon   # Build daemon only
-make gui      # Build GUI only
-```
-
-### Clean Build
-```bash
-make clean    # Remove built binaries
-```
-
-### Install System-wide
-```bash
-sudo make install
-```
-
-This will:
-- Copy binaries to `/usr/local/bin/`
-- Install systemd service for the daemon (`/etc/systemd/system/dudes-control-center-fan-daemon.service`)
-- Enable automatic startup on boot (if enabled)
-
-### Uninstall
-```bash
-sudo make uninstall
-```
-
-### Testing
-```bash
-make test
-```
-Builds the test suite with AddressSanitizer and UBSan and runs it. It needs no root and no hardware: daemons run against a fake sysfs in temporary directories, so it is safe to run on a machine with the daemons installed. GitHub Actions runs `make all`, `make test` and `make deb` on every push and pull request, and attaches the built `.deb` to each run. Details: [tests/README.md](tests/README.md).
+`STATUS` of the fan daemon reports `FAILSAFE=1` while an override is active.
 
 ## Configuration
 
-### Profile Storage
-Profiles are saved to: `~/.config/dudes-control-center/profiles.json`
+| What | Where |
+|---|---|
+| Fan, CPU and keyboard profiles, CPU hard limit | `~/.config/dudes-control-center/profiles.json` |
+| Keyboard LED mapping (LED wizard) | `~/.config/dudes-control-center/keyboard_led_mapping.csv` |
+| GUI settings (window position etc.) | `~/.config/dudes-control-center/config.json` |
+| Whose `profiles.json` the root daemons use | `/etc/dudes-control-center/user` |
 
-### Log Files
-**GUI Application:**
-- Location: `~/.cache/dudes-control-center/logs/GUI.log`
-- Rotation: 5 files, max 10MB each
+The daemons run as root, so they look up the desktop user's `profiles.json` (first match wins):
+1. `DCC_PROFILES_PATH` (absolute path, e.g. in a systemd drop-in)
+2. the user named in `/etc/dudes-control-center/user` (written by the package)
+3. the first member of the `dudes-control-center` group
+4. the user with uid 1000
 
-**Daemon:**
-- Location: `/var/log/dudes-control-center/DAEMON.log`
-- Rotation: 5 files, max 10MB each
-- Requires root access to read
+Each daemon logs the chosen path once: `[CONFIG] Using ...`.
 
-### Unix Sockets and Access Control
-- Paths: `/run/dudes-control-center-fan.sock`, `/run/dudes-control-center-cpu.sock`, `/run/dudes-control-center-kbd.sock`
-- Any user can connect (mode 666), but the daemons only accept commands from **root** and members of the **`dudes-control-center`** group (checked with `SO_PEERCRED`). Other users get `ERROR Permission denied`.
-- The package creates the group and adds the installing user. To add another user (takes effect immediately, no re-login needed):
+### Logs
+
+| Log | Location |
+|---|---|
+| GUI | `~/.cache/dudes-control-center/logs/GUI.log` |
+| Fan daemon | `/var/log/dudes-control-center/FAN_DAEMON.log` |
+| CPU daemon | `/var/log/dudes-control-center/CPU_DAEMON.log` |
+| Keyboard daemon | `/var/log/dudes-control-center/KBD_BACKLIGHT_DAEMON.log` |
+| Hard-limit enforcer (errors only) | `/var/log/dudes-control-center/HARD_LIMIT_ENFORCER.log` |
+
+### Sockets and access
+
+- `/run/dudes-control-center-fan.sock`, `/run/dudes-control-center-cpu.sock`, `/run/dudes-control-center-kbd.sock`
+- Anyone may connect (mode 666), but only root and members of `dudes-control-center` may send commands; others get `ERROR Permission denied`. To add a user (takes effect immediately):
   ```bash
   sudo usermod -aG dudes-control-center <user>
   ```
+- Text protocol, one command per line, several clients at once. Examples: fan daemon `STATUS`, `LIST_PROFILES`, `SET_MANUAL <pct>`, `SET_AUTO <0|1>`; CPU daemon `STATUS`, `LIST_GOVERNORS`, `APPLY_CUSTOM_PROFILE|<n>`, `GET_HARD_LIMIT`; keyboard daemon `STATUS`, `SET_KEYS_COLOR::<R,G,B>::<led,led,...|all>`, `GET_ZONES`, `LOAD_PROFILE::<name>`.
 
-## Hardware Compatibility
+## Building from source
 
-These applications are designed for Clevo-based notebooks that use EC I/O port access at ports 0x62 and 0x66. The implementation is based on the open-source [fan-control](https://github.com/steiiin/fan-control) project.
-
-**Tested hardware:**
-- CPU: Intel Ultra 9
-- GPU: NVIDIA RTX 5090 Mobile
-- EC Registers: Standard Clevo layout
-
-## Safety Features & Warnings
-
-⚠️ **IMPORTANT:** These applications directly access hardware I/O ports to control the Embedded Controller. Use at your own risk.
-
-### Built-in Safety Measures
-
-1. **Watchdog (systemd)**
-   - The fan daemon pings the systemd watchdog every 2 seconds (`WatchdogSec=30`)
-   - If its main loop hangs, systemd kills and restarts it
-   - Whenever the daemon stops for any reason (crash, watchdog, stop, upgrade), `ExecStopPost=` sets the fans to 100% directly through the EC until the daemon is back
-
-2. **Sensor Fail-Safe** (auto and manual mode)
-   - Invalid readings (< 10°C or > 110°C, or no answer from the EC) count as sensor failures
-   - After 2 consecutive failures (~10 s) the fans are held at 100% until valid readings return
-   - `STATUS` reports `FAILSAFE=1` while this is active
-
-3. **Emergency Temperature Override** (auto and manual mode)
-   - At 95°C or more (CPU or GPU) the fans go to 100%, even in manual mode
-   - Released below 90°C; the previous setting is then restored
-
-4. **Safe Curve Fallback**
-   - If the active profile is missing or has no curve points, the built-in default curve is used (never a fixed low speed)
-   - Profiles without curve points cannot be activated
-
-5. **Temperature Sources**
-   - Multiple fallback sources for temperature reading (EC, sysfs, nvidia-smi)
-
-6. **Single Instance Protection**
-   - GUI prevents multiple instances via PID file
-   - Prevents conflicting fan control commands
-
-### Safety Recommendations
-
-1. Always test with moderate fan speeds first (20-40%)
-2. Monitor temperatures closely when using manual mode
-3. Keep the daemon running for continuous monitoring
-4. Review logs regularly for warnings or errors
-5. Have a backup cooling method available during initial testing
-
-## Technical Details
-
-### EC I/O Ports
-- Status Command Port: `0x66` (EC_SC)
-- Data Port: `0x62` (EC_DATA)
-
-### EC Registers Used
-| Register | Address | Description |
-|----------|---------|-------------|
-| CPU Temp | 0x07 | CPU temperature in °C |
-| GPU Temp | 0xCD | GPU temperature in °C |
-| Fan1 Duty | 0xCE | CPU fan duty cycle (0-255) |
-| Fan2 Duty | 0xCF | GPU fan duty cycle (0-255) |
-| Fan1 RPM HI | 0xD0 | High byte of CPU fan RPM |
-| Fan1 RPM LO | 0xD1 | Low byte of CPU fan RPM |
-| Fan2 RPM HI | 0xD2 | High byte of GPU fan RPM |
-| Fan2 RPM LO | 0xD3 | Low byte of GPU fan RPM |
-
-### Temperature Curve Calculation
-The auto mode uses linear interpolation between defined temperature points. Default curve:
-- ≤45°C: 20% fan speed
-- 45-55°C: 20-30% (interpolated)
-- 55-60°C: 30-40% (interpolated)
-- 60-70°C: 40-50% (interpolated)
-- 70-80°C: 50-70% (interpolated)
-- 80-85°C: 70-100% (interpolated)
-- ≥85°C: 100% fan speed
-
-**Custom curves can be created and edited in the GUI Curve Editor tab.**
-
-### RPM to Percentage Conversion
-Based on user specification: ~1130 RPM = 10%
-```c
-percentage = min(100, rpm / 113.0)
+```bash
+sudo apt install build-essential pkg-config libgtk-3-dev libcjson-dev python3 dkms
+make -j$(nproc)          # all applications
+make deb -j$(nproc)      # Debian package in build-deb/
+make test -j$(nproc)     # test suite
 ```
 
-### IPC Protocol
-The daemon communicates via a simple text-based protocol over Unix socket:
-- Commands: `STATUS`, `LIST_PROFILES`, `GET_PROFILE <index>`, `SET_MANUAL <percent>`, `ENABLE_AUTO <profile_index>`
-- Responses: Text-based with structured data for parsing
+`make test` builds the tests with AddressSanitizer and UBSan and runs them without root or hardware: the daemons run against a fake sysfs (CPU frequencies, 120 keyboard LEDs) in temporary directories, so it is safe on a machine with the daemons installed. GitHub Actions runs `make all`, `make test` and `make deb` on every push and pull request. Details: [tests/README.md](tests/README.md).
+
+`sudo make install` installs the programs and systemd units without a package (no DKMS module, no `/etc/dudes-control-center/user`; the daemons then use the first member of the group). The `.deb` is the recommended way.
+
+## Hardware
+
+Designed for Clevo-based notebooks with EC access at I/O ports 0x62/0x66 and an ITE 829x keyboard controller. The fan code is based on the open-source [fan-control](https://github.com/steiiin/fan-control) project.
+
+**Tested on:** Intel Core Ultra 9, NVIDIA RTX 5090 Mobile, standard Clevo EC layout, Linux Mint.
+
+### EC registers
+
+| Register | Address | Description |
+|---|---|---|
+| CPU temp | 0x07 | CPU temperature in °C |
+| GPU temp | 0xCD | GPU temperature in °C |
+| Fan1 duty | 0xCE | CPU fan duty cycle (0-255) |
+| Fan2 duty | 0xCF | GPU fan duty cycle (0-255) |
+| Fan1 RPM | 0xD0/0xD1 | CPU fan RPM (high/low byte) |
+| Fan2 RPM | 0xD2/0xD3 | GPU fan RPM (high/low byte) |
+
+Fan percentage from RPM: `rpm * 100 / 6022` (CPU fan) and `rpm * 100 / 5859` (GPU fan), capped at 100%.
+
+### Default fan curve
+
+Linear interpolation between the points: ≤45°C 20%, 55°C 30%, 60°C 40%, 70°C 50%, 80°C 70%, ≥85°C 100%. Custom curves are edited in the Curve Editor tab.
 
 ## Troubleshooting
 
-### "Cannot set I/O permission" error
-Run with sudo: `sudo ./dudes-control-center-fan-cli`
-
-### GUI says "Daemon is not running"
-This is the most common issue. Follow these steps:
-
-**Step 1: Start the daemon properly**
+**GUI says a daemon is not running**
 ```bash
-# In terminal 1, start the daemon in foreground mode
-sudo ./dudes-control-center-fan-daemon --foreground
-```
-You should see output like:
-```
-dudes-control-center-fan-daemon starting...
-Socket created at /run/dudes-control-center-fan.sock with permissions: 666
-Socket owner: uid=0, gid=0
-Server listening on /run/dudes-control-center-fan.sock
+systemctl status dudes-control-center-fan-daemon dudes-control-center-cpu-daemon dudes-control-center-kbd-backlight-daemon
+sudo systemctl restart dudes-control-center-fan-daemon
 ```
 
-**Step 2: Verify the socket was created**
+**`ERROR Permission denied` from a daemon**: your user is not in the control group. `id` should list `dudes-control-center`; if not, add it with the `usermod` command above.
+
+**Profiles are not found / defaults are used**: check which file the daemons use (`grep CONFIG /var/log/dudes-control-center/*.log`) and correct `/etc/dudes-control-center/user` if needed, then restart the daemons.
+
+**Keyboard backlight does nothing**: check that the module is loaded (`lsmod | grep ite_829x`, `dkms status ite_829x`) and that `/sys/class/leds/rgb:kbd_backlight*` exists. With Secure Boot the module must be signed with an enrolled MOK key. Per-key colors need the LED wizard mapping.
+
+**Keys light the wrong LEDs**: run the LED wizard again.
+
+**Zero or wrong temperatures, fans do not react**: your model may use a different EC layout or commands, or the BIOS may lock fan control.
+
+**Test the connection to a daemon:**
 ```bash
-# In terminal 2, check if socket exists
-ls -la /run/dudes-control-center-fan.sock
-```
-Expected output:
-```
-rw-rw-rw- 1 root root 0 Oct 25 22:38 /run/dudes-control-center-fan.sock
-```
-The permissions should be `666` (rw-rw-rw-) to allow non-root users to connect.
-
-**Step 3: Launch the GUI**
-```bash
-# In terminal 3, run the GUI without sudo
-./dudes-control-center-gui
-```
-
-### Socket permission issues
-If you see "Permission denied" when connecting:
-
-1. **Check socket permissions:**
-   ```bash
-   stat /run/dudes-control-center-fan.sock | grep -E "Access:|Uid|Gid"
-   ```
-   Should show `Access: (0666/rw-rw-rw-)` 
-
-2. **Manually fix permissions (temporary):**
-   ```bash
-   sudo chmod 666 /run/dudes-control-center-fan.sock
-   ```
-
-3. **Restart the daemon:**
-   ```bash
-   sudo killall dudes-control-center-fan-daemon
-   sudo ./dudes-control-center-fan-daemon --foreground
-   ```
-
-### Zero or invalid temperature readings
-- Check if your notebook uses the same EC register layout
-- Some models may have different GPU temp sensor locations
-- The application falls back to multiple sources (EC, sysfs, nvidia-smi)
-- Check daemon logs: `cat /var/log/dudes-control-center/DAEMON.log`
-
-### Fan doesn't respond
-- Your model may use different EC commands
-- Some notebooks require specific initialization sequences
-- Check if BIOS has fan control locked
-- Verify hardware compatibility with Clevo EC layout
-
-### GUI crashes or shows wrong state
-- Check GUI logs: `cat ~/.cache/dudes-control-center/logs/GUI.log`
-- Try switching tabs to refresh the UI state
-- Restart both daemon and GUI if issues persist
-
-### Watchdog triggered in logs
-If you see "WATCHDOG TRIGGERED" in daemon logs:
-- This indicates the main loop became unresponsive
-- Fans were automatically set to 100% for safety
-- Check system load and resource usage
-- Review logs for preceding errors
-
-## Testing the Connection
-
-Use this quick test to verify daemon-GUI connectivity:
-
-```bash
-# Terminal 1: Start daemon
-sudo ./dudes-control-center-fan-daemon --foreground &
-
-# Terminal 2: Test socket connection
-echo "STATUS" | socat - UNIX-CONNECT:/run/dudes-control-center-fan.sock
-```
-
-If `socat` is not installed:
-```bash
-sudo apt install socat
+echo STATUS | socat - UNIX-CONNECT:/run/dudes-control-center-fan.sock
 ```
 
 ## Credits & Acknowledgments
@@ -427,4 +219,4 @@ This project uses code inspired by [fan-control](https://github.com/steiiin/fan-
 
 - Original fan-control: https://github.com/steiiin/fan-control
 - Tuxedo Control Center (design reference): https://github.com/tuxedocomputers/tuxedo-control-center
-- GTK+ Documentation: https://gtk.org/documentation/
+- GTK Documentation: https://docs.gtk.org/gtk3/

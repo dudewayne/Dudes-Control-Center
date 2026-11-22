@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [Unreleased]
+
+### Documentation
+- README rewritten for the current state: all components (CPU and keyboard daemons, `ite_829x` DKMS module, hard-limit enforcer), installation from the release `.deb`, the GUI tabs, per-key lighting and the LED wizard, CPU power modes, manual fan mode down to 0% and the emergency handover, configuration and which user's `profiles.json` the daemons use, log files, building and testing, troubleshooting. Removed outdated parts (version 1.0 badge, GTK4, 10% minimum, old log names, running daemons by hand).
+
 ## [1.18.5] - 2026-11-22
 
 ### Fixed
