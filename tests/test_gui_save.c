@@ -187,6 +187,25 @@ int main(int argc, char **argv) {
     n = kbd_leds_for_position(&kb, 0, leds, 120);
     CHECK(n == 0, "K: key without a wizard LED gets none (not a stale default)");
 
+    /* K: ISO Enter is L-shaped; its lower part does not cover '#' (v1.21.7) */
+    {
+        size_t enter = 0, hash = 0, npplus = 0;
+        for (size_t i = 0; i < KBD_NUM_KEYS; i++) {
+            if (!strcmp(kbd_key_names[i], "Enter") && !enter) enter = i;
+            if (!strcmp(kbd_key_names[i], "#")) hash = i;
+            if (!strcmp(kbd_key_names[i], "Numpad +") && !npplus) npplus = i;
+        }
+        const KeyPos *h = &kbd_key_positions[hash], *e = &kbd_key_positions[enter];
+        double px = e->x + 3, py = h->y + h->h / 2.0;   /* left edge of Enter, in the '#' row */
+        CHECK(enter && hash && !kbd_key_contains(enter, px, py) && kbd_key_contains(hash, px, py),
+              "K: click on the right part of '#' selects '#', not Enter");
+        CHECK(kbd_key_contains(enter, e->x + 3, e->y + 10) && kbd_key_contains(enter, e->x + e->w - 3, py),
+              "K: Enter still covers its upper row and the right part of its lower row");
+        double lx, sy;
+        kbd_key_shape(npplus, &lx, &sy);
+        CHECK(npplus && lx == kbd_key_positions[npplus].x, "K: other tall keys (Numpad +) stay rectangles");
+    }
+
     /* K: key colors from the daemon's GET_ZONES (v1.18.0) */
     kbd_parse_zone_colors(&kb, "ZONES_START COUNT=2\n"
                                "ZONE 0 name=Base color=255,255,255 keys=3 0 1 2\n"

@@ -4442,6 +4442,59 @@ static void kbd_sync_power_switch(AppData *app) {
     g_print("[GUI] Keyboard backlight is %s\n", is_on ? "on" : "off");
 }
 
+/* Key shapes on the keyboard picture. Most keys are rectangles. A key that
+ * spans two rows (ISO Enter) is L-shaped if a key sits beside its lower
+ * half: the lower part starts right of that key ('#' on a German layout).
+ * Without this the Enter overlay covered part of '#', and clicks there
+ * selected Enter. Returns the x where the lower part starts and the y where
+ * the narrower lower part begins; for a plain rectangle lower_x = key->x. */
+static void kbd_key_shape(size_t i, double *lower_x, double *split_y) {
+    const KeyPos *k = &kbd_key_positions[i];
+    *lower_x = k->x;
+    *split_y = k->y + k->h;
+    if (k->h < 100) return;                                  /* single row */
+    for (size_t j = 0; j < KBD_NUM_KEYS; j++) {
+        const KeyPos *o = &kbd_key_positions[j];
+        if (o->h >= 100 || o == k) continue;
+        int in_lower_row = o->y > k->y + 10 && o->y < k->y + k->h;
+        int overlaps_left = o->x < k->x + 1 && o->x + o->w > k->x;   /* reaches into our left edge */
+        if (in_lower_row && overlaps_left) {
+            double gap = 6.0;
+            if (o->x + o->w + gap > *lower_x) *lower_x = o->x + o->w + gap;
+            if (o->y - gap / 2 < *split_y) *split_y = o->y - gap / 2;
+        }
+    }
+}
+
+static int kbd_key_contains(size_t i, double x, double y) {
+    const KeyPos *k = &kbd_key_positions[i];
+    if (x < k->x || x > k->x + k->w || y < k->y || y > k->y + k->h) return 0;
+    double lx, sy;
+    kbd_key_shape(i, &lx, &sy);
+    return y < sy || x >= lx;
+}
+
+/* Add the key's outline to the cairo path */
+static void kbd_key_path(cairo_t *cr, size_t i, double ox, double oy, double s) {
+    const KeyPos *k = &kbd_key_positions[i];
+    double lx, sy;
+    kbd_key_shape(i, &lx, &sy);
+    double x1 = ox + k->x * s, x2 = ox + (k->x + k->w) * s;
+    double y1 = oy + k->y * s, y2 = oy + (k->y + k->h) * s;
+    if (lx <= k->x) {
+        cairo_rectangle(cr, x1, y1, x2 - x1, y2 - y1);
+        return;
+    }
+    double xl = ox + lx * s, ys = oy + sy * s;
+    cairo_move_to(cr, x1, y1);
+    cairo_line_to(cr, x2, y1);
+    cairo_line_to(cr, x2, y2);
+    cairo_line_to(cr, xl, y2);
+    cairo_line_to(cr, xl, ys);
+    cairo_line_to(cr, x1, ys);
+    cairo_close_path(cr);
+}
+
 /* Parse a GET_ZONES response ("ZONE i name=.. color=r,g,b keys=N k1 k2 ...")
  * into the per-LED colors shown on the keyboard canvas. */
 static void kbd_parse_zone_colors(AppData *app, const char *response) {
@@ -4514,8 +4567,6 @@ static gboolean kbd_canvas_draw(GtkWidget *widget, cairo_t *cr, gpointer user_da
         /* Draw key overlays */
         size_t num_keys = sizeof(kbd_key_positions) / sizeof(kbd_key_positions[0]);
         for (size_t i = 0; i < num_keys; i++) {
-            const KeyPos *key = &kbd_key_positions[i];
-            
             /* Check if one of this key's LEDs is selected */
             int key_leds[120];
             int n_leds = kbd_leds_for_position(app, (int)i, key_leds, 120);
@@ -4532,8 +4583,7 @@ static gboolean kbd_canvas_draw(GtkWidget *widget, cairo_t *cr, gpointer user_da
                         cairo_set_source_rgba(cr, app->kbd_led_rgb[led][0] / 255.0,
                                               app->kbd_led_rgb[led][1] / 255.0,
                                               app->kbd_led_rgb[led][2] / 255.0, 0.45);
-                        cairo_rectangle(cr, offset_x + key->x * scale, offset_y + key->y * scale,
-                                        key->w * scale, key->h * scale);
+                        kbd_key_path(cr, i, offset_x, offset_y, scale);
                         cairo_fill(cr);
                         has_color = 1;
                     }
@@ -4549,12 +4599,8 @@ static gboolean kbd_canvas_draw(GtkWidget *widget, cairo_t *cr, gpointer user_da
                 } else {
                     cairo_set_source_rgba(cr, 0.0, 0.0, 1.0, 0.25);
                 }
-                cairo_rectangle(cr,
-                    offset_x + key->x * scale,
-                    offset_y + key->y * scale,
-                    key->w * scale,
-                    key->h * scale);
-                cairo_fill(cr);
+                kbd_key_path(cr, i, offset_x, offset_y, scale);
+                cairo_fill_preserve(cr);
                 /* Border color matches highlight */
                 if (is_selected) {
                     cairo_set_source_rgb(cr, 0.0, 1.0, 0.0);
@@ -4608,9 +4654,7 @@ static gboolean kbd_canvas_button_press(GtkWidget *widget, GdkEventButton *event
     /* Find which key was clicked */
     size_t num_keys = sizeof(kbd_key_positions) / sizeof(kbd_key_positions[0]);
     for (size_t i = 0; i < num_keys; i++) {
-        const KeyPos *key = &kbd_key_positions[i];
-        if (unscaled_x >= key->x && unscaled_x <= key->x + key->w &&
-            unscaled_y >= key->y && unscaled_y <= key->y + key->h) {
+        if (kbd_key_contains(i, unscaled_x, unscaled_y)) {
             
             /* Handle wizard mode */
             if (app->kbd_wizard_active) {

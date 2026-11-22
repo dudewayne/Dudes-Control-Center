@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.21.7] - 2026-11-22
+
+### Fixed
+- **Keyboard picture: the Enter key no longer covers the '#' key**. Enter spans two rows and was stored as one rectangle, so its colored/selected overlay reached into the '#' key, and clicking that part of '#' selected Enter. Keys spanning two rows are now L-shaped where a key sits beside their lower half (ISO Enter next to '#'), for drawing and clicking; other tall keys (Numpad +, Numpad Enter) stay rectangles.
+- Selected keys get their green outline again (the outline was drawn after the fill had already used up the shape, so it never appeared).
+- Test for the key shapes.
+
 ## [1.21.6] - 2026-11-22
 
 ### Fixed
