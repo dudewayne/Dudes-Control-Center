@@ -1,6 +1,8 @@
 [Unit]
 Description=Dudes Control Center Hard Limit Fail-Safe Enforcer
 Documentation=man:systemd.timer(5)
+# Switched off in the GUI's Settings tab (dcc-component, 1.27.0)
+ConditionPathExists=!/etc/dudes-control-center/disabled-cpu
 
 [Service]
 Type=oneshot

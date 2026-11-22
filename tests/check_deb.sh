@@ -35,6 +35,20 @@ for c in preinst postinst prerm postrm; do
     check "echo \"\$listing\" | grep -qE '^-rwxr-xr-x root/root .*\\./$c\$'" "maintainer script $c is root-owned with mode 755"
 done
 
+# Settings tab (1.27.0): root helper, polkit action, unit conditions
+H="$R/usr/local/sbin/dcc-component"
+check "echo \"\$listing\" | grep -qE '^-rwxr-xr-x root/root .*usr/local/sbin/dcc-component\$'" "helper dcc-component is root-owned with mode 755"
+check "grep -q 'org.freedesktop.policykit.exec.path\">/usr/local/sbin/dcc-component<' '$R/usr/share/polkit-1/actions/org.dudes-control-center.component.policy' && grep -q '<allow_active>auth_admin_keep</allow_active>' '$R/usr/share/polkit-1/actions/org.dudes-control-center.component.policy'" "polkit action for dcc-component asks for the admin password"
+for pair in fan:dcc-fan-daemon.service cpu:dcc-cpu-daemon.service cpu:dcc-hard-limit-enforcer.service cpu:dcc-hard-limit-enforcer.timer keyboard:dcc-kbd-daemon.service; do
+    c=${pair%%:*}; u=${pair#*:}
+    check "grep -q '^ConditionPathExists=!/etc/dudes-control-center/disabled-$c\$' '$R/etc/systemd/system/$u'" "$u does not start while $c is switched off"
+done
+check "sh '$H' bogus fan >/dev/null 2>&1; [ \$? -eq 2 ] && sh '$H' disable nothing >/dev/null 2>&1; [ \$? -eq 2 ]" "helper rejects unknown actions and components"
+if [ "$(id -u)" -ne 0 ]; then
+    check "sh '$H' disable fan >/dev/null 2>&1; [ \$? -eq 1 ]" "helper refuses to change anything without root"
+fi
+check "sh '$H' status | grep -qE '^fan (enabled|disabled)\$'" "helper status lists the components"
+
 # every ExecStart/ExecStopPost and the desktop Exec point to a program in the package
 for f in "$R"/etc/systemd/system/*.service "$R"/usr/share/applications/*.desktop; do
     for p in $(grep -hoE '^(ExecStart|ExecStopPost|Exec)=-?/[^ ]+' "$f" | sed -E 's/^[^=]+=-?//'); do

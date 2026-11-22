@@ -114,6 +114,11 @@ deb: all
 	@cp dcc-hard-limit-enforcer.service $(DEB_BUILD_DIR)/$(PACKAGE)-$(VERSION)/etc/systemd/system/
 	@cp dcc-hard-limit-enforcer.timer $(DEB_BUILD_DIR)/$(PACKAGE)-$(VERSION)/etc/systemd/system/
 	@cp scripts/dcc-hard-limit-enforce.sh $(DEB_BUILD_DIR)/$(PACKAGE)-$(VERSION)/usr/local/bin/dcc-hard-limit-enforce
+	@# Settings tab: switch components on/off through pkexec (1.27.0)
+	@mkdir -p $(DEB_BUILD_DIR)/$(PACKAGE)-$(VERSION)/usr/local/sbin $(DEB_BUILD_DIR)/$(PACKAGE)-$(VERSION)/usr/share/polkit-1/actions
+	@cp scripts/dcc-component.sh $(DEB_BUILD_DIR)/$(PACKAGE)-$(VERSION)/usr/local/sbin/dcc-component
+	@chmod 755 $(DEB_BUILD_DIR)/$(PACKAGE)-$(VERSION)/usr/local/sbin/dcc-component
+	@cp packaging/org.dudes-control-center.component.policy $(DEB_BUILD_DIR)/$(PACKAGE)-$(VERSION)/usr/share/polkit-1/actions/
 	@# DKMS kernel module source
 	@mkdir -p $(DEB_BUILD_DIR)/$(PACKAGE)-$(VERSION)/usr/src/$(DKMS_MODULE_NAME)-$(DKMS_MODULE_VERSION)
 	@cp drivers/ite_829x.c $(DEB_BUILD_DIR)/$(PACKAGE)-$(VERSION)/usr/src/$(DKMS_MODULE_NAME)-$(DKMS_MODULE_VERSION)/
@@ -131,7 +136,7 @@ deb: all
 	@echo 'Description: Dudes Control Center - Monitor and control notebook fan speed, CPU frequency, and keyboard backlight' >> $(DEB_BUILD_DIR)/$(PACKAGE)-$(VERSION)/DEBIAN/control
 	@echo 'Section: admin' >> $(DEB_BUILD_DIR)/$(PACKAGE)-$(VERSION)/DEBIAN/control
 	@echo 'Priority: optional' >> $(DEB_BUILD_DIR)/$(PACKAGE)-$(VERSION)/DEBIAN/control
-	@echo 'Depends: libgtk-3-0, libcjson1, dkms' >> $(DEB_BUILD_DIR)/$(PACKAGE)-$(VERSION)/DEBIAN/control
+	@echo 'Depends: libgtk-3-0, libcjson1, dkms, pkexec | policykit-1' >> $(DEB_BUILD_DIR)/$(PACKAGE)-$(VERSION)/DEBIAN/control
 	@# Maintainer scripts from packaging/ (@VERSION@ and @GROUP@ filled in)
 	@for f in preinst postinst prerm postrm; do \
 		sed -e 's/@VERSION@/$(VERSION)/g' -e 's/@GROUP@/$(DCC_GROUP)/g' packaging/$$f > $(DEB_BUILD_DIR)/$(PACKAGE)-$(VERSION)/DEBIAN/$$f; \
@@ -170,6 +175,8 @@ install: all
 	cp dcc-hard-limit-enforcer.timer /etc/systemd/system/
 	@echo "Installing hard limit enforcer script..."
 	install -m 755 scripts/dcc-hard-limit-enforce.sh /usr/local/bin/dcc-hard-limit-enforce
+	install -D -m 755 scripts/dcc-component.sh /usr/local/sbin/dcc-component
+	install -D -m 644 packaging/org.dudes-control-center.component.policy /usr/share/polkit-1/actions/org.dudes-control-center.component.policy
 	systemctl daemon-reload
 	systemctl enable dcc-fan-daemon
 	systemctl enable dcc-cpu-daemon
@@ -270,6 +277,7 @@ $(TEST_BUILD)/kbdd_test: $(KBD_DAEMON_DEPS) | $(TEST_BUILD)
 $(TEST_BUILD)/test_gui_save: tests/test_gui_save.c src/dcc-gui.c $(COMMON_SRC) $(LOG_SRC) $(LOG_HDR) | $(TEST_BUILD)
 	$(CC) $(TEST_CFLAGS) -w $(GTK_CFLAGS) $(CJSON_CFLAGS) -DAPP_VERSION='"$(VERSION)"' \
 	  -DSOCKET_PATH='"fan.sock"' -DCPU_SOCKET_PATH='"cpu.sock"' -DKBD_SOCKET_PATH='"kbd.sock"' \
+	  -DDCC_COMPONENT_DIR='"components"' \
 	  -o $@ tests/test_gui_save.c $(COMMON_SRC) $(LOG_SRC) $(GTK_LIBS) $(CJSON_LIBS) -lm
 
 # Check the built package: names, units, maintainer scripts (CI runs it after "make deb")

@@ -1,6 +1,8 @@
 [Unit]
 Description=Dudes Control Center Fan Daemon
 After=network.target
+# Switched off in the GUI's Settings tab (dcc-component, 1.27.0)
+ConditionPathExists=!/etc/dudes-control-center/disabled-fan
 
 [Service]
 Type=simple

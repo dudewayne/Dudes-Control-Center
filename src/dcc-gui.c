@@ -141,6 +141,22 @@ static const KeyPos kbd_key_positions[KBD_NUM_KEYS] = {
 };
 
 /* Socket paths are overridable at build time (used by the test suite) */
+/* Components switched off in the Settings tab (1.27.0): flag files
+ * <dir>/disabled-fan|cpu|keyboard, written by dcc-component as root */
+#ifndef DCC_COMPONENT_DIR
+#define DCC_COMPONENT_DIR "/etc/dudes-control-center"
+#endif
+#define DCC_COMPONENT_HELPER "/usr/local/sbin/dcc-component"
+enum { COMP_FAN = 0, COMP_CPU = 1, COMP_KEYBOARD = 2, COMP_COUNT = 3 };
+static const char *const dcc_component_names[COMP_COUNT] = { "fan", "cpu", "keyboard" };
+
+static int dcc_component_disabled(int comp) {
+    if (comp < 0 || comp >= COMP_COUNT) return 0;
+    char path[512];
+    snprintf(path, sizeof path, "%s/disabled-%s", DCC_COMPONENT_DIR, dcc_component_names[comp]);
+    return access(path, F_OK) == 0;
+}
+
 #ifndef SOCKET_PATH
 #define SOCKET_PATH "/run/dcc-fan.sock"
 #endif
@@ -446,6 +462,12 @@ typedef struct {
     guint kbd_refresh_timer_id;
     int kbd_active_profile_idx;
     int kbd_profiles_modified; /* Track unsaved changes */
+    /* Settings tab (1.27.0) */
+    GtkWidget *page_widgets[8];        /* notebook page per PAGE_* */
+    GtkWidget *settings_switch[3];
+    GtkWidget *settings_state[3];
+    gulong settings_switch_sig[3];
+    int settings_busy;                 /* a pkexec helper is running */
     /* Zone editor (1.24.0) */
     KbdProfileEdit kbd_edit;           /* profile being edited (shown as a preview) */
     KbdProfileEdit kbd_saved;          /* the same profile as saved */
@@ -497,7 +519,8 @@ static void on_rename_profile_clicked(GtkWidget *widget, gpointer user_data);
 
 /* Forward declarations for page creation */
 /* Notebook pages (keep in sync with create_main_window) */
-enum { PAGE_STATUS = 0, PAGE_FAN = 1, PAGE_CPU = 2, PAGE_KEYBOARD = 3, PAGE_LOGS = 4, PAGE_ABOUT = 5 };
+enum { PAGE_STATUS = 0, PAGE_FAN = 1, PAGE_CPU = 2, PAGE_KEYBOARD = 3, PAGE_SETTINGS = 4, PAGE_LOGS = 5, PAGE_ABOUT = 6,
+       PAGE_COUNT = 7 };
 
 static GtkWidget *create_status_page(AppData *app);
 static GtkWidget *create_curve_editor_page(AppData *app);
@@ -595,6 +618,8 @@ static int check_unsaved_changes(AppData *app); /* Returns 1 if changes applied,
 
 /* System tray functions */
 static GtkWidget* create_tray_menu(AppData *app);
+static GtkWidget *create_settings_page(AppData *app);
+static void settings_apply_visibility(AppData *app);
 static void on_tray_select_kbd_profile(GtkMenuItem *item, gpointer user_data);
 static const char *send_keyboard_command_once(AppData *app, const char *cmd);
 static int kbd_load_edit_profile(AppData *app, const char *name);
@@ -3563,9 +3588,33 @@ static void update_daemon_status_labels(AppData *app) {
     set_daemon_status(app->fan_daemon_status_label, "Fan", app->connected && app->socket_fd >= 0);
     set_daemon_status(app->cpu_daemon_status_label, "CPU", app->cpu_connected && app->cpu_socket_fd >= 0);
     set_daemon_status(app->kbd_status_label, "Keyboard", app->kbd_connected && app->kbd_socket_fd >= 0);
+    /* switched off in Settings: grey, not a red "not connected" (1.27.0) */
+    GtkWidget *labels[COMP_COUNT] = { app->fan_daemon_status_label, app->cpu_daemon_status_label, app->kbd_status_label };
+    const char *names[COMP_COUNT] = { "Fan", "CPU", "Keyboard" };
+    for (int c = 0; c < COMP_COUNT; c++)
+        if (labels[c] && GTK_IS_LABEL(labels[c]) && dcc_component_disabled(c)) {
+            gchar *m = g_markup_printf_escaped("<span foreground='#888888'>%s control is switched off (Settings tab)</span>", names[c]);
+            gtk_label_set_markup(GTK_LABEL(labels[c]), m);
+            g_free(m);
+        }
+    if (app->settings_state[0]) {
+        int up[COMP_COUNT] = { app->connected && app->socket_fd >= 0, app->cpu_connected && app->cpu_socket_fd >= 0,
+                               app->kbd_connected && app->kbd_socket_fd >= 0 };
+        for (int c = 0; c < COMP_COUNT; c++) {
+            const char *t = dcc_component_disabled(c) ? "<span foreground='#888888'>Switched off</span>"
+                          : up[c] ? "Running (daemon connected)"
+                                  : "<span foreground='#d9534f'>On, daemon not connected</span>";
+            gtk_label_set_markup(GTK_LABEL(app->settings_state[c]), t);
+        }
+    }
 }
 
 static void connect_to_daemon(AppData *app) {
+    if (dcc_component_disabled(COMP_FAN)) {          /* switched off in Settings */
+        app->socket_fd = -1;
+        app->connected = 0;
+        return;
+    }
     
     /* Check if socket file exists first */
     struct stat st;
@@ -3640,6 +3689,11 @@ static void disconnect_from_daemon(AppData *app) {
 
 /* Connect to CPU daemon */
 static void connect_to_cpu_daemon(AppData *app) {
+    if (dcc_component_disabled(COMP_CPU)) {          /* switched off in Settings */
+        app->cpu_socket_fd = -1;
+        app->cpu_connected = 0;
+        return;
+    }
     /* Check if socket file exists first */
     struct stat st;
     if (stat(CPU_SOCKET_PATH, &st) != 0) {
@@ -3683,6 +3737,12 @@ static void disconnect_from_cpu_daemon(AppData *app) {
 
 /* Connect to keyboard daemon */
 static void connect_to_keyboard_daemon(AppData *app) {
+    if (dcc_component_disabled(COMP_KEYBOARD)) {     /* switched off in Settings */
+        app->kbd_socket_fd = -1;
+        app->kbd_connected = 0;
+        update_daemon_status_labels(app);
+        return;
+    }
     struct stat st;
     if (stat(KBD_SOCKET_PATH, &st) != 0) {
         g_print("[GUI] Keyboard daemon socket not found at %s. Keyboard tab will be unavailable.\n", KBD_SOCKET_PATH);
@@ -7524,13 +7584,24 @@ GtkWidget *page4 = create_log_page(app);
     gtk_scrolled_window_set_policy(GTK_SCROLLED_WINDOW(kbd_scrolled), GTK_POLICY_NEVER, GTK_POLICY_AUTOMATIC);
     gtk_container_add(GTK_CONTAINER(kbd_scrolled), kbd_page);
 
+    GtkWidget *settings_page = create_settings_page(app);
+    app->page_widgets[PAGE_STATUS] = page1;
+    app->page_widgets[PAGE_FAN] = page2;
+    app->page_widgets[PAGE_CPU] = cpu_scrolled;
+    app->page_widgets[PAGE_KEYBOARD] = kbd_scrolled;
+    app->page_widgets[PAGE_SETTINGS] = settings_page;
+    app->page_widgets[PAGE_LOGS] = page4;
+    app->page_widgets[PAGE_ABOUT] = page6;
     gtk_notebook_append_page(GTK_NOTEBOOK(app->notebook), page1, gtk_label_new("Status"));
     gtk_notebook_append_page(GTK_NOTEBOOK(app->notebook), page2, gtk_label_new("Fan Profiles"));
     gtk_notebook_append_page(GTK_NOTEBOOK(app->notebook), cpu_scrolled, gtk_label_new("CPU Profiles"));
     gtk_notebook_append_page(GTK_NOTEBOOK(app->notebook), kbd_scrolled, gtk_label_new("Keyboard Backlight"));
+    gtk_notebook_append_page(GTK_NOTEBOOK(app->notebook), settings_page, gtk_label_new("Settings"));
     gtk_notebook_append_page(GTK_NOTEBOOK(app->notebook), page4, gtk_label_new("Logs"));
     gtk_notebook_append_page(GTK_NOTEBOOK(app->notebook), page6, gtk_label_new("About"));
     
+    settings_apply_visibility(app);   /* hide the tabs of switched-off components */
+
     /* Connect notebook page-switch signal to update profile tab when switching to it */
     app->page_switched_handler_id = g_signal_connect(app->notebook, "switch-page", G_CALLBACK(on_notebook_page_switched), app);
     
@@ -7545,6 +7616,208 @@ GtkWidget *page4 = create_log_page(app);
     gtk_container_add(GTK_CONTAINER(app->window), main_vbox);
     
     return app->window;
+}
+
+/* ============================================================
+ * Settings tab (1.27.0): switch fan, CPU or keyboard control off when it
+ * does not work on this laptop or causes problems. The state is system wide
+ * (flag files in /etc/dudes-control-center, written by the root helper
+ * dcc-component through pkexec): the daemons' units do not start while
+ * their flag exists, also not at boot or after an update.
+ * ============================================================ */
+
+/* Tabs of switched-off components are hidden (Status shows fan data only) */
+static void settings_apply_visibility(AppData *app) {
+    int hide[PAGE_COUNT] = { 0 };
+    hide[PAGE_STATUS] = hide[PAGE_FAN] = dcc_component_disabled(COMP_FAN);
+    hide[PAGE_CPU] = dcc_component_disabled(COMP_CPU);
+    hide[PAGE_KEYBOARD] = dcc_component_disabled(COMP_KEYBOARD);
+    for (int p = 0; p < PAGE_COUNT; p++) {
+        GtkWidget *w = app->page_widgets[p];
+        if (!w) continue;
+        gtk_widget_set_no_show_all(w, hide[p]);    /* gtk_widget_show_all must not bring it back */
+        if (hide[p]) gtk_widget_hide(w);
+        else gtk_widget_show_all(w);
+    }
+}
+
+/* Switches show the current state, without running the handler */
+static void settings_sync_switches(AppData *app) {
+    for (int c = 0; c < COMP_COUNT; c++) {
+        if (!app->settings_switch[c]) continue;
+        g_signal_handler_block(app->settings_switch[c], app->settings_switch_sig[c]);
+        int on = !dcc_component_disabled(c);
+        gtk_switch_set_active(GTK_SWITCH(app->settings_switch[c]), on);
+        gtk_switch_set_state(GTK_SWITCH(app->settings_switch[c]), on);
+        gtk_widget_set_sensitive(app->settings_switch[c], !app->settings_busy);
+        g_signal_handler_unblock(app->settings_switch[c], app->settings_switch_sig[c]);
+    }
+    update_daemon_status_labels(app);
+}
+
+/* A component was switched on: connect again once its daemon is up */
+static gboolean settings_reconnect_cb(gpointer user_data) {
+    AppData *app = (AppData *)user_data;
+    if (!dcc_component_disabled(COMP_FAN) && !app->connected) {
+        struct stat st;
+        if (stat(SOCKET_PATH, &st) == 0) {          /* no error dialog while it starts */
+            connect_to_daemon(app);
+            if (app->connected) {
+                refresh_profile_list(app);
+                if (app->active_profile_idx >= 0) load_curve_points_for_profile(app, app->active_profile_idx);
+            }
+        }
+    }
+    if (!dcc_component_disabled(COMP_CPU) && !app->cpu_connected) {
+        connect_to_cpu_daemon(app);
+        if (app->cpu_connected) {
+            cpu_load_initial_data(app);
+            load_cpu_custom_profiles(app);
+        }
+    }
+    if (!dcc_component_disabled(COMP_KEYBOARD) && !app->kbd_connected) kbd_ensure_connected(app);
+    update_tray_menu(app);
+    settings_sync_switches(app);
+    return G_SOURCE_REMOVE;
+}
+
+typedef struct { AppData *app; int comp; int enable; } SettingsJob;
+
+static void settings_helper_done(GObject *source, GAsyncResult *res, gpointer user_data) {
+    SettingsJob *job = (SettingsJob *)user_data;
+    AppData *app = job->app;
+    GError *err = NULL;
+    gboolean ok = g_subprocess_wait_finish(G_SUBPROCESS(source), res, &err);
+    int status = ok && g_subprocess_get_if_exited(G_SUBPROCESS(source)) ? g_subprocess_get_exit_status(G_SUBPROCESS(source)) : -1;
+    const char *name = dcc_component_names[job->comp];
+    app->settings_busy = 0;
+    if (status == 0) {
+        g_print("[GUI] Settings: %s control %s\n", name, job->enable ? "switched on" : "switched off");
+        show_status(app, job->enable ? "Component switched on" : "Component switched off");
+        if (!job->enable) {                          /* stop talking to that daemon */
+            if (job->comp == COMP_FAN) disconnect_from_daemon(app);
+            if (job->comp == COMP_CPU && app->cpu_socket_fd >= 0) {
+                close(app->cpu_socket_fd); app->cpu_socket_fd = -1; app->cpu_connected = 0;
+            }
+            if (job->comp == COMP_KEYBOARD && app->kbd_socket_fd >= 0) {
+                close(app->kbd_socket_fd); app->kbd_socket_fd = -1; app->kbd_connected = 0;
+            }
+            update_tray_menu(app);
+        } else {
+            g_timeout_add(1500, settings_reconnect_cb, app);
+        }
+    } else {
+        /* 126/127: authentication dismissed or failed */
+        g_print("[GUI] Settings: switching %s %s failed (exit %d%s%s)\n", name, job->enable ? "on" : "off",
+                status, err ? ": " : "", err ? err->message : "");
+        show_status(app, status == 126 || status == 127 ? "Not changed: authentication was cancelled or failed"
+                                                       : "Could not change the component (see the GUI log)");
+    }
+    if (err) g_error_free(err);
+    settings_apply_visibility(app);
+    settings_sync_switches(app);
+    g_free(job);
+}
+
+/* Switch toggled: run the root helper through pkexec (asks for the
+ * administrator password); the switch follows the result */
+static gboolean on_settings_switch(GtkSwitch *sw, gboolean state, gpointer user_data) {
+    AppData *app = (AppData *)user_data;
+    int comp = GPOINTER_TO_INT(g_object_get_data(G_OBJECT(sw), "component"));
+    if (app->settings_busy) return TRUE;
+    if (!state && comp == COMP_FAN) {
+        GtkWidget *d = gtk_message_dialog_new(GTK_WINDOW(app->window), GTK_DIALOG_MODAL | GTK_DIALOG_DESTROY_WITH_PARENT,
+                                              GTK_MESSAGE_WARNING, GTK_BUTTONS_OK_CANCEL,
+                                              "Switch fan control off?");
+        gtk_message_dialog_format_secondary_text(GTK_MESSAGE_DIALOG(d),
+            "The fans will run at 100%% until the next reboot. After the reboot the laptop's firmware "
+            "controls them again (there is no known way to hand them back to it earlier).");
+        int r = gtk_dialog_run(GTK_DIALOG(d));
+        gtk_widget_destroy(d);
+        if (r != GTK_RESPONSE_OK) {
+            settings_sync_switches(app);
+            return TRUE;
+        }
+    }
+    GError *err = NULL;
+    GSubprocess *proc = g_subprocess_new(G_SUBPROCESS_FLAGS_NONE, &err, "pkexec", DCC_COMPONENT_HELPER,
+                                         state ? "enable" : "disable", dcc_component_names[comp], NULL);
+    if (!proc) {
+        g_print("[GUI] Settings: cannot run pkexec: %s\n", err ? err->message : "?");
+        show_status(app, "Could not run pkexec");
+        if (err) g_error_free(err);
+        settings_sync_switches(app);
+        return TRUE;
+    }
+    SettingsJob *job = g_new0(SettingsJob, 1);
+    job->app = app;
+    job->comp = comp;
+    job->enable = state ? 1 : 0;
+    app->settings_busy = 1;
+    for (int c = 0; c < COMP_COUNT; c++) gtk_widget_set_sensitive(app->settings_switch[c], FALSE);
+    show_status(app, "Waiting for authentication...");
+    g_subprocess_wait_async(proc, NULL, settings_helper_done, job);
+    g_object_unref(proc);
+    return TRUE;   /* the state is set when the helper is done */
+}
+
+static GtkWidget *create_settings_page(AppData *app) {
+    GtkWidget *vbox = gtk_box_new(GTK_ORIENTATION_VERTICAL, 10);
+    gtk_container_set_border_width(GTK_CONTAINER(vbox), 12);
+
+    GtkWidget *frame = gtk_frame_new("Components");
+    GtkWidget *grid = gtk_grid_new();
+    gtk_container_set_border_width(GTK_CONTAINER(grid), 10);
+    gtk_grid_set_row_spacing(GTK_GRID(grid), 14);
+    gtk_grid_set_column_spacing(GTK_GRID(grid), 14);
+    const char *titles[COMP_COUNT] = { "Fan control", "CPU control", "Keyboard backlight" };
+    const char *texts[COMP_COUNT] = {
+        "Fan daemon, Status and Fan Profiles tabs, fan profiles in the tray menu. Switched off, the fans run at "
+        "100% until the next reboot; after it the laptop's firmware controls them.",
+        "CPU daemon and hard-limit timer, CPU Profiles tab, CPU profiles in the tray menu. Governor and "
+        "frequencies stay as they were last set.",
+        "Keyboard daemon, Keyboard Backlight tab, keyboard profiles in the tray menu. The LEDs keep their last colors.",
+    };
+    for (int c = 0; c < COMP_COUNT; c++) {
+        GtkWidget *sw = gtk_switch_new();
+        gtk_widget_set_valign(sw, GTK_ALIGN_START);
+        g_object_set_data(G_OBJECT(sw), "component", GINT_TO_POINTER(c));
+        app->settings_switch[c] = sw;
+        app->settings_switch_sig[c] = g_signal_connect(sw, "state-set", G_CALLBACK(on_settings_switch), app);
+        gtk_grid_attach(GTK_GRID(grid), sw, 0, c, 1, 1);
+
+        GtkWidget *box = gtk_box_new(GTK_ORIENTATION_VERTICAL, 2);
+        GtkWidget *title = gtk_label_new(NULL);
+        gchar *m = g_markup_printf_escaped("<b>%s</b>", titles[c]);
+        gtk_label_set_markup(GTK_LABEL(title), m);
+        g_free(m);
+        gtk_label_set_xalign(GTK_LABEL(title), 0.0);
+        GtkWidget *text = gtk_label_new(texts[c]);
+        gtk_label_set_xalign(GTK_LABEL(text), 0.0);
+        gtk_label_set_line_wrap(GTK_LABEL(text), TRUE);
+        gtk_label_set_max_width_chars(GTK_LABEL(text), 90);
+        gtk_box_pack_start(GTK_BOX(box), title, FALSE, FALSE, 0);
+        gtk_box_pack_start(GTK_BOX(box), text, FALSE, FALSE, 0);
+        gtk_widget_set_hexpand(box, TRUE);
+        gtk_grid_attach(GTK_GRID(grid), box, 1, c, 1, 1);
+
+        app->settings_state[c] = gtk_label_new("");
+        gtk_widget_set_valign(app->settings_state[c], GTK_ALIGN_START);
+        gtk_label_set_xalign(GTK_LABEL(app->settings_state[c]), 0.0);
+        gtk_grid_attach(GTK_GRID(grid), app->settings_state[c], 2, c, 1, 1);
+    }
+    gtk_container_add(GTK_CONTAINER(frame), grid);
+    gtk_box_pack_start(GTK_BOX(vbox), frame, FALSE, FALSE, 0);
+
+    GtkWidget *note = gtk_label_new("Switching asks for the administrator password and takes effect right away. "
+                                    "The setting applies to the whole system and stays after reboots and updates.");
+    gtk_label_set_xalign(GTK_LABEL(note), 0.0);
+    gtk_label_set_line_wrap(GTK_LABEL(note), TRUE);
+    gtk_widget_set_name(note, "kbd-off-switch-note");
+    gtk_box_pack_start(GTK_BOX(vbox), note, FALSE, FALSE, 0);
+
+    settings_sync_switches(app);
+    return vbox;
 }
 
 /* Update tray menu - destroy old and create new one with updated profile states */
@@ -7689,7 +7962,7 @@ static GtkWidget* create_tray_menu(AppData *app) {
     }
     
     /* Fan Profiles submenu */
-    {
+    if (!dcc_component_disabled(COMP_FAN)) {
         GtkWidget *profiles_menuitem = gtk_menu_item_new_with_label("Fan Profiles");
         GtkWidget *profiles_submenu = gtk_menu_new();
         gtk_menu_item_set_submenu(GTK_MENU_ITEM(profiles_menuitem), profiles_submenu);
@@ -8189,10 +8462,12 @@ static gboolean refresh_timer_callback(gpointer user_data) {
     /* Every 6 s: keep the keyboard connection alive (reconnects after a
      * daemon restart) and the Backlight Off switch in sync with the daemon */
     static int kbd_tick = 0;
-    if (++kbd_tick >= 3) {
+    if (++kbd_tick >= 3 && !dcc_component_disabled(COMP_KEYBOARD)) {
         kbd_tick = 0;
         kbd_sync_power_switch(app);
     }
+
+    if (dcc_component_disabled(COMP_FAN)) return G_SOURCE_CONTINUE;   /* fan control off */
 
     if (!app->connected) {
         /* Try to reconnect when disconnected (e.g., after suspend) */

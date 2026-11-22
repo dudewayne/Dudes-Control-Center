@@ -337,6 +337,24 @@ int main(int argc, char **argv) {
     kbd_parse_zone_colors(&kb, "ERROR Not connected to keyboard daemon");
     CHECK(!kb.kbd_led_has_color[0], "K: error response clears the colors");
 
+    /* S: components switched off in the Settings tab (v1.27.0) */
+    {
+        g_mkdir_with_parents("components", 0755);
+        unlink("components/disabled-fan"); unlink("components/disabled-cpu"); unlink("components/disabled-keyboard");
+        CHECK(!dcc_component_disabled(COMP_FAN) && !dcc_component_disabled(COMP_CPU) && !dcc_component_disabled(COMP_KEYBOARD),
+              "S: no flag files -> every component on");
+        g_file_set_contents("components/disabled-keyboard", "", 0, NULL);
+        CHECK(dcc_component_disabled(COMP_KEYBOARD) && !dcc_component_disabled(COMP_FAN),
+              "S: flag file disabled-keyboard -> only the keyboard is off");
+        static AppData sa;   /* zeroed */
+        sa.kbd_socket_fd = -1;
+        connect_to_keyboard_daemon(&sa);
+        CHECK(!sa.kbd_connected && sa.kbd_socket_fd == -1, "S: a switched-off component is not connected");
+        unlink("components/disabled-keyboard");
+        CHECK(!dcc_component_disabled(COMP_KEYBOARD) && !dcc_component_disabled(-1) && !dcc_component_disabled(7),
+              "S: flag removed -> on again; invalid component numbers are 'on'");
+    }
+
     /* Z: zone editor model (v1.24.0) */
     {
         static KbdProfileEdit e, f;
