@@ -476,6 +476,7 @@ static void handle_command(const char *cmd, char *response, size_t resp_size) {
 
         CpuGovernor gov = CPU_GOVERNOR_PERFORMANCE;
         governor_to_enum(arg2, &gov);
+        gov = cpu_governor_resolve_enum(gov, "CREATE_CUSTOM_PROFILE");
 
         uint64_t max_freq = get_hard_max_freq_hz();
         if (arg3[0]) {
@@ -668,8 +669,9 @@ static void handle_command(const char *cmd, char *response, size_t resp_size) {
             return;
         }
 
+        gov = cpu_governor_resolve_enum(gov, "SET_PROFILE_GOVERNOR");
         g_cpu_state.custom_profiles[profile_idx].governor = gov;
-        snprintf(response, resp_size, "OK governor set to %s for profile %d\n", arg2, profile_idx);
+        snprintf(response, resp_size, "OK governor set to %s for profile %d\n", enum_to_governor(gov), profile_idx);
         return;
     }
 
@@ -746,7 +748,9 @@ static void handle_command(const char *cmd, char *response, size_t resp_size) {
         /* Set governor */
         CpuGovernor gov;
         if (governor_to_enum(arg2, &gov) == 0) {
-            g_cpu_state.custom_profiles[profile_idx].governor = gov;
+            /* Store only governors this system offers */
+            g_cpu_state.custom_profiles[profile_idx].governor =
+                cpu_governor_resolve_enum(gov, "SAVE_CUSTOM_PROFILE");
         }
 
         /* Set apply_all_cores */

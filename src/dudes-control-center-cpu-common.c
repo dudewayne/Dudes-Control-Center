@@ -219,6 +219,54 @@ static int sysfs_write_freq(int cpu_id, const char *filename, uint64_t freq_hz) 
     return 0;
 }
 
+/* --- Governor availability ---
+ * The cpufreq driver decides which governors exist. intel_pstate in active
+ * mode (common on Intel laptops) only offers "performance" and "powersave";
+ * there "powersave" scales dynamically with load and is the counterpart of
+ * schedutil. Profiles may still name governors that do not exist here (e.g.
+ * created on another system or by older versions that always offered
+ * "Balanced"/schedutil), so every apply/save resolves to an available one. */
+int cpu_governor_available(const char *gov) {
+    if (!gov || !*gov) return 0;
+    char storage[MAX_CPUS][CPU_GOVERNOR_NAME_MAX];
+    char *list[MAX_CPUS];
+    for (int i = 0; i < MAX_CPUS; i++) list[i] = storage[i];
+    int count = 0;
+    if (get_all_governors(list, &count) != 0) return 0;
+    for (int i = 0; i < count; i++) {
+        if (strcmp(list[i], gov) == 0) return 1;
+    }
+    return 0;
+}
+
+const char *cpu_governor_resolve(const char *wanted) {
+    if (!wanted) return NULL;
+    if (cpu_governor_available(wanted)) return wanted;
+
+    static const char *perf_order[]    = {"performance", "schedutil", "ondemand", "powersave", NULL};
+    static const char *save_order[]    = {"powersave", "schedutil", "conservative", "ondemand", NULL};
+    static const char *dynamic_order[] = {"schedutil", "powersave", "ondemand", "conservative", "performance", NULL};
+    const char **order = dynamic_order;
+    if (strcmp(wanted, "performance") == 0) order = perf_order;
+    else if (strcmp(wanted, "powersave") == 0) order = save_order;
+
+    for (int i = 0; order[i]; i++) {
+        if (cpu_governor_available(order[i])) return order[i];
+    }
+    return NULL;
+}
+
+CpuGovernor cpu_governor_resolve_enum(CpuGovernor gov, const char *context) {
+    const char *wanted = enum_to_governor(gov);
+    const char *resolved = cpu_governor_resolve(wanted);
+    if (!resolved || strcmp(resolved, wanted) == 0) return gov;
+    CpuGovernor out = gov;
+    if (governor_to_enum(resolved, &out) != 0) return gov;
+    LOG_WARN("[CPU] %s: governor '%s' is not available on this system - using '%s'",
+             context ? context : "governor", wanted, resolved);
+    return out;
+}
+
 /* --- Initialize CPU control subsystem --- */
 int cpu_control_init(void) {
     LOG_INFO("[CPU] Initializing CPU control subsystem");
@@ -227,13 +275,23 @@ int cpu_control_init(void) {
     if (cpu_profiles_load_all() != 0) {
         LOG_WARN("[CPU] Could not load saved profiles, using defaults");
 
-        /* Create default profiles */
-        cpu_profile_create("Performance", CPU_GOVERNOR_PERFORMANCE, 0, 0);
-        cpu_profile_create("Balanced", CPU_GOVERNOR_SCHEDUTIL, 0, 0);
-        cpu_profile_create("Power Save", CPU_GOVERNOR_POWERSAVE, 0, 0);
+        /* Create default profiles, but only for governors this system offers
+         * (if the list cannot be read at all, keep all three) */
+        int have_perf  = cpu_governor_available("performance");
+        int have_sched = cpu_governor_available("schedutil");
+        int have_save  = cpu_governor_available("powersave");
+        int unknown    = !have_perf && !have_sched && !have_save;
+        if (have_perf || unknown)  cpu_profile_create("Performance", CPU_GOVERNOR_PERFORMANCE, 0, 0);
+        if (have_sched || unknown) cpu_profile_create("Balanced", CPU_GOVERNOR_SCHEDUTIL, 0, 0);
+        if (have_save || unknown)  cpu_profile_create("Power Save", CPU_GOVERNOR_POWERSAVE, 0, 0);
+        if (!have_sched && !unknown) {
+            LOG_INFO("[CPU] Governor 'schedutil' not offered by the cpufreq driver - 'Balanced' policy not created");
+        }
 
-        /* Set Balanced as default */
-        cpu_profile_set_active("Balanced");
+        /* Default: Balanced if available, otherwise Power Save, otherwise the first one */
+        if (cpu_profile_get("Balanced")) cpu_profile_set_active("Balanced");
+        else if (cpu_profile_get("Power Save")) cpu_profile_set_active("Power Save");
+        else if (g_cpu_state.num_profiles > 0) cpu_profile_set_active(g_cpu_state.profiles[0].name);
     }
 
     /* Load custom profiles (also loads hard limit from profiles.json) */
@@ -581,7 +639,15 @@ int cpu_profile_apply(const char *name) {
         return -1;
     }
 
-    const char *gov_str = enum_to_governor(p->governor);
+    const char *gov_str = cpu_governor_resolve(enum_to_governor(p->governor));
+    if (!gov_str) {
+        LOG_ERROR("[CPU] No usable governor for profile '%s'", name);
+        return -1;
+    }
+    if (strcmp(gov_str, enum_to_governor(p->governor)) != 0) {
+        LOG_WARN("[CPU] Profile '%s': governor '%s' is not available - using '%s'",
+                 name, enum_to_governor(p->governor), gov_str);
+    }
     LOG_INFO("[CPU] Applying profile '%s' (governor=%s)", name, gov_str);
 
     /* Set governor */
@@ -1323,6 +1389,13 @@ int cpu_custom_profile_load_json(void) {
                 }
             }
 
+            if (!cpu_governor_available(enum_to_governor(p.governor))) {
+                const char *alt = cpu_governor_resolve(enum_to_governor(p.governor));
+                LOG_WARN("[CPU] Profile '%s' uses governor '%s', which this system does not offer - "
+                         "'%s' will be used; re-save the profile to store it",
+                         p.name, enum_to_governor(p.governor), alt ? alt : "none");
+            }
+
             /* Drop impossible per-core values saved by older versions */
             for (int j = 0; j < p.num_cores && j < MAX_CPUS; j++) {
                 p.per_core_max_freq_hz[j] = sanitize_core_freq(j, p.per_core_max_freq_hz[j], "max", p.name);
@@ -1347,8 +1420,15 @@ int cpu_custom_profile_apply(int idx) {
     CpuCustomProfile *p = &g_cpu_state.custom_profiles[idx];
     LOG_INFO("[CPU] Applying custom profile '%s' (index %d)", p->name, idx);
 
-    /* Set governor (non-fatal: continue with frequencies even if governor fails) */
-    const char *gov_str = enum_to_governor(p->governor);
+    /* Set governor (non-fatal: continue with frequencies even if governor fails).
+     * A governor this system does not offer is replaced by the closest one. */
+    const char *wanted_gov = enum_to_governor(p->governor);
+    const char *gov_str = cpu_governor_resolve(wanted_gov);
+    if (!gov_str) gov_str = wanted_gov;
+    if (strcmp(gov_str, wanted_gov) != 0) {
+        LOG_WARN("[CPU] Profile '%s': governor '%s' is not available - using '%s' (re-save the profile to store it)",
+                 p->name, wanted_gov, gov_str);
+    }
     if (set_all_cpus_governor(gov_str) != 0) {
         LOG_WARN("[CPU] Failed to set governor '%s' for profile '%s', continuing with frequencies", gov_str, p->name);
     }

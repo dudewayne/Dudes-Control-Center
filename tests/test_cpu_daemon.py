@@ -30,7 +30,8 @@ os.makedirs("cfg", exist_ok=True)
 os.makedirs("logs", exist_ok=True)
 
 profile = {
-    "name": "Test", "governor": "powersave", "apply_all_cores": 0, "num_cores": NCPU,
+    # schedutil is not offered by the fake driver (like intel_pstate in active mode)
+    "name": "Test", "governor": "schedutil", "apply_all_cores": 0, "num_cores": NCPU,
     # core 0 below the limit; core 10 = 3 Hz, a value truncated by the old 256-byte GUI limit
     "per_core_max_freq_hz": [3000000000] + [0] * 9 + [3] + [0] * (NCPU - 11),
     "per_core_min_freq_hz": [0, 0, 0, 800000000] + [0] * (NCPU - 4),
@@ -67,6 +68,17 @@ try:
     check(read_khz("sys", 7, "scaling_max_freq") == 5000000, "core lowered externally is restored")
     check(read_khz("sys", 0, "scaling_max_freq") == 3000000, "profile value still not raised to the limit")
 
+    # governors: only what the driver offers (v1.17.1)
+    r = ask(a, "LIST_GOVERNORS")
+    check("Performance" in r and "Power Save" in r and "Balanced" not in r,
+          "governor policies only for available governors (no 'Balanced'/schedutil)")
+    r = ask(a, "APPLY_CUSTOM_PROFILE|0")
+    gov = open("sys/cpu0/cpufreq/scaling_governor").read().strip()
+    check(gov == "powersave", f"profile asking for schedutil gets the closest available governor (got {gov})")
+    r = ask(a, "APPLY_GOVERNOR|Performance")
+    gov = open("sys/cpu0/cpufreq/scaling_governor").read().strip()
+    check("OK" in r and gov == "performance", "available governor applied as-is")
+
     # several clients at once
     b = connect("cpu.sock")
     check("PONG" in ask(b, "PING") and "PONG" in ask(a, "PING"), "two clients are served at the same time")
@@ -80,6 +92,11 @@ try:
     check(f"({NCPU} cores)" in ask(a, cmd), f"all {NCPU} cores stored")
     r = ask(a, "GET_CUSTOM_PROFILE_INFO|0")
     check(f"CORE_{NCPU - 1}_MAX:{5000000000 - (NCPU - 1)}" in r, "last core's 64-bit value read back exactly")
+
+    pairs_sched = ",".join(f"800000000,{4000000000}" for _ in range(NCPU))
+    ask(a, f"SAVE_CUSTOM_PROFILE|0|schedutil|0|{pairs_sched}")
+    check("GOVERNOR:powersave" in ask(a, "GET_CUSTOM_PROFILE_INFO|0"),
+          "saving with an unavailable governor stores an available one")
 
     # saving keeps the other sections
     ask(a, "SET_HARD_LIMIT|4800000000")
@@ -103,4 +120,5 @@ finally:
 log = open("logs/CPU_DAEMON.log").read()
 check("SIGHUP: reloading configuration" in log, "SIGHUP reload runs in the main loop")
 check("core 10: invalid max frequency 3 Hz" in log, "corrupt per-core value reported in the log")
+check("uses governor 'schedutil', which this system does not offer" in log, "unavailable governor reported at startup")
 sys.exit(check.finish())

@@ -184,6 +184,11 @@ const CpuCustomProfile* cpu_custom_profile_get(int idx); /* Get custom profile b
 int cpu_custom_profile_set_active(int idx);              /* Set active custom profile (in memory) */
 char* cpu_custom_profile_list_json(void);                /* Return all custom profiles as JSON string */
 
+/* Governor availability (the cpufreq driver decides which governors exist) */
+int cpu_governor_available(const char *gov);              /* 1 if offered by the driver */
+const char* cpu_governor_resolve(const char *wanted);     /* wanted if available, else closest available, NULL if none */
+CpuGovernor cpu_governor_resolve_enum(CpuGovernor gov, const char *context);  /* same, for enums; logs a warning on change */
+
 /* Utility functions */
 int governor_to_enum(const char *governor_str, CpuGovernor *gov);  /* Convert governor string to enum */
 const char* enum_to_governor(CpuGovernor gov);           /* Convert enum to governor string */

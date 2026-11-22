@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.17.1] - 2026-11-22
+
+### Fixed
+- **CPU governor choices now match what the system offers**: the CPU daemon always created the policies Performance, Balanced (`schedutil`) and Power Save, but the `intel_pstate` driver in active mode (common on Intel laptops) only offers `performance` and `powersave`. Choosing "Balanced" failed silently, and profiles saved with it stored `schedutil`, so their governor never applied. Policies are now only created for available governors.
+- **Profiles naming an unavailable governor use the closest available one**: for dynamic governors (`schedutil`, `ondemand`, `conservative`) that is `schedutil` if present, otherwise `powersave`, which scales dynamically with load under `intel_pstate`. A warning is logged at startup and on apply. Saving a profile (GUI batch save, create, set governor) stores only available governors, so existing profiles are corrected the next time they are saved.
+- The test suite now checks governor handling against a driver that offers only `performance` and `powersave` (87 checks).
+
 ## [1.17.0] - 2026-11-22
 
 ### Added
