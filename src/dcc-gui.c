@@ -4981,11 +4981,6 @@ static GtkWidget *create_curve_editor_page(AppData *app) {
     GtkWidget *vbox = gtk_box_new(GTK_ORIENTATION_VERTICAL, 15);
     gtk_container_set_border_width(GTK_CONTAINER(vbox), 20);
     
-    /* Title */
-    GtkWidget *title = gtk_label_new(NULL);
-    gtk_label_set_markup(GTK_LABEL(title), "<span size='large' weight='bold'>Fan Profiles</span>");
-    gtk_box_pack_start(GTK_BOX(vbox), title, FALSE, FALSE, 0);
-
     /* Daemon status (like the Keyboard tab) */
     {
         GtkWidget *frame = gtk_frame_new("Fan Daemon Status");

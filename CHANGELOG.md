@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.21.2] - 2026-11-22
+
+### Fixed
+- Fan Profiles tab: removed the "Fan Profiles" heading at the top (it repeated the tab name and only took space).
+
 ## [1.21.1] - 2026-11-22
 
 ### Fixed
