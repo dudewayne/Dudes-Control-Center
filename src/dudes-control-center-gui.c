@@ -49,17 +49,18 @@ typedef struct {
 
 /* Default LED ID per key position, used until the LED wizard has created
  * ~/.config/dudes-control-center/keyboard_led_mapping.csv. The wizard
- * mapping takes precedence (it also knows keys driven by several LEDs). */
+ * mapping takes precedence (it also knows keys driven by several LEDs).
+ * LED IDs use the name numbering (rgb:kbd_backlight_N = N) since 1.18.7. */
 static const int kbd_position_to_led_id[KBD_NUM_KEYS] = {
-    41, 77, 14, 66, 1, 56, 109, 46, 96, 33, 7, 61, 114,
-    50, 102, 39, 90, 27, 79, 16, 3, 58, 111, 47, 98, 35,
-    86, 23, 74, 11, 118, 89, 54, 44, 31, 94, 83, 20, 71,
-    8, 52, 115, 104, 42, 92, 29, 81, 18, 69, 5, 112, 49,
-    100, 37, 88, 19, 76, 13, 65, 113, 0, 45, 108, 95, 32,
-    84, 21, 72, 9, 62, 116, 105, 43, 93, 82, 70, 6, 60,
-    101, 22, 89, 26, 78, 15, 67, 2, 57, 110, 97, 34, 85,
-    73, 87, 10, 63, 117, 53, 55, 106, 80, 48, 36, 24, 59,
-    119, 40, 68, 17, 75, 12, 38, 107, 91
+    0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12,
+    13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25,
+    26, 27, 28, 29, 30, 82, 31, 33, 35, 34, 36, 37, 38,
+    39, 41, 40, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51,
+    52, 53, 54, 75, 56, 57, 58, 79, 59, 61, 60, 62, 63,
+    64, 65, 66, 67, 68, 69, 70, 71, 72, 74, 76, 77, 78,
+    80, 93, 82, 83, 84, 85, 86, 87, 88, 89, 90, 91, 92,
+    94, 113, 95, 96, 97, 98, 119, 99, 105, 110, 112, 114, 109,
+    118, 102, 107, 106, 115, 116, 81, 32, 103
 };
 
 /* Key names from keyboard_keys_de.csv (one per position index) */
@@ -4335,7 +4336,7 @@ static void kbd_save_led_mapping_csv(AppData *app) {
     }
     
     /* Write header (semicolon delimiter) */
-    fprintf(f, "led_id;position;led_index\n");
+    fprintf(f, "led_id;position;led_index;%s\n", KBD_CSV_NUMBERING_MARK);
     
     /* Track which positions have been written and count LEDs per position */
     int pos_led_count[120] = {0};

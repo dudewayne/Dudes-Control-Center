@@ -121,7 +121,13 @@ int zone_assign_leds(const int *leds, int num_leds, uint8_t r, uint8_t g, uint8_
 
 /* --- Profile management --- */
 int profile_apply(const char *name);
-int kbd_apply_active_profile(void);   /* at daemon start: re-apply the active profile */
+int kbd_apply_active_profile(void);
+/* LEDs are numbered by name since 1.18.6+1 (rgb:kbd_backlight = 0,
+ * rgb:kbd_backlight_N = N) instead of the order /sys/class/leds lists them.
+ * Converts keyboard profiles and the LED wizard mapping saved with the old
+ * numbering, once. Marker: "led_numbering": "name" / CSV header. */
+int kbd_led_migrate_numbering(void);
+#define KBD_CSV_NUMBERING_MARK "numbering=name"   /* at daemon start: re-apply the active profile */
 const KbdLedProfile* profile_get_current(void);
 int apply_zones(void);
 int apply_zones_with_brightness(void);

@@ -32,12 +32,26 @@ for n in names:
 wr("leds/input20::capslock/brightness", "0")   # not a keyboard RGB LED
 os.makedirs("logs", exist_ok=True)
 
+# Data saved by versions before 1.18.7 numbered the LEDs in directory order
+# (what readdir returns). The daemon converts it once to name numbering.
+old_order = [n for n in os.listdir("leds") if "kbd" in n]   # same filter and order as before
+
+
+def num(name):
+    return 0 if name.endswith("kbd_backlight") else int(name.rsplit("_", 1)[1])
+
+
+old_of = {num(n): i for i, n in enumerate(old_order)}       # LED number -> old index
 json.dump({"version": "1.0",
            "keyboard_profiles": {"active_profile_index": 1, "profiles": [
                {"name": "Empty", "zones": []},
-               {"name": "Start", "zones": [{"name": "z", "r": 10, "g": 20, "b": 30, "keys": [0, 1]}]}]},
+               {"name": "Start", "zones": [{"name": "z", "r": 10, "g": 20, "b": 30,
+                                            "keys": [old_of[0], old_of[1]]}]}]},
            "cpu_freq_profiles": {"keep": 1}},
           open(os.makedirs("cfg", exist_ok=True) or "cfg/profiles.json", "w"))
+with open("cfg/keyboard_led_mapping.csv", "w") as f:        # wizard mapping, old numbering
+    f.write("led_id;position;led_index\n")
+    f.write(f"{old_of[7]};3;\n{old_of[42]};50;\n{old_of[100]};;\n")
 
 
 def start():
@@ -55,6 +69,13 @@ try:
         if len(parts) >= 3 and parts[0] == "LED":
             idx[int(parts[1])] = parts[2]
     check(len(idx) == NLEDS, f"daemon found the {NLEDS} keyboard LEDs and ignored other LEDs (found {len(idx)})")
+    check(all(num(idx[i]) == i for i in range(NLEDS)), "LEDs numbered by name: LED N = rgb:kbd_backlight_N (v1.18.7)")
+    csv = open("cfg/keyboard_led_mapping.csv").read()
+    check("numbering=name" in csv and "\n7;3;\n" in csv and "\n42;50;\n" in csv and "\n100;;\n" in csv,
+          "LED wizard mapping converted once to the name numbering")
+    data = json.load(open("cfg/profiles.json"))
+    check(data["keyboard_profiles"].get("led_numbering") == "name" and data.get("cpu_freq_profiles") == {"keep": 1},
+          "profiles marked as converted, other sections kept")
 
     def color(i):
         return open(f"leds/{idx[i]}/multi_intensity").read().split()
@@ -142,6 +163,7 @@ try:
     c = colors()
     check(c[6] == (0, 255, 0) and c[119] == (0, 0, 255) and c[50] == (255, 255, 255),
           "after a restart the active profile's per-key colors are restored")
+    check(open("cfg/keyboard_led_mapping.csv").read() == csv, "no second conversion after a restart")
     check("IS_ON=1" in ask(s, "STATUS"), "STATUS reports the backlight as on after restoring a profile")
 
     # the off state survives a restart (v1.18.6)

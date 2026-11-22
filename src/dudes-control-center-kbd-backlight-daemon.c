@@ -866,6 +866,7 @@ int main(int argc, char *argv[]) {
     LOG_INFO("[KBD_DAEMON] Loading saved profiles...");
     kbd_profiles_load_json();
     LOG_INFO("[KBD_DAEMON] Loaded %d keyboard profiles", g_num_profiles);
+    kbd_led_migrate_numbering();   /* once: data saved with the old LED numbering */
     /* Start in the state the user left: off if switched off, otherwise the
      * active profile's colors (lost at reboot), otherwise white. The GUI no
      * longer turns the backlight on when it starts (1.18.6). */

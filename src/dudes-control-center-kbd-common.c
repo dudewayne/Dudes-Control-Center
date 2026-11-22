@@ -30,6 +30,10 @@ static KbdLedProfile g_profiles[KBD_MAX_PROFILES];
 int g_num_zones = 0;
 int g_num_profiles = 0;
 static int g_active_profile_index = 0;
+/* old (directory order) LED index -> new (name order) index, from scan_leds() */
+static int g_led_old_to_new[KBD_MAX_LEDS];
+static int g_led_numbering_name = 0;   /* profiles.json says LEDs are numbered by name */
+static int g_kbd_section_seen = 0;     /* profiles.json had a keyboard_profiles section */
 
 /* ============================================================================
  * UTILITY FUNCTIONS
@@ -121,6 +125,32 @@ static int scan_leds(KbdLedDevice *devices, int max_devices) {
     }
 
     closedir(dir);
+
+    /* Number the LEDs by name, not by the (hash) order of the directory:
+     * rgb:kbd_backlight -> 0, rgb:kbd_backlight_N -> N, others after them */
+    int order[KBD_MAX_LEDS];
+    long key[KBD_MAX_LEDS];
+    for (int i = 0; i < count; i++) {
+        order[i] = i;
+        key[i] = 1000000L + i;                       /* unknown names keep their order, last */
+        const char *k = strstr(devices[i].name, "kbd_backlight");
+        if (k) {
+            k += strlen("kbd_backlight");
+            if (*k == '\0') key[i] = 0;
+            else if (*k == '_' && k[1] >= '0' && k[1] <= '9') key[i] = strtol(k + 1, NULL, 10);
+        }
+    }
+    for (int i = 1; i < count; i++) {                /* insertion sort, count <= 256 */
+        int o = order[i], j = i - 1;
+        while (j >= 0 && key[order[j]] > key[o]) { order[j + 1] = order[j]; j--; }
+        order[j + 1] = o;
+    }
+    static KbdLedDevice sorted[KBD_MAX_LEDS];
+    for (int n = 0; n < count; n++) {
+        sorted[n] = devices[order[n]];
+        g_led_old_to_new[order[n]] = n;
+    }
+    memcpy(devices, sorted, (size_t)count * sizeof(KbdLedDevice));
     return count;
 }
 
@@ -538,6 +568,77 @@ int kbd_apply_active_profile(void) {
     return apply_zones();
 }
 
+/* Convert the LED wizard mapping CSV next to profiles.json */
+static void kbd_migrate_mapping_csv(const char *profiles_path) {
+    char csv[1024];
+    snprintf(csv, sizeof csv, "%s", profiles_path);
+    char *slash = strrchr(csv, '/');
+    if (slash) snprintf(slash + 1, sizeof csv - (size_t)(slash + 1 - csv), "keyboard_led_mapping.csv");
+    else snprintf(csv, sizeof csv, "keyboard_led_mapping.csv");
+
+    char *data = dcc_user_file_read(csv, 256 * 1024, NULL);
+    if (!data) return;                                   /* no wizard mapping yet */
+    if (strstr(data, KBD_CSV_NUMBERING_MARK)) { free(data); return; }   /* already new */
+
+    size_t cap = strlen(data) + 256, len = 0;
+    char *out = malloc(cap);
+    if (!out) { free(data); return; }
+    len += (size_t)snprintf(out, cap, "led_id;position;led_index;%s\n", KBD_CSV_NUMBERING_MARK);
+    int converted = 0;
+    char *save = NULL;
+    int first = 1;
+    for (char *line = strtok_r(data, "\n", &save); line; line = strtok_r(NULL, "\n", &save)) {
+        if (first) { first = 0; continue; }              /* old header */
+        char *sep = strchr(line, ';');
+        int old = atoi(line);
+        if (!sep || old < 0 || old >= g_led_state.num_leds) continue;
+        len += (size_t)snprintf(out + len, cap - len, "%d%s\n", g_led_old_to_new[old], sep);
+        converted++;
+        if (len + 64 > cap) break;
+    }
+    if (dcc_user_file_write(csv, out, len) == 0)
+        LOG_INFO("[KBD] LED wizard mapping converted to the new LED numbering (%d LEDs): %s", converted, csv);
+    else
+        LOG_ERROR("[KBD] Could not convert %s: %s", csv, strerror(errno));
+    free(out);
+    free(data);
+}
+
+int kbd_led_migrate_numbering(void) {
+#ifdef MAIN_PROFILES_PATH
+    const char *path = MAIN_PROFILES_PATH;
+#else
+    const char *path = dcc_profiles_path();
+    if (!path) return -1;
+#endif
+    int identity = 1;
+    for (int i = 0; i < g_led_state.num_leds; i++)
+        if (g_led_old_to_new[i] != i) identity = 0;
+
+    /* The wizard mapping has its own marker (it can exist without profiles) */
+    if (!identity) kbd_migrate_mapping_csv(path);
+
+    if (!g_kbd_section_seen || g_led_numbering_name) return 0;   /* nothing saved in the old numbering */
+
+    int changed = 0;
+    if (!identity) {
+        for (int p = 0; p < g_num_profiles; p++)
+            for (int z = 0; z < g_profiles[p].num_zones; z++) {
+                KbdLedZone *zone = &g_profiles[p].zones[z];
+                for (int k = 0; k < zone->num_keys; k++) {
+                    int old = zone->key_indices[k];
+                    if (old >= 0 && old < g_led_state.num_leds) {
+                        zone->key_indices[k] = g_led_old_to_new[old];
+                        changed++;
+                    }
+                }
+            }
+    }
+    g_led_numbering_name = 1;
+    LOG_INFO("[KBD] Keyboard profiles converted to the new LED numbering (%d key entries)", changed);
+    return kbd_profiles_save_json();
+}
+
 const KbdLedProfile* profile_get_current(void) {
     if (g_num_profiles > 0) {
         return &g_profiles[g_num_profiles - 1];
@@ -676,6 +777,7 @@ int kbd_profiles_save_json(void) {
     /* Build keyboard_profiles section */
     cJSON *kbd_section = cJSON_CreateObject();
     cJSON_AddNumberToObject(kbd_section, "active_profile_index", g_active_profile_index);
+    cJSON_AddStringToObject(kbd_section, "led_numbering", "name");
 
     cJSON *profiles_array = cJSON_CreateArray();
     for (int i = 0; i < g_num_profiles; i++) {
@@ -742,6 +844,9 @@ int kbd_profiles_load_json(void) {
 
     /* Read active index */
     if (cJSON_IsObject(kbd_section)) {
+        g_kbd_section_seen = 1;
+        cJSON *numbering = cJSON_GetObjectItem(kbd_section, "led_numbering");
+        g_led_numbering_name = cJSON_IsString(numbering) && strcmp(numbering->valuestring, "name") == 0;
         cJSON *active_item = cJSON_GetObjectItem(kbd_section, "active_profile_index");
         if (active_item) {
             g_active_profile_index = active_item->valueint;

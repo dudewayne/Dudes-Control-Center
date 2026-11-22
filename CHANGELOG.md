@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.18.7] - 2026-11-22
+
+### Fixed
+- **Keyboard LEDs are numbered by name**: the keyboard daemon numbered the LEDs in the order `/sys/class/leds` lists them (a hash order: LED 0 was `rgb:kbd_backlight_59`), and the LED wizard mapping and keyboard profiles depended on that order. Now LED N is `rgb:kbd_backlight_N` (the base `rgb:kbd_backlight` is 0), which also follows the physical key order (Esc = 0, F1 = 1, ...).
+- **Existing data is converted once**: on its first start the daemon converts keyboard profiles (`"led_numbering": "name"` in `profiles.json`) and the LED wizard mapping (`numbering=name` in the CSV header) from the old numbering, so the wizard does not need to be run again. The GUI's built-in key table uses the new numbering too.
+- Tests for the numbering and the one-time conversion (8 suites, 171 checks).
+
 ## [1.18.6] - 2026-11-22
 
 ### Fixed
