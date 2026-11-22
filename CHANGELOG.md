@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.26.0] - 2026-11-22
+
+### Added
+- **Tray menu: Keyboard Profiles**: a submenu below Fan Profiles lists the keyboard profiles, the active one marked "(Active)"; choosing one activates it, like the CPU and Fan submenus. If the Keyboard tab has unsaved changes, the unsaved-changes dialog comes first. The submenu follows every change to the keyboard profiles (create, rename, delete, activate) and appears once the keyboard daemon is connected.
+
 ## [1.25.0] - 2026-11-22
 
 ### Added

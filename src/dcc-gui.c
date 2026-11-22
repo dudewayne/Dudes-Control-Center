@@ -595,6 +595,10 @@ static int check_unsaved_changes(AppData *app); /* Returns 1 if changes applied,
 
 /* System tray functions */
 static GtkWidget* create_tray_menu(AppData *app);
+static void on_tray_select_kbd_profile(GtkMenuItem *item, gpointer user_data);
+static const char *send_keyboard_command_once(AppData *app, const char *cmd);
+static int kbd_load_edit_profile(AppData *app, const char *name);
+static void kbd_edit_changed(AppData *app, int send_preview, int light_on);
 static void update_tray_menu(AppData *app);
 static gboolean on_tray_popup_menu(GtkStatusIcon *status_icon, guint button, guint activate_time, gpointer user_data);
 static void on_tray_activate_left_click(GtkStatusIcon *status_icon, gpointer user_data);
@@ -3719,6 +3723,7 @@ static void connect_to_keyboard_daemon(AppData *app) {
     /* Load LED mapping from CSV */
     kbd_load_led_mapping_csv(app);
     kbd_refresh_key_colors(app);
+    if (app->tray_menu) update_tray_menu(app);   /* Keyboard Profiles submenu */
 }
 
 
@@ -3898,6 +3903,7 @@ static void load_keyboard_profiles_select(AppData *app, const char *select_name)
         gtk_combo_box_set_active(GTK_COMBO_BOX(app->kbd_profile_combo), select_idx >= 0 ? select_idx : active_idx);
     if (app->kbd_profile_combo_signal_id)
         g_signal_handler_unblock(app->kbd_profile_combo, app->kbd_profile_combo_signal_id);
+    if (app->tray_menu) update_tray_menu(app);   /* Keyboard Profiles submenu (1.26.0) */
 
     update_daemon_status_labels(app);
 
@@ -7721,6 +7727,43 @@ static GtkWidget* create_tray_menu(AppData *app) {
             gtk_widget_show(profile_item);
         }
     }
+
+    /* Keyboard Profiles submenu (1.26.0; alphabetical: after Fan). Asks the
+     * daemon only over an existing connection: a reconnect from here would
+     * rebuild this menu while it is being built. */
+    if (app->kbd_connected && app->kbd_socket_fd >= 0) {
+        const char *r = send_keyboard_command_once(app, "LIST_PROFILES");
+        if (r && strncmp(r, "PROFILES_START", 14) == 0) {
+            GtkWidget *kbd_item = gtk_menu_item_new_with_label("Keyboard Profiles");
+            GtkWidget *kbd_submenu = gtk_menu_new();
+            gtk_menu_item_set_submenu(GTK_MENU_ITEM(kbd_item), kbd_submenu);
+            gtk_container_add(GTK_CONTAINER(menu), kbd_item);
+            gtk_widget_show(kbd_item);
+            GtkWidget *first_radio = NULL;
+            gchar **lines = g_strsplit(r, "\n", -1);
+            for (int i = 0; lines[i]; i++) {
+                int idx = -1;
+                if (sscanf(lines[i], "PROFILE %d [", &idx) != 1) continue;
+                const char *marker = strchr(lines[i], '[');
+                const char *name = strstr(lines[i], "] ");
+                if (!marker || !name || !name[2]) continue;
+                int active = marker[1] == '*';
+                gchar *clean = g_strchomp(g_strdup(name + 2));
+                gchar *label = active ? g_strdup_printf("%s (Active)", clean) : g_strdup(clean);
+                GtkWidget *it = first_radio
+                    ? gtk_radio_menu_item_new_with_label_from_widget(GTK_RADIO_MENU_ITEM(first_radio), label)
+                    : gtk_radio_menu_item_new_with_label(NULL, label);
+                if (!first_radio) first_radio = it;
+                g_object_set_data_full(G_OBJECT(it), "kbd_profile_name", clean, g_free);
+                if (active) gtk_check_menu_item_set_active(GTK_CHECK_MENU_ITEM(it), TRUE);
+                g_signal_connect(it, "activate", G_CALLBACK(on_tray_select_kbd_profile), app);
+                gtk_container_add(GTK_CONTAINER(kbd_submenu), it);
+                gtk_widget_show(it);
+                g_free(label);
+            }
+            g_strfreev(lines);
+        }
+    }
     
     /* Separator */
     GtkWidget *separator2 = gtk_separator_menu_item_new();
@@ -7919,6 +7962,36 @@ static void on_tray_select_profile(GtkRadioMenuItem *radiomenuitem, gpointer use
             show_status(app, "Failed to activate profile");
         }
     }
+}
+
+/* Callback: select a keyboard profile from the system tray menu (1.26.0) */
+static void on_tray_select_kbd_profile(GtkMenuItem *item, gpointer user_data) {
+    AppData *app = (AppData *)user_data;
+    if (app->updating_tray_menu) return;
+    if (!gtk_check_menu_item_get_active(GTK_CHECK_MENU_ITEM(item))) return;   /* the one switched off */
+    const char *name = g_object_get_data(G_OBJECT(item), "kbd_profile_name");
+    if (!name) return;
+    char pname[256];
+    snprintf(pname, sizeof pname, "%s", name);
+
+    /* While the Keyboard tab edits a profile: its unsaved changes first */
+    int on_kbd_tab = gtk_notebook_get_current_page(GTK_NOTEBOOK(app->notebook)) == PAGE_KEYBOARD;
+    if (on_kbd_tab && kbd_check_unsaved_changes(app) < 0) {
+        update_tray_menu(app);              /* radio back to the active profile */
+        return;
+    }
+    char cmd[512];
+    snprintf(cmd, sizeof cmd, "LOAD_PROFILE::%s", pname);
+    const char *r = send_keyboard_command(app, cmd);
+    int ok = r && strncmp(r, "OK", 2) == 0;
+    g_print("[GUI] Tray keyboard profile '%s': %s\n", pname, r ? r : "NULL");
+    if (on_kbd_tab) {
+        load_keyboard_profiles_select(app, pname);
+        if (ok && kbd_load_edit_profile(app, pname) == 0) kbd_edit_changed(app, 0, 0);
+    }
+    kbd_sync_power_switch(app);
+    show_status(app, ok ? "Keyboard profile activated" : "Failed to activate keyboard profile");
+    update_tray_menu(app);
 }
 
 /* Callback: select a CPU profile from the system tray menu */

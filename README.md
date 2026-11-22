@@ -54,7 +54,7 @@ dcc-gui --debug    # more output in GUI.log
 | **Logs** | Live GUI, CPU daemon, fan daemon and keyboard daemon logs (newest on top). |
 | **About** | Version, credits, links. |
 
-**Tray icon:** left click shows/hides the window, right click opens a menu with fan and CPU profiles. Closing the window minimizes to the tray. Window position and size are remembered; only one GUI instance can run.
+**Tray icon:** left click shows/hides the window, right click opens a menu with CPU, fan and keyboard profiles (choosing one activates it). Closing the window minimizes to the tray. Window position and size are remembered; only one GUI instance can run.
 
 ### Keyboard profiles and zones
 
