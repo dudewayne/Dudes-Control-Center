@@ -49,7 +49,10 @@ int main(void) {
     m_cpu = 92; steps(1);
     CHECK(current_fan_duty == 100, "hysteresis: still 100% at 92C");
     m_cpu = 89; steps(1);
-    CHECK(current_fan_duty == 0 && override_reason == OVERRIDE_NONE, "below 90C: manual 0% restored");
+    CHECK(override_reason == OVERRIDE_NONE && auto_mode_enabled && emergency_auto_count == 1,
+          "below 90C after an emergency: manual mode ends, auto mode takes over (v1.18.4)");
+    CHECK(current_fan_duty > 0, "fans do not stop again after the emergency");
+    cmd("SET_MANUAL 0\n");
     m_cpu = -1; steps(2);
     CHECK(current_fan_duty == 100, "manual mode: sensor failure -> 100%");
     m_cpu = 50; steps(1);

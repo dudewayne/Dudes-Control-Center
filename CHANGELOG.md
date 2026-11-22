@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.18.4] - 2026-11-22
+
+### Fixed
+- **No heat cycle after an emergency in manual mode**: when the 95°C emergency override ended, the fan daemon went back to the manual speed. At a low speed such as 0% the CPU heated up to 95°C again (on the test laptop 73 -> 95°C in about 80 s), so the fans would cycle between off and full speed. Now an emergency ends manual mode: when it clears, the fans follow the fan curve (auto mode). The GUI switches to auto and says why. After a sensor failure (not overheating) the manual speed is still restored.
+- **Manual and auto mode changes are logged by the fan daemon** (`Manual mode: fan speed N%`, `Auto mode on/off`, and the emergency handover), so the daemon log shows what the fans were told to do.
+- Fan daemon `STATUS` reports `EMERGENCY_AUTO=<count>`.
+- Tests for the handover (8 suites, 150 checks).
+
 ## [1.18.3] - 2026-11-22
 
 ### Fixed

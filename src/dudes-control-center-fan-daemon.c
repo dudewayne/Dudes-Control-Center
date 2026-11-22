@@ -64,6 +64,9 @@ static int num_profiles = 0;
 static int active_profile_idx = -1;
 static int auto_mode_enabled = 0;
 static int manual_duty = 20;
+/* Times manual mode was ended by an emergency (reported as EMERGENCY_AUTO=
+ * in STATUS so the GUI can tell the user why the mode changed) */
+static int emergency_auto_count = 0;
 static int current_fan_duty = 20; /* Last duty successfully written to the EC */
 
 /* --- Safety configuration --- */
@@ -389,9 +392,10 @@ static int handle_command(const char *cmd, char *response, size_t resp_size) {
             "GPU_FAN_RPM=%d\n"
             "FAN_DUTY=%d\n"
             "AUTO_MODE=%d\n"
-            "FAILSAFE=%d\n",
+            "FAILSAFE=%d\n"
+            "EMERGENCY_AUTO=%d\n",
             cpu_temp, gpu_temp, cpu_fan_rpm, gpu_fan_rpm, fan_duty, auto_mode_enabled,
-            override_reason != OVERRIDE_NONE ? 1 : 0);
+            override_reason != OVERRIDE_NONE ? 1 : 0, emergency_auto_count);
         return 0;
     }
     
@@ -403,6 +407,8 @@ static int handle_command(const char *cmd, char *response, size_t resp_size) {
             return -1;
         }
         
+        if (auto_mode_enabled || manual_duty != pct)
+            LOG_INFO("Manual mode: fan speed %d%%%s", pct, auto_mode_enabled ? " (auto mode off)" : "");
         auto_mode_enabled = 0;
         manual_duty = pct;
 
@@ -429,6 +435,9 @@ static int handle_command(const char *cmd, char *response, size_t resp_size) {
              * to an old manual value */
             manual_duty = clamp(current_fan_duty, 0, 100);
         }
+        if (enable != auto_mode_enabled)
+            LOG_INFO("Auto mode %s%s", enable ? "on" : "off",
+                     enable ? "" : " (manual mode holds the current speed)");
         auto_mode_enabled = enable;
         snprintf(response, resp_size, "OK Auto mode %s\n", 
                  auto_mode_enabled ? "enabled" : "disabled");
@@ -993,9 +1002,18 @@ static void fan_control_step(void) {
     if (override_reason != OVERRIDE_NONE) {
         LOG_WARN("Safety override (%s) cleared: CPU=%d GPU=%d",
                  override_reason_str(override_reason), cpu_temp, gpu_temp);
+        OverrideReason was = override_reason;
         override_reason = OVERRIDE_NONE;
-        if (!auto_mode_enabled) {
-            apply_fan_duty(manual_duty);   /* restore the user's manual setting */
+        if (!auto_mode_enabled && was == OVERRIDE_EMERGENCY_TEMP) {
+            /* Going back to a low manual speed would just heat up to the
+             * emergency limit again (seen at 0%: 73 -> 95 degC in ~80 s).
+             * Hand over to the fan curve instead. */
+            LOG_WARN("Manual mode (%d%%) ended by the emergency temperature - switching to auto mode",
+                     manual_duty);
+            auto_mode_enabled = 1;
+            emergency_auto_count++;
+        } else if (!auto_mode_enabled) {
+            apply_fan_duty(manual_duty);   /* sensor recovered: restore the user's manual setting */
         }
         /* auto mode ramps down from 100% through the normal logic below */
     }

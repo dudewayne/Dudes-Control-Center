@@ -303,6 +303,7 @@ typedef struct {
     
     /* Last known fan duty from status refresh */
     int last_known_fan_duty;
+    int emergency_auto_seen; /* last EMERGENCY_AUTO count from the fan daemon (-1 = none yet) */
     
     /* Manual mode state tracking */
     int in_manual_mode; /* TRUE if currently in manual mode */
@@ -4694,7 +4695,7 @@ static void parse_status(AppData *app, const char *response) {
     
     /* Parse response and update labels */
     int cpu_temp = 0, gpu_temp = 0, cpu_fan_rpm = 0, gpu_fan_rpm = 0;
-    int auto_mode = 1, fan_duty = 0;
+    int auto_mode = 1, fan_duty = 0, emergency_auto = -1;
     
     char *token = strtok(buffer, "\n");
     while (token != NULL) {
@@ -4711,6 +4712,8 @@ static void parse_status(AppData *app, const char *response) {
         } else if (strncmp(token, "FAN_DUTY=", 9) == 0) {
             fan_duty = atoi(token + 9);
             app->last_known_fan_duty = fan_duty; /* Cache for manual mode */
+        } else if (strncmp(token, "EMERGENCY_AUTO=", 15) == 0) {
+            emergency_auto = atoi(token + 15);
         }
         token = strtok(NULL, "\n");
     }
@@ -4751,6 +4754,19 @@ static void parse_status(AppData *app, const char *response) {
         /* In auto mode, show "--" and buttons are disabled (handled in switch callback) */
     }
     
+    /* The daemon ended manual mode after an emergency: follow it and say why */
+    int ended_by_emergency = emergency_auto >= 0 && app->emergency_auto_seen >= 0 &&
+                             emergency_auto > app->emergency_auto_seen;
+    if (emergency_auto >= 0) app->emergency_auto_seen = emergency_auto;
+    if (auto_mode && !app->auto_mode_enabled) {
+        app->auto_mode_enabled = 1;
+        if (app->manual_speed_label) gtk_label_set_text(GTK_LABEL(app->manual_speed_label), "--");
+        if (ended_by_emergency) {
+            g_print("[GUI] Fan daemon switched to auto mode after an emergency temperature\n");
+            show_status(app, "Manual fan mode ended: the CPU/GPU reached 95\302\260C, the fans now follow the curve (auto mode)");
+        }
+    }
+
     /* Update internal manual mode tracking */
     int was_in_manual_mode = app->in_manual_mode;
     app->in_manual_mode = (auto_mode == 0);
@@ -7327,6 +7343,7 @@ int main(int argc, char *argv[]) {
     g_print("[GUI] XDG_RUNTIME_DIR=%s\n", g_getenv("XDG_RUNTIME_DIR"));
     
     AppData app = {0};
+    app.emergency_auto_seen = -1;   /* first STATUS only records the count */
     
     /* Create main window */
     GtkWidget *window = create_main_window(&app);
