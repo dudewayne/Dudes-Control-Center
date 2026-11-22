@@ -9,9 +9,18 @@
 #include <stdint.h>
 
 /* --- Socket configuration --- */
+#ifndef KBD_SOCKET_PATH
 #define KBD_SOCKET_PATH "/run/dudes-control-center-kbd.sock"
-#define KBD_BUFFER_SIZE 4096
-#define KBD_MAX_CMD_LEN 256
+#endif
+#ifndef KBD_LEDS_DIR
+#define KBD_LEDS_DIR "/sys/class/leds"
+#endif
+#ifndef KBD_LOG_DIR
+#define KBD_LOG_DIR "/var/log/dudes-control-center"
+#endif
+#define KBD_BUFFER_SIZE 8192
+/* Long enough for a list of every LED index (SET_KEYS_COLOR, CREATE_ZONE) */
+#define KBD_MAX_CMD_LEN 4096
 #define KBD_MAX_RESPONSE_LEN 8192
 #define KBD_MAX_CLIENTS 10
 
@@ -99,9 +108,14 @@ int zone_remove_key(const char *name, int key_index);
 const KbdLedZone* zone_get(const char *name);
 int zone_list(char *buffer, size_t buf_size);
 void zone_clear_all(void);
+/* Per-key lighting: give the listed LEDs a color (num_leds < 0 = every LED,
+ * which replaces all zones by one base zone). The LEDs leave their old zones,
+ * join the zone of that color (created if needed), empty zones are removed. */
+int zone_assign_leds(const int *leds, int num_leds, uint8_t r, uint8_t g, uint8_t b);
 
 /* --- Profile management --- */
 int profile_apply(const char *name);
+int kbd_apply_active_profile(void);   /* at daemon start: re-apply the active profile */
 const KbdLedProfile* profile_get_current(void);
 int apply_zones(void);
 int apply_zones_with_brightness(void);

@@ -165,6 +165,18 @@ int main(int argc, char **argv) {
     n = kbd_leds_for_position(&kb, 0, leds, 120);
     CHECK(n == 0, "K: key without a wizard LED gets none (not a stale default)");
 
+    /* K: key colors from the daemon's GET_ZONES (v1.18.0) */
+    kbd_parse_zone_colors(&kb, "ZONES_START COUNT=2\n"
+                               "ZONE 0 name=Base color=255,255,255 keys=3 0 1 2\n"
+                               "ZONE 1 name=My zone color=255,0,0 keys=2 1 119\n"
+                               "ZONES_END\n");
+    CHECK(kb.kbd_led_has_color[0] && kb.kbd_led_rgb[0][1] == 255, "K: base zone color read");
+    CHECK(kb.kbd_led_rgb[1][0] == 255 && kb.kbd_led_rgb[1][1] == 0 && kb.kbd_led_rgb[119][0] == 255,
+          "K: later zone wins, names with spaces parsed");
+    CHECK(!kb.kbd_led_has_color[3], "K: LED in no zone has no color");
+    kbd_parse_zone_colors(&kb, "ERROR Not connected to keyboard daemon");
+    CHECK(!kb.kbd_led_has_color[0], "K: error response clears the colors");
+
     printf("\n%d failure(s)\n", fails);
     return fails != 0;
 }

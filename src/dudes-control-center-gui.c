@@ -403,6 +403,8 @@ typedef struct {
     cairo_surface_t *kbd_keyboard_image; /* Cached keyboard image */
     int kbd_selected_led_indices[120]; /* LEDs selected for current zone */
     int kbd_num_selected_leds; /* Count of selected LEDs */
+    unsigned char kbd_led_rgb[120][3]; /* current color per LED (from GET_ZONES) */
+    unsigned char kbd_led_has_color[120]; /* 1 if the LED belongs to a zone */
     GtkWidget *kbd_status_label;
     guint kbd_refresh_timer_id;
     int kbd_active_profile_idx;
@@ -496,6 +498,7 @@ static void kbd_wizard_step(AppData *app, const char *prev_key_name);
 static void kbd_wizard_finish(AppData *app);
 static void kbd_save_led_mapping_csv(AppData *app);
 static void kbd_load_led_mapping_csv(AppData *app);
+static void kbd_refresh_key_colors(AppData *app);
 static gboolean cpu_refresh_timer_callback(gpointer user_data);
 static void load_cpu_governors(AppData *app);
 static void on_cpu_governor_changed(GtkWidget *widget, gpointer user_data);
@@ -3576,6 +3579,7 @@ static void connect_to_keyboard_daemon(AppData *app) {
     
     /* Load LED mapping from CSV */
     kbd_load_led_mapping_csv(app);
+    kbd_refresh_key_colors(app);
 }
 
 /* Disconnect from keyboard daemon */
@@ -3599,10 +3603,9 @@ static const char *send_keyboard_command(AppData *app, const char *cmd) {
         return response;
     }
 
-    char cmd_with_newline[256];
-    snprintf(cmd_with_newline, sizeof(cmd_with_newline), "%s\n", cmd);
-
+    gchar *cmd_with_newline = g_strdup_printf("%s\n", cmd);
     ssize_t sent = write(app->kbd_socket_fd, cmd_with_newline, strlen(cmd_with_newline));
+    g_free(cmd_with_newline);
     if (sent < 0) {
         char ts[32];
         get_timestamp(ts, sizeof(ts));
@@ -4114,6 +4117,7 @@ static void on_kbd_activate_profile_clicked(GtkWidget *widget, gpointer user_dat
     snprintf(cmd, sizeof(cmd), "LOAD_PROFILE::%s", clean_name);
     const char *response = send_keyboard_command(app, cmd);
     g_print("[GUI] LOAD_PROFILE response: %s\n", response ? response : "NULL");
+    kbd_refresh_key_colors(app);
 
     /* Reload the profile list to update the [*] marker */
     load_keyboard_profiles(app);
@@ -4400,6 +4404,46 @@ static int kbd_led_is_selected(const AppData *app, int led) {
     return 0;
 }
 
+/* Parse a GET_ZONES response ("ZONE i name=.. color=r,g,b keys=N k1 k2 ...")
+ * into the per-LED colors shown on the keyboard canvas. */
+static void kbd_parse_zone_colors(AppData *app, const char *response) {
+    memset(app->kbd_led_has_color, 0, sizeof app->kbd_led_has_color);
+    if (!response) return;
+    const char *line = response;
+    while (line && *line) {
+        const char *next = strchr(line, '\n');
+        if (strncmp(line, "ZONE ", 5) == 0) {
+            const char *c = strstr(line, " color=");
+            const char *k = strstr(line, " keys=");
+            unsigned r = 0, g = 0, b = 0;
+            int n = 0, used = 0;
+            if (c && k && (!next || (c < next && k < next)) &&
+                sscanf(c + 7, "%u,%u,%u", &r, &g, &b) == 3 &&
+                sscanf(k + 6, "%d%n", &n, &used) == 1) {
+                const char *q = k + 6 + used;
+                for (int i = 0; i < n; i++) {
+                    int led = -1, adv = 0;
+                    if (sscanf(q, " %d%n", &led, &adv) != 1) break;
+                    q += adv;
+                    if (led >= 0 && led < 120) {
+                        app->kbd_led_rgb[led][0] = (unsigned char)(r > 255 ? 255 : r);
+                        app->kbd_led_rgb[led][1] = (unsigned char)(g > 255 ? 255 : g);
+                        app->kbd_led_rgb[led][2] = (unsigned char)(b > 255 ? 255 : b);
+                        app->kbd_led_has_color[led] = 1;
+                    }
+                }
+            }
+        }
+        line = next ? next + 1 : NULL;
+    }
+}
+
+static void kbd_refresh_key_colors(AppData *app) {
+    if (!app->kbd_connected) return;
+    kbd_parse_zone_colors(app, send_keyboard_command(app, "GET_ZONES"));
+    kbd_redraw_canvas(app);
+}
+
 /* Draw callback for keyboard canvas */
 static gboolean kbd_canvas_draw(GtkWidget *widget, cairo_t *cr, gpointer user_data) {
     (void)widget;
@@ -4441,17 +4485,24 @@ static gboolean kbd_canvas_draw(GtkWidget *widget, cairo_t *cr, gpointer user_da
             for (int k = 0; k < n_leds && !is_selected; k++)
                 is_selected = kbd_led_is_selected(app, key_leds[k]);
 
-            /* Also check if this position has a mapping from CSV (loaded wizard data) - only when wizard is not active */
-            int has_mapping = 0;
+            /* Current color of the key (first LED with a color) */
+            int has_color = 0;
             if (!app->kbd_wizard_active) {
-                for (int led = 0; led < 120; led++) {
-                    if (app->kbd_wizard_mapping[led] == i) {
-                        has_mapping = 1;
-                        break;
+                for (int k = 0; k < n_leds && !has_color; k++) {
+                    int led = key_leds[k];
+                    if (led >= 0 && led < 120 && app->kbd_led_has_color[led]) {
+                        cairo_set_source_rgba(cr, app->kbd_led_rgb[led][0] / 255.0,
+                                              app->kbd_led_rgb[led][1] / 255.0,
+                                              app->kbd_led_rgb[led][2] / 255.0, 0.45);
+                        cairo_rectangle(cr, offset_x + key->x * scale, offset_y + key->y * scale,
+                                        key->w * scale, key->h * scale);
+                        cairo_fill(cr);
+                        has_color = 1;
                     }
                 }
             }
-            
+            int has_mapping = 0;   /* colors replace the old "mapped key" blue tint */
+
             /* Draw overlay */
             if (is_selected || has_mapping) {
                 /* Selected keys - green highlight, mapped keys - blue highlight */
@@ -4597,15 +4648,40 @@ static void on_preset_color_clicked(GtkWidget *widget, AppData *app) {
         return;
     }
 
-    char cmd[64];
-    snprintf(cmd, sizeof(cmd), "SET_COLOR %d %d %d", rgb[0], rgb[1], rgb[2]);
-    const char *response = send_keyboard_command(app, cmd);
-    g_print("[GUI] SET_COLOR %d %d %d response: %s\n", rgb[0], rgb[1], rgb[2], response ? response : "NULL");
+    /* Per-key lighting: the selected keys get the color, the others keep theirs.
+     * Without a selection the whole keyboard gets it. */
+    GString *cmd = g_string_new(NULL);
+    g_string_printf(cmd, "SET_KEYS_COLOR::%d,%d,%d::", rgb[0], rgb[1], rgb[2]);
+    if (app->kbd_num_selected_leds > 0) {
+        for (int s = 0; s < app->kbd_num_selected_leds; s++)
+            g_string_append_printf(cmd, s ? ",%d" : "%d", app->kbd_selected_led_indices[s]);
+    } else {
+        g_string_append(cmd, "all");
+    }
+    const char *response = send_keyboard_command(app, cmd->str);
+    g_print("[GUI] %s -> %s\n", cmd->str, response ? response : "NULL");
+    g_string_free(cmd, TRUE);
+    int ok = response && strncmp(response, "OK", 2) == 0;
 
-    /* Update status label */
     const char *name = gtk_button_get_label(GTK_BUTTON(widget));
-    gtk_label_set_text(GTK_LABEL(app->kbd_profile_status_label),
-                      g_strconcat("Color set to: ", name, NULL));
+    gchar *msg;
+    if (!ok)
+        msg = g_strdup_printf("Could not set color: %s", response ? response : "no response");
+    else if (app->kbd_num_selected_leds > 0)
+        msg = g_strdup_printf("%s: %d LED(s) - click Save Profile to keep it", name, app->kbd_num_selected_leds);
+    else
+        msg = g_strdup_printf("%s: whole keyboard - click Save Profile to keep it", name);
+    gtk_label_set_text(GTK_LABEL(app->kbd_profile_status_label), msg);
+    g_free(msg);
+
+    kbd_refresh_key_colors(app);
+}
+
+/* Callback: clear the key selection */
+static void on_kbd_clear_selection_clicked(GtkWidget *widget, AppData *app) {
+    (void)widget;
+    app->kbd_num_selected_leds = 0;
+    kbd_redraw_canvas(app);
 }
 
 /* Parse STATUS response and update UI */
@@ -6411,7 +6487,8 @@ static GtkWidget *create_keyboard_page(AppData *app) {
     gtk_container_set_border_width(GTK_CONTAINER(preset_frame), 6);
     GtkWidget *preset_vbox = gtk_box_new(GTK_ORIENTATION_VERTICAL, 6);
 
-    GtkWidget *preset_label = gtk_label_new("Quick color for entire keyboard:");
+    GtkWidget *preset_label = gtk_label_new(
+        "Color for the keys selected below (none selected: whole keyboard). Save Profile keeps it:");
     gtk_label_set_xalign(GTK_LABEL(preset_label), 0.0);
     gtk_box_pack_start(GTK_BOX(preset_vbox), preset_label, FALSE, FALSE, 0);
 
@@ -6437,6 +6514,11 @@ static GtkWidget *create_keyboard_page(AppData *app) {
         gtk_box_pack_start(GTK_BOX(preset_hbox), btn, FALSE, FALSE, 0);
     }
 
+    {
+        GtkWidget *clear_btn = gtk_button_new_with_label("Clear selection");
+        g_signal_connect(clear_btn, "clicked", G_CALLBACK(on_kbd_clear_selection_clicked), app);
+        gtk_box_pack_end(GTK_BOX(preset_hbox), clear_btn, FALSE, FALSE, 0);
+    }
     gtk_box_pack_start(GTK_BOX(preset_vbox), preset_hbox, FALSE, FALSE, 0);
     gtk_container_add(GTK_CONTAINER(preset_frame), preset_vbox);
     gtk_box_pack_start(GTK_BOX(vbox), preset_frame, FALSE, FALSE, 0);

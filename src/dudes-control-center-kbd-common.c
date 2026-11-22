@@ -74,9 +74,9 @@ static int scan_leds(KbdLedDevice *devices, int max_devices) {
     int count = 0;
     char led_path[256];
 
-    DIR *dir = opendir("/sys/class/leds");
+    DIR *dir = opendir(KBD_LEDS_DIR);
     if (!dir) {
-        LOG_ERROR("[KBD] Cannot open /sys/class/leds: %s", strerror(errno));
+        LOG_ERROR("[KBD] Cannot open %s: %s", KBD_LEDS_DIR, strerror(errno));
         return 0;
     }
 
@@ -86,7 +86,7 @@ static int scan_leds(KbdLedDevice *devices, int max_devices) {
             strstr(entry->d_name, "keyboard") ||
             strstr(entry->d_name, "backlight")) {
 
-            snprintf(led_path, sizeof(led_path), "/sys/class/leds/%s", entry->d_name);
+            snprintf(led_path, sizeof(led_path), "%s/%s", KBD_LEDS_DIR, entry->d_name);
 
             char multi_intensity_path[512];
             snprintf(multi_intensity_path, sizeof(multi_intensity_path), "%s/multi_intensity", led_path);
@@ -102,7 +102,8 @@ static int scan_leds(KbdLedDevice *devices, int max_devices) {
                 snprintf(max_bright_path, sizeof(max_bright_path), "%s/max_brightness", led_path);
                 FILE *f = fopen(max_bright_path, "r");
                 if (f) {
-                    fscanf(f, "%d", &devices[count].max_brightness);
+                    if (fscanf(f, "%d", &devices[count].max_brightness) != 1)
+                        devices[count].max_brightness = 255;
                     fclose(f);
                 }
 
@@ -412,6 +413,80 @@ void zone_clear_all(void) {
     LOG_INFO("[KBD] Cleared all zones - ready for new profile");
 }
 
+static void zone_remove_led_everywhere(int led) {
+    for (int z = 0; z < g_num_zones; z++) {
+        KbdLedZone *zone = &g_zones[z];
+        int w = 0;
+        for (int k = 0; k < zone->num_keys; k++)
+            if (zone->key_indices[k] != led) zone->key_indices[w++] = zone->key_indices[k];
+        zone->num_keys = w;
+    }
+}
+
+int zone_assign_leds(const int *leds, int num_leds, uint8_t r, uint8_t g, uint8_t b) {
+    int all_leds[KBD_MAX_LEDS];
+    if (num_leds < 0) {
+        /* Whole keyboard: one base zone with every LED */
+        zone_clear_all();
+        num_leds = g_led_state.num_leds;
+        for (int i = 0; i < num_leds; i++) all_leds[i] = i;
+        leds = all_leds;
+        if (zone_create("Base", all_leds, num_leds, r, g, b, 0) != 0) return -1;
+        LOG_INFO("[KBD] All %d LEDs set to RGB(%u,%u,%u)", num_leds, r, g, b);
+        return 0;
+    }
+
+    /* Zone named after its color, so keys of the same color share one zone */
+    char name[KBD_ZONE_NAME_MAX];
+    snprintf(name, sizeof name, "#%02X%02X%02X", r, g, b);
+
+    int valid = 0;
+    for (int i = 0; i < num_leds; i++) {
+        if (leds[i] < 0 || leds[i] >= g_led_state.num_leds || leds[i] >= KBD_MAX_LEDS) continue;
+        zone_remove_led_everywhere(leds[i]);
+        valid++;
+    }
+    if (valid == 0) return -1;
+
+    int zi = -1;
+    for (int z = 0; z < g_num_zones; z++)
+        if (strcmp(g_zones[z].name, name) == 0) { zi = z; break; }
+    if (zi < 0) {
+        /* drop zones that became empty first, to make room */
+        int w = 0;
+        for (int z = 0; z < g_num_zones; z++)
+            if (g_zones[z].num_keys > 0) g_zones[w++] = g_zones[z];
+        g_num_zones = w;
+        if (g_num_zones >= KBD_MAX_ZONES_PER_PROFILE) {
+            LOG_ERROR("[KBD] Too many colors (max %d zones)", KBD_MAX_ZONES_PER_PROFILE);
+            return -1;
+        }
+        zi = g_num_zones++;
+        memset(&g_zones[zi], 0, sizeof g_zones[zi]);
+        snprintf(g_zones[zi].name, sizeof g_zones[zi].name, "%s", name);
+        g_zones[zi].r = r;
+        g_zones[zi].g = g;
+        g_zones[zi].b = b;
+    }
+    for (int i = 0; i < num_leds; i++) {
+        if (leds[i] < 0 || leds[i] >= g_led_state.num_leds || leds[i] >= KBD_MAX_LEDS) continue;
+        int dup = 0;
+        for (int k = 0; k < g_zones[zi].num_keys; k++)
+            if (g_zones[zi].key_indices[k] == leds[i]) dup = 1;
+        if (!dup && g_zones[zi].num_keys < KBD_MAX_KEYS_PER_ZONE)
+            g_zones[zi].key_indices[g_zones[zi].num_keys++] = leds[i];
+    }
+
+    /* remove zones left without LEDs */
+    int w = 0;
+    for (int z = 0; z < g_num_zones; z++)
+        if (g_zones[z].num_keys > 0) g_zones[w++] = g_zones[z];
+    g_num_zones = w;
+
+    LOG_INFO("[KBD] %d LED(s) set to RGB(%u,%u,%u) (%d zones)", valid, r, g, b, g_num_zones);
+    return 0;
+}
+
 /* ============================================================================
  * PROFILE MANAGEMENT
  * ============================================================================ */
@@ -434,6 +509,18 @@ int profile_apply(const char *name) {
         return 0;
     }
     return result;
+}
+
+int kbd_apply_active_profile(void) {
+    if (g_active_profile_index < 0 || g_active_profile_index >= g_num_profiles) return -1;
+    const KbdLedProfile *p = &g_profiles[g_active_profile_index];
+    if (p->num_zones == 0) {
+        LOG_INFO("[KBD] Active profile '%s' has no colors yet", p->name);
+        return -1;
+    }
+    if (kbd_profile_load_json(p->name) != 0) return -1;
+    LOG_INFO("[KBD] Restoring active profile '%s' (%d zones)", p->name, g_num_zones);
+    return apply_zones();
 }
 
 const KbdLedProfile* profile_get_current(void) {
@@ -657,9 +744,11 @@ int kbd_profiles_load_json(void) {
             cJSON *zones_array = cJSON_GetObjectItem(profile_obj, "zones");
             if (zones_array && cJSON_IsArray(zones_array)) {
                 int zone_count = cJSON_GetArraySize(zones_array);
-                for (int z = 0; z < zone_count && z < KBD_MAX_ZONES_PER_PROFILE; z++) {
-                    cJSON *zone_obj = cJSON_GetArrayItem(zones_array, z);
+                int nz = 0;
+                for (int zi = 0; zi < zone_count && nz < KBD_MAX_ZONES_PER_PROFILE; zi++) {
+                    cJSON *zone_obj = cJSON_GetArrayItem(zones_array, zi);
                     if (!zone_obj) continue;
+                    int z = nz++;
 
                     cJSON *zname = cJSON_GetObjectItem(zone_obj, "name");
                     if (zname && zname->valuestring) {
@@ -678,7 +767,8 @@ int kbd_profiles_load_json(void) {
                     cJSON *keys_array = cJSON_GetObjectItem(zone_obj, "keys");
                     if (keys_array && cJSON_IsArray(keys_array)) {
                         int keys_count = cJSON_GetArraySize(keys_array);
-                        for (int k = 0; k < keys_count && k < KBD_MAX_KEYS_PER_ZONE; k++) {
+                        if (keys_count > KBD_MAX_KEYS_PER_ZONE) keys_count = KBD_MAX_KEYS_PER_ZONE;
+                        for (int k = 0; k < keys_count; k++) {
                             cJSON *key_item = cJSON_GetArrayItem(keys_array, k);
                             if (key_item) {
                                 p.zones[z].key_indices[k] = key_item->valueint;
@@ -687,7 +777,7 @@ int kbd_profiles_load_json(void) {
                         p.zones[z].num_keys = keys_count;
                     }
                 }
-                p.num_zones = zone_count;
+                p.num_zones = nz;
             }
 
             g_profiles[g_num_profiles] = p;
@@ -704,8 +794,7 @@ int kbd_profiles_load_json(void) {
 /* Save current zones as a profile to profiles.json */
 int kbd_profile_save_json(const char *name) {
     if (g_num_zones == 0) {
-        LOG_ERROR("[KBD] No zones to save");
-        return -1;
+        LOG_INFO("[KBD] Saving profile '%s' without colors", name);
     }
 
     /* Check if profile with this name already exists */

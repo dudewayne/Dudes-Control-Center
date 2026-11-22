@@ -45,6 +45,7 @@ run fan_safety      "$BUILD/test_fan_safety"
 run secure_allow    "$BUILD/test_secure_allow" "$WORK/secure_allow" allow
 run secure_deny     "$BUILD/test_secure_deny"  "$WORK/secure_deny"  deny
 run cpu_daemon      python3 "$TESTS/test_cpu_daemon.py" "$WORK/cpu_daemon" "$BUILD/cpud_test"
+run kbd_daemon      python3 "$TESTS/test_kbd_daemon.py" "$WORK/kbd_daemon" "$BUILD/kbdd_test"
 run gui_save        python3 "$TESTS/test_gui_save.py"   "$WORK/gui_save" "$BUILD/test_gui_save" "$BUILD/cpud_test"
 
 echo

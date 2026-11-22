@@ -30,16 +30,19 @@ static volatile sig_atomic_t g_running = 1;
 static int server_fd = -1;
 static int g_client_fd = -1;
 
-/* Signal handlers */
+/* Signal handlers only set flags: logging (stdio, localtime, locks) is not
+ * async-signal-safe and could deadlock the daemon on shutdown. */
+static volatile sig_atomic_t g_stop_signal = 0;
+static volatile sig_atomic_t g_got_sighup = 0;
+
 static void on_sigint(int sig) {
-    (void)sig;
-    LOG_INFO("[KBD_DAEMON] Received SIGINT, shutting down...");
+    g_stop_signal = sig;
     g_running = 0;
 }
 
 static void on_sighup(int sig) {
     (void)sig;
-    LOG_INFO("[KBD_DAEMON] Received SIGHUP");
+    g_got_sighup = 1;
 }
 
 /* Parse command from client */
@@ -56,8 +59,8 @@ static int handle_command(const char *cmd, char *response, size_t resp_size) {
 
     /* Parse command using :: as delimiter to support zone names with spaces */
     char action[32] = "";
-    char arg1[256] = "";
-    char arg2[256] = "";
+    char arg1[KBD_MAX_CMD_LEN] = "";
+    char arg2[KBD_MAX_CMD_LEN] = "";
     char arg3[64] = "";
     char arg4[64] = "";
 
@@ -276,8 +279,14 @@ static int handle_command(const char *cmd, char *response, size_t resp_size) {
         }
     }
 
-    /* Command: TURN_ON - restore default backlight color */
+    /* Command: TURN_ON - restore the current colors (white if there are none) */
     if (strcmp(action, "TURN_ON") == 0) {
+        if (g_num_zones > 0 && apply_zones() == 0) {
+            kbd_led_set_power(1);
+            kbd_led_set_mode(KBD_LED_MODE_STATIC);
+            snprintf(response, resp_size, "OK All LEDs turned on (%d zones)\n", g_num_zones);
+            return 0;
+        }
         if (set_all_leds_color(255, 255, 255) == 0) {
             kbd_led_set_power(1);
             kbd_led_set_mode(KBD_LED_MODE_STATIC);
@@ -415,6 +424,42 @@ static int handle_command(const char *cmd, char *response, size_t resp_size) {
     }
 
     /* === ZONE COMMANDS === */
+
+    /* Command: SET_KEYS_COLOR::<R,G,B>::<led,led,...|all>
+     * Per-key lighting: colors the listed LEDs and keeps the other keys. */
+    if (strcmp(action, "SET_KEYS_COLOR") == 0) {
+        uint8_t r, g, b;
+        if (parse_rgb(arg1, &r, &g, &b) != 0) {
+            snprintf(response, resp_size, "ERROR Invalid color format: %s\n", arg1);
+            return -1;
+        }
+        int leds[KBD_MAX_LEDS];
+        int n = 0;
+        if (strcmp(arg2, "all") == 0 || arg2[0] == '\0') {
+            n = -1;
+        } else {
+            char *save = NULL;
+            for (char *t = strtok_r(arg2, ",", &save); t && n < KBD_MAX_LEDS; t = strtok_r(NULL, ",", &save)) {
+                char *end = NULL;
+                long v = strtol(t, &end, 10);
+                if (end == t || v < 0 || v >= KBD_MAX_LEDS) continue;
+                leds[n++] = (int)v;
+            }
+            if (n == 0) {
+                snprintf(response, resp_size, "ERROR No valid LED indices\n");
+                return -1;
+            }
+        }
+        if (zone_assign_leds(leds, n, r, g, b) != 0 || apply_zones() != 0) {
+            snprintf(response, resp_size, "ERROR Failed to set key colors\n");
+            return -1;
+        }
+        kbd_led_set_power(1);
+        kbd_led_set_mode(KBD_LED_MODE_STATIC);
+        snprintf(response, resp_size, "OK %s set to %u,%u,%u (%d zones)\n",
+                 n < 0 ? "All keys" : "Keys", r, g, b, g_num_zones);
+        return 0;
+    }
 
     /* Command: CREATE_ZONE <name> <key_indices_csv> <R,G,B> [is_preset] */
     if (strcmp(action, "CREATE_ZONE") == 0) {
@@ -740,7 +785,7 @@ int main(int argc, char *argv[]) {
     (void)argv;
 
     /* Initialize logging */
-    if (log_init("KBD_BACKLIGHT_DAEMON", LOG_LEVEL_INFO, "/var/log/dudes-control-center") != 0) {
+    if (log_init("KBD_BACKLIGHT_DAEMON", LOG_LEVEL_INFO, KBD_LOG_DIR) != 0) {
         fprintf(stderr, "[KBD_DAEMON] Failed to initialize logging\n");
         return 1;
     }
@@ -757,12 +802,19 @@ int main(int argc, char *argv[]) {
     LOG_INFO("[KBD_DAEMON] Loading saved profiles...");
     kbd_profiles_load_json();
     LOG_INFO("[KBD_DAEMON] Loaded %d keyboard profiles", g_num_profiles);
+    /* Show the active profile's colors again (they are lost at reboot) */
+    kbd_apply_active_profile();
 
     /* Set up signal handlers */
-    signal(SIGINT, on_sigint);
-    signal(SIGHUP, on_sighup);
+    struct sigaction sa;
+    memset(&sa, 0, sizeof sa);
+    sigemptyset(&sa.sa_mask);
+    sa.sa_handler = on_sigint;          /* no SA_RESTART: select() returns EINTR */
+    sigaction(SIGINT, &sa, NULL);
+    sigaction(SIGTERM, &sa, NULL);
+    sa.sa_handler = on_sighup;
+    sigaction(SIGHUP, &sa, NULL);
     dcc_ignore_sigpipe();
-    signal(SIGTERM, on_sigint);
 
     /* Initialize socket */
     server_fd = init_socket();
@@ -794,6 +846,11 @@ int main(int argc, char *argv[]) {
         timeout.tv_usec = 0;
 
         int activity = select(max_fd + 1, &read_fds, NULL, NULL, &timeout);
+        if (g_got_sighup) {
+            g_got_sighup = 0;
+            LOG_INFO("[KBD_DAEMON] Received SIGHUP");
+        }
+        if (!g_running) break;
 
         if (activity < 0) {
             if (errno == EINTR) continue;
@@ -828,6 +885,8 @@ int main(int argc, char *argv[]) {
     }
 
     /* Cleanup */
+    if (g_stop_signal)
+        LOG_INFO("[KBD_DAEMON] Received %s, shutting down...", g_stop_signal == SIGTERM ? "SIGTERM" : "SIGINT");
     LOG_INFO("[KBD_DAEMON] Shutting down...");
 
     if (server_fd >= 0) {

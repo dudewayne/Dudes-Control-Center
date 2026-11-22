@@ -217,11 +217,12 @@ TEST_CFLAGS = -g -O1 -fno-omit-frame-pointer -fsanitize=address,undefined -fno-s
 # The current user's group plays the role of "dudes-control-center" in tests
 TEST_GROUP := $(shell id -gn)
 FAN_DAEMON_DEPS = src/dudes-control-center-fan-daemon.c $(COMMON_SRC) $(COMMON_HDR) $(LOG_SRC) $(LOG_HDR) $(SECURE_SRC) $(SECURE_HDR)
+KBD_DAEMON_DEPS = src/dudes-control-center-kbd-backlight-daemon.c src/dudes-control-center-kbd-common.c src/dudes-control-center-kbd-common.h $(COMMON_HDR) $(LOG_SRC) $(LOG_HDR) $(SECURE_SRC) $(SECURE_HDR)
 CPU_DAEMON_DEPS = src/dudes-control-center-cpu-daemon.c src/dudes-control-center-cpu-common.c src/dudes-control-center-cpu-common.h $(LOG_SRC) $(LOG_HDR) $(SECURE_SRC) $(SECURE_HDR)
 
 TEST_BINS = $(TEST_BUILD)/test_fan_responses $(TEST_BUILD)/test_fan_safety \
             $(TEST_BUILD)/test_secure_allow $(TEST_BUILD)/test_secure_deny \
-            $(TEST_BUILD)/cpud_test $(TEST_BUILD)/test_gui_save
+            $(TEST_BUILD)/cpud_test $(TEST_BUILD)/test_gui_save $(TEST_BUILD)/kbdd_test
 
 test: $(TEST_BINS)
 	bash tests/run_tests.sh $(TEST_BUILD)
@@ -246,6 +247,12 @@ $(TEST_BUILD)/cpud_test: $(CPU_DAEMON_DEPS) | $(TEST_BUILD)
 	$(CC) $(TEST_CFLAGS) $(CJSON_CFLAGS) -DSOCKET_PATH='"cpu.sock"' -DCPU_LOG_DIR='"logs"' \
 	  -DCPUSYSFS='"sys"' -DCONTROL_CENTER_CONFIG_DIR='"cfg"' -DDCC_AUTH_GROUP='"$(TEST_GROUP)"' \
 	  -o $@ src/dudes-control-center-cpu-daemon.c src/dudes-control-center-cpu-common.c $(LOG_SRC) $(SECURE_SRC) $(CJSON_LIBS)
+
+# The real keyboard daemon against a fake /sys/class/leds ("leds")
+$(TEST_BUILD)/kbdd_test: $(KBD_DAEMON_DEPS) | $(TEST_BUILD)
+	$(CC) $(TEST_CFLAGS) $(CJSON_CFLAGS) -DKBD_SOCKET_PATH='"kbd.sock"' -DKBD_LOG_DIR='"logs"' \
+	  -DKBD_LEDS_DIR='"leds"' -DMAIN_PROFILES_PATH='"cfg/profiles.json"' -DDCC_AUTH_GROUP='"$(TEST_GROUP)"' \
+	  -o $@ src/dudes-control-center-kbd-backlight-daemon.c src/dudes-control-center-kbd-common.c $(LOG_SRC) $(SECURE_SRC) $(CJSON_LIBS)
 
 $(TEST_BUILD)/test_gui_save: tests/test_gui_save.c src/dudes-control-center-gui.c $(COMMON_SRC) $(LOG_SRC) $(LOG_HDR) | $(TEST_BUILD)
 	$(CC) $(TEST_CFLAGS) -w $(GTK_CFLAGS) $(CJSON_CFLAGS) -DAPP_VERSION='"$(VERSION)"' \

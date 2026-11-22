@@ -2,10 +2,28 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.18.0] - 2026-11-22
+
+### Added
+- **Per-key keyboard lighting**: select keys on the keyboard picture in the Keyboard tab, then click a color - exactly those keys light up in that color and the other keys keep theirs. With no keys selected, a color applies to the whole keyboard (as before). **Save Profile** stores the per-key colors in the keyboard profile, **Activate Profile** brings them back. A new **Clear selection** button deselects all keys.
+- The keyboard picture shows every key in its current color.
+- The keyboard daemon restores the active profile's colors when it starts (after a reboot or update), and turning the backlight back on restores the per-key colors instead of switching to plain white.
+- New daemon command `SET_KEYS_COLOR::<R,G,B>::<led,led,...|all>`: keys of the same color share one zone (named after the color), keys leave their old zone when recolored, and zones left empty are removed.
+- Test suite: end-to-end test of the keyboard daemon against a fake 120-LED `/sys/class/leds` (7 suites, 132 checks). Socket, LED directory, log directory and profiles path can be overridden at build time.
+
+### Fixed
+- **Keyboard commands are no longer limited to 256 bytes**: the daemon cut longer commands off, so a list of many LEDs (zones, per-key colors) lost keys. Commands up to 4 KB are accepted now (the GUI side had the same limit).
+- **Keyboard daemon could hang on shutdown**: its signal handlers wrote to the log, which is not safe inside a signal handler and could deadlock the daemon when stopped (found by the new test). They only set flags now, as in the CPU daemon since 1.16.4.
+- A keyboard profile without colors can be saved (it was refused with "No zones to save").
+- Loading keyboard profiles: zones and key counts beyond the limits are skipped instead of leaving gaps.
+
+### Note
+- Clicking a key in 1.17.3 only changed the selection in the GUI; nothing was sent to the keyboard. The 1.17.3 entry is corrected below.
+
 ## [1.17.3] - 2026-11-22
 
 ### Fixed
-- **Keyboard tab: clicking a key now selects the right LEDs**: the canvas always used a built-in key-to-LED table, even after the LED wizard had saved your own mapping (`keyboard_led_mapping.csv`). For 29 keys the table pointed at a different LED than the wizard mapping, and keys lit by several LEDs (Space, Enter, Backspace, ...) selected only one. Clicks and highlights now use the wizard mapping when it exists (all LEDs of a key; clicking again deselects them) and the built-in table only without one.
+- **Keyboard tab: clicking a key now selects the right LEDs in the GUI** (the selection was not sent to the keyboard yet; per-key lighting came in 1.18.0): the canvas always used a built-in key-to-LED table, even after the LED wizard had saved your own mapping (`keyboard_led_mapping.csv`). For 29 keys the table pointed at a different LED than the wizard mapping, and keys lit by several LEDs (Space, Enter, Backspace, ...) selected only one. Clicks and highlights now use the wizard mapping when it exists (all LEDs of a key; clicking again deselects them) and the built-in table only without one.
 - **Key tables were inconsistent**: the built-in LED table had 122 values for 120 slots (the compiler dropped two), while there are only 113 key names and positions; the last 7 "keys" were empty entries. All three tables now have exactly 113 entries (`KBD_NUM_KEYS`).
 - **Rename keyboard profile**: the "name already exists" error dialog was passed to `gtk_dialog_run` with the wrong type.
 - **`ite_829x` reports its version**: the module had no `MODULE_VERSION`, so `modinfo` and the install output showed none. "make deb" now builds it with the package version.
