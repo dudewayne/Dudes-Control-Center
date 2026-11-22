@@ -2,6 +2,17 @@
 # SPDX-License-Identifier: GPL-2.0-only
 set -e
 if [ "$1" = "configure" ]; then
+    # Packages before 1.24.1 installed their files owned by the user who
+    # built them. dpkg replaces the files but keeps existing directories
+    # (e.g. the driver source DKMS builds as root): give everything of this
+    # package that is not root's back to root, without write for others.
+    dpkg-query -L dudes-control-center 2>/dev/null | while IFS= read -r f; do
+        [ -L "$f" ] && continue
+        [ -e "$f" ] || continue
+        if [ "$(stat -c %u "$f")" != 0 ]; then
+            chown root:root "$f" && chmod go-w "$f" && echo "Owner fixed: $f"
+        fi
+    done
     # Access control: members of @GROUP@ may control the daemons
     groupadd -f --system @GROUP@
     DCC_USER=""

@@ -139,7 +139,11 @@ deb: all
 	done
 	@# Old command names (before 1.19.0) keep working for now
 	@for n in gui fan-cli cpu-cli; do ln -s dcc-$$n $(DEB_BUILD_DIR)/$(PACKAGE)-$(VERSION)/usr/local/bin/dudes-control-center-$$n; done
-	@cd $(DEB_BUILD_DIR) && dpkg-deb --build $(PACKAGE)-$(VERSION) $(PACKAGE)_$(VERSION)_amd64.deb
+	@# Files belong to root and only root may change them: systemd runs the
+	@# daemons as root. Without this the archive kept the build user as owner
+	@# (and the umask's group write), so that user could replace a root daemon.
+	@chmod -R u=rwX,go=rX $(DEB_BUILD_DIR)/$(PACKAGE)-$(VERSION)
+	@cd $(DEB_BUILD_DIR) && dpkg-deb --root-owner-group --build $(PACKAGE)-$(VERSION) $(PACKAGE)_$(VERSION)_amd64.deb
 	@echo "Built: $(DEB_BUILD_DIR)/$(PACKAGE)_$(VERSION)_amd64.deb"
 
 install: all

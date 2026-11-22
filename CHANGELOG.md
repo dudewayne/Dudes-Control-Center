@@ -9,6 +9,9 @@ All notable changes to this project will be documented in this file.
 - **An active profile without colors stays dark** when the GUI closes or leaves the Keyboard tab and when the keyboard daemon starts; it lit up white. White is only used when there is no keyboard profile at all (fresh install).
 - Tests for activating, restoring and starting with an empty profile.
 
+### Security
+- **Package files belong to root again**: the .deb was built without `--root-owner-group`, so every installed file - including the daemons systemd runs as root, their unit files and the ite_829x source DKMS builds as root - belonged to the user who built the package and was group-writable. That user (or any program running as that user) could replace a root daemon. The package is now built with root ownership and without group/world write; the postinst gives files and directories left by older packages back to root. `make deb-check` fails if any file in the package is not root's or is writable by group or others.
+
 ## [1.24.0] - 2026-11-22
 
 ### Added

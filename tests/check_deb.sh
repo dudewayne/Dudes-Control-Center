@@ -20,6 +20,21 @@ for u in dcc-fan-daemon.service dcc-cpu-daemon.service dcc-kbd-daemon.service dc
     check "[ -f '$R/etc/systemd/system/$u' ]" "unit $u installed"
 done
 
+# ownership and permissions (1.24.1): everything root:root, nothing writable
+# by group or others (the daemons run as root), programs executable
+listing=$(dpkg-deb -c "$DEB"; dpkg-deb --ctrl-tarfile "$DEB" | tar -tvf -)
+notroot=$(echo "$listing" | awk '$2 != "root/root" {print $NF}' | head -5)
+check "[ -z \"\$notroot\" ]" "every file in the package belongs to root (not: ${notroot:-none})"
+writable=$(echo "$listing" | awk 'substr($1,1,1) != "l" && (substr($1,6,1) == "w" || substr($1,9,1) == "w") {print $NF}' | head -5)
+check "[ -z \"\$writable\" ]" "no file writable by group or others (found: ${writable:-none})"
+for b in dcc-fan-daemon dcc-cpu-daemon dcc-kbd-daemon; do
+    check "echo \"\$listing\" | grep -qE '^-rwxr-xr-x root/root .*usr/local/bin/$b\$'" "daemon $b is root-owned with mode 755"
+done
+check "grep -q 'dpkg-query -L dudes-control-center' '$TMP/ctrl/postinst' && grep -q 'chown root:root' '$TMP/ctrl/postinst'" "postinst gives files left by older packages back to root"
+for c in preinst postinst prerm postrm; do
+    check "echo \"\$listing\" | grep -qE '^-rwxr-xr-x root/root .*\\./$c\$'" "maintainer script $c is root-owned with mode 755"
+done
+
 # every ExecStart/ExecStopPost and the desktop Exec point to a program in the package
 for f in "$R"/etc/systemd/system/*.service "$R"/usr/share/applications/*.desktop; do
     for p in $(grep -hoE '^(ExecStart|ExecStopPost|Exec)=-?/[^ ]+' "$f" | sed -E 's/^[^=]+=-?//'); do
