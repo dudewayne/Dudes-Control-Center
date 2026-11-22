@@ -4210,6 +4210,7 @@ AppData *app = (AppData *)user_data;
     gtk_widget_set_sensitive(app->kbd_led_wizard_save_btn, FALSE);
     gtk_widget_set_sensitive(app->kbd_led_wizard_cancel_btn, FALSE);
     gtk_label_set_text(GTK_LABEL(app->kbd_led_wizard_label), "LED Wizard saved!");
+    gtk_widget_show(app->kbd_led_wizard_label);
     
     /* Clear selection and redraw */
     app->kbd_num_selected_leds = 0;
@@ -4233,6 +4234,7 @@ AppData *app = (AppData *)user_data;
     gtk_widget_set_sensitive(app->kbd_led_wizard_save_btn, FALSE);
     gtk_widget_set_sensitive(app->kbd_led_wizard_cancel_btn, FALSE);
     gtk_label_set_text(GTK_LABEL(app->kbd_led_wizard_label), "LED Wizard cancelled");
+    gtk_widget_show(app->kbd_led_wizard_label);
     
     /* Clear selection and redraw */
     app->kbd_num_selected_leds = 0;
@@ -4251,6 +4253,7 @@ static void kbd_wizard_step(AppData *app, const char *prev_key_name) {
         snprintf(buf, sizeof(buf), "LED Wizard: Click the key for LED %d / 119", app->kbd_wizard_current_led);
     }
     gtk_label_set_text(GTK_LABEL(app->kbd_led_wizard_label), buf);
+    gtk_widget_show(app->kbd_led_wizard_label);
     
     /* Turn off all LEDs first, then light up only the current LED */
     send_keyboard_command(app, "TURN_OFF");
@@ -4277,6 +4280,7 @@ static void kbd_wizard_finish(AppData *app) {
     gtk_widget_set_sensitive(app->kbd_led_wizard_skip_btn, FALSE);
     gtk_widget_set_sensitive(app->kbd_led_wizard_cancel_btn, FALSE);
     gtk_label_set_text(GTK_LABEL(app->kbd_led_wizard_label), "LED Wizard completed!");
+    gtk_widget_show(app->kbd_led_wizard_label);
     
     /* Clear selection and redraw */
     app->kbd_num_selected_leds = 0;
@@ -6588,12 +6592,10 @@ static GtkWidget *create_keyboard_page(AppData *app) {
     gtk_grid_set_column_spacing(GTK_GRID(app->kbd_zone_grid), 6);
     gtk_grid_set_row_spacing(GTK_GRID(app->kbd_zone_grid), 4);
 
-    GtkWidget *zone_scrolled = gtk_scrolled_window_new(NULL, NULL);
-    gtk_scrolled_window_set_policy(GTK_SCROLLED_WINDOW(zone_scrolled), GTK_POLICY_NEVER, GTK_POLICY_AUTOMATIC);
-    gtk_scrolled_window_set_min_content_height(GTK_SCROLLED_WINDOW(zone_scrolled), 50);
-    gtk_scrolled_window_set_max_content_height(GTK_SCROLLED_WINDOW(zone_scrolled), 50);
-    gtk_container_add(GTK_CONTAINER(zone_scrolled), app->kbd_zone_grid);
-    gtk_box_pack_start(GTK_BOX(zone_vbox), zone_scrolled, FALSE, FALSE, 0);
+    /* Not packed yet: reserved for the zone configuration (Add Zone /
+     * Apply Zones). An empty 50 px area above the keyboard picture made
+     * the window taller for nothing. */
+    g_object_ref_sink(app->kbd_zone_grid);
 
     /* LED Wizard controls */
     GtkWidget *wizard_btn_row = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 6);
@@ -6618,6 +6620,7 @@ static GtkWidget *create_keyboard_page(AppData *app) {
     app->kbd_led_wizard_label = gtk_label_new("");
     gtk_label_set_xalign(GTK_LABEL(app->kbd_led_wizard_label), 0.0);
     gtk_widget_set_name(app->kbd_led_wizard_label, "kbd-wizard-label");
+    gtk_widget_set_no_show_all(app->kbd_led_wizard_label, TRUE);   /* shown once the wizard runs */
     gtk_box_pack_start(GTK_BOX(zone_vbox), app->kbd_led_wizard_label, FALSE, FALSE, 0);
     
     /* Keyboard schematic canvas */

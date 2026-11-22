@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.21.3] - 2026-11-22
+
+### Fixed
+- **Keyboard tab is more compact**: above the keyboard picture there was an always-empty 50-pixel area (reserved for zone editors that are not built yet) and an empty LED wizard status line. Both took space and made the window taller than needed. The area is no longer shown (it stays reserved for the coming zone configuration with "Add Zone" / "Apply Zones"), and the wizard status line only appears while the LED wizard is used.
+
 ## [1.21.2] - 2026-11-22
 
 ### Fixed
