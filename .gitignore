@@ -1,7 +1,9 @@
 # Compiled binaries
 dudes-control-center-fan-cli
 dudes-control-center-fan-daemon
+dudes-control-center-cpu-cli
 dudes-control-center-cpu-daemon
+dudes-control-center-kbd-backlight-daemon
 dudes-control-center-gui
 dudes-control-center-cli
 dudes-control-center-daemon
@@ -9,6 +11,24 @@ dudes-control-center-daemon
 # Build artifacts
 build-deb/
 build-test/
+
+# Packages (tested debs are attached to GitHub releases)
+debs/
+*.deb
+
+# Python bytecode from the tests
+__pycache__/
+*.pyc
+
+# Kernel module build output (drivers/)
+*.o
+*.ko
+*.ko.zst
+*.mod
+*.mod.c
+.*.cmd
+Module.symvers
+modules.order
 
 # Backup folders
 backup/

@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.17.2] - 2026-11-22
+
+### Fixed
+- **Build outputs are no longer tracked in git**: `dudes-control-center-cpu-cli` and `dudes-control-center-kbd-backlight-daemon` were committed binaries, so every build showed them as modified; old `.deb` packages (1.8.0-1.13.1) were committed in `debs/`. They are removed from the repository (local files are kept) and `.gitignore` now covers all six binaries, `debs/` and `*.deb` (tested packages are attached to GitHub releases), Python bytecode from the tests and kernel module build output in `drivers/`. Older commits still contain them; the history is not rewritten.
+- **CI**: `actions/checkout` and `actions/upload-artifact` updated from v4 to v5 (v4 runs on the deprecated Node.js 20).
+
 ## [1.17.1] - 2026-11-22
 
 ### Fixed
