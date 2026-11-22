@@ -270,6 +270,7 @@ typedef struct {
     
     /* Page 2: Curve Editor widgets */
     GtkWidget *profile_combo;
+    GtkWidget *fan_activate_btn;   /* Fan Profiles tab: activate the selected profile */
     GtkListStore *curve_store;
     GtkWidget *curve_treeview;
     GtkWidget *curve_graph; /* Drawing area for temperature curve visualization */
@@ -278,9 +279,6 @@ typedef struct {
     int active_profile_idx;
     
     /* Page 3: Profile List widgets */
-    GtkWidget *profile_list_view;
-    GtkWidget *placeholder_label;
-    GSList *profile_radios; /* Track radio buttons for cleanup */
     int pending_active_profile_idx; /* Pending selection before Apply */
     
     /* Socket connection */
@@ -448,9 +446,11 @@ static void on_delete_profile_clicked(GtkWidget *widget, gpointer user_data);
 static void on_rename_profile_clicked(GtkWidget *widget, gpointer user_data);
 
 /* Forward declarations for page creation */
+/* Notebook pages (keep in sync with create_main_window) */
+enum { PAGE_STATUS = 0, PAGE_FAN = 1, PAGE_CPU = 2, PAGE_KEYBOARD = 3, PAGE_LOGS = 4, PAGE_ABOUT = 5 };
+
 static GtkWidget *create_status_page(AppData *app);
 static GtkWidget *create_curve_editor_page(AppData *app);
-static GtkWidget *create_profile_list_page(AppData *app);
 static GtkWidget *create_log_page(AppData *app);
 static GtkWidget *create_about_page(void);
 static GtkWidget *create_cpu_page(AppData *app);
@@ -458,12 +458,6 @@ static GtkWidget *create_keyboard_page(AppData *app);
 
 /* Helper function to create clickable link label */
 static GtkWidget *create_clickable_link(const char *url);
-
-/* Wrapper for gtk_widget_show_all to use with g_idle_add */
-static gboolean show_widget_idle(gpointer data) {
-    gtk_widget_show_all(GTK_WIDGET(data));
-    return FALSE; /* Don't repeat */
-}
 
 /* Forward declarations for curve graph */
 static gboolean draw_curve_graph(GtkWidget *widget, cairo_t *cr, gpointer user_data);
@@ -533,9 +527,7 @@ static void on_cpu_hard_limit_apply_clicked(GtkWidget *widget, gpointer user_dat
 static void refresh_profile_list(AppData *app);
 static void load_curve_points_for_profile(AppData *app, int profile_idx);
 static void gui_save_profiles_to_disk(AppData *app);
-static void on_profile_radio_toggled(GtkWidget *widget, gpointer user_data);
 static void on_apply_profile_clicked(GtkWidget *widget, gpointer user_data);
-static void on_cancel_profile_clicked(GtkWidget *widget, gpointer user_data);
 static void on_notebook_page_switched(GtkNotebook *notebook, GtkWidget *page, gint page_num, gpointer user_data);
 static void update_profile_tab_for_manual_mode(AppData *app, int manual_mode_enabled);
 static void on_disable_manual_mode_clicked(GtkWidget *widget, gpointer user_data);
@@ -2823,9 +2815,7 @@ static void refresh_profile_list(AppData *app) {
     app->refreshing_profile_list = 1;
     g_print("%s [GUI] -> Set refreshing_profile_list=1\n", ts);
     
-    /* Track whether we blocked the combo box signal (for matching unblock) */
-    int signal_blocked = 0;
-    
+
     char buffer[BUFFER_SIZE];
     
     /* Free old profile names */
@@ -2837,8 +2827,15 @@ static void refresh_profile_list(AppData *app) {
         app->profile_names = NULL;
     }
     
-    /* Clear the combo box */
-    gtk_combo_box_text_remove_all(GTK_COMBO_BOX_TEXT(app->profile_combo));
+    /* Remember the selected profile, so a refresh does not jump to the active one */
+    int keep_idx = app->profile_combo ? gtk_combo_box_get_active(GTK_COMBO_BOX(app->profile_combo)) : -1;
+
+    /* Clear the combo box (blocked: clearing would emit "changed") */
+    if (app->profile_combo) {
+        g_signal_handler_block(app->profile_combo, app->profile_combo_signal_id);
+        gtk_combo_box_text_remove_all(GTK_COMBO_BOX_TEXT(app->profile_combo));
+        g_signal_handler_unblock(app->profile_combo, app->profile_combo_signal_id);
+    }
     
     const char *response = send_command(app, "LIST_PROFILES");
     
@@ -2920,7 +2917,6 @@ static void refresh_profile_list(AppData *app) {
                 }
                 
                 app->profile_names[idx] = g_strdup(name_start);
-                gtk_combo_box_text_append_text(GTK_COMBO_BOX_TEXT(app->profile_combo), name_start);
                 idx++;
             }
         }
@@ -2928,141 +2924,29 @@ static void refresh_profile_list(AppData *app) {
     }
     
     g_print("[GUI] Refreshed profile list: %d profiles, active_profile_idx=%d\n", app->num_profiles, app->active_profile_idx);
-    
-    /* Select the active profile in combo box (block signal to prevent callback).
-     * We keep the signal blocked until the end of this function to prevent the
-     * callback from firing during early returns when refreshing_profile_list
-     * has already been cleared. */
-    if (app->active_profile_idx >= 0 && app->active_profile_idx < app->num_profiles) {
-        if (app->profile_combo && GTK_IS_COMBO_BOX(app->profile_combo)) {
-            g_signal_handler_block(app->profile_combo, app->profile_combo_signal_id);
-            signal_blocked = 1;
-            gtk_combo_box_set_active(GTK_COMBO_BOX(app->profile_combo), app->active_profile_idx);
-            // Note: unblock moved to end of function / early returns
-        } else {
-            g_print("[GUI] WARNING: profile_combo is invalid\n");
-        }
-    }
-    
-    /* Update the Profile Management page with radio buttons */
-    /* First, clear all children from profile_list_view and free the radios list */
-    if (!app->profile_list_view || !GTK_IS_WIDGET(app->profile_list_view)) {
-        g_print("[GUI] WARNING: profile_list_view is NULL or invalid in refresh_profile_list\n");
-        app->refreshing_profile_list = 0;
-        if (signal_blocked) {
-            g_signal_handler_unblock(app->profile_combo, app->profile_combo_signal_id);
-        }
-        return;
-    }
-    
-    /* Check if widget is realized and valid */
-    if (!gtk_widget_get_realized(app->profile_list_view)) {
-        g_print("[GUI] WARNING: profile_list_view not realized yet, skipping update\n");
-        app->refreshing_profile_list = 0;
-        if (signal_blocked) {
-            g_signal_handler_unblock(app->profile_combo, app->profile_combo_signal_id);
-        }
-        return; /* Early return - widget will be refreshed when tab becomes visible */
-    }
-    
-    GtkContainer *container = GTK_CONTAINER(app->profile_list_view);
-    GSList *children = NULL;
-    children = (GSList *)gtk_container_get_children(container);
-    GSList *child;
-    for (child = children; child != NULL; child = g_slist_next(child)) {
-        if (child->data && GTK_IS_WIDGET(child->data)) {
-            /* Don't destroy placeholder_label - it should stay in the container */
-            GtkWidget *widget = GTK_WIDGET(child->data);
-            const char *name = gtk_widget_get_name(widget);
-            if (strcmp(name, "placeholder_label") != 0) {
-                gtk_widget_destroy(widget);
+
+    /* Fill the dropdown; the active profile is marked "(Active)" */
+    if (app->profile_combo && GTK_IS_COMBO_BOX(app->profile_combo)) {
+        g_signal_handler_block(app->profile_combo, app->profile_combo_signal_id);
+        for (int i = 0; i < app->num_profiles; i++) {
+            if (i == app->active_profile_idx) {
+                gchar *t = g_strdup_printf("%s (Active)", app->profile_names[i]);
+                gtk_combo_box_text_append_text(GTK_COMBO_BOX_TEXT(app->profile_combo), t);
+                g_free(t);
+            } else {
+                gtk_combo_box_text_append_text(GTK_COMBO_BOX_TEXT(app->profile_combo), app->profile_names[i]);
             }
         }
-    }
-    g_slist_free(children);
-    
-    /* Free the old radios list */
-    if (app->profile_radios != NULL) {
-        g_slist_free(app->profile_radios);
-    }
-    app->profile_radios = NULL;
-    
-    /* Show/hide placeholder based on profile count */
-    if (app->placeholder_label && GTK_IS_WIDGET(app->placeholder_label)) {
-        if (app->num_profiles == 0) {
-            gtk_widget_show(app->placeholder_label);
-        } else {
-            gtk_widget_hide(app->placeholder_label);
-        }
-    }
-    
-    /* Create radio buttons for each profile */
-    GtkWidget *first_radio = NULL;
-    GtkWidget *pending_radio = NULL; /* Store reference to set selection after creation */
-    
-    for (int i = 0; i < app->num_profiles; i++) {
-        
-        char label_text[128];
-        if (i == app->active_profile_idx) {
-            snprintf(label_text, sizeof(label_text), "%s (Active)", app->profile_names[i]);
-        } else {
-            snprintf(label_text, sizeof(label_text), "%s", app->profile_names[i]);
-        }
-        
-        GtkWidget *radio;
-        if (first_radio == NULL) {
-            radio = gtk_radio_button_new_with_label(NULL, label_text);
-            first_radio = radio;
-        } else {
-            radio = gtk_radio_button_new_with_label_from_widget(GTK_RADIO_BUTTON(first_radio), label_text);
-        }
-        
-        /* Set widget name to store profile index (e.g., "prof_0", "prof_1") */
-        char widget_name[16];
-        snprintf(widget_name, sizeof(widget_name), "prof_%d", i);
-        gtk_widget_set_name(radio, widget_name);
-        
-        /* Connect toggle signal */
-        g_signal_connect(radio, "toggled", G_CALLBACK(on_profile_radio_toggled), app);
-        
-        gtk_box_pack_start(GTK_BOX(app->profile_list_view), radio, FALSE, FALSE, 0);
-        
-        /* Track for cleanup */
-        app->profile_radios = g_slist_append(app->profile_radios, radio);
-        
-        /* Remember the pending selection to set it after all radios are created */
-        if (i == app->pending_active_profile_idx) {
-            pending_radio = radio;
-        }
-    }
-    
-    /* Set the pending selection as active (after all radios are in the group) */
-    if (pending_radio != NULL) {
-        gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(pending_radio), TRUE);
-    }
-    
-    /* Ensure all widgets in profile_list_view are shown (defer to idle to avoid race conditions) */
-    if (app->profile_list_view && GTK_IS_WIDGET(app->profile_list_view)) {
-        g_idle_add(show_widget_idle, app->profile_list_view);
-    } else {
-        g_print("[GUI] WARNING: Cannot show profile_list_view, widget is invalid\n");
-    }
-    
-    /* Clear the refreshing flag BEFORE unblocking the signal.
-     * This ensures the combo box callback (which loads curve points)
-     * does NOT return early when it fires after unblock. */
-    get_timestamp(ts, sizeof(ts));
-    g_print("%s [GUI] -> Set refreshing_profile_list=0\n", ts);
-    app->refreshing_profile_list = 0;
-    
-    /* Unblock the combo box signal now that refresh is fully complete */
-    if (signal_blocked) {
+        /* Stay on the selected profile; the active one on the first load */
+        int sel = (keep_idx >= 0 && keep_idx < app->num_profiles) ? keep_idx : app->active_profile_idx;
+        if (sel >= 0 && sel < app->num_profiles)
+            gtk_combo_box_set_active(GTK_COMBO_BOX(app->profile_combo), sel);
         g_signal_handler_unblock(app->profile_combo, app->profile_combo_signal_id);
     }
-    
-    /* Update profile tab UI for manual mode state (show/hide warning label and radios) */
+
+    app->refreshing_profile_list = 0;
     update_profile_tab_for_manual_mode(app, app->in_manual_mode);
-    
+
     g_print("%s [GUI] refresh_profile_list completed successfully\n", ts);
 }
 
@@ -3440,10 +3324,6 @@ static void on_window_destroy(GtkWidget *widget, gpointer user_data) {
     }
     
     /* Free profile radios list */
-    if (app->profile_radios != NULL) {
-        g_slist_free(app->profile_radios);
-        app->profile_radios = NULL;
-    }
     
     /* Disconnect from daemon */
     disconnect_from_daemon(app);
@@ -5026,6 +4906,25 @@ static GtkWidget *create_status_page(AppData *app) {
     return vbox;
 }
 
+/* Fan Profiles tab: activate the profile selected in the dropdown */
+static void on_fan_activate_clicked(GtkWidget *widget, gpointer user_data) {
+    (void)widget;
+    AppData *app = (AppData *)user_data;
+    int idx = gtk_combo_box_get_active(GTK_COMBO_BOX(app->profile_combo));
+    if (idx < 0) {
+        show_status(app, "No profile selected");
+        return;
+    }
+    if (app->curve_points_modified) {
+        int r = check_unsaved_changes(app);
+        if (r == 1) on_apply_clicked(NULL, app);
+        else if (r == 0) { load_curve_points_for_profile(app, idx); app->curve_points_modified = 0; }
+        else return;
+    }
+    app->pending_active_profile_idx = idx;
+    on_apply_profile_clicked(NULL, app);
+}
+
 /* Create Page 2: Curve Editor */
 static GtkWidget *create_curve_editor_page(AppData *app) {
     GtkWidget *vbox = gtk_box_new(GTK_ORIENTATION_VERTICAL, 15);
@@ -5033,20 +4932,42 @@ static GtkWidget *create_curve_editor_page(AppData *app) {
     
     /* Title */
     GtkWidget *title = gtk_label_new(NULL);
-    gtk_label_set_markup(GTK_LABEL(title), "<span size='large' weight='bold'>Curve Editor</span>");
+    gtk_label_set_markup(GTK_LABEL(title), "<span size='large' weight='bold'>Fan Profiles</span>");
     gtk_box_pack_start(GTK_BOX(vbox), title, FALSE, FALSE, 0);
+
+    GtkWidget *info_label = gtk_label_new("Choose a profile to edit its curve. Activate makes it control the fans; "
+                                          "\"(Active)\" marks the profile in use.");
+    gtk_label_set_line_wrap(GTK_LABEL(info_label), TRUE);
+    gtk_box_pack_start(GTK_BOX(vbox), info_label, FALSE, FALSE, 0);
+
+    /* Manual mode warning and button (shown only in manual mode) */
+    app->manual_mode_warning_label = gtk_label_new(NULL);
+    gtk_label_set_markup(GTK_LABEL(app->manual_mode_warning_label),
+                         "<span size='x-large' weight='bold' foreground='#d9534f'>Manual Mode Active!</span>");
+    gtk_widget_set_halign(app->manual_mode_warning_label, GTK_ALIGN_CENTER);
+    gtk_widget_set_no_show_all(app->manual_mode_warning_label, TRUE);
+    gtk_box_pack_start(GTK_BOX(vbox), app->manual_mode_warning_label, FALSE, FALSE, 0);
+    app->disable_manual_mode_btn = gtk_button_new_with_label("Disable Manual Mode");
+    gtk_widget_set_halign(app->disable_manual_mode_btn, GTK_ALIGN_CENTER);
+    g_signal_connect(app->disable_manual_mode_btn, "clicked", G_CALLBACK(on_disable_manual_mode_clicked), app);
+    gtk_widget_set_no_show_all(app->disable_manual_mode_btn, TRUE);
+    gtk_box_pack_start(GTK_BOX(vbox), app->disable_manual_mode_btn, FALSE, FALSE, 0);
     
     /* Profile selection */
     GtkWidget *profile_box = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 10);
     GtkWidget *profile_label = gtk_label_new("Profile:");
     app->profile_combo = gtk_combo_box_text_new();
-    gtk_combo_box_text_append_text(GTK_COMBO_BOX_TEXT(app->profile_combo), "Default");
-    
+
     /* Connect profile change to load curve points and store handler ID */
     app->profile_combo_signal_id = g_signal_connect(app->profile_combo, "changed", G_CALLBACK(on_profile_combo_changed), app);
     
     gtk_box_pack_start(GTK_BOX(profile_box), profile_label, FALSE, FALSE, 0);
     gtk_box_pack_start(GTK_BOX(profile_box), app->profile_combo, TRUE, TRUE, 0);
+
+    /* Activate the selected profile (was the radio list in the old Fan Profiles tab) */
+    app->fan_activate_btn = gtk_button_new_with_label("Activate");
+    g_signal_connect(app->fan_activate_btn, "clicked", G_CALLBACK(on_fan_activate_clicked), app);
+    gtk_box_pack_start(GTK_BOX(profile_box), app->fan_activate_btn, FALSE, FALSE, 0);
     
     /* Create profile button */
     GtkWidget *create_btn = gtk_button_new_with_label("New Profile");
@@ -5312,21 +5233,6 @@ static gboolean draw_curve_graph(GtkWidget *widget, cairo_t *cr, gpointer user_d
     return TRUE;
 }
 
-/* Callback: Profile radio button toggled - store pending selection */
-static void on_profile_radio_toggled(GtkWidget *widget, gpointer user_data) {
-    AppData *app = (AppData *)user_data;
-    
-    /* Get the profile index from the button's name */
-    const gchar *name = gtk_widget_get_name(widget);
-    int idx = atoi(name + 5); /* Skip "prof_" prefix */
-    
-    /* Only act if this radio button is now active */
-    if (gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(widget))) {
-        /* Store pending selection (will be applied when Apply button is clicked) */
-        app->pending_active_profile_idx = idx;
-        show_status(app, "Profile selected - click Apply to activate");
-    }
-}
 
 /* Callback: Apply profile selection */
 static void on_apply_profile_clicked(GtkWidget *widget, gpointer user_data) {
@@ -5341,7 +5247,7 @@ static void on_apply_profile_clicked(GtkWidget *widget, gpointer user_data) {
         }
     }
     
-    /* Fall back to pending selection for Page 3 */
+    /* Fall back to the pending selection (Fan Profiles tab: Activate) */
     if (profile_idx < 0) {
         profile_idx = app->pending_active_profile_idx;
     }
@@ -5356,7 +5262,7 @@ static void on_apply_profile_clicked(GtkWidget *widget, gpointer user_data) {
         app->active_profile_idx = profile_idx;
         app->pending_active_profile_idx = profile_idx;
         
-        /* Refresh profile list to update indicators on Page 3 */
+        /* Refresh the dropdown so "(Active)" moves */
         refresh_profile_list(app);
         
         /* Update tray menu to reflect new active profile */
@@ -5369,46 +5275,6 @@ static void on_apply_profile_clicked(GtkWidget *widget, gpointer user_data) {
     }
 }
 
-/* Callback: Cancel profile selection */
-static void on_cancel_profile_clicked(GtkWidget *widget, gpointer user_data) {
-    (void)widget; /* Unused */
-    AppData *app = (AppData *)user_data;
-    
-    /* Reset pending selection to current active profile */
-    app->pending_active_profile_idx = app->active_profile_idx;
-    
-    /* Update labels on existing radio buttons without full refresh */
-    GSList *node = app->profile_radios;
-    int idx = 0;
-    while (node != NULL && idx < app->num_profiles) {
-        GtkWidget *radio = (GtkWidget *)node->data;
-        char label_text[128];
-        if (idx == app->active_profile_idx) {
-            snprintf(label_text, sizeof(label_text), "%s (Active)", app->profile_names[idx]);
-        } else {
-            snprintf(label_text, sizeof(label_text), "%s", app->profile_names[idx]);
-        }
-        gtk_button_set_label(GTK_BUTTON(radio), label_text);
-        node = g_slist_next(node);
-        idx++;
-    }
-    
-    /* Set the radio button for active profile as selected */
-    if (app->profile_radios != NULL && app->active_profile_idx >= 0) {
-        GSList *node2 = app->profile_radios;
-        int idx2 = 0;
-        while (node2 != NULL && idx2 < app->num_profiles) {
-            if (idx2 == app->active_profile_idx) {
-                gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(node2->data), TRUE);
-                break;
-            }
-            node2 = g_slist_next(node2);
-            idx2++;
-        }
-    }
-    
-    show_status(app, "Selection cancelled");
-}
 
 /* Update the profile tab UI based on manual mode state */
 static void update_profile_tab_for_manual_mode(AppData *app, int manual_mode_enabled) {
@@ -5417,7 +5283,6 @@ static void update_profile_tab_for_manual_mode(AppData *app, int manual_mode_ena
     g_print("%s [GUI] Updating profile tab for manual mode: %s\n", ts, manual_mode_enabled ? "ENABLED" : "DISABLED");
     g_print("%s [GUI] -> app->manual_mode_warning_label = %p\n", ts, (void*)app->manual_mode_warning_label);
     g_print("%s [GUI] -> app->disable_manual_mode_btn = %p\n", ts, (void*)app->disable_manual_mode_btn);
-    g_print("%s [GUI] -> app->profile_radios = %p\n", ts, (void*)app->profile_radios);
     
     /* Show/hide warning label and button */
     if (app->manual_mode_warning_label && GTK_IS_WIDGET(app->manual_mode_warning_label)) {
@@ -5436,14 +5301,9 @@ static void update_profile_tab_for_manual_mode(AppData *app, int manual_mode_ena
         }
     }
     
-    /* Enable/disable all profile radio buttons */
-    if (app->profile_radios != NULL) {
-        GSList *node;
-        for (node = app->profile_radios; node != NULL; node = g_slist_next(node)) {
-            GtkWidget *radio = GTK_WIDGET(node->data);
-            gtk_widget_set_sensitive(radio, !manual_mode_enabled);
-        }
-    }
+    /* Activating a profile is not possible in manual mode */
+    if (app->fan_activate_btn && GTK_IS_WIDGET(app->fan_activate_btn))
+        gtk_widget_set_sensitive(app->fan_activate_btn, !manual_mode_enabled);
 }
 
 /* Callback: Disable manual mode button clicked */
@@ -5504,9 +5364,9 @@ static void on_notebook_page_switched(GtkNotebook *notebook, GtkWidget *page, gi
         return;
     }
     
-    /* Check if we're leaving the Curve Editor tab (page 1) with unsaved changes */
+    /* Check if we're leaving the Fan Profiles tab with unsaved curve changes */
     gint current_page = gtk_notebook_get_current_page(notebook);
-    if (current_page == 1 && page_num != 1 && app->curve_points_modified) {
+    if (current_page == PAGE_FAN && page_num != PAGE_FAN && app->curve_points_modified) {
         char ts[32];
         get_timestamp(ts, sizeof(ts));
         g_print("%s [GUI] Leaving Curve Editor tab with unsaved changes\n", ts);
@@ -5541,42 +5401,26 @@ static void on_notebook_page_switched(GtkNotebook *notebook, GtkWidget *page, gi
         show_status(app, "");
         
         /* Clear CPU profile status label when leaving the CPU Profiles tab */
-        if (current_page == 3 && app->cpu_freq_profile_status_label) {
+        if (current_page == PAGE_CPU && app->cpu_freq_profile_status_label) {
             gtk_label_set_text(GTK_LABEL(app->cpu_freq_profile_status_label), "");
         }
     }
 
-    /* Page 2 is the Curve Editor tab (0-indexed: Status=0, Curve Editor=1, Profiles=2) */
-    if (page_num == 1) {
+    /* Fan Profiles tab: refresh the list (keeps the selected profile) and
+     * show the selected profile's curve */
+    if (page_num == PAGE_FAN) {
         char ts[32];
         get_timestamp(ts, sizeof(ts));
-        g_print("%s [GUI] Switching to Curve Editor tab\n", ts);
-        
-        /* Load curve points for the currently active profile */
-        load_curve_points_for_profile(app, app->active_profile_idx);
-    }
-    
-    /* Page 3 is the Profiles tab (0-indexed: Status=0, Curve Editor=1, Profiles=2) */
-    if (page_num == 2) {
-        char ts[32];
-        get_timestamp(ts, sizeof(ts));
-        g_print("%s [GUI] Switching to Profiles tab\n", ts);
-        
-        /* Sync pending selection with actual active profile from daemon */
+        g_print("%s [GUI] Switching to Fan Profiles tab\n", ts);
         app->pending_active_profile_idx = app->active_profile_idx;
-        g_print("%s [GUI] -> Synced pending_active_profile_idx=%d with active_profile_idx=%d\n",
-                ts, app->pending_active_profile_idx, app->active_profile_idx);
-        
-        /* Defer refresh until GTK has realized the widgets on this page.
-         * GTK3 lazy-realizes notebook pages: the page is only realized after
-         * the first switch-page signal fires. By using g_idle_add, we ensure
-         * the widgets are fully realized before refresh_profile_list() checks.
-         * This fixes the bug where profiles appear empty on first visit. */
-        g_idle_add(refresh_profile_tab_idle, app);
+        refresh_profile_list(app);
+        int sel = gtk_combo_box_get_active(GTK_COMBO_BOX(app->profile_combo));
+        load_curve_points_for_profile(app, sel >= 0 ? sel : app->active_profile_idx);
+        update_profile_tab_for_manual_mode(app, app->in_manual_mode);
     }
 
     /* Page 3 is the CPU Profiles tab (0-indexed: Status=0, Curve Editor=1, Profiles=2, CPU Profiles=3) */
-    if (page_num == 3) {
+    if (page_num == PAGE_CPU) {
         char ts[32];
         get_timestamp(ts, sizeof(ts));
         g_print("%s [GUI] Switching to CPU Profiles tab\n", ts);
@@ -5601,7 +5445,7 @@ static void on_notebook_page_switched(GtkNotebook *notebook, GtkWidget *page, gi
     }
 
     /* Page 4 is the Keyboard Backlight tab (0-indexed: Status=0, Curve Editor=1, Profiles=2, CPU Profiles=3, Keyboard=4) */
-    if (page_num == 4) {
+    if (page_num == PAGE_KEYBOARD) {
         char ts[32];
         get_timestamp(ts, sizeof(ts));
         g_print("%s [GUI] Switching to Keyboard Backlight tab\n", ts);
@@ -5616,69 +5460,6 @@ static void on_notebook_page_switched(GtkNotebook *notebook, GtkWidget *page, gi
     }
 }
 
-/* Create Page 3: Profile List */
-static GtkWidget *create_profile_list_page(AppData *app) {
-    GtkWidget *vbox = gtk_box_new(GTK_ORIENTATION_VERTICAL, 15);
-    gtk_container_set_border_width(GTK_CONTAINER(vbox), 20);
-    
-    /* Title */
-    GtkWidget *title = gtk_label_new(NULL);
-    gtk_label_set_markup(GTK_LABEL(title), "<span size='large' weight='bold'>Profile Management</span>");
-    gtk_box_pack_start(GTK_BOX(vbox), title, FALSE, FALSE, 0);
-    
-    /* Info label */
-    GtkWidget *info_label = gtk_label_new("Select which profile is currently active. The active profile controls your fan behavior.");
-    gtk_label_set_line_wrap(GTK_LABEL(info_label), TRUE);
-    gtk_box_pack_start(GTK_BOX(vbox), info_label, FALSE, FALSE, 0);
-    
-    /* Manual mode warning label (initially hidden) */
-    app->manual_mode_warning_label = gtk_label_new(NULL);
-    gtk_label_set_markup(GTK_LABEL(app->manual_mode_warning_label), "<span size='x-large' weight='bold' foreground='#d9534f'>Manual Mode Active!</span>");
-    gtk_widget_set_halign(app->manual_mode_warning_label, GTK_ALIGN_CENTER);
-    gtk_widget_hide(app->manual_mode_warning_label); /* Hide by default */
-    gtk_box_pack_start(GTK_BOX(vbox), app->manual_mode_warning_label, FALSE, FALSE, 0);
-    
-    /* Disable Manual Mode button (initially hidden) */
-    app->disable_manual_mode_btn = gtk_button_new_with_label("Disable Manual Mode");
-    gtk_widget_set_halign(app->disable_manual_mode_btn, GTK_ALIGN_CENTER);
-    g_signal_connect(app->disable_manual_mode_btn, "clicked", G_CALLBACK(on_disable_manual_mode_clicked), app);
-    gtk_widget_hide(app->disable_manual_mode_btn); /* Hide by default */
-    gtk_box_pack_start(GTK_BOX(vbox), app->disable_manual_mode_btn, FALSE, FALSE, 0);
-    
-    /* Profile list frame */
-    GtkWidget *frame = gtk_frame_new("Available Fan Profiles");
-    GtkWidget *scrolled = gtk_scrolled_window_new(NULL, NULL);
-    gtk_scrolled_window_set_policy(GTK_SCROLLED_WINDOW(scrolled), GTK_POLICY_AUTOMATIC, GTK_POLICY_NEVER);
-    
-    app->profile_list_view = gtk_box_new(GTK_ORIENTATION_VERTICAL, 5);
-    gtk_container_set_border_width(GTK_CONTAINER(app->profile_list_view), 15);
-    gtk_widget_set_valign(app->profile_list_view, GTK_ALIGN_START);
-    
-    /* Add a placeholder label */
-    GtkWidget *placeholder = gtk_label_new("No profiles available. Create one in the Curve Editor page.");
-    gtk_widget_set_name(placeholder, "placeholder_label"); /* Set name so we can skip it during cleanup */
-    gtk_box_pack_start(GTK_BOX(app->profile_list_view), placeholder, FALSE, FALSE, 0);
-    app->placeholder_label = placeholder; /* Store reference for later removal */
-    
-    gtk_container_add(GTK_CONTAINER(scrolled), app->profile_list_view);
-    gtk_container_add(GTK_CONTAINER(frame), scrolled);
-    gtk_box_pack_start(GTK_BOX(vbox), frame, FALSE, FALSE, 0);
-    
-    /* Apply and Cancel buttons */
-    GtkWidget *button_box = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 15);
-    gtk_widget_set_halign(button_box, GTK_ALIGN_CENTER);
-    gtk_box_pack_start(GTK_BOX(vbox), button_box, FALSE, FALSE, 0);
-    
-    GtkWidget *cancel_btn = gtk_button_new_with_label("Cancel");
-    g_signal_connect(cancel_btn, "clicked", G_CALLBACK(on_cancel_profile_clicked), app);
-    gtk_box_pack_start(GTK_BOX(button_box), cancel_btn, FALSE, FALSE, 0);
-    
-    GtkWidget *apply_btn = gtk_button_new_with_label("Apply");
-    g_signal_connect(apply_btn, "clicked", G_CALLBACK(on_apply_profile_clicked), app);
-    gtk_box_pack_start(GTK_BOX(button_box), apply_btn, FALSE, FALSE, 0);
-    
-    return vbox;
-}
 
 /* Callback for clickable links - destroys the duplicated URL string */
 /* The URL belongs to the link widget and is freed when the widget is
@@ -5802,7 +5583,7 @@ static gboolean refresh_logs_timer(gpointer user_data) {
     
     /* Check if we're on the log page before refreshing to save resources */
     gint current_page = gtk_notebook_get_current_page(GTK_NOTEBOOK(app->notebook));
-    if (current_page == 4) {  /* Log page is index 4 (0-based: Status=0, Curve=1, Profiles=2, CPU=3, Logs=4, About=5) */
+    if (current_page == PAGE_LOGS) {
         load_gui_logs(app);
         load_daemon_logs(app);
         load_cpu_daemon_logs(app);
@@ -6823,8 +6604,7 @@ static GtkWidget *create_main_window(AppData *app) {
     
     GtkWidget *page1 = create_status_page(app);
     GtkWidget *page2 = create_curve_editor_page(app);
-    GtkWidget *page3 = create_profile_list_page(app);
-    GtkWidget *page4 = create_log_page(app);
+GtkWidget *page4 = create_log_page(app);
     GtkWidget *cpu_page = create_cpu_page(app);
     /* Wrap CPU page in a scrolled window so all sections are reachable */
     GtkWidget *cpu_scrolled = gtk_scrolled_window_new(NULL, NULL);
@@ -6838,8 +6618,7 @@ static GtkWidget *create_main_window(AppData *app) {
     gtk_container_add(GTK_CONTAINER(kbd_scrolled), kbd_page);
 
     gtk_notebook_append_page(GTK_NOTEBOOK(app->notebook), page1, gtk_label_new("Status"));
-    gtk_notebook_append_page(GTK_NOTEBOOK(app->notebook), page2, gtk_label_new("Curve Editor"));
-    gtk_notebook_append_page(GTK_NOTEBOOK(app->notebook), page3, gtk_label_new("Fan Profiles"));
+    gtk_notebook_append_page(GTK_NOTEBOOK(app->notebook), page2, gtk_label_new("Fan Profiles"));
     gtk_notebook_append_page(GTK_NOTEBOOK(app->notebook), cpu_scrolled, gtk_label_new("CPU Profiles"));
     gtk_notebook_append_page(GTK_NOTEBOOK(app->notebook), kbd_scrolled, gtk_label_new("Keyboard Backlight"));
     gtk_notebook_append_page(GTK_NOTEBOOK(app->notebook), page4, gtk_label_new("Logs"));
@@ -7131,10 +6910,10 @@ static void on_tray_activate_left_click(GtkStatusIcon *status_icon, gpointer use
         if (response != NULL) {
             parse_status(app, response);  /* Parse STATUS to update app->in_manual_mode flag */
             
-            /* If we're on the Profiles tab (page 2), defer refresh until widgets are realized.
+            /* If we're on the Fan Profiles tab, defer refresh until widgets are realized.
              * gtk_widget_show_all() triggers realization asynchronously. */
             gint current_page = gtk_notebook_get_current_page(GTK_NOTEBOOK(app->notebook));
-            if (current_page == 2) {
+            if (current_page == PAGE_FAN) {
                 g_idle_add(refresh_profile_tab_idle, app);
             }
         }
@@ -7160,10 +6939,10 @@ static void on_tray_show_app(GtkMenuItem *menuitem, gpointer user_data) {
         if (response != NULL) {
             parse_status(app, response);  /* Parse STATUS to update app->in_manual_mode flag */
             
-            /* If we're on the Profiles tab (page 2), defer refresh until widgets are realized.
+            /* If we're on the Fan Profiles tab, defer refresh until widgets are realized.
              * gtk_widget_show_all() triggers realization asynchronously. */
             gint current_page = gtk_notebook_get_current_page(GTK_NOTEBOOK(app->notebook));
-            if (current_page == 2) {
+            if (current_page == PAGE_FAN) {
                 g_idle_add(refresh_profile_tab_idle, app);
             }
         }
@@ -7220,7 +6999,7 @@ static void on_tray_select_profile(GtkRadioMenuItem *radiomenuitem, gpointer use
             app->active_profile_idx = selected_idx;
             app->pending_active_profile_idx = selected_idx;
             
-            /* Refresh profile list to update indicators on Page 3 */
+            /* Refresh the dropdown so "(Active)" moves */
             refresh_profile_list(app);
             
             /* Update tray menu to reflect new active profile */

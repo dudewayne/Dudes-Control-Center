@@ -48,8 +48,7 @@ dcc-gui --debug    # more output in GUI.log
 | Tab | Contents |
 |---|---|
 | **Status** | CPU/GPU temperature, each fan's RPM and duty (from the EC), auto/manual fan mode. Manual mode: +/- in 10% steps from **0% (fans off)** to 100%. |
-| **Curve Editor** | Graphical temperature-to-fan-speed curve per fan profile; add, edit and delete points. |
-| **Fan Profiles** | Create, rename, delete and activate fan profiles. |
+| **Fan Profiles** | One dropdown for all fan profiles (the one in use is marked "(Active)"): **Activate**, New, Rename, Delete, and the graphical temperature-to-fan-speed curve of the selected profile (add, edit, delete points; Apply Changes). Shows a warning with "Disable Manual Mode" while manual mode is on. |
 | **CPU Profiles** | Power mode (**Performance / Balanced / Power Save**), per-core min/max frequency profiles, the CPU hard limit. |
 | **Keyboard Backlight** | Keyboard profiles, **brightness slider**, backlight off switch, colors, the keyboard picture for **per-key lighting**, the LED wizard. |
 | **Logs** | Live GUI, fan daemon and CPU daemon logs. |
@@ -179,7 +178,7 @@ Fan percentage: the fan duty, from the EC's duty registers (`0xCE`/`0xCF`, 0-255
 
 ### Default fan curve
 
-Linear interpolation between the points: ≤45°C 20%, 55°C 30%, 60°C 40%, 70°C 50%, 80°C 70%, ≥85°C 100%. Custom curves are edited in the Curve Editor tab.
+Linear interpolation between the points: ≤45°C 20%, 55°C 30%, 60°C 40%, 70°C 50%, 80°C 70%, ≥85°C 100%. Custom curves are edited in the Fan Profiles tab.
 
 ## Troubleshooting
 

@@ -2,6 +2,15 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.21.0] - 2026-11-22
+
+### Changed
+- **Curve Editor and Fan Profiles are one tab: "Fan Profiles"**. A single dropdown lists all fan profiles, with the one in use marked "(Active)". Next to it: **Activate** (makes the selected profile control the fans), New, Rename and Delete. Below: the curve points and graph of the selected profile with Add/Delete Point and Apply Changes/Cancel, as before. The radio list with its separate Apply/Cancel buttons is gone, so there is only one place to pick a profile. The manual mode warning and "Disable Manual Mode" moved into this tab; Activate is disabled in manual mode.
+- Refreshing the list keeps the selected profile instead of jumping to the active one (as in the CPU tab since 1.20.2); Activate asks about unsaved curve changes first.
+
+### Fixed
+- **Logs tab refreshes again**: its auto-refresh checked for the wrong tab number since the Keyboard tab was added, so the logs only refreshed while the Keyboard tab was open. Tab numbers are now named constants.
+
 ## [1.20.4] - 2026-11-22
 
 ### Fixed
