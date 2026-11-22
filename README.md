@@ -199,6 +199,8 @@ sudo systemctl restart dcc-fan-daemon
 
 **The desktop's keyboard brightness slider does nothing**: it talks to UPower, which has to see the current keyboard driver. The package restarts UPower after updating the driver; if the slider still does not react, run `sudo systemctl restart upower` (or log out and in).
 
+**The desktop's keyboard slider only switches on and off** (after upgrading from a version before 1.20.0): the desktop's power daemon (e.g. Cinnamon's `csd-power`) remembers the old 0-255 range until the next login. Log out and in once.
+
 **Zero or wrong temperatures, fans do not react**: your model may use a different EC layout or commands, or the BIOS may lock fan control.
 
 **Test the connection to a daemon:**

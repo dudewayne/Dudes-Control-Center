@@ -12,6 +12,7 @@ All notable changes to this project will be documented in this file.
 ### Changed
 - **Keyboard driver `ite_829x`: hardware brightness restored as in tuxedo-drivers**. The modified driver reported a range of 0-255 but always sent full brightness to the keyboard, so writing the brightness (what the desktop slider does) had no effect. It now passes the brightness (0-10, `max_brightness` 10) to the keyboard again. Unlike tuxedo-drivers it starts at full brightness instead of 0. One key's brightness applies to the whole keyboard, so desktop sliders that control a single LED device work.
 - The keyboard daemon no longer dims by scaling the colors; brightness is the hardware setting.
+- **After upgrading from an older version, log out and in once**: the desktop's power daemon (Cinnamon's `csd-power`) reads the keyboard's brightness range at login and otherwise keeps using the old 0-255 range, so its slider only switches between off and full.
 - `postinst` restarts UPower after loading the rebuilt driver, because the keyboard LED devices are recreated and UPower would keep using the old ones (the desktop slider then failed with "error reading brightness").
 - GUI: the "Backlight Power" frame is now "Backlight" (brightness and off switch).
 - Tests: brightness commands, limits, a change from outside (desktop slider), restore after a restart; package check for the UPower restart (8 suites, 187 checks).
