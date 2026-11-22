@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.24.3] - 2026-11-22
+
+### Fixed
+- **Fan Profiles: Cancel button removed**: it only discarded unsaved curve changes, which the unsaved-changes dialog already offers (Discard Changes) when switching profiles, leaving the tab or closing the window.
+
 ## [1.24.2] - 2026-11-22
 
 ### Fixed

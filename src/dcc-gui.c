@@ -488,7 +488,6 @@ typedef struct {
 
 /* Forward declarations for callbacks */
 static void on_apply_clicked(GtkWidget *widget, gpointer user_data);
-static void on_cancel_clicked(GtkWidget *widget, gpointer user_data);
 static void on_create_profile_clicked(GtkWidget *widget, gpointer user_data);
 static void on_delete_profile_clicked(GtkWidget *widget, gpointer user_data);
 static void on_rename_profile_clicked(GtkWidget *widget, gpointer user_data);
@@ -2537,23 +2536,6 @@ static void on_apply_clicked(GtkWidget *widget, gpointer user_data) {
     
     /* Reload curve points to ensure UI matches daemon state */
     load_curve_points_for_profile(app, profile_idx);
-}
-
-/* Callback: Cancel changes - reload profiles from daemon */
-static void on_cancel_clicked(GtkWidget *widget, gpointer user_data) {
-    (void)widget;
-    AppData *app = (AppData *)user_data;
-    
-    /* Reload curve points for current profile from daemon */
-    int profile_idx = gtk_combo_box_get_active(GTK_COMBO_BOX(app->profile_combo));
-    if (profile_idx >= 0) {
-        load_curve_points_for_profile(app, profile_idx);
-    }
-    
-    /* Clear the modified flag since we're discarding changes */
-    app->curve_points_modified = 0;
-    
-    show_status(app, "Changes cancelled - reloaded from daemon");
 }
 
 /* Callback: Create new profile */
@@ -5675,14 +5657,9 @@ static GtkWidget *create_curve_editor_page(AppData *app) {
     
     gtk_box_pack_start(GTK_BOX(vbox), point_controls, FALSE, FALSE, 5);
     
-    /* Cancel discards unsaved curve changes (saving is "Save" in the profile row) */
-    GtkWidget *button_box = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 10);
-    GtkWidget *cancel_btn = gtk_button_new_with_label("Cancel");
-    gtk_widget_set_tooltip_text(cancel_btn, "Discard unsaved curve changes");
-    g_signal_connect(cancel_btn, "clicked", G_CALLBACK(on_cancel_clicked), app);
-    gtk_box_pack_start(GTK_BOX(button_box), cancel_btn, FALSE, FALSE, 0);
-    gtk_box_pack_start(GTK_BOX(vbox), button_box, FALSE, FALSE, 15);
-    
+    /* No Cancel button (1.24.3): unsaved curve changes are asked about
+     * (Save / Discard) when switching profiles, leaving the tab or closing */
+
     return vbox;
 }
 
