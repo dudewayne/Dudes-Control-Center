@@ -5116,10 +5116,10 @@ static GtkWidget *create_curve_editor_page(AppData *app) {
     GtkWidget *button_box = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 10);
     GtkWidget *cancel_btn = gtk_button_new_with_label("Cancel");
     g_signal_connect(cancel_btn, "clicked", G_CALLBACK(on_cancel_clicked), app);
-    GtkWidget *apply_btn = gtk_button_new_with_label("Apply Changes");
+    GtkWidget *apply_btn = gtk_button_new_with_label("Apply");
     g_signal_connect(apply_btn, "clicked", G_CALLBACK(on_apply_clicked), app);
     gtk_box_pack_start(GTK_BOX(button_box), cancel_btn, FALSE, FALSE, 0);
-    gtk_box_pack_end(GTK_BOX(button_box), apply_btn, FALSE, FALSE, 0);
+    gtk_box_pack_start(GTK_BOX(button_box), apply_btn, FALSE, FALSE, 0);   /* next to Cancel */
     gtk_box_pack_start(GTK_BOX(vbox), button_box, FALSE, FALSE, 15);
     
     return vbox;

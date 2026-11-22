@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.21.4] - 2026-11-22
+
+### Fixed
+- Fan Profiles tab: the "Apply Changes" button is now called **Apply** and sits next to **Cancel** instead of at the far right edge.
+
 ## [1.21.3] - 2026-11-22
 
 ### Fixed

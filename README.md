@@ -48,7 +48,7 @@ dcc-gui --debug    # more output in GUI.log
 | Tab | Contents |
 |---|---|
 | **Status** | CPU/GPU temperature, each fan's RPM and duty (from the EC), auto/manual fan mode. Manual mode: +/- in 10% steps from **0% (fans off)** to 100%. |
-| **Fan Profiles** | One dropdown for all fan profiles (the one in use is marked "(Active)"): **Activate**, New, Rename, Delete, and the graphical temperature-to-fan-speed curve of the selected profile (add, edit, delete points; Apply Changes). Shows a warning with "Disable Manual Mode" while manual mode is on. |
+| **Fan Profiles** | One dropdown for all fan profiles (the one in use is marked "(Active)"): **Activate**, New, Rename, Delete, and the graphical temperature-to-fan-speed curve of the selected profile (add, edit, delete points; Apply). Shows a warning with "Disable Manual Mode" while manual mode is on. |
 | **CPU Profiles** | Power mode (**Performance / Balanced / Power Save**), per-core min/max frequency profiles, the CPU hard limit. |
 | **Keyboard Backlight** | Keyboard profiles, **brightness slider**, backlight off switch, colors, the keyboard picture for **per-key lighting**, the LED wizard. |
 | **Logs** | Live GUI, fan daemon and CPU daemon logs. |
