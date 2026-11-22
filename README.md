@@ -51,7 +51,7 @@ dcc-gui --debug    # more output in GUI.log
 | **Curve Editor** | Graphical temperature-to-fan-speed curve per fan profile; add, edit and delete points. |
 | **Fan Profiles** | Create, rename, delete and activate fan profiles. |
 | **CPU Profiles** | Power mode (**Performance / Balanced / Power Save**), per-core min/max frequency profiles, the CPU hard limit. |
-| **Keyboard Backlight** | Keyboard profiles, backlight off switch, colors, the keyboard picture for **per-key lighting**, the LED wizard. |
+| **Keyboard Backlight** | Keyboard profiles, **brightness slider**, backlight off switch, colors, the keyboard picture for **per-key lighting**, the LED wizard. |
 | **Logs** | Live GUI, fan daemon and CPU daemon logs. |
 | **About** | Version, credits, links. |
 
@@ -63,6 +63,7 @@ dcc-gui --debug    # more output in GUI.log
 2. Click keys on the picture to select them, then click a color: exactly those keys change, the others keep their color. With no keys selected, the color applies to the whole keyboard. **Clear selection** deselects all keys.
 3. **Save Profile** stores the colors in the keyboard profile; **Activate Profile** brings them back. The keyboard daemon restores the active profile when it starts.
 4. **Backlight Off** switches the keyboard off until you switch it on again, choose a color or activate a profile, also across reboots. Opening the GUI does not change the backlight.
+5. **Brightness** (0-10) is the keyboard's hardware brightness and works on top of the colors. It is the same setting as the keyboard slider of the desktop (e.g. Linux Mint's battery/power applet), so either one can be used; the level is kept across reboots.
 
 ### CPU power modes
 
@@ -195,6 +196,8 @@ sudo systemctl restart dcc-fan-daemon
 **Keyboard backlight does nothing**: check that the module is loaded (`lsmod | grep ite_829x`, `dkms status ite_829x`) and that `/sys/class/leds/rgb:kbd_backlight*` exists. With Secure Boot the module must be signed with an enrolled MOK key. Per-key colors need the LED wizard mapping.
 
 **Keys light the wrong LEDs**: run the LED wizard again.
+
+**The desktop's keyboard brightness slider does nothing**: it talks to UPower, which has to see the current keyboard driver. The package restarts UPower after updating the driver; if the slider still does not react, run `sudo systemctl restart upower` (or log out and in).
 
 **Zero or wrong temperatures, fans do not react**: your model may use a different EC layout or commands, or the BIOS may lock fan control.
 

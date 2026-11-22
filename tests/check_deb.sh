@@ -48,6 +48,7 @@ done
 check "grep -q dudes-control-center-fan-daemon.service '$TMP/ctrl/preinst'" "preinst stops the old fan service before the upgrade"
 check "grep -q 'wants/dudes-control-center-' '$TMP/ctrl/postinst'" "postinst removes leftovers of the old services"
 check "grep -q 'systemctl enable dcc-fan-daemon' '$TMP/ctrl/postinst'" "postinst enables the new services"
+check "grep -q 'try-restart upower' '$TMP/ctrl/postinst'" "postinst lets UPower see the reloaded keyboard driver"
 
 echo
 echo "$fails failure(s)"

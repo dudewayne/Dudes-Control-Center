@@ -29,7 +29,8 @@ check = Checker()
 names = ["rgb:kbd_backlight"] + [f"rgb:kbd_backlight_{i}" for i in range(1, NLEDS)]
 for n in names:
     wr(f"leds/{n}/multi_intensity", "0 0 0\n")
-    wr(f"leds/{n}/max_brightness", "50\n")
+    wr(f"leds/{n}/max_brightness", "10\n")      # ite_829x: hardware brightness 0-10
+    wr(f"leds/{n}/brightness", "0\n")
 wr("leds/input20::capslock/brightness", "0")   # not a keyboard RGB LED
 os.makedirs("logs", exist_ok=True)
 
@@ -87,6 +88,23 @@ try:
     c = colors()
     check(c[0] == (10, 20, 30) and c[1] == (10, 20, 30) and c[2] == (0, 0, 0),
           f"active profile restored at daemon start (LED0={c[0]}, LED2={c[2]})")
+
+    # keyboard brightness (v1.20.0)
+    def bright(i):
+        return int(open(f"leds/{idx[i]}/brightness").read())
+
+    check(all(bright(i) == 10 for i in range(NLEDS)), "no saved brightness -> full brightness (10) at start")
+    r = ask(s, "SET_BRIGHTNESS 4")
+    check(r.startswith("OK") and bright(0) == 4 and bright(119) == 4, "SET_BRIGHTNESS sets the keyboard brightness")
+    check("BRIGHTNESS 4 MAX 10" in ask(s, "GET_BRIGHTNESS") and "BRIGHTNESS=4\nBRIGHTNESS_MAX=10" in ask(s, "STATUS"),
+          "GET_BRIGHTNESS and STATUS report level and maximum")
+    check(open("state/kbd_brightness").read().strip() == "4", "brightness remembered for the next start")
+    check(ask(s, "SET_BRIGHTNESS 99").startswith("OK") and bright(0) == 10, "too high a level is limited to the maximum")
+    check(ask(s, "SET_BRIGHTNESS x").startswith("ERROR"), "invalid brightness rejected")
+    wr(f"leds/{idx[0]}/brightness", "7\n")     # like the desktop's keyboard slider (UPower)
+    time.sleep(1.6)
+    check(open("state/kbd_brightness").read().strip() == "7" and "BRIGHTNESS 7" in ask(s, "GET_BRIGHTNESS"),
+          "brightness changed outside the daemon is noticed and remembered")
 
     r = ask(s, "SET_KEYS_COLOR::255,255,255::all")
     check(r.startswith("OK") and set(colors()) == {(255, 255, 255)}, "no selection: whole keyboard white")
@@ -165,6 +183,7 @@ try:
     check(c[6] == (0, 255, 0) and c[119] == (0, 0, 255) and c[50] == (255, 255, 255),
           "after a restart the active profile's per-key colors are restored")
     check(open("cfg/keyboard_led_mapping.csv").read() == csv, "no second conversion after a restart")
+    check(bright(0) == 7, "after a restart the remembered brightness is restored")
     check("IS_ON=1" in ask(s, "STATUS"), "STATUS reports the backlight as on after restoring a profile")
 
     # the off state survives a restart (v1.18.6)

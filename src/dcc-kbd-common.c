@@ -266,16 +266,94 @@ int kbd_led_off_flag_set(void) {
     return lstat(KBD_OFF_FLAG_FILE, &st) == 0 && S_ISREG(st.st_mode);
 }
 
-int kbd_led_set_brightness(uint8_t brightness) {
+/* --- Keyboard brightness (LED "brightness" attribute) --- */
+static int g_hw_brightness_last = -1;
 
-    g_led_state.brightness = brightness;
-    LOG_INFO("[KBD] Brightness set to %d/255 (%.0f%%)", brightness, (brightness * 100.0) / 255.0);
-    apply_zones_with_brightness();
+static void led_attr_path(int i, const char *attr, char *out, size_t size) {
+    snprintf(out, size, "%s", g_led_state.leds[i].path);   /* .../<led>/multi_intensity */
+    char *slash = strrchr(out, '/');
+    if (slash) snprintf(slash + 1, size - (size_t)(slash + 1 - out), "%s", attr);
+}
+
+static int led_read_int(int i, const char *attr) {
+    char path[KBD_LED_PATH_MAX + 32];
+    led_attr_path(i, attr, path, sizeof path);
+    FILE *f = fopen(path, "r");
+    if (!f) return -1;
+    int v = -1;
+    if (fscanf(f, "%d", &v) != 1) v = -1;
+    fclose(f);
+    return v;
+}
+
+static int led_write_int(int i, const char *attr, int v) {
+    char path[KBD_LED_PATH_MAX + 32];
+    led_attr_path(i, attr, path, sizeof path);
+    FILE *f = fopen(path, "w");
+    if (!f) return -1;
+    int ok = fprintf(f, "%d\n", v) > 0;
+    return (fclose(f) == 0 && ok) ? 0 : -1;
+}
+
+static void brightness_remember(int level) {
+    mkdir(KBD_STATE_DIR, 0755);
+    int fd = open(KBD_BRIGHTNESS_FILE, O_WRONLY | O_CREAT | O_TRUNC | O_NOFOLLOW | O_CLOEXEC, 0644);
+    if (fd < 0) return;
+    char buf[16];
+    int n = snprintf(buf, sizeof buf, "%d\n", level);
+    if (write(fd, buf, (size_t)n) != n) LOG_WARN("[KBD] Cannot write %s", KBD_BRIGHTNESS_FILE);
+    close(fd);
+}
+
+int kbd_hw_brightness_max(void) {
+    if (g_led_state.num_leds == 0) return 0;
+    int m = led_read_int(0, "max_brightness");
+    return m > 0 ? m : g_led_state.leds[0].max_brightness;
+}
+
+int kbd_hw_brightness_get(void) {
+    return g_led_state.num_leds > 0 ? led_read_int(0, "brightness") : -1;
+}
+
+int kbd_hw_brightness_set(int level) {
+    if (g_led_state.num_leds == 0) return -1;
+    int max = kbd_hw_brightness_max();
+    if (level < 0) level = 0;
+    if (level > max) level = max;
+    if (led_write_int(0, "brightness", level) != 0) {
+        LOG_ERROR("[KBD] Cannot set keyboard brightness: %s", strerror(errno));
+        return -1;
+    }
+    /* ite_829x applies one LED's brightness to the whole keyboard; other
+     * drivers need every LED set */
+    if (g_led_state.num_leds > 1 && led_read_int(1, "brightness") != level)
+        for (int i = 1; i < g_led_state.num_leds; i++) led_write_int(i, "brightness", level);
+    g_hw_brightness_last = level;
+    brightness_remember(level);
+    LOG_INFO("[KBD] Keyboard brightness %d/%d", level, max);
     return 0;
 }
 
-uint8_t kbd_led_get_brightness(void) {
-    return g_led_state.brightness;
+int kbd_hw_brightness_poll(void) {
+    int cur = kbd_hw_brightness_get();
+    if (cur < 0 || cur == g_hw_brightness_last) return 0;
+    if (g_hw_brightness_last >= 0)
+        LOG_INFO("[KBD] Keyboard brightness changed to %d (desktop slider or other program)", cur);
+    g_hw_brightness_last = cur;
+    brightness_remember(cur);
+    return 1;
+}
+
+void kbd_hw_brightness_restore(void) {
+    int level = -1;
+    FILE *f = fopen(KBD_BRIGHTNESS_FILE, "r");
+    if (f) {
+        if (fscanf(f, "%d", &level) != 1) level = -1;
+        fclose(f);
+    }
+    int max = kbd_hw_brightness_max();
+    if (level < 0 || level > max) level = max;
+    kbd_hw_brightness_set(level);
 }
 
 int kbd_led_init(void) {

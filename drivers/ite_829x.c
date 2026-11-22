@@ -61,9 +61,14 @@ static struct hid_device *kbdev = NULL;
 static struct mutex dev_lock;
 static struct mutex input_lock;
 
-// Brightness (0-255 for full RGB range)
-#define ITE829X_KBD_BRIGHTNESS_MAX	0xff
-#define ITE829X_KBD_BRIGHTNESS_DEFAULT	0x00
+// Brightness (0-10): the keyboard's global hardware brightness, as in
+// tuxedo-drivers. It is exposed as the LED "brightness" (0-10) of every key,
+// so desktop keyboard-brightness sliders (UPower) control the whole keyboard;
+// the colors are set separately per key via multi_intensity.
+#define ITE829X_KBD_BRIGHTNESS_MAX	0x0a
+// Start at full brightness (tuxedo-drivers starts at 0); systemd-backlight and
+// the keyboard daemon restore the saved level afterwards
+#define ITE829X_KBD_BRIGHTNESS_DEFAULT	ITE829X_KBD_BRIGHTNESS_MAX
 // Default mode (index to mode_to_color array) or extra modes
 #define DEFAULT_MODE        6
 
@@ -221,8 +226,7 @@ static void leds_set_brightness_mc(struct led_classdev *led_cdev, enum led_brigh
 		}
 	}
 
-	/* Always send max brightness for global brightness command to ensure LEDs are enabled */
-	keyb_send_data(kbdev, 0x09, ITE829X_KBD_BRIGHTNESS_MAX, 0x02, 0x00, 0x00);
+	keyb_send_data(kbdev, 0x09, brightness, 0x02, 0x00, 0x00);
 
 	keyb_send_data(kbdev, 0x01, led_cdev_mc->subled_info[0].channel,
 		       led_cdev_mc->subled_info[0].intensity,

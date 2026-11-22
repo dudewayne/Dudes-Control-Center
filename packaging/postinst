@@ -40,6 +40,9 @@ if [ "$1" = "configure" ]; then
         # Unload the old module and load the freshly built one
         modprobe -r $DKMS_MOD_NAME 2>/dev/null || true
         modprobe $DKMS_MOD_NAME || true
+        # The keyboard LEDs were recreated: let UPower (the desktop's keyboard
+        # brightness slider) pick up the new devices
+        systemctl try-restart upower.service 2>/dev/null || true
         echo "ite_829x: $(modinfo -F version $DKMS_MOD_NAME 2>/dev/null || echo unknown) from $(modinfo -n $DKMS_MOD_NAME 2>/dev/null)"
     fi
     systemctl enable dcc-fan-daemon

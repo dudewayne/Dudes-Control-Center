@@ -185,6 +185,12 @@ int main(int argc, char **argv) {
     CHECK(kbd_parse_is_on("STATUS OK\nLED_COUNT=120\nIS_ON=0\n") == 0 &&
           kbd_parse_is_on("STATUS OK\nIS_ON=1\n") == 1 && kbd_parse_is_on("ERROR x") == -1,
           "K: backlight power state read from STATUS (v1.18.6)");
+    {
+        int lv = -1, mx = -1;
+        CHECK(kbd_parse_brightness("STATUS OK\nIS_ON=1\nBRIGHTNESS=4\nBRIGHTNESS_MAX=10\n", &lv, &mx) == 0 &&
+              lv == 4 && mx == 10 && kbd_parse_brightness("STATUS OK\nIS_ON=1\n", &lv, &mx) == -1,
+              "K: keyboard brightness read from STATUS (v1.20.0)");
+    }
     kbd_parse_zone_colors(&kb, "ERROR Not connected to keyboard daemon");
     CHECK(!kb.kbd_led_has_color[0], "K: error response clears the colors");
 

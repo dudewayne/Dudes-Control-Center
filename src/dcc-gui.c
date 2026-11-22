@@ -421,6 +421,9 @@ typedef struct {
     GtkWidget *kbd_zone_delete_buttons[32];
     GtkWidget *kbd_add_zone_btn;
     GtkWidget *kbd_off_switch; /* Toggle to disable keyboard backlight */
+    GtkWidget *kbd_brightness_scale; /* keyboard hardware brightness 0..max */
+    guint kbd_brightness_timer;      /* debounce while the slider is dragged */
+    int kbd_brightness_max;
     int kbd_off_active; /* 1 when off switch is active */
     GtkWidget *kbd_apply_zones_btn;
     int kbd_num_zones;
@@ -4428,11 +4431,26 @@ static int kbd_parse_is_on(const char *response) {
     return atoi(p + 6) ? 1 : 0;
 }
 
+/* "BRIGHTNESS=n" and "BRIGHTNESS_MAX=m" from a keyboard STATUS response */
+static int kbd_parse_brightness(const char *response, int *level, int *max) {
+    const char *p = response ? strstr(response, "BRIGHTNESS=") : NULL;
+    const char *q = response ? strstr(response, "BRIGHTNESS_MAX=") : NULL;
+    if (!p || !q) return -1;
+    *level = atoi(p + 11);
+    *max = atoi(q + 15);
+    return (*max > 0 && *level >= 0) ? 0 : -1;
+}
+
+static void kbd_show_brightness(AppData *app, int level, int max);
+
 /* Show the daemon's real power state on the "Backlight Off" switch
  * (without sending anything back) */
 static void kbd_sync_power_switch(AppData *app) {
     if (!app->kbd_off_switch || !kbd_ensure_connected(app)) return;
-    int is_on = kbd_parse_is_on(send_keyboard_command(app, "STATUS"));
+    const char *status = send_keyboard_command(app, "STATUS");
+    int level, max;
+    if (kbd_parse_brightness(status, &level, &max) == 0) kbd_show_brightness(app, level, max);
+    int is_on = kbd_parse_is_on(status);
     if (is_on < 0) return;
     if (app->kbd_off_active == !is_on && gtk_switch_get_active(GTK_SWITCH(app->kbd_off_switch)) == !is_on)
         return;   /* unchanged */
@@ -6477,6 +6495,41 @@ static GtkWidget *create_cpu_page(AppData *app) {
     return vbox;
 }
 
+/* Keyboard brightness slider: shows the daemon's level (also when it was
+ * changed with the desktop's keyboard slider) without sending it back */
+static void kbd_show_brightness(AppData *app, int level, int max) {
+    if (!app->kbd_brightness_scale || app->kbd_brightness_timer) return;  /* user is dragging */
+    GtkRange *r = GTK_RANGE(app->kbd_brightness_scale);
+    if (max != app->kbd_brightness_max) {
+        app->kbd_brightness_max = max;
+        gtk_range_set_range(r, 0, max);
+    }
+    if ((int)gtk_range_get_value(r) != level) {
+        g_object_set_data(G_OBJECT(r), "dcc-syncing", GINT_TO_POINTER(1));
+        gtk_range_set_value(r, level);
+        g_object_set_data(G_OBJECT(r), "dcc-syncing", NULL);
+    }
+    gtk_widget_set_sensitive(app->kbd_brightness_scale, TRUE);
+}
+
+static gboolean kbd_brightness_send(gpointer user_data) {
+    AppData *app = (AppData *)user_data;
+    app->kbd_brightness_timer = 0;
+    int level = (int)gtk_range_get_value(GTK_RANGE(app->kbd_brightness_scale));
+    char cmd[48];
+    snprintf(cmd, sizeof cmd, "SET_BRIGHTNESS %d", level);
+    const char *r = send_keyboard_command(app, cmd);
+    g_print("[GUI] %s -> %s\n", cmd, r ? r : "NULL");
+    return G_SOURCE_REMOVE;
+}
+
+static void on_kbd_brightness_changed(GtkRange *range, gpointer user_data) {
+    AppData *app = (AppData *)user_data;
+    if (g_object_get_data(G_OBJECT(range), "dcc-syncing")) return;
+    if (app->kbd_brightness_timer) g_source_remove(app->kbd_brightness_timer);
+    app->kbd_brightness_timer = g_timeout_add(120, kbd_brightness_send, app);
+}
+
 /* Create Page 7: Keyboard Backlight Control */
 static GtkWidget *create_keyboard_page(AppData *app) {
     GtkWidget *vbox = gtk_box_new(GTK_ORIENTATION_VERTICAL, 6);
@@ -6546,7 +6599,7 @@ static GtkWidget *create_keyboard_page(AppData *app) {
     gtk_box_pack_start(GTK_BOX(vbox), profile_frame, FALSE, FALSE, 0);
 
     /* --- Off Switch section --- */
-    GtkWidget *off_switch_frame = gtk_frame_new("Backlight Power");
+    GtkWidget *off_switch_frame = gtk_frame_new("Backlight");
     gtk_container_set_border_width(GTK_CONTAINER(off_switch_frame), 6);
     GtkWidget *off_switch_vbox = gtk_box_new(GTK_ORIENTATION_VERTICAL, 6);
 
@@ -6560,6 +6613,23 @@ static GtkWidget *create_keyboard_page(AppData *app) {
     g_signal_connect(app->kbd_off_switch, "state-set", G_CALLBACK(on_kbd_off_switch_toggled), app);
     gtk_box_pack_start(GTK_BOX(off_switch_hbox), app->kbd_off_switch, FALSE, FALSE, 0);
     gtk_box_pack_start(GTK_BOX(off_switch_vbox), off_switch_hbox, FALSE, FALSE, 0);
+
+    /* Brightness (keyboard hardware brightness, also set by the desktop's keyboard slider) */
+    {
+        GtkWidget *row = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 6);
+        GtkWidget *label = gtk_label_new("Brightness:");
+        gtk_box_pack_start(GTK_BOX(row), label, FALSE, FALSE, 0);
+        app->kbd_brightness_max = 10;
+        app->kbd_brightness_scale = gtk_scale_new_with_range(GTK_ORIENTATION_HORIZONTAL, 0, 10, 1);
+        gtk_scale_set_digits(GTK_SCALE(app->kbd_brightness_scale), 0);
+        gtk_scale_set_value_pos(GTK_SCALE(app->kbd_brightness_scale), GTK_POS_RIGHT);
+        gtk_range_set_value(GTK_RANGE(app->kbd_brightness_scale), 10);
+        gtk_widget_set_size_request(app->kbd_brightness_scale, 220, -1);
+        gtk_widget_set_sensitive(app->kbd_brightness_scale, FALSE);   /* until the daemon answered */
+        g_signal_connect(app->kbd_brightness_scale, "value-changed", G_CALLBACK(on_kbd_brightness_changed), app);
+        gtk_box_pack_start(GTK_BOX(row), app->kbd_brightness_scale, FALSE, FALSE, 0);
+        gtk_box_pack_start(GTK_BOX(off_switch_vbox), row, FALSE, FALSE, 0);
+    }
 
     GtkWidget *off_switch_note = gtk_label_new("When ON, overrides all profile settings until disabled.");
     gtk_widget_set_name(off_switch_note, "kbd-off-switch-note");

@@ -2,10 +2,22 @@
 
 All notable changes to this project will be documented in this file.
 
-## [Unreleased]
+## [1.20.0] - 2026-11-22
+
+### Added
+- **Keyboard brightness slider** in the Keyboard tab (0-10). It sets the keyboard's hardware brightness, on top of the per-key colors.
+- **The desktop's keyboard brightness slider works** (e.g. Linux Mint's battery/power applet, through UPower): it changes the same brightness. The GUI slider follows it within a few seconds, and the keyboard daemon remembers the level from either slider for the next start.
+- Keyboard daemon: `SET_BRIGHTNESS <0-10>`, `GET_BRIGHTNESS` (`BRIGHTNESS <level> MAX <max>`), `STATUS` reports `BRIGHTNESS` and `BRIGHTNESS_MAX`; the level is stored in `/var/lib/dudes-control-center/kbd_brightness`.
+
+### Changed
+- **Keyboard driver `ite_829x`: hardware brightness restored as in tuxedo-drivers**. The modified driver reported a range of 0-255 but always sent full brightness to the keyboard, so writing the brightness (what the desktop slider does) had no effect. It now passes the brightness (0-10, `max_brightness` 10) to the keyboard again. Unlike tuxedo-drivers it starts at full brightness instead of 0. One key's brightness applies to the whole keyboard, so desktop sliders that control a single LED device work.
+- The keyboard daemon no longer dims by scaling the colors; brightness is the hardware setting.
+- `postinst` restarts UPower after loading the rebuilt driver, because the keyboard LED devices are recreated and UPower would keep using the old ones (the desktop slider then failed with "error reading brightness").
+- GUI: the "Backlight Power" frame is now "Backlight" (brightness and off switch).
+- Tests: brightness commands, limits, a change from outside (desktop slider), restore after a restart; package check for the UPower restart (8 suites, 187 checks).
 
 ### Documentation
-- `LICENSE` contains only the GPL version 2 text, so GitHub recognizes the license; the copyright statement and the third-party origins moved to `COPYRIGHT.md`. No change to the license itself.
+- `LICENSE` contains only the GPL version 2 text, so GitHub recognizes the license; the copyright statement and the third-party origins are in `COPYRIGHT.md`.
 
 ## [1.19.4] - 2026-11-22
 

@@ -187,13 +187,15 @@ static int handle_command(const char *cmd, char *response, size_t resp_size) {
             "GLOBAL_G=%u\n"
             "GLOBAL_B=%u\n"
             "MODE=%d\n"
-            "IS_ON=%d\n",
+            "IS_ON=%d\n"
+            "BRIGHTNESS=%d\n"
+            "BRIGHTNESS_MAX=%d\n",
             led_count,
             state->global_r,
             state->global_g,
             state->global_b,
             state->mode,
-            state->is_on);
+            state->is_on, kbd_hw_brightness_get(), kbd_hw_brightness_max());
         return 0;
     }
 
@@ -337,25 +339,26 @@ static int handle_command(const char *cmd, char *response, size_t resp_size) {
         return 0;
     }
 
-    /* Command: GET_BRIGHTNESS */
+    /* Command: GET_BRIGHTNESS -> "BRIGHTNESS <level> MAX <max>" */
     if (strcmp(action, "GET_BRIGHTNESS") == 0) {
-        uint8_t brightness = kbd_led_get_brightness();
-        snprintf(response, resp_size, "BRIGHTNESS %u\n", brightness);
+        snprintf(response, resp_size, "BRIGHTNESS %d MAX %d\n", kbd_hw_brightness_get(), kbd_hw_brightness_max());
         return 0;
     }
 
-    /* Command: SET_BRIGHTNESS <value> */
+    /* Command: SET_BRIGHTNESS <level 0..max> (keyboard hardware brightness) */
     if (strcmp(action, "SET_BRIGHTNESS") == 0) {
-        uint8_t brightness = (uint8_t)atoi(arg1);
-        LOG_INFO("[KBD_DAEMON] SET_BRIGHTNESS: %u", brightness);
-
-        if (kbd_led_set_brightness(brightness) == 0) {
-            snprintf(response, resp_size, "OK Brightness set to %u\n", brightness);
-            return 0;
-        } else {
-            snprintf(response, resp_size, "ERROR Failed to set brightness\n");
+        char *end = NULL;
+        long level = strtol(arg1, &end, 10);
+        if (end == arg1 || level < 0) {
+            snprintf(response, resp_size, "ERROR Invalid brightness: %s\n", arg1);
             return -1;
         }
+        if (kbd_hw_brightness_set((int)level) == 0) {
+            snprintf(response, resp_size, "OK Brightness %d of %d\n", kbd_hw_brightness_get(), kbd_hw_brightness_max());
+            return 0;
+        }
+        snprintf(response, resp_size, "ERROR Failed to set brightness\n");
+        return -1;
     }
 
     /* Command: PING */
@@ -882,6 +885,9 @@ int main(int argc, char *argv[]) {
         kbd_led_set_power(1);
         kbd_led_set_mode(KBD_LED_MODE_STATIC);
     }
+    /* Keyboard brightness: the last level (also one set with the desktop's
+     * keyboard slider), or the maximum */
+    kbd_hw_brightness_restore();
 
     /* Set up signal handlers */
     struct sigaction sa;
@@ -948,6 +954,13 @@ int main(int argc, char *argv[]) {
 
         double now = mono_now();
         for (int i = 0; i < KBD_MAX_CLIENTS; i++) client_flush_unterminated(&g_clients[i], now);
+
+        /* Notice brightness changes made outside the daemon (desktop slider) */
+        static double last_poll = 0;
+        if (now - last_poll >= 1.0) {
+            last_poll = now;
+            kbd_hw_brightness_poll();
+        }
     }
 
     for (int i = 0; i < KBD_MAX_CLIENTS; i++) client_drop(&g_clients[i], "daemon shutting down");

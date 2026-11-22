@@ -21,6 +21,7 @@
 #define KBD_STATE_DIR "/var/lib/dudes-control-center"
 #endif
 #define KBD_OFF_FLAG_FILE KBD_STATE_DIR "/kbd_backlight_off"
+#define KBD_BRIGHTNESS_FILE KBD_STATE_DIR "/kbd_brightness"
 #ifndef KBD_LOG_DIR
 #define KBD_LOG_DIR "/var/log/dudes-control-center"
 #endif
@@ -98,8 +99,14 @@ const KbdLedState* kbd_led_get_state(void);
 void kbd_led_set_mode(KbdLedMode mode);
 void kbd_led_set_power(int is_on);              /* also stores the off state on disk */
 int kbd_led_off_flag_set(void);                 /* 1 if the backlight was switched off */
-int kbd_led_set_brightness(uint8_t brightness);
-uint8_t kbd_led_get_brightness(void);
+/* Keyboard brightness = the LEDs' "brightness" attribute (0..max_brightness;
+ * the ite_829x driver maps it to the keyboard's hardware brightness 0-10).
+ * Desktop keyboard-brightness sliders (UPower) change the same value. */
+int kbd_hw_brightness_max(void);
+int kbd_hw_brightness_get(void);            /* -1 if unreadable */
+int kbd_hw_brightness_set(int level);       /* also remembered for the next start */
+int kbd_hw_brightness_poll(void);           /* 1 if changed by someone else (remembered) */
+void kbd_hw_brightness_restore(void);       /* at start: last level, or the maximum */
 
 /* --- Utility functions --- */
 int parse_rgb(const char *str, uint8_t *r, uint8_t *g, uint8_t *b);
