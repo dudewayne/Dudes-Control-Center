@@ -5,6 +5,7 @@
 
 #define _POSIX_C_SOURCE 200809L
 #include <stdio.h>
+#include <stdarg.h>
 #include <stdlib.h>
 #include <string.h>
 #include <dirent.h>
@@ -77,7 +78,7 @@ int parse_rgb(const char *str, uint8_t *r, uint8_t *g, uint8_t *b) {
 
 static int scan_leds(KbdLedDevice *devices, int max_devices) {
     int count = 0;
-    char led_path[256];
+    char led_path[KBD_LED_PATH_MAX - 32];   /* room for "/multi_intensity" in .path */
 
     DIR *dir = opendir(KBD_LEDS_DIR);
     if (!dir) {
@@ -93,7 +94,7 @@ static int scan_leds(KbdLedDevice *devices, int max_devices) {
 
             snprintf(led_path, sizeof(led_path), "%s/%s", KBD_LEDS_DIR, entry->d_name);
 
-            char multi_intensity_path[512];
+            char multi_intensity_path[KBD_LED_PATH_MAX + 32];
             snprintf(multi_intensity_path, sizeof(multi_intensity_path), "%s/multi_intensity", led_path);
 
             struct stat st;
@@ -103,7 +104,7 @@ static int scan_leds(KbdLedDevice *devices, int max_devices) {
                 snprintf(devices[count].path, sizeof(devices[count].path), "%s/multi_intensity", led_path);
                 devices[count].max_brightness = 255;
 
-                char max_bright_path[512];
+                char max_bright_path[KBD_LED_PATH_MAX + 32];
                 snprintf(max_bright_path, sizeof(max_bright_path), "%s/max_brightness", led_path);
                 FILE *f = fopen(max_bright_path, "r");
                 if (f) {
@@ -155,7 +156,8 @@ static int scan_leds(KbdLedDevice *devices, int max_devices) {
 }
 
 int set_led_color(const char *led_path, uint8_t r, uint8_t g, uint8_t b, int max_brightness) {
-    FILE *f = fopen(led_path, "w");
+    (void)max_brightness;   /* multi_intensity takes the raw 0-255 channel values */
+FILE *f = fopen(led_path, "w");
     if (!f) {
         LOG_ERROR("[KBD] Cannot open LED %s for writing: %s", led_path, strerror(errno));
         return -1;
@@ -264,9 +266,6 @@ int kbd_led_off_flag_set(void) {
 }
 
 int kbd_led_set_brightness(uint8_t brightness) {
-    if (brightness > 255) {
-        brightness = 255;
-    }
 
     g_led_state.brightness = brightness;
     LOG_INFO("[KBD] Brightness set to %d/255 (%.0f%%)", brightness, (brightness * 100.0) / 255.0);
@@ -431,24 +430,34 @@ const KbdLedZone* zone_get(const char *name) {
     return NULL;
 }
 
+/* Append to buffer; offset never passes buf_size - 1 (snprintf may report more) */
+static void zbuf_add(char *buffer, size_t buf_size, size_t *offset, const char *fmt, ...)
+    __attribute__((format(printf, 4, 5)));
+static void zbuf_add(char *buffer, size_t buf_size, size_t *offset, const char *fmt, ...) {
+    if (*offset >= buf_size - 1) return;
+    va_list ap;
+    va_start(ap, fmt);
+    int n = vsnprintf(buffer + *offset, buf_size - *offset, fmt, ap);
+    va_end(ap);
+    if (n < 0) return;
+    *offset += (size_t)n;
+    if (*offset > buf_size - 1) *offset = buf_size - 1;
+}
+
 int zone_list(char *buffer, size_t buf_size) {
-    int offset = 0;
-    offset += snprintf(buffer + offset, buf_size - offset, "ZONES_START COUNT=%d\n", g_num_zones);
+    if (buf_size < 64) return -1;
+    size_t offset = 0;
+    zbuf_add(buffer, buf_size, &offset, "ZONES_START COUNT=%d\n", g_num_zones);
 
-    for (int i = 0; i < g_num_zones && offset < buf_size - 256; i++) {
-        offset += snprintf(buffer + offset, buf_size - offset,
-                "ZONE %d name=%s color=%u,%u,%u keys=%d",
-                i, g_zones[i].name,
-                g_zones[i].r, g_zones[i].g, g_zones[i].b,
-                g_zones[i].num_keys);
-
-        for (int k = 0; k < g_zones[i].num_keys && offset < buf_size - 16; k++) {
-            offset += snprintf(buffer + offset, buf_size - offset, " %d", g_zones[i].key_indices[k]);
-        }
-        offset += snprintf(buffer + offset, buf_size - offset, "\n");
+    for (int i = 0; i < g_num_zones && offset + 256 < buf_size; i++) {
+        zbuf_add(buffer, buf_size, &offset, "ZONE %d name=%s color=%u,%u,%u keys=%d",
+                 i, g_zones[i].name, g_zones[i].r, g_zones[i].g, g_zones[i].b, g_zones[i].num_keys);
+        for (int k = 0; k < g_zones[i].num_keys && offset + 16 < buf_size; k++)
+            zbuf_add(buffer, buf_size, &offset, " %d", g_zones[i].key_indices[k]);
+        zbuf_add(buffer, buf_size, &offset, "\n");
     }
 
-    offset += snprintf(buffer + offset, buf_size - offset, "ZONES_END\n");
+    zbuf_add(buffer, buf_size, &offset, "ZONES_END\n");
     return 0;
 }
 

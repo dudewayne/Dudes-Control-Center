@@ -142,6 +142,7 @@ static int compare_curve_points_asc(const void *a, const void *b) {
 
 /* Helper: close a dialog when Enter is pressed in an entry */
 static void on_entry_activate(GtkEntry *entry, GtkDialog *dialog) {
+    (void)entry;
     gtk_dialog_response(dialog, GTK_RESPONSE_ACCEPT);
 }
 
@@ -480,7 +481,6 @@ static void parse_cpu_status(AppData *app, const char *response);
 /* Forward declarations for keyboard daemon connection */
 static void connect_to_keyboard_daemon(AppData *app);
 static int kbd_ensure_connected(AppData *app);
-static void disconnect_from_keyboard_daemon(AppData *app);
 static const char *send_keyboard_command(AppData *app, const char *cmd);
 static void load_keyboard_profiles(AppData *app);
 static void on_kbd_create_profile_clicked(GtkWidget *widget, gpointer user_data);
@@ -814,8 +814,7 @@ static void parse_cpu_status(AppData *app, const char *response) {
     int cpu_temp = 0;
     float cpu_load = 0.0f;
     int num_cpus = 0;
-    int auto_mode = 0;
-    char active_governor[64] = "N/A";
+char active_governor[64] = "N/A";
     char freq_values[256] = "N/A";
     char min_max_freq[128] = "N/A";
     
@@ -838,8 +837,6 @@ static void parse_cpu_status(AppData *app, const char *response) {
             num_cpus = atoi(line + 9);
         } else if (strncmp(line, "ACTIVE_GOVERNOR=", 16) == 0) {
             strncpy(active_governor, line + 16, sizeof(active_governor) - 1);
-        } else if (strncmp(line, "AUTO_MODE=", 10) == 0) {
-            auto_mode = atoi(line + 10);
         } else if (strncmp(line, "MIN_FREQ=", 9) == 0) {
             strncpy(min_max_freq, line + 9, sizeof(min_max_freq) - 1);
         } else if (strncmp(line, "MAX_FREQ=", 9) == 0) {
@@ -853,9 +850,8 @@ static void parse_cpu_status(AppData *app, const char *response) {
             if (freq_marker != NULL && strncmp(line, "CPU_", 4) == 0) {
                 core_idx = atoi(line + 4);
                 if (core_idx >= 0 && core_idx < 32) {
-                    strncpy(freq_tmp, freq_marker + 6, sizeof(freq_tmp) - 1);
-                    freq_tmp[sizeof(freq_tmp) - 1] = '\0';
-                    strncpy(core_freqs[core_idx], freq_tmp, sizeof(core_freqs[core_idx]) - 1);
+                    snprintf(freq_tmp, sizeof(freq_tmp), "%s", freq_marker + 6);
+                    snprintf(core_freqs[core_idx], sizeof(core_freqs[core_idx]), "%s", freq_tmp);
                     if (core_idx >= core_count) {
                         core_count = core_idx + 1;
                     }
@@ -890,10 +886,9 @@ static void parse_cpu_status(AppData *app, const char *response) {
         app->cpu_core_count = core_count;
 
         for (int i = 0; i < core_count && i < 32; i++) {
-            char label_text[128];
-            snprintf(label_text, sizeof(label_text), "Core %d: %s", i, core_freqs[i]);
-            
+            gchar *label_text = g_strdup_printf("Core %d: %s", i, core_freqs[i]);
             app->cpu_core_freq_labels[i] = gtk_label_new(label_text);
+            g_free(label_text);
             gtk_label_set_xalign(GTK_LABEL(app->cpu_core_freq_labels[i]), 0.0);
             
             /* 4 columns layout: row = i / 4, col = i % 4 */
@@ -3153,7 +3148,6 @@ static void gui_save_profiles_to_disk(AppData *app) {
         char *resp_copy = g_strdup(response);
         char *line = strtok(resp_copy, "\n");
         char profile_name[256] = "";
-        int is_active = 0;
 
         while (line) {
             if (strncmp(line, "PROFILE_INFO", 12) == 0) {
@@ -3173,10 +3167,6 @@ static void gui_save_profiles_to_disk(AppData *app) {
                     } else {
                         strncpy(profile_name, name_ptr, sizeof(profile_name) - 1);
                     }
-                }
-                char *active_ptr = strstr(line, "active=");
-                if (active_ptr) {
-                    is_active = atoi(active_ptr + 7);
                 }
             }
             line = strtok(NULL, "\n");
@@ -3585,17 +3575,6 @@ static void connect_to_keyboard_daemon(AppData *app) {
     kbd_refresh_key_colors(app);
 }
 
-/* Disconnect from keyboard daemon */
-static void disconnect_from_keyboard_daemon(AppData *app) {
-    if (app->kbd_socket_fd >= 0) {
-        close(app->kbd_socket_fd);
-        app->kbd_socket_fd = -1;
-        app->kbd_connected = 0;
-        if (app->kbd_status_label) {
-            gtk_label_set_text(GTK_LABEL(app->kbd_status_label), "Keyboard daemon not connected");
-        }
-    }
-}
 
 /* Send command to keyboard daemon (one attempt, see send_keyboard_command) */
 static const char *send_keyboard_command_once(AppData *app, const char *cmd) {
@@ -4196,7 +4175,8 @@ static void kbd_redraw_canvas(AppData *app) {
 
 /* LED Wizard: Start */
 static void on_led_wizard_start_clicked(GtkWidget *widget, gpointer user_data) {
-    AppData *app = (AppData *)user_data;
+    (void)widget;
+AppData *app = (AppData *)user_data;
     
     /* Initialize wizard state */
     app->kbd_wizard_active = 1;
@@ -4215,7 +4195,8 @@ static void on_led_wizard_start_clicked(GtkWidget *widget, gpointer user_data) {
 
 /* LED Wizard: Skip current LED */
 static void on_led_wizard_skip_clicked(GtkWidget *widget, gpointer user_data) {
-    AppData *app = (AppData *)user_data;
+    (void)widget;
+AppData *app = (AppData *)user_data;
     
     if (!app->kbd_wizard_active) return;
     
@@ -4230,7 +4211,8 @@ static void on_led_wizard_skip_clicked(GtkWidget *widget, gpointer user_data) {
 
 /* LED Wizard: Save & Finish */
 static void on_led_wizard_save_finish_clicked(GtkWidget *widget, gpointer user_data) {
-    AppData *app = (AppData *)user_data;
+    (void)widget;
+AppData *app = (AppData *)user_data;
     
     app->kbd_wizard_active = 0;
     
@@ -4255,7 +4237,8 @@ static void on_led_wizard_save_finish_clicked(GtkWidget *widget, gpointer user_d
 
 /* LED Wizard: Cancel */
 static void on_led_wizard_cancel_clicked(GtkWidget *widget, gpointer user_data) {
-    AppData *app = (AppData *)user_data;
+    (void)widget;
+AppData *app = (AppData *)user_data;
     
     app->kbd_wizard_active = 0;
     
@@ -6503,9 +6486,9 @@ static GtkWidget *create_keyboard_page(AppData *app) {
 
     /* Profile buttons row */
     GtkWidget *btn_row = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 6);
-    app->kbd_profile_create_btn = gtk_button_new_from_stock(GTK_STOCK_ADD);
+    app->kbd_profile_create_btn = gtk_button_new_with_label("Add");
     g_signal_connect(app->kbd_profile_create_btn, "clicked", G_CALLBACK(on_kbd_create_profile_clicked), app);
-    app->kbd_profile_delete_btn = gtk_button_new_from_stock(GTK_STOCK_REMOVE);
+    app->kbd_profile_delete_btn = gtk_button_new_with_label("Remove");
     g_signal_connect(app->kbd_profile_delete_btn, "clicked", G_CALLBACK(on_kbd_delete_profile_clicked), app);
     app->kbd_profile_rename_btn = gtk_button_new_with_label("Rename");
     g_signal_connect(app->kbd_profile_rename_btn, "clicked", G_CALLBACK(on_kbd_rename_profile_clicked), app);

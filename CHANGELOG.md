@@ -2,6 +2,16 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.18.8] - 2026-11-22
+
+### Fixed
+- **No compiler warnings**: the 22 remaining warnings of a full build are fixed:
+  - Possible text truncation: CPU daemon command word, per-core frequency labels in the GUI, LED paths in the keyboard daemon. Bounded copies or dynamically sized strings now.
+  - Keyboard zone list: the write position mixed signed and unsigned sizes and could step past the end of the buffer if `snprintf` truncated. It is clamped now.
+  - Deprecated GTK stock buttons in the Keyboard tab replaced by "Add" / "Remove" labels.
+  - Unused variables, parameters and functions removed (including the never-used `disconnect_from_keyboard_daemon` and `condition_type_from_string`), and an always-false brightness check.
+- **CI fails on new warnings**: GitHub Actions builds with `-Werror` (`make all EXTRA_CFLAGS=-Werror`).
+
 ## [1.18.7] - 2026-11-22
 
 ### Fixed

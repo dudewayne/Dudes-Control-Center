@@ -5,7 +5,8 @@
 MAKEFLAGS += -j$(shell nproc)
 
 CC = gcc
-CFLAGS = -Wall -Wextra -O2
+# EXTRA_CFLAGS=-Werror is used by CI so new warnings fail the build
+CFLAGS = -Wall -Wextra -O2 $(EXTRA_CFLAGS)
 LDFLAGS_COMMON = -lpthread
 
 # GTK3 flags (will be obtained via pkg-config)

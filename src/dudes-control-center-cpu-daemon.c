@@ -90,14 +90,13 @@ static void parse_command(const char *cmd, char *action, char *arg1, char *arg2,
     /* Extract action (delimiter is '|' to allow spaces in profile names) */
     char *sep = strchr(pos, '|');
     if (sep) {
-        size_t act_len = sep - pos;
+        size_t act_len = (size_t)(sep - pos);
         if (act_len > 31) act_len = 31;
-        strncpy(action, pos, act_len);
+        memcpy(action, pos, act_len);
         action[act_len] = '\0';
         pos = sep + 1;
     } else {
-        strncpy(action, pos, 31);
-        action[31] = '\0';
+        snprintf(action, 32, "%s", pos);
         return;
     }
 

@@ -1082,16 +1082,6 @@ int get_cpu_system_status(CpuSystemStatus *status) {
 }
 
 
-static ConditionType condition_type_from_string(const char *str) {
-    if (!str) return CONDITION_NONE;
-    if (strcmp(str, "ac_power") == 0)   return CONDITION_AC_POWER;
-    if (strcmp(str, "battery") == 0)    return CONDITION_BATTERY;
-    if (strcmp(str, "temp_high") == 0)  return CONDITION_TEMP_HIGH;
-    if (strcmp(str, "temp_low") == 0)   return CONDITION_TEMP_LOW;
-    if (strcmp(str, "load_high") == 0)  return CONDITION_LOAD_HIGH;
-    if (strcmp(str, "load_low") == 0)   return CONDITION_LOAD_LOW;
-    return CONDITION_NONE;
-}
 
 /* --- Profile persistence (JSON) --- */
 
