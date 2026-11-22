@@ -1414,6 +1414,25 @@ static const char *kbd_profile_name_from_display(const char *display_name) {
 }
 
 /* Callback: Create new frequency profile */
+/* "Balanced" for a new CPU profile, as "governor[:epp]" for the daemon:
+ * schedutil where the cpufreq driver offers it, otherwise (intel_pstate in
+ * active mode: only performance and powersave) powersave with the EPP
+ * balance_performance, like the built-in Balanced mode. reply is the
+ * answer to GET_AVAILABLE_GOVERNORS ("GOVERNORS OK\nCOUNT=n\nname\n...").
+ * Asking for schedutil where it does not exist made the daemon log a
+ * warning for every new profile (1.22.2). */
+static const char *cpu_balanced_mode(const char *reply) {
+    if (reply && strncmp(reply, "GOVERNORS OK", 12) == 0) {
+        for (const char *l = strchr(reply, '\n'); l; l = strchr(l, '\n')) {
+            l++;
+            if (strncmp(l, "schedutil", 9) == 0 && (l[9] == '\n' || l[9] == '\0'))
+                return "schedutil";
+        }
+        return "powersave:balance_performance";
+    }
+    return "schedutil";   /* unknown: the daemon resolves it to an available governor */
+}
+
 static void on_cpu_create_freq_profile_clicked(GtkWidget *widget, gpointer user_data) {
     (void)widget;
     AppData *app = (AppData *)user_data;
@@ -1477,9 +1496,12 @@ static void on_cpu_create_freq_profile_clicked(GtkWidget *widget, gpointer user_
                 return;
             }
 
-            /* Send CREATE_CUSTOM_PROFILE command to daemon */
+            /* Send CREATE_CUSTOM_PROFILE command to daemon; a new profile
+             * starts in the Balanced mode of this system */
             char cmd[256];
-            snprintf(cmd, sizeof(cmd), "CREATE_CUSTOM_PROFILE|%s|schedutil|%u|0", name, HARD_MAX_FREQ_HZ_DEFAULT);
+            snprintf(cmd, sizeof(cmd), "CREATE_CUSTOM_PROFILE|%s|%s|%u|0", name,
+                     cpu_balanced_mode(send_cpu_command(app, "GET_AVAILABLE_GOVERNORS")),
+                     HARD_MAX_FREQ_HZ_DEFAULT);
             const char *response = send_cpu_command(app, cmd);
             g_print("[GUI] CREATE_CUSTOM_PROFILE response: %s\n", response ? response : "NULL");
 

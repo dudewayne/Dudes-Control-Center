@@ -162,6 +162,17 @@ int main(int argc, char **argv) {
         CHECK(r && strchr(r, '{') && r[strlen(r) - 1] != '\0', "T: longer replies still read completely");
     }
 
+    /* C: new CPU profiles start in this system's Balanced mode (v1.22.2) */
+    CHECK(!strcmp(cpu_balanced_mode("GOVERNORS OK\nCOUNT=2\nperformance\npowersave\n"),
+                  "powersave:balance_performance"),
+          "C: intel_pstate (no schedutil) -> powersave + balance_performance");
+    CHECK(!strcmp(cpu_balanced_mode("GOVERNORS OK\nCOUNT=3\nperformance\nschedutil\npowersave\n"), "schedutil"),
+          "C: schedutil offered -> schedutil");
+    CHECK(!strcmp(cpu_balanced_mode("GOVERNORS OK\nCOUNT=1\nschedutil_x\n"), "powersave:balance_performance"),
+          "C: only exact governor names count");
+    CHECK(!strcmp(cpu_balanced_mode(NULL), "schedutil") && !strcmp(cpu_balanced_mode("ERROR x"), "schedutil"),
+          "C: no answer -> left to the daemon");
+
     /* K: keyboard key -> LED lookup (v1.17.3) */
     CHECK(sizeof kbd_default_led_position / sizeof kbd_default_led_position[0] == 120 &&
           sizeof kbd_key_names / sizeof kbd_key_names[0] == KBD_NUM_KEYS &&

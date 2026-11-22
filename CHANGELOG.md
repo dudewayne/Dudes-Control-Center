@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.22.2] - 2026-11-22
+
+### Fixed
+- **New CPU profiles start in this system's Balanced mode**: the GUI always created them with the governor "schedutil". With intel_pstate in active mode (only performance and powersave), the CPU daemon logged a warning for every new profile and fell back to powersave. The GUI now asks the daemon which governors exist and uses schedutil where it is offered, otherwise powersave with the EPP balance_performance (what the built-in Balanced mode uses there).
+- Tests for the choice.
+
 ## [1.22.1] - 2026-11-22
 
 ### Fixed
