@@ -31,6 +31,9 @@ static KbdLedProfile g_profiles[KBD_MAX_PROFILES];
 
 int g_num_zones = 0;
 int g_num_profiles = 0;
+/* Base color of the live state: keys that are in no zone (1.24.0) */
+static int g_base_set = 0;
+static uint8_t g_base_r, g_base_g, g_base_b;
 static int g_active_profile_index = 0;
 /* old (directory order) LED index -> new (name order) index, from scan_leds() */
 static int g_led_old_to_new[KBD_MAX_LEDS];
@@ -527,6 +530,8 @@ int zone_list(char *buffer, size_t buf_size) {
     if (buf_size < 64) return -1;
     size_t offset = 0;
     zbuf_add(buffer, buf_size, &offset, "ZONES_START COUNT=%d\n", g_num_zones);
+    if (g_base_set)
+        zbuf_add(buffer, buf_size, &offset, "BASE color=%u,%u,%u\n", g_base_r, g_base_g, g_base_b);
 
     for (int i = 0; i < g_num_zones && offset + 256 < buf_size; i++) {
         zbuf_add(buffer, buf_size, &offset, "ZONE %d name=%s color=%u,%u,%u keys=%d",
@@ -543,6 +548,7 @@ int zone_list(char *buffer, size_t buf_size) {
 void zone_clear_all(void) {
     g_num_zones = 0;
     memset(g_zones, 0, sizeof(g_zones));
+    g_base_set = 0;
     LOG_INFO("[KBD] Cleared all zones - ready for new profile");
 }
 
@@ -558,14 +564,13 @@ static void zone_remove_led_everywhere(int led) {
 
 int zone_assign_leds(const int *leds, int num_leds, uint8_t r, uint8_t g, uint8_t b) {
     int all_leds[KBD_MAX_LEDS];
+    (void)all_leds;
     if (num_leds < 0) {
-        /* Whole keyboard: one base zone with every LED */
+        /* Whole keyboard: one base color, no zones (stored as the base color
+         * since 1.24.0; it used to be a zone "Base" with every LED) */
         zone_clear_all();
-        num_leds = g_led_state.num_leds;
-        for (int i = 0; i < num_leds; i++) all_leds[i] = i;
-        leds = all_leds;
-        if (zone_create("Base", all_leds, num_leds, r, g, b, 0) != 0) return -1;
-        LOG_INFO("[KBD] All %d LEDs set to RGB(%u,%u,%u)", num_leds, r, g, b);
+        kbd_base_set(1, r, g, b);
+        LOG_INFO("[KBD] All %d LEDs set to RGB(%u,%u,%u)", g_led_state.num_leds, r, g, b);
         return 0;
     }
 
@@ -647,7 +652,7 @@ int profile_apply(const char *name) {
 int kbd_apply_active_profile(void) {
     if (g_active_profile_index < 0 || g_active_profile_index >= g_num_profiles) return -1;
     const KbdLedProfile *p = &g_profiles[g_active_profile_index];
-    if (p->num_zones == 0) {
+    if (p->num_zones == 0 && !p->has_base) {
         LOG_INFO("[KBD] Active profile '%s' has no colors yet", p->name);
         return -1;
     }
@@ -745,12 +750,18 @@ static void apply_brightness_scale(uint8_t *r, uint8_t *g, uint8_t *b, uint8_t b
 }
 
 int apply_zones_with_brightness(void) {
-    if (g_num_zones == 0) {
+    if (g_num_zones == 0 && !g_base_set) {
         LOG_ERROR("[KBD] No zones to apply");
         return -1;
     }
 
     uint8_t led_colors[KBD_MAX_LEDS][3] = {{0}};
+    if (g_base_set)
+        for (int i = 0; i < g_led_state.num_leds && i < KBD_MAX_LEDS; i++) {
+            led_colors[i][0] = g_base_r;
+            led_colors[i][1] = g_base_g;
+            led_colors[i][2] = g_base_b;
+        }
 
     for (int z = 0; z < g_num_zones; z++) {
         KbdLedZone *zone = &g_zones[z];
@@ -814,6 +825,13 @@ static cJSON* kbd_profile_to_json(const KbdLedProfile *p) {
         cJSON_AddItemToArray(zones_array, zone_obj);
     }
     cJSON_AddItemToObject(profile_obj, "zones", zones_array);
+    if (p->has_base) {
+        cJSON *base = cJSON_CreateObject();
+        cJSON_AddNumberToObject(base, "r", p->base_r);
+        cJSON_AddNumberToObject(base, "g", p->base_g);
+        cJSON_AddNumberToObject(base, "b", p->base_b);
+        cJSON_AddItemToObject(profile_obj, "base", base);
+    }
 
     return profile_obj;
 }
@@ -998,6 +1016,30 @@ int kbd_profiles_load_json(void) {
                 p.num_zones = nz;
             }
 
+            cJSON *base = cJSON_GetObjectItem(profile_obj, "base");
+            if (cJSON_IsObject(base)) {
+                cJSON *br = cJSON_GetObjectItem(base, "r"), *bg = cJSON_GetObjectItem(base, "g"),
+                      *bb = cJSON_GetObjectItem(base, "b");
+                p.has_base = 1;
+                p.base_r = (uint8_t)clamp_u8(cJSON_IsNumber(br) ? br->valueint : 0);
+                p.base_g = (uint8_t)clamp_u8(cJSON_IsNumber(bg) ? bg->valueint : 0);
+                p.base_b = (uint8_t)clamp_u8(cJSON_IsNumber(bb) ? bb->valueint : 0);
+            } else {
+                /* Before 1.24.0 "whole keyboard" was a zone named "Base" that
+                 * held every LED not in another zone: that is the base color */
+                for (int z = 0; z < p.num_zones; z++) {
+                    if (strcmp(p.zones[z].name, "Base") != 0) continue;
+                    p.has_base = 1;
+                    p.base_r = p.zones[z].r;
+                    p.base_g = p.zones[z].g;
+                    p.base_b = p.zones[z].b;
+                    memmove(&p.zones[z], &p.zones[z + 1], (size_t)(p.num_zones - z - 1) * sizeof p.zones[0]);
+                    p.num_zones--;
+                    LOG_INFO("[KBD] Profile '%s': zone 'Base' is now the base color", p.name);
+                    break;
+                }
+            }
+
             g_profiles[g_num_profiles] = p;
             g_num_profiles++;
         }
@@ -1025,7 +1067,12 @@ int kbd_profile_save_json(const char *name) {
             for (int z = 0; z < g_num_zones; z++) {
                 memcpy(&g_profiles[i].zones[z], &g_zones[z], sizeof(KbdLedZone));
             }
-            LOG_INFO("[KBD] Updated profile '%s' with %d zones", name, g_num_zones);
+            g_profiles[i].has_base = g_base_set;
+            g_profiles[i].base_r = g_base_r;
+            g_profiles[i].base_g = g_base_g;
+            g_profiles[i].base_b = g_base_b;
+            LOG_INFO("[KBD] Updated profile '%s' with %d zones%s", name, g_num_zones,
+                     g_base_set ? " and a base color" : "");
             return kbd_profiles_save_json();
         }
     }
@@ -1042,6 +1089,10 @@ int kbd_profile_save_json(const char *name) {
     for (int z = 0; z < g_num_zones; z++) {
         memcpy(&p->zones[z], &g_zones[z], sizeof(KbdLedZone));
     }
+    p->has_base = g_base_set;
+    p->base_r = g_base_r;
+    p->base_g = g_base_g;
+    p->base_b = g_base_b;
     g_num_profiles++;
 
     LOG_INFO("[KBD] Added profile '%s' with %d zones", name, g_num_zones);
@@ -1063,6 +1114,7 @@ int kbd_profile_load_json(const char *name) {
                 memcpy(&g_zones[g_num_zones], &g_profiles[i].zones[z], sizeof(KbdLedZone));
                 g_num_zones++;
             }
+            kbd_base_set(g_profiles[i].has_base, g_profiles[i].base_r, g_profiles[i].base_g, g_profiles[i].base_b);
             g_active_profile_index = i;
             LOG_INFO("[KBD] Loaded profile '%s' with %d zones", name, g_profiles[i].num_zones);
             return 0;
@@ -1081,7 +1133,10 @@ int kbd_profile_delete_json(const char *name) {
                     (g_num_profiles - i - 1) * sizeof(KbdLedProfile));
             g_num_profiles--;
 
-            /* Adjust active index */
+            /* Keep the same profile active: a profile before it moves it up
+             * one place (it used to make the next profile active). Deleting
+             * the active profile makes the one now at its place active. */
+            if (i < g_active_profile_index) g_active_profile_index--;
             if (g_active_profile_index >= g_num_profiles) {
                 g_active_profile_index = g_num_profiles - 1;
             }
@@ -1183,4 +1238,106 @@ int kbd_profile_list_json(char *buffer, size_t buf_size) {
 
     offset += snprintf(buffer + offset, buf_size - offset, "PROFILES_END\n");
     return 0;
+}
+
+/* ============================================================================
+ * Base color, preview and profile description (1.24.0)
+ * ============================================================================ */
+
+void kbd_base_set(int has_base, uint8_t r, uint8_t g, uint8_t b) {
+    g_base_set = has_base ? 1 : 0;
+    g_base_r = r;
+    g_base_g = g;
+    g_base_b = b;
+}
+
+int kbd_has_colors(void) {
+    return g_num_zones > 0 || g_base_set;
+}
+
+/* Write the live colors; a profile without any color shows all keys off */
+int kbd_show_colors(void) {
+    if (kbd_has_colors()) return apply_zones();
+    return set_all_leds_color(0, 0, 0);
+}
+
+/* Replace the live colors (the GUI's profile being edited).
+ * base:  "r,g,b" or "-" (no base color)
+ * zones: "name|r,g,b|led,led,...;name|r,g,b|...", may be empty.
+ * Zone names must not contain '|' or ';'. Returns -1 on a format error
+ * (the live colors are then unchanged). */
+int kbd_preview_set(const char *base, char *zones) {
+    static KbdLedZone nz[KBD_MAX_ZONES_PER_PROFILE];
+    int n = 0, has_base = 0;
+    uint8_t br = 0, bg = 0, bb = 0;
+    memset(nz, 0, sizeof nz);
+
+    if (base && *base && strcmp(base, "-") != 0) {
+        if (parse_rgb(base, &br, &bg, &bb) != 0) return -1;
+        has_base = 1;
+    }
+    char *save = NULL;
+    for (char *z = zones ? strtok_r(zones, ";", &save) : NULL; z; z = strtok_r(NULL, ";", &save)) {
+        if (n >= KBD_MAX_ZONES_PER_PROFILE) return -1;
+        char *bar1 = strchr(z, '|');
+        char *bar2 = bar1 ? strchr(bar1 + 1, '|') : NULL;
+        if (!bar1 || !bar2 || bar1 == z) return -1;
+        *bar1 = '\0';
+        *bar2 = '\0';
+        KbdLedZone *zone = &nz[n];
+        snprintf(zone->name, sizeof zone->name, "%s", z);
+        if (parse_rgb(bar1 + 1, &zone->r, &zone->g, &zone->b) != 0) return -1;
+        char *ksave = NULL;
+        for (char *k = strtok_r(bar2 + 1, ",", &ksave); k; k = strtok_r(NULL, ",", &ksave)) {
+            char *end = NULL;
+            long v = strtol(k, &end, 10);
+            if (end == k || v < 0 || v >= g_led_state.num_leds || v >= KBD_MAX_LEDS) continue;
+            if (zone->num_keys < KBD_MAX_KEYS_PER_ZONE) zone->key_indices[zone->num_keys++] = (int)v;
+        }
+        n++;
+    }
+
+    zone_clear_all();
+    memcpy(g_zones, nz, sizeof(KbdLedZone) * (size_t)n);
+    g_num_zones = n;
+    kbd_base_set(has_base, br, bg, bb);
+    LOG_INFO("[KBD] Preview: %d zone(s)%s", n, has_base ? " + base color" : "");
+    return 0;
+}
+
+/* A saved profile in the GET_ZONES format, so the GUI can edit it:
+ * PROFILE_START name=..\nBASE color=..\nZONE i name=.. color=.. keys=N ...\nPROFILE_END */
+int kbd_profile_describe(const char *name, char *buffer, size_t buf_size) {
+    if (buf_size < 64) return -1;
+    for (int i = 0; i < g_num_profiles; i++) {
+        const KbdLedProfile *p = &g_profiles[i];
+        if (strcmp(p->name, name) != 0) continue;
+        size_t off = 0;
+        zbuf_add(buffer, buf_size, &off, "PROFILE_START COUNT=%d name=%s\n", p->num_zones, p->name);
+        if (p->has_base)
+            zbuf_add(buffer, buf_size, &off, "BASE color=%u,%u,%u\n", p->base_r, p->base_g, p->base_b);
+        for (int z = 0; z < p->num_zones && off + 256 < buf_size; z++) {
+            const KbdLedZone *zone = &p->zones[z];
+            zbuf_add(buffer, buf_size, &off, "ZONE %d name=%s color=%u,%u,%u keys=%d",
+                     z, zone->name, zone->r, zone->g, zone->b, zone->num_keys);
+            for (int k = 0; k < zone->num_keys && off + 16 < buf_size; k++)
+                zbuf_add(buffer, buf_size, &off, " %d", zone->key_indices[k]);
+            zbuf_add(buffer, buf_size, &off, "\n");
+        }
+        zbuf_add(buffer, buf_size, &off, "PROFILE_END\n");
+        return 0;
+    }
+    return -1;
+}
+
+/* Live colors back to the active profile (the GUI stopped previewing).
+ * Shown only while the light is on, unless light_on. */
+int kbd_restore_active(int light_on) {
+    if (g_active_profile_index >= 0 && g_active_profile_index < g_num_profiles)
+        kbd_profile_load_json(g_profiles[g_active_profile_index].name);
+    else
+        zone_clear_all();
+    if (!light_on && !g_led_state.is_on) return 0;
+    if (kbd_has_colors()) return apply_zones();
+    return set_all_leds_color(255, 255, 255);   /* like the start without colors */
 }

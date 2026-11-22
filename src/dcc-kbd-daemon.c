@@ -290,7 +290,7 @@ static int handle_command(const char *cmd, char *response, size_t resp_size) {
 
     /* Command: TURN_ON - restore the current colors (white if there are none) */
     if (strcmp(action, "TURN_ON") == 0) {
-        if (g_num_zones > 0 && apply_zones() == 0) {
+        if (kbd_has_colors() && apply_zones() == 0) {
             kbd_led_set_power(1);
             kbd_led_set_mode(KBD_LED_MODE_STATIC);
             snprintf(response, resp_size, "OK All LEDs turned on (%d zones)\n", g_num_zones);
@@ -612,7 +612,7 @@ static int handle_command(const char *cmd, char *response, size_t resp_size) {
     if (strcmp(action, "LOAD_PROFILE") == 0) {
         LOG_INFO("[KBD_DAEMON] LOAD_PROFILE: '%s'", arg1);
         if (profile_apply(arg1) == 0) {
-            if (g_num_zones > 0) {           /* activating a profile with colors switches the light on */
+            if (kbd_has_colors()) {          /* activating a profile with colors switches the light on */
                 kbd_led_set_power(1);
                 kbd_led_set_mode(KBD_LED_MODE_STATIC);
             }
@@ -673,6 +673,43 @@ static int handle_command(const char *cmd, char *response, size_t resp_size) {
         char zones_buf[KBD_MAX_RESPONSE_LEN];
         zone_list(zones_buf, sizeof(zones_buf));
         snprintf(response, resp_size, "%s", zones_buf);
+        return 0;
+    }
+
+    /* Command: PREVIEW::<base r,g,b or ->::<name|r,g,b|leds;...>[::on]
+     * The GUI's profile being edited (1.24.0): replaces the live colors and
+     * shows them while the light is on; "on" switches the light on (a color
+     * was chosen). Nothing is saved; SAVE_PROFILE stores the live colors. */
+    if (strcmp(action, "PREVIEW") == 0) {
+        if (kbd_preview_set(arg1, arg2) != 0) {
+            snprintf(response, resp_size, "ERROR Invalid preview data\n");
+            return -1;
+        }
+        int on = strcmp(arg3, "on") == 0;
+        if (on) {
+            kbd_led_set_power(1);
+            kbd_led_set_mode(KBD_LED_MODE_STATIC);
+        }
+        if (on || state->is_on) kbd_show_colors();
+        snprintf(response, resp_size, "OK Preview: %d zone(s)\n", g_num_zones);
+        return 0;
+    }
+
+    /* Command: GET_PROFILE::<name> - a saved profile's base color and zones */
+    if (strcmp(action, "GET_PROFILE") == 0) {
+        char buf[KBD_MAX_RESPONSE_LEN];
+        if (kbd_profile_describe(arg1, buf, sizeof buf) != 0) {
+            snprintf(response, resp_size, "ERROR Profile not found: %s\n", arg1);
+            return -1;
+        }
+        snprintf(response, resp_size, "%s", buf);
+        return 0;
+    }
+
+    /* Command: RESTORE_ACTIVE - live colors back to the active profile */
+    if (strcmp(action, "RESTORE_ACTIVE") == 0) {
+        kbd_restore_active(0);
+        snprintf(response, resp_size, "OK Active profile restored\n");
         return 0;
     }
 

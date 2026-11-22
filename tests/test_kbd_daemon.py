@@ -48,7 +48,12 @@ json.dump({"version": "1.0",
            "keyboard_profiles": {"active_profile_index": 1, "profiles": [
                {"name": "Empty", "zones": []},
                {"name": "Start", "zones": [{"name": "z", "r": 10, "g": 20, "b": 30,
-                                            "keys": [old_of[0], old_of[1]]}]}]},
+                                            "keys": [old_of[0], old_of[1]]}]},
+               # before 1.24.0 "whole keyboard" was a zone "Base"
+               {"name": "OldBase", "zones": [{"name": "Base", "r": 1, "g": 2, "b": 3,
+                                              "keys": [old_of[i] for i in range(2, NLEDS)]},
+                                             {"name": "Red", "r": 255, "g": 0, "b": 0,
+                                              "keys": [old_of[0], old_of[1]]}]}]},
            "cpu_freq_profiles": {"keep": 1}},
           open(os.makedirs("cfg", exist_ok=True) or "cfg/profiles.json", "w"))
 with open("cfg/keyboard_led_mapping.csv", "w") as f:        # wizard mapping, old numbering
@@ -114,7 +119,8 @@ try:
     check(r.startswith("OK") and c[5] == c[6] == c[7] == (255, 0, 0) and c[4] == (255, 255, 255),
           "selected keys red, the others stay white")
     z = ask(s, "GET_ZONES")
-    check("COUNT=2" in z and "name=#FF0000" in z, "one zone per color (Base + #FF0000)")
+    check("COUNT=1" in z and "BASE color=255,255,255" in z and "name=#FF0000" in z,
+          "whole keyboard = base color, one zone per key color (v1.24.0)")
 
     many = [i for i in range(NLEDS) if i not in (5, 6, 7, 50)]
     cmd = "SET_KEYS_COLOR::0,0,255::" + ",".join(map(str, many))
@@ -159,10 +165,56 @@ try:
     r = ask(s, "SAVE_PROFILE::Start")
     data = json.load(open("cfg/profiles.json"))
     prof = [p for p in data["keyboard_profiles"]["profiles"] if p["name"] == "Start"][0]
-    check(r.startswith("OK") and len(prof["zones"]) == 3, f"profile saved with its 3 color zones ({len(prof['zones'])})")
+    check(r.startswith("OK") and len(prof["zones"]) == 2 and prof.get("base") == {"r": 255, "g": 255, "b": 255},
+          f"profile saved with its 2 color zones and the base color ({len(prof['zones'])}, {prof.get('base')})")
     check(data.get("cpu_freq_profiles") == {"keep": 1}, "saving keeps the other sections of profiles.json")
     ask(s, "LOAD_PROFILE::Empty")
     check(ask(s, "SAVE_PROFILE::Empty").startswith("OK"), "a profile without colors can be saved")
+
+    # zone editor (v1.24.0): GET_PROFILE, PREVIEW, RESTORE_ACTIVE, old "Base" zone
+    g = ask(s, "GET_PROFILE::OldBase")
+    check("BASE color=1,2,3" in g and "name=Red color=255,0,0 keys=2 0 1" in g and "name=Base" not in g,
+          "old zone 'Base' read as the base color")
+    check(ask(s, "GET_PROFILE::Nope").startswith("ERROR"), "GET_PROFILE of a missing profile -> ERROR")
+    ask(s, "LOAD_PROFILE::Start")
+    r = ask(s, "PREVIEW::0,0,50::My zone|255,0,0|3,4;Two|0,255,0|4,119")
+    c = colors()
+    check(r.startswith("OK") and c[3] == (255, 0, 0) and c[4] == (0, 255, 0) and c[119] == (0, 255, 0)
+          and c[10] == (0, 0, 50), "PREVIEW shows base color and zones (later zone wins)")
+    check("name=My zone" in ask(s, "GET_ZONES") and "BASE color=0,0,50" in ask(s, "GET_ZONES"),
+          "PREVIEW replaces the live zones (names with spaces)")
+    pj = [p for p in json.load(open("cfg/profiles.json"))["keyboard_profiles"]["profiles"] if p["name"] == "Start"][0]
+    check(len(pj["zones"]) == 2 and pj.get("base", {}).get("b") == 255, "PREVIEW saves nothing")
+    check(ask(s, "PREVIEW::-::").startswith("OK") and set(colors()) == {(0, 0, 0)},
+          "PREVIEW of a profile without colors shows all keys off")
+    check(ask(s, "PREVIEW::nope::").startswith("ERROR") and ask(s, "PREVIEW::-::x|1,2|3").startswith("ERROR"),
+          "PREVIEW with bad data rejected")
+    r = ask(s, "RESTORE_ACTIVE")
+    c = colors()
+    check(r.startswith("OK") and c[6] == (0, 255, 0) and c[119] == (0, 0, 255) and c[50] == (255, 255, 255),
+          "RESTORE_ACTIVE brings back the active profile")
+    ask(s, "TURN_OFF")
+    ask(s, "PREVIEW::0,0,50::")
+    check(set(colors()) == {(0, 0, 0)} and "IS_ON=0" in ask(s, "STATUS"), "PREVIEW keeps a switched-off light off")
+    ask(s, "PREVIEW::0,0,50::::on")
+    check(set(colors()) == {(0, 0, 50)} and "IS_ON=1" in ask(s, "STATUS"), "PREVIEW ...::on switches the light on")
+    ask(s, "TURN_OFF")
+    ask(s, "RESTORE_ACTIVE")
+    check(set(colors()) == {(0, 0, 0)}, "RESTORE_ACTIVE keeps a switched-off light off")
+    ask(s, "TURN_ON")
+    ask(s, "PREVIEW::9,9,9::Z|1,1,1|0")
+    check(ask(s, "SAVE_PROFILE::Empty").startswith("OK"), "SAVE_PROFILE stores the previewed colors")
+    g = ask(s, "GET_PROFILE::Empty")
+    check("BASE color=9,9,9" in g and "name=Z color=1,1,1 keys=1 0" in g, "saved preview read back")
+    # delete keeps the active profile active (v1.24.0)
+    ask(s, "CREATE_PROFILE::Del1")
+    ask(s, "LOAD_PROFILE::Start")
+    names = lambda: [l.split()[-1] for l in ask(s, "LIST_PROFILES").splitlines() if l.startswith("PROFILE ")]
+    act = lambda: [l.split()[-1] for l in ask(s, "LIST_PROFILES").splitlines() if "[*]" in l]
+    ask(s, "DELETE_PROFILE::Empty")     # before the active one
+    check(act() == ["Start"], f"deleting a profile before the active one keeps it active ({act()})")
+    ask(s, "CREATE_PROFILE::Empty")
+    ask(s, "DELETE_PROFILE::Del1")
 
     ask(s, "LOAD_PROFILE::Start")
     ask(s, "TURN_OFF")

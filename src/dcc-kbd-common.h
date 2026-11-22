@@ -84,6 +84,8 @@ typedef struct {
     char name[KBD_PROFILE_NAME_MAX];
     KbdLedZone zones[KBD_MAX_ZONES_PER_PROFILE];
     int num_zones;
+    int has_base;                       /* base color for keys in no zone (1.24.0) */
+    uint8_t base_r, base_g, base_b;
 } KbdLedProfile;
 
 /* --- Function prototypes for LED access --- */
@@ -150,6 +152,13 @@ int kbd_profile_delete_json(const char *name);  /* Delete a profile from profile
 int kbd_profile_rename_json(const char *old_name, const char *new_name);  /* Rename a profile */
 int kbd_profile_list_json(char *buffer, size_t buf_size); /* List profiles from profiles.json */
 int kbd_get_active_profile_index(void); /* Get active keyboard profile index */
+/* Base color + zones editing (1.24.0) */
+void kbd_base_set(int has_base, uint8_t r, uint8_t g, uint8_t b);
+int kbd_has_colors(void);                 /* live state has a base color or zones */
+int kbd_show_colors(void);                /* write the live colors (all off if none) */
+int kbd_preview_set(const char *base, char *zones);   /* replace the live colors */
+int kbd_profile_describe(const char *name, char *buffer, size_t buf_size);
+int kbd_restore_active(int light_on);     /* live colors = active profile */
 void kbd_set_active_profile_index(int idx); /* Set active keyboard profile index */
 
 /* Exposed global counters for logging */
