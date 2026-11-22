@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.21.6] - 2026-11-22
+
+### Fixed
+- The daemon status lines of the Fan Profiles and CPU Profiles tabs were 8 pixels lower than the Keyboard tab's; all three are at the same height now (12 px top margin in all three tabs).
+
 ## [1.21.5] - 2026-11-22
 
 ### Fixed

@@ -4978,7 +4978,12 @@ static void on_fan_activate_clicked(GtkWidget *widget, gpointer user_data) {
 /* Create Page 2: Curve Editor */
 static GtkWidget *create_curve_editor_page(AppData *app) {
     GtkWidget *vbox = gtk_box_new(GTK_ORIENTATION_VERTICAL, 15);
-    gtk_container_set_border_width(GTK_CONTAINER(vbox), 20);
+    /* 12 px at the top like the Keyboard tab, so the daemon status lines of
+     * all tabs are at the same height; 20 px elsewhere as before */
+    gtk_widget_set_margin_top(vbox, 12);
+    gtk_widget_set_margin_bottom(vbox, 20);
+    gtk_widget_set_margin_start(vbox, 20);
+    gtk_widget_set_margin_end(vbox, 20);
     
     /* Daemon status (like the Keyboard tab) */
     {
@@ -6130,7 +6135,12 @@ static GtkWidget *create_about_page(void) {
 /* Create Page 6: CPU Control */
 static GtkWidget *create_cpu_page(AppData *app) {
     GtkWidget *vbox = gtk_box_new(GTK_ORIENTATION_VERTICAL, 15);
-    gtk_container_set_border_width(GTK_CONTAINER(vbox), 20);
+    /* 12 px at the top like the Keyboard tab, so the daemon status lines of
+     * all tabs are at the same height; 20 px elsewhere as before */
+    gtk_widget_set_margin_top(vbox, 12);
+    gtk_widget_set_margin_bottom(vbox, 20);
+    gtk_widget_set_margin_start(vbox, 20);
+    gtk_widget_set_margin_end(vbox, 20);
 
     /* Daemon status (like the Keyboard tab) */
     {
