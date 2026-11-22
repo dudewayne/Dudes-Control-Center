@@ -507,6 +507,7 @@ static void kbd_load_led_mapping_csv(AppData *app);
 static void kbd_refresh_key_colors(AppData *app);
 static void kbd_sync_power_switch(AppData *app);
 static gboolean cpu_refresh_timer_callback(gpointer user_data);
+static void cpu_load_initial_data(AppData *app);
 static void load_cpu_governors(AppData *app);
 static void on_cpu_governor_changed(GtkWidget *widget, gpointer user_data);
 
@@ -931,6 +932,37 @@ static void parse_cpu_status(AppData *app, const char *response) {
 }
 
 /* CPU refresh timer callback - fetch CPU STATUS and update UI every 5 seconds */
+/* Load what the CPU tab needs after connecting to the CPU daemon: power
+ * modes, core count (STATUS) and the hard limit. Used at startup and when
+ * the CPU refresh timer reconnects. */
+static void cpu_load_initial_data(AppData *app) {
+    /* Load governors into combo box */
+    load_cpu_governors(app);
+
+    /* Send an immediate STATUS query so cpu_core_count is available before the user switches tabs */
+    {
+        const char *immediate_status = send_cpu_command(app, "STATUS");
+        if (immediate_status != NULL && strncmp(immediate_status, "ERROR", 5) != 0) {
+            parse_cpu_status(app, immediate_status);
+        }
+    }
+
+    /* Load current hard limit from daemon */
+    {
+        const char *hard_resp = send_cpu_command(app, "GET_HARD_LIMIT");
+        if (hard_resp && strncmp(hard_resp, "OK", 2) == 0) {
+            const char *eq = strstr(hard_resp, "HARD_LIMIT=");
+            if (eq) {
+                guint64 hz = g_ascii_strtoull(eq + 11, NULL, 10);
+                double ghz = (double)hz / 1000000000.0;
+                gtk_spin_button_set_value(GTK_SPIN_BUTTON(app->cpu_hard_limit_spinner), ghz);
+                g_print("[GUI] Loaded hard limit from daemon: %.2f GHz (%" G_GUINT64_FORMAT " Hz)\n", ghz, hz);
+                /* Spinner upper bounds are updated in build_cpu_core_freq_grid() */
+            }
+        }
+    }
+}
+
 static gboolean cpu_refresh_timer_callback(gpointer user_data) {
     AppData *app = (AppData *)user_data;
 
@@ -941,6 +973,11 @@ static gboolean cpu_refresh_timer_callback(gpointer user_data) {
         connect_to_cpu_daemon(app);
         update_daemon_status_labels(app);
         if (!app->cpu_connected) return G_SOURCE_CONTINUE;
+        g_print("[GUI] Reconnected to the CPU daemon\n");
+        cpu_load_initial_data(app);
+        load_cpu_custom_profiles_select(app,
+            gtk_combo_box_get_active(GTK_COMBO_BOX(app->cpu_custom_profile_combo)));
+        update_tray_menu(app);
     }
 
     const char *response = send_cpu_command(app, "STATUS");
@@ -7398,37 +7435,10 @@ int main(int argc, char *argv[]) {
     /* Start refresh timer (every 2 seconds) */
     app.refresh_timer_id = g_timeout_add_seconds(2, refresh_timer_callback, &app);
 
-    /* Start CPU refresh timer (every 5 seconds) if connected */
-    if (app.cpu_connected) {
-        app.cpu_refresh_timer_id = g_timeout_add_seconds(5, cpu_refresh_timer_callback, &app);
-        g_print("[GUI] CPU refresh timer started (5s interval)\n");
-
-        /* Load governors into combo box */
-        load_cpu_governors(&app);
-
-        /* Send an immediate STATUS query so cpu_core_count is available before the user switches tabs */
-        {
-            const char *immediate_status = send_cpu_command(&app, "STATUS");
-            if (immediate_status != NULL && strncmp(immediate_status, "ERROR", 5) != 0) {
-                parse_cpu_status(&app, immediate_status);
-            }
-        }
-
-        /* Load current hard limit from daemon */
-        {
-            const char *hard_resp = send_cpu_command(&app, "GET_HARD_LIMIT");
-            if (hard_resp && strncmp(hard_resp, "OK", 2) == 0) {
-                const char *eq = strstr(hard_resp, "HARD_LIMIT=");
-                if (eq) {
-                    guint64 hz = g_ascii_strtoull(eq + 11, NULL, 10);
-                    double ghz = (double)hz / 1000000000.0;
-                    gtk_spin_button_set_value(GTK_SPIN_BUTTON(app.cpu_hard_limit_spinner), ghz);
-                    g_print("[GUI] Loaded hard limit from daemon: %.2f GHz (%" G_GUINT64_FORMAT " Hz)\n", ghz, hz);
-                    /* Spinner upper bounds are updated in build_cpu_core_freq_grid() */
-                }
-            }
-        }
-    }
+    /* CPU refresh timer (every 5 seconds); it also reconnects, so it runs
+     * even if the CPU daemon is not reachable at startup */
+    app.cpu_refresh_timer_id = g_timeout_add_seconds(5, cpu_refresh_timer_callback, &app);
+    if (app.cpu_connected) cpu_load_initial_data(&app);
 
     /* Load CPU custom profiles at startup so they appear in the tray menu immediately.
      * Must run after STATUS query (cpu_core_count) and before tray creation. */
