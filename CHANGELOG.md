@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.21.8] - 2026-11-22
+
+### Fixed
+- **LED wizard no longer wipes the mapping**: starting the wizard cleared the whole key-to-LED mapping at once, so "Save & Finish" right after starting wrote an empty mapping, and "Cancel" did not bring it back. The wizard now starts from the existing mapping: each click reassigns only the LED asked for, Skip keeps that LED's key, and Cancel restores the mapping exactly as it was.
+- **Numpad Enter on the keyboard picture**: it looked like two buttons and its lower marking went past the right edge. The key table has three entries for Numpad Enter (one per LED plus its lower half), and 1.21.7's L-shape rule took its own lower entry for a neighbour key. All entries of one key (Numpad Enter, Enter, Backspace, Shift, ...) are now drawn and selected as one key, and only a key that really sits to the left makes a key L-shaped.
+- Tests for key groups and the Numpad Enter shape.
+
 ## [1.21.7] - 2026-11-22
 
 ### Fixed

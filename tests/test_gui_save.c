@@ -206,6 +206,28 @@ int main(int argc, char **argv) {
         CHECK(npplus && lx == kbd_key_positions[npplus].x, "K: other tall keys (Numpad +) stay rectangles");
     }
 
+    /* K: entries of one key form a group; Numpad Enter stays a rectangle (v1.21.8) */
+    {
+        size_t ne[3], n = 0, en[2], m = 0;
+        for (size_t i = 0; i < KBD_NUM_KEYS; i++) {
+            if (!strcmp(kbd_key_names[i], "Numpad Enter") && n < 3) ne[n++] = i;
+            if (!strcmp(kbd_key_names[i], "Enter") && m < 2) en[m++] = i;
+        }
+        CHECK(n == 3 && kbd_key_group_primary(ne[1]) == ne[0] && kbd_key_group_primary(ne[2]) == ne[0] &&
+              m == 2 && kbd_key_group_primary(en[1]) == en[0] && kbd_key_group_primary(en[0]) == en[0],
+              "K: the 3 Numpad Enter entries (and the 2 Enter entries) are one key");
+        double lx, sy;
+        kbd_key_shape(ne[0], &lx, &sy);
+        CHECK(lx == kbd_key_positions[ne[0]].x, "K: Numpad Enter is not L-shaped (its own lower entry is no neighbour)");
+        static AppData g;  /* zeroed */
+        memset(g.kbd_wizard_mapping, -1, sizeof g.kbd_wizard_mapping);
+        g.kbd_wizard_mapping[10] = (int)ne[0];
+        g.kbd_wizard_mapping[11] = (int)ne[2];
+        int leds[120];
+        int k = kbd_leds_for_key(&g, ne[0], leds, 120);
+        CHECK(k == 2, "K: a key's LEDs include those mapped to any of its entries");
+    }
+
     /* K: key colors from the daemon's GET_ZONES (v1.18.0) */
     kbd_parse_zone_colors(&kb, "ZONES_START COUNT=2\n"
                                "ZONE 0 name=Base color=255,255,255 keys=3 0 1 2\n"

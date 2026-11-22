@@ -433,6 +433,7 @@ typedef struct {
     int kbd_wizard_active; /* 1 when wizard is running */
     int kbd_wizard_current_led; /* Current LED being assigned (0-119) */
     int kbd_wizard_mapping[120]; /* LED ID -> key position index */
+    int kbd_wizard_backup[120];  /* mapping before the wizard started (Cancel restores it) */
     GtkWidget *kbd_led_wizard_btn; /* LED Wizard button */
     GtkWidget *kbd_led_wizard_label; /* Label showing current LED */
     GtkWidget *kbd_led_wizard_skip_btn; /* Skip button */
@@ -4162,7 +4163,10 @@ AppData *app = (AppData *)user_data;
     /* Initialize wizard state */
     app->kbd_wizard_active = 1;
     app->kbd_wizard_current_led = 0;
-    memset(app->kbd_wizard_mapping, -1, sizeof(app->kbd_wizard_mapping));
+    /* Start from the existing mapping: each click reassigns only the LED
+     * asked for, Skip keeps its key, Cancel restores everything. (It used to
+     * clear the mapping, so Save & Finish right away wrote an empty file.) */
+    memcpy(app->kbd_wizard_backup, app->kbd_wizard_mapping, sizeof(app->kbd_wizard_backup));
     
     /* Update UI */
     gtk_widget_set_sensitive(app->kbd_led_wizard_btn, FALSE);
@@ -4220,9 +4224,11 @@ AppData *app = (AppData *)user_data;
 /* LED Wizard: Cancel */
 static void on_led_wizard_cancel_clicked(GtkWidget *widget, gpointer user_data) {
     (void)widget;
-AppData *app = (AppData *)user_data;
-    
+    AppData *app = (AppData *)user_data;
+
     app->kbd_wizard_active = 0;
+    /* Cancel: back to the mapping from before the wizard started */
+    memcpy(app->kbd_wizard_mapping, app->kbd_wizard_backup, sizeof(app->kbd_wizard_mapping));
     
     /* Restore all LEDs */
     send_keyboard_command(app, "TURN_ON");
@@ -4457,13 +4463,48 @@ static void kbd_key_shape(size_t i, double *lower_x, double *split_y) {
         const KeyPos *o = &kbd_key_positions[j];
         if (o->h >= 100 || o == k) continue;
         int in_lower_row = o->y > k->y + 10 && o->y < k->y + k->h;
-        int overlaps_left = o->x < k->x + 1 && o->x + o->w > k->x;   /* reaches into our left edge */
+        /* starts left of us and reaches into our left edge (not a part of
+         * the same key lying inside it, like the third Numpad Enter entry) */
+        int overlaps_left = o->x < k->x && o->x + o->w > k->x && o->x + o->w < k->x + k->w;
         if (in_lower_row && overlaps_left) {
             double gap = 6.0;
             if (o->x + o->w + gap > *lower_x) *lower_x = o->x + o->w + gap;
             if (o->y - gap / 2 < *split_y) *split_y = o->y - gap / 2;
         }
     }
+}
+
+/* Several positions can describe one key (one per LED: Enter, Backspace,
+ * Shift, Numpad Enter...). They have the same name and overlapping
+ * rectangles; the first of them stands for the whole key. */
+static int kbd_keys_overlap(size_t a, size_t b) {
+    const KeyPos *p = &kbd_key_positions[a], *q = &kbd_key_positions[b];
+    return p->x < q->x + q->w && q->x < p->x + p->w && p->y < q->y + q->h && q->y < p->y + p->h;
+}
+
+static size_t kbd_key_group_primary(size_t i) {
+    for (size_t j = 0; j < i; j++)
+        if (strcmp(kbd_key_names[j], kbd_key_names[i]) == 0 && kbd_keys_overlap(i, j))
+            return kbd_key_group_primary(j);
+    return i;
+}
+
+static int kbd_leds_for_position(const AppData *app, int pos, int *out, int max);
+
+/* LEDs of all positions that belong to the key at primary position i */
+static int kbd_leds_for_key(const AppData *app, size_t i, int *out, int max) {
+    int n = 0;
+    for (size_t p = i; p < KBD_NUM_KEYS && n < max; p++) {
+        if (p != i && kbd_key_group_primary(p) != i) continue;
+        int leds[120];
+        int m = kbd_leds_for_position(app, (int)p, leds, 120);
+        for (int k = 0; k < m && n < max; k++) {
+            int dup = 0;
+            for (int d = 0; d < n; d++) if (out[d] == leds[k]) dup = 1;
+            if (!dup) out[n++] = leds[k];
+        }
+    }
+    return n;
 }
 
 static int kbd_key_contains(size_t i, double x, double y) {
@@ -4567,9 +4608,10 @@ static gboolean kbd_canvas_draw(GtkWidget *widget, cairo_t *cr, gpointer user_da
         /* Draw key overlays */
         size_t num_keys = sizeof(kbd_key_positions) / sizeof(kbd_key_positions[0]);
         for (size_t i = 0; i < num_keys; i++) {
+            if (kbd_key_group_primary(i) != i) continue;   /* drawn with its key */
             /* Check if one of this key's LEDs is selected */
             int key_leds[120];
-            int n_leds = kbd_leds_for_position(app, (int)i, key_leds, 120);
+            int n_leds = kbd_leds_for_key(app, i, key_leds, 120);
             int is_selected = 0;
             for (int k = 0; k < n_leds && !is_selected; k++)
                 is_selected = kbd_led_is_selected(app, key_leds[k]);
@@ -4683,7 +4725,7 @@ static gboolean kbd_canvas_button_press(GtkWidget *widget, GdkEventButton *event
             
             /* Normal mode: toggle all LEDs of the key (deselect if all are selected) */
             int key_leds[120];
-            int n_leds = kbd_leds_for_position(app, (int)i, key_leds, 120);
+            int n_leds = kbd_leds_for_key(app, kbd_key_group_primary(i), key_leds, 120);
             if (n_leds == 0) {
                 g_print("[GUI] Key '%s' has no LED in the mapping (run the LED wizard)\n",
                         i < KBD_NUM_KEYS ? kbd_key_names[i] : "?");
