@@ -7148,12 +7148,83 @@ static void load_kbd_daemon_logs(AppData *app) {
 }
 
 /* Create Page 5: About */
+/* One credit: text with its links, centered */
+static GtkWidget *about_credit(const char *markup, const char *link1, const char *link2) {
+    GtkWidget *cell = gtk_box_new(GTK_ORIENTATION_VERTICAL, 2);
+    GtkWidget *text = gtk_label_new(NULL);
+    gtk_label_set_markup(GTK_LABEL(text), markup);
+    gtk_label_set_line_wrap(GTK_LABEL(text), TRUE);
+    gtk_label_set_justify(GTK_LABEL(text), GTK_JUSTIFY_CENTER);
+    gtk_label_set_max_width_chars(GTK_LABEL(text), 42);
+    gtk_box_pack_start(GTK_BOX(cell), text, FALSE, FALSE, 0);
+    const char *links[2] = { link1, link2 };
+    for (int l = 0; l < 2; l++)
+        if (links[l]) {
+            GtkWidget *link = create_clickable_link(links[l]);
+            gtk_widget_set_halign(link, GTK_ALIGN_CENTER);
+            gtk_box_pack_start(GTK_BOX(cell), link, FALSE, FALSE, 0);
+        }
+    return cell;
+}
+
+#ifndef DCC_LOGO_PATH
+#define DCC_LOGO_PATH "/usr/share/dudes-control-center/logo.png"
+#endif
+
 static GtkWidget *create_about_page(void) {
-    /* Compact layout (1.24.4): title and version in one line, the credits
-     * in two columns, contact in one line */
+    /* Layout (1.29.1): the logo on top in the middle with the credits left
+     * and right of it (each column centered on the logo); below the logo
+     * title and version, the AI note, the contact and the license */
     GtkWidget *vbox = gtk_box_new(GTK_ORIENTATION_VERTICAL, 6);
     gtk_container_set_border_width(GTK_CONTAINER(vbox), 12);
 
+    GtkWidget *top = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 24);
+    gtk_box_set_homogeneous(GTK_BOX(top), TRUE);   /* left, logo, right: equal widths */
+
+    /* Left: the AI credits and the code this project is built on */
+    GtkWidget *left = gtk_box_new(GTK_ORIENTATION_VERTICAL, 16);
+    gtk_widget_set_valign(left, GTK_ALIGN_CENTER);
+    gtk_box_pack_start(GTK_BOX(left), about_credit(
+        "Coded with <b>Claude</b> (Claude Code) by <b>Anthropic</b>", "https://www.anthropic.com/", NULL), FALSE, FALSE, 0);
+    gtk_box_pack_start(GTK_BOX(left), about_credit(
+        "Special thanks to the creators of <b>Bionic AI Agent</b>", "https://lmstudio.ai/", NULL), FALSE, FALSE, 0);
+    gtk_box_pack_start(GTK_BOX(left), about_credit(
+        "Fan control code based on <b>fan-control</b> by steiiin, a fork of <b>clevo-fan-control</b> by agramian (GPL-2.0)",
+        "https://github.com/steiiin/fan-control", "https://github.com/agramian/clevo-fan-control"), FALSE, FALSE, 0);
+    gtk_box_pack_start(GTK_BOX(left), about_credit(
+        "Keyboard backlight driver <b>ite_829x</b> by <b>TUXEDO Computers</b> (tuxedo-drivers, GPL-2.0-or-later)",
+        "https://github.com/tuxedocomputers/tuxedo-drivers", NULL), FALSE, FALSE, 0);
+    gtk_box_pack_start(GTK_BOX(top), left, TRUE, TRUE, 0);
+
+    /* Middle: the logo */
+    GtkWidget *logo = NULL;
+    const char *logo_paths[] = { DCC_LOGO_PATH, "/usr/share/pixmaps/DudesControlCenter.png" };
+    for (int i = 0; i < 2 && !logo; i++) {
+        GdkPixbuf *pb = gdk_pixbuf_new_from_file_at_scale(logo_paths[i], 230, 230, TRUE, NULL);
+        if (pb) {
+            logo = gtk_image_new_from_pixbuf(pb);
+            g_object_unref(pb);
+        }
+    }
+    if (!logo) logo = gtk_label_new("");
+    gtk_widget_set_valign(logo, GTK_ALIGN_START);
+    gtk_box_pack_start(GTK_BOX(top), logo, TRUE, TRUE, 0);
+
+    /* Right: Linux, its community and the hardware */
+    GtkWidget *right = gtk_box_new(GTK_ORIENTATION_VERTICAL, 16);
+    gtk_widget_set_valign(right, GTK_ALIGN_CENTER);
+    gtk_box_pack_start(GTK_BOX(right), about_credit(
+        "Honoring <b>Linus Torvalds</b>, the visionary founder of Linux", "https://torvalds-family.blogspot.com/", NULL),
+        FALSE, FALSE, 0);
+    gtk_box_pack_start(GTK_BOX(right), about_credit(
+        "Appreciation for the <b>Great Linux Community</b>", NULL, NULL), FALSE, FALSE, 0);
+    gtk_box_pack_start(GTK_BOX(right), about_credit(
+        "Thanks to <b>Clevo</b> for producing &amp; selling awesome Laptops", "https://www.clevo.com.tw/", NULL),
+        FALSE, FALSE, 0);
+    gtk_box_pack_start(GTK_BOX(top), right, TRUE, TRUE, 0);
+    gtk_box_pack_start(GTK_BOX(vbox), top, FALSE, FALSE, 0);
+
+    /* Below the logo: title, the AI note, contact */
     GtkWidget *title = gtk_label_new(NULL);
     {
         char t[256];
@@ -7162,69 +7233,29 @@ static GtkWidget *create_about_page(void) {
         gtk_label_set_markup(GTK_LABEL(title), t);
     }
     gtk_widget_set_halign(title, GTK_ALIGN_CENTER);
-    gtk_box_pack_start(GTK_BOX(vbox), title, FALSE, FALSE, 0);
+    gtk_box_pack_start(GTK_BOX(vbox), title, FALSE, FALSE, 2);
 
     GtkWidget *ai_text = gtk_label_new(NULL);
     gtk_label_set_markup(GTK_LABEL(ai_text), "<span weight='bold'>This application was completely coded by AI</span>");
     gtk_widget_set_halign(ai_text, GTK_ALIGN_CENTER);
     gtk_box_pack_start(GTK_BOX(vbox), ai_text, FALSE, FALSE, 0);
 
+    GtkWidget *contact = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 8);
+    gtk_widget_set_halign(contact, GTK_ALIGN_CENTER);
+    GtkWidget *contact_text = gtk_label_new(NULL);
+    gtk_label_set_markup(GTK_LABEL(contact_text), "<b>Contact:</b> <b>Dudemeister</b>  GitHub:");
+    gtk_box_pack_start(GTK_BOX(contact), contact_text, FALSE, FALSE, 0);
+    gtk_box_pack_start(GTK_BOX(contact), create_clickable_link("https://github.com/dudewayne/Dudes-Control-Center"),
+                       FALSE, FALSE, 0);
+    gtk_box_pack_start(GTK_BOX(vbox), contact, FALSE, FALSE, 4);
+
     gtk_box_pack_start(GTK_BOX(vbox), gtk_separator_new(GTK_ORIENTATION_HORIZONTAL), FALSE, FALSE, 4);
-
-    /* Credits: text with its links, two per row */
-    struct { const char *markup; const char *links[2]; } credits[] = {
-        { "Special thanks to the creators of <b>Bionic AI Agent</b>", { "https://lmstudio.ai/", NULL } },
-        { "Fan control code based on <b>fan-control</b> by steiiin, a fork of "
-          "<b>clevo-fan-control</b> by agramian (GPL-2.0)",
-          { "https://github.com/steiiin/fan-control", "https://github.com/agramian/clevo-fan-control" } },
-        { "Keyboard backlight driver <b>ite_829x</b> by <b>TUXEDO Computers</b> (tuxedo-drivers, GPL-2.0-or-later)",
-          { "https://github.com/tuxedocomputers/tuxedo-drivers", NULL } },
-        { "Honoring <b>Linus Torvalds</b>, the visionary founder of Linux", { "https://torvalds-family.blogspot.com/", NULL } },
-        { "Thanks to <b>Clevo</b> for producing &amp; selling awesome Laptops", { "https://www.clevo.com.tw/", NULL } },
-        { "Appreciation for the <b>Great Linux Community</b>", { NULL, NULL } },
-    };
-    GtkWidget *grid = gtk_grid_new();
-    gtk_grid_set_column_homogeneous(GTK_GRID(grid), TRUE);
-    gtk_grid_set_column_spacing(GTK_GRID(grid), 24);
-    gtk_grid_set_row_spacing(GTK_GRID(grid), 10);
-    gtk_widget_set_halign(grid, GTK_ALIGN_CENTER);
-    for (size_t i = 0; i < sizeof credits / sizeof credits[0]; i++) {
-        GtkWidget *cell = gtk_box_new(GTK_ORIENTATION_VERTICAL, 2);
-        GtkWidget *text = gtk_label_new(NULL);
-        gtk_label_set_markup(GTK_LABEL(text), credits[i].markup);
-        gtk_label_set_line_wrap(GTK_LABEL(text), TRUE);
-        gtk_label_set_justify(GTK_LABEL(text), GTK_JUSTIFY_CENTER);
-        gtk_label_set_max_width_chars(GTK_LABEL(text), 55);
-        gtk_box_pack_start(GTK_BOX(cell), text, FALSE, FALSE, 0);
-        for (int l = 0; l < 2; l++)
-            if (credits[i].links[l]) {
-                GtkWidget *link = create_clickable_link(credits[i].links[l]);
-                gtk_widget_set_halign(link, GTK_ALIGN_CENTER);
-                gtk_box_pack_start(GTK_BOX(cell), link, FALSE, FALSE, 0);
-            }
-        gtk_grid_attach(GTK_GRID(grid), cell, (int)(i % 2), (int)(i / 2), 1, 1);
-    }
-    gtk_box_pack_start(GTK_BOX(vbox), grid, FALSE, FALSE, 4);
-
     GtkWidget *license_label = gtk_label_new(NULL);
     gtk_label_set_markup(GTK_LABEL(license_label),
         "<span size='small'>Licensed under the GNU General Public License version 2. "
         "The keyboard driver is GPL-2.0-or-later (TUXEDO Computers).</span>");
     gtk_widget_set_halign(license_label, GTK_ALIGN_CENTER);
-    gtk_box_pack_start(GTK_BOX(vbox), license_label, FALSE, FALSE, 4);
-
-    gtk_box_pack_start(GTK_BOX(vbox), gtk_separator_new(GTK_ORIENTATION_HORIZONTAL), FALSE, FALSE, 4);
-
-    /* Contact in one line */
-    GtkWidget *contact = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 8);
-    gtk_widget_set_halign(contact, GTK_ALIGN_CENTER);
-    GtkWidget *contact_text = gtk_label_new(NULL);
-    gtk_label_set_markup(GTK_LABEL(contact_text),
-        "<b>Contact:</b> <b>Dudemeister</b>  GitHub:");
-    gtk_box_pack_start(GTK_BOX(contact), contact_text, FALSE, FALSE, 0);
-    gtk_box_pack_start(GTK_BOX(contact), create_clickable_link("https://github.com/dudewayne/Dudes-Control-Center"),
-                       FALSE, FALSE, 0);
-    gtk_box_pack_start(GTK_BOX(vbox), contact, FALSE, FALSE, 0);
+    gtk_box_pack_start(GTK_BOX(vbox), license_label, FALSE, FALSE, 0);
 
     return vbox;
 }

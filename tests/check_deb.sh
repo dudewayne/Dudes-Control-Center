@@ -41,6 +41,8 @@ for c in de uk es jp kr; do
 done
 check "grep -q '^Depends:.*librsvg2-common' '$TMP/ctrl/control'" "package depends on the SVG loader (librsvg2-common)"
 
+check "[ -s '$R/usr/share/dudes-control-center/logo.png' ]" "About page logo installed"
+
 # Settings tab (1.27.0): root helper, polkit action, unit conditions
 H="$R/usr/local/sbin/dcc-component"
 check "echo \"\$listing\" | grep -qE '^-rwxr-xr-x root/root .*usr/local/sbin/dcc-component\$'" "helper dcc-component is root-owned with mode 755"

@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.29.1] - 2026-11-22
+
+### Fixed
+- **About page with the logo**: the Dudes Control Center logo (from the high-resolution picture, with a transparent background so it also looks right on dark themes) sits on top in the middle. The credits are left and right of it, each column centered on the logo: the AI and code credits on the left, Linux and Clevo on the right. Below the logo come title and version, "This application was completely coded by AI", the contact and the license.
+- New credit: coded with **Claude** (Claude Code) by **Anthropic**.
+- The logo is installed as `/usr/share/dudes-control-center/logo.png`.
+
 ## [1.29.0] - 2026-11-22
 
 ### Added

@@ -108,6 +108,7 @@ deb: all
 	@# Keyboard layouts: key positions (keys.csv) and picture (SVG) per layout (1.28.0)
 	@mkdir -p $(DEB_BUILD_DIR)/$(PACKAGE)-$(VERSION)/usr/share/dudes-control-center
 	@cp -r resources/layouts $(DEB_BUILD_DIR)/$(PACKAGE)-$(VERSION)/usr/share/dudes-control-center/
+	@cp resources/logo.png $(DEB_BUILD_DIR)/$(PACKAGE)-$(VERSION)/usr/share/dudes-control-center/logo.png
 	@cp dudes-control-center.desktop $(DEB_BUILD_DIR)/$(PACKAGE)-$(VERSION)/usr/share/applications/
 	@cp DudesControlCenter.png $(DEB_BUILD_DIR)/$(PACKAGE)-$(VERSION)/usr/share/pixmaps/ 2>/dev/null || true
 	@cp DudesControlCenter.png $(DEB_BUILD_DIR)/$(PACKAGE)-$(VERSION)/usr/share/icons/hicolor/256x256/apps/dudes-control-center.png 2>/dev/null || true
@@ -181,6 +182,7 @@ install: all
 	install -D -m 755 scripts/dcc-component.sh /usr/local/sbin/dcc-component
 	install -D -m 644 packaging/org.dudes-control-center.component.policy /usr/share/polkit-1/actions/org.dudes-control-center.component.policy
 	mkdir -p /usr/share/dudes-control-center && cp -r resources/layouts /usr/share/dudes-control-center/
+	install -m 644 resources/logo.png /usr/share/dudes-control-center/logo.png
 	systemctl daemon-reload
 	systemctl enable dcc-fan-daemon
 	systemctl enable dcc-cpu-daemon
