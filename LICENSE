@@ -1,35 +1,3 @@
-Dudes Control Center
-Copyright (C) 2026 Dudemeister and contributors
-
-Dudes Control Center is free software; you can redistribute it and/or modify
-it under the terms of the GNU General Public License version 2 as published
-by the Free Software Foundation (SPDX: GPL-2.0-only). The full license text
-follows below.
-
-This program is distributed in the hope that it will be useful, but WITHOUT
-ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
-FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
-
-Third-party code
-----------------
-* Fan control / Embedded Controller access (src/dcc-common.c, used by the fan
-  daemon and CLI) is based on fan-control by steiiin
-  (https://github.com/steiiin/fan-control), a fork of clevo-fan-control by
-  agramian (https://github.com/agramian/clevo-fan-control, GPL-2.0), which is
-  based on Clevo Fan Control Indicator by AqD
-  (https://github.com/SkyLandTW/clevo-indicator) and on fanctrl.c by
-  Jonas Diemer. fan-control has no license file of its own; as a fork of GPL-2.0
-  code it is used under the GPL-2.0, which is why this project is GPL-2.0.
-* The ite_829x keyboard backlight driver (drivers/ite_829x.c) is
-  Copyright (c) 2019-2023 TUXEDO Computers GmbH, from tuxedo-drivers
-  (https://github.com/tuxedocomputers/tuxedo-drivers), licensed GPL-2.0-or-later
-  and used here under GPL-2.0. See drivers/LICENSE.
-* The fan curves, the default curve (src/dcc-fan-daemon.c, src/dcc-fan-cli.c)
-  and the curve editor are this project's own work (Dudemeister), not taken
-  from clevo-fan-control's Tuxedo Control Center based fan profiles.
-
--------------------------------------------------------------------------------
-
                     GNU GENERAL PUBLIC LICENSE
                        Version 2, June 1991
 

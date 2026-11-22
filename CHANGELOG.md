@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [Unreleased]
+
+### Documentation
+- `LICENSE` contains only the GPL version 2 text, so GitHub recognizes the license; the copyright statement and the third-party origins moved to `COPYRIGHT.md`. No change to the license itself.
+
 ## [1.19.4] - 2026-11-22
 
 ### Fixed

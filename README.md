@@ -222,7 +222,7 @@ This application was **completely coded by AI** using [Bionic AI Agent](https://
 
 ## License
 
-Dudes Control Center is licensed under the **GNU General Public License version 2** (GPL-2.0-only), see [LICENSE](LICENSE).
+Dudes Control Center is licensed under the **GNU General Public License version 2** (GPL-2.0-only): license text in [LICENSE](LICENSE), copyright and origins in [COPYRIGHT.md](COPYRIGHT.md).
 
 - **Fan control code**: the Embedded Controller access is based on [fan-control](https://github.com/steiiin/fan-control) by steiiin, a fork of [clevo-fan-control](https://github.com/agramian/clevo-fan-control) by agramian (GPL-2.0), which in turn is based on [Clevo Fan Control Indicator](https://github.com/SkyLandTW/clevo-indicator) by AqD and on `fanctrl.c` by Jonas Diemer. fan-control has no license file of its own; as a fork of GPL-2.0 code it is used under the GPL-2.0, which is why this project is GPL-2.0.
 - **Keyboard driver**: `drivers/ite_829x.c` is copyright 2019-2023 TUXEDO Computers GmbH, from [tuxedo-drivers](https://github.com/tuxedocomputers/tuxedo-drivers), licensed GPL-2.0-or-later and used here under the GPL-2.0 ([drivers/LICENSE](drivers/LICENSE)).

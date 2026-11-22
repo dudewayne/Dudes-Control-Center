@@ -5,7 +5,7 @@
  *
  * The Embedded Controller access (ec_io_*, temperature/fan registers,
  * command 0x99, RPM formula) is based on fan-control by steiiin, a fork of
- * clevo-fan-control by agramian (GPL-2.0), see LICENSE.
+ * clevo-fan-control by agramian (GPL-2.0), see COPYRIGHT.md.
  */
 
 #include "dcc-common.h"
