@@ -1,6 +1,8 @@
 # Dudes Control Center
 
-A control center for Clevo-based notebooks on Linux: fan control through the Embedded Controller (EC), CPU power modes and frequency limits, and per-key RGB keyboard lighting. Root daemons do the hardware work; a GTK3 GUI and two command-line tools talk to them. This application was completely coded by AI with [Bionic AI Agent](https://lmstudio.ai/).
+> **Disclaimer:** This software is provided "as is", without warranty of any kind, express or implied, including but not limited to the warranties of merchantability, fitness for a particular purpose and non-infringement. It accesses hardware directly: it sets fan speeds through the Embedded Controller, limits CPU frequencies and drives the keyboard controller through a kernel module. Use it at your own risk. In no event shall the authors or contributors be liable for any claim, damages or other liability, including but not limited to hardware damage, overheating or data loss, arising from or in connection with the use of this software. See sections 11 and 12 of the [GNU General Public License version 2](LICENSE) for details.
+
+A control center for Clevo-based notebooks on Linux: fan control through the Embedded Controller (EC), CPU power modes and frequency limits, and per-key RGB keyboard lighting. Root daemons do the hardware work; a GTK3 GUI and three command-line tools talk to them. The application was initially coded with [Bionic AI Agent](https://lmstudio.ai/); code review, hardening, bug fixing and the final polish were done by [Claude](https://www.anthropic.com/claude) (Anthropic).
 
 ![Release](https://img.shields.io/github/v/release/dudewayne/Dudes-Control-Center)
 ![CI](https://github.com/dudewayne/Dudes-Control-Center/actions/workflows/ci.yml/badge.svg)
@@ -78,6 +80,20 @@ A power mode is a governor plus the CPU's energy performance preference (EPP), l
 | Power Save | `powersave` + EPP `power` | `powersave` + EPP `power` |
 
 Only modes the system supports are offered. Each per-core profile stores its mode (changed in the list, stored with **Save**). For the active profile a new mode takes effect right away; for another profile when it is activated. `power-profiles-daemon` also sets EPP; to give this application full control: `sudo systemctl mask --now power-profiles-daemon`.
+
+### Screenshots
+
+Click a picture for the full size.
+
+| Status | Fan Profiles |
+|---|---|
+| [![Status tab](docs/screenshots/status.png)](docs/screenshots/status.png) | [![Fan Profiles tab](docs/screenshots/fan-profiles.png)](docs/screenshots/fan-profiles.png) |
+| **CPU Profiles** | **Keyboard Backlight** |
+| [![CPU Profiles tab](docs/screenshots/cpu-profiles.png)](docs/screenshots/cpu-profiles.png) | [![Keyboard Backlight tab](docs/screenshots/keyboard-backlight.png)](docs/screenshots/keyboard-backlight.png) |
+| **Settings** | **Logs** |
+| [![Settings tab](docs/screenshots/settings.png)](docs/screenshots/settings.png) | [![Logs tab](docs/screenshots/logs.png)](docs/screenshots/logs.png) |
+| **About** | |
+| [![About tab](docs/screenshots/about.png)](docs/screenshots/about.png) | |
 
 ## Command line
 
@@ -221,10 +237,11 @@ echo STATUS | socat - UNIX-CONNECT:/run/dcc-fan.sock
 
 ## Credits & Acknowledgments
 
-This application was **completely coded by AI** using [Bionic AI Agent](https://lmstudio.ai/).
+Dudes Control Center was **initially coded with [Bionic AI Agent](https://lmstudio.ai/)**. **Code review, hardening, bug fixing and the final polish** were done by **[Claude](https://www.anthropic.com/claude)** (Anthropic) with Claude Code.
 
 ### Special Thanks To:
-- **[LM Studio](https://lmstudio.ai/)** - For the Bionic AI Agent that created this entire application
+- **[LM Studio](https://lmstudio.ai/)** - For the Bionic AI Agent that initially coded this application
+- **[Anthropic](https://www.anthropic.com/)** - For Claude, which reviewed, hardened, fixed and polished it
 - **[steiiin](https://github.com/steiiin/fan-control)** - Creator of fan-control, the source of this project's fan control code
 - **[agramian](https://github.com/agramian/clevo-fan-control)**, **[AqD](https://github.com/SkyLandTW/clevo-indicator)** and **Jonas Diemer** - Authors of clevo-fan-control, Clevo Fan Control Indicator and fanctrl.c, on which fan-control is based
 - **[TUXEDO Computers](https://github.com/tuxedocomputers/tuxedo-drivers)** - Authors of the `ite_829x` keyboard backlight driver (part of tuxedo-drivers), which this project uses in modified form
