@@ -159,6 +159,7 @@ typedef struct {
     size_t n;
     char names[KBD_MAX_KEYS][48];
     KeyPos pos[KBD_MAX_KEYS];
+    int row[KBD_MAX_KEYS];             /* keyboard row (keys.csv "row"), -1 if unknown */
     double right;                      /* right edge of the keys */
 } KbdLayoutData;
 
@@ -175,7 +176,7 @@ static int kbd_layout_parse(const char *code, KbdLayoutData *L) {
     }
     char *text = data;
     if (!strncmp(text, "\xEF\xBB\xBF", 3)) text += 3;          /* UTF-8 BOM */
-    int ck = -1, cx = -1, cy = -1, cw = -1, ch = -1, header = 1;
+    int ck = -1, cx = -1, cy = -1, cw = -1, ch = -1, cr = -1, header = 1;
     static char f[24][96];
     char *save = NULL;
     for (char *line = strtok_r(text, "\n", &save); line; line = strtok_r(NULL, "\n", &save)) {
@@ -187,6 +188,7 @@ static int kbd_layout_parse(const char *code, KbdLayoutData *L) {
                 else if (!strcmp(f[i], "y_px")) cy = i;
                 else if (!strcmp(f[i], "width_px")) cw = i;
                 else if (!strcmp(f[i], "height_px")) ch = i;
+                else if (!strcmp(f[i], "row")) cr = i;
             }
             header = 0;
             if (ck < 0 || cx < 0 || cy < 0 || cw < 0 || ch < 0) break;
@@ -197,6 +199,7 @@ static int kbd_layout_parse(const char *code, KbdLayoutData *L) {
         KeyPos k = { atof(f[cx]), atof(f[cy]), atof(f[cw]), atof(f[ch]) };
         if (k.w <= 0 || k.h <= 0) continue;
         snprintf(L->names[L->n], sizeof L->names[0], "%s", f[ck]);
+        L->row[L->n] = (cr >= 0 && cr < nf && f[cr][0]) ? atoi(f[cr]) : -1;
         L->pos[L->n++] = k;
         if (k.x + k.w > L->right) L->right = k.x + k.w;
     }
@@ -205,10 +208,13 @@ static int kbd_layout_parse(const char *code, KbdLayoutData *L) {
     return L->n > 0 ? 0 : -1;
 }
 
+static KbdLayoutData kbd_cur_layout;   /* the current layout as read */
+
 /* Make code the current layout; the old one stays if it cannot be read */
 static int kbd_layout_load(const char *code) {
     static KbdLayoutData L;
     if (kbd_layout_parse(code, &L) != 0) return -1;
+    kbd_cur_layout = L;
     kbd_num_keys = L.n;
     for (size_t i = 0; i < L.n; i++) {
         memcpy(kbd_key_name_buf[i], L.names[i], sizeof kbd_key_name_buf[i]);
@@ -225,42 +231,115 @@ static int kbd_layout_index_of(const char *name) {
     return -1;
 }
 
-/* Key of the current layout at a point (picture coordinates): the key
- * containing it, otherwise the nearest key center in the same row */
-static int kbd_layout_key_at(double x, double y) {
-    int best = -1;
-    double bestd = 1e9;
-    for (size_t i = 0; i < kbd_num_keys; i++) {
-        const KeyPos *k = &kbd_key_positions[i];
-        if (x >= k->x && x < k->x + k->w && y >= k->y && y < k->y + k->h) return (int)i;
-        double dx = x - (k->x + k->w / 2.0), dy = y - (k->y + k->h / 2.0);
-        if (ABS(dy) > k->h / 2.0 || ABS(dx) > k->w) continue;
-        double d = dx * dx + dy * dy;
-        if (d < bestd) { bestd = d; best = (int)i; }
+/* German keys -> keys of another layout (1.28.0), in two steps:
+ * 1. keys with the same name (Strg = Ctrl) in the same or a neighbouring
+ *    row at nearly the same place (within 10% of the keyboard width): the
+ *    function, navigation and modifier keys, also when a layout moves them
+ *    a little (Japanese arrow keys sit one row lower);
+ * 2. the rest row by row: the keys are lined up by their position within
+ *    their full row and matched in order, each key at most once (an
+ *    alignment with a cost for keys left out).
+ * Symbol keys are not matched by name: the same legend sits at different
+ * places in different layouts, and the LED belongs to the place. Keys that
+ * only one layout has stay without LED (e.g. Japanese Henkan, Korean '\'
+ * above Enter): they need the LED Wizard. Scaling positions alone gave two
+ * German keys the same narrower Japanese key and left '[' or '/' unlit. */
+#define KBD_MATCH_SKIP 0.06
+#define KBD_MATCH_NAME_DIST 0.10
+
+/* Position of every key within its full row (0 = left end, 1 = right end) */
+static void kbd_row_positions(const KbdLayoutData *L, double *u) {
+    for (size_t i = 0; i < L->n; i++) {
+        double left = 1e9, right = -1e9;
+        for (size_t j = 0; j < L->n; j++) {
+            if (L->row[j] != L->row[i]) continue;
+            left = MIN(left, L->pos[j].x);
+            right = MAX(right, L->pos[j].x + L->pos[j].w);
+        }
+        double span = right - left > 1 ? right - left : 1;
+        u[i] = (L->pos[i].x + L->pos[i].w / 2.0 - left) / span;
     }
-    return best;
+}
+
+static void kbd_match_row(const int *ai, const double *ua, int m, const int *bi, const double *ub, int n, int *out) {
+    static double D[KBD_MAX_KEYS + 1][KBD_MAX_KEYS + 1];
+    static char W[KBD_MAX_KEYS + 1][KBD_MAX_KEYS + 1];   /* 0 match, 1 skip A, 2 skip B */
+    for (int i = 0; i <= m; i++)
+        for (int j = 0; j <= n; j++) {
+            if (!i && !j) { D[0][0] = 0; continue; }
+            double best = 1e18;
+            char w = 0;
+            if (i && j) { best = D[i - 1][j - 1] + ABS(ua[ai[i - 1]] - ub[bi[j - 1]]); w = 0; }
+            if (i && D[i - 1][j] + KBD_MATCH_SKIP < best) { best = D[i - 1][j] + KBD_MATCH_SKIP; w = 1; }
+            if (j && D[i][j - 1] + KBD_MATCH_SKIP < best) { best = D[i][j - 1] + KBD_MATCH_SKIP; w = 2; }
+            D[i][j] = best;
+            W[i][j] = w;
+        }
+    for (int i = m, j = n; i > 0 || j > 0;) {
+        if (i && j && W[i][j] == 0) { out[ai[i - 1]] = bi[j - 1]; i--; j--; }
+        else if (i && (W[i][j] == 1 || !j)) i--;
+        else j--;
+    }
+}
+
+/* Keys of one row that are still free, sorted by x */
+static int kbd_row_keys(const KbdLayoutData *L, int row, const char *taken, int *out) {
+    int n = 0;
+    for (size_t i = 0; i < L->n; i++) if (L->row[i] == row && !taken[i]) out[n++] = (int)i;
+    for (int a = 1; a < n; a++)
+        for (int b = a; b > 0 && L->pos[out[b]].x < L->pos[out[b - 1]].x; b--) {
+            int t = out[b]; out[b] = out[b - 1]; out[b - 1] = t;
+        }
+    return n;
+}
+
+static void kbd_match_layouts(const KbdLayoutData *A, const KbdLayoutData *B, int *out) {
+    static double ua[KBD_MAX_KEYS], ub[KBD_MAX_KEYS];
+    char used_a[KBD_MAX_KEYS] = { 0 }, used_b[KBD_MAX_KEYS] = { 0 };
+    for (int i = 0; i < KBD_MAX_KEYS; i++) out[i] = -1;
+    kbd_row_positions(A, ua);
+    kbd_row_positions(B, ub);
+    /* 1. same name, nearly the same place */
+    for (size_t i = 0; i < A->n; i++) {
+        const char *nm = A->names[i];
+        if (!strcmp(nm, "Strg left")) nm = "Ctrl left";
+        else if (!strcmp(nm, "Strg right")) nm = "Ctrl right";
+        double xa = (A->pos[i].x + A->pos[i].w / 2.0) / (A->right > 0 ? A->right : 1);
+        for (size_t j = 0; j < B->n; j++) {
+            if (used_b[j] || strcmp(B->names[j], nm) || ABS(A->row[i] - B->row[j]) > 1) continue;
+            double xb = (B->pos[j].x + B->pos[j].w / 2.0) / (B->right > 0 ? B->right : 1);
+            if (ABS(xa - xb) >= KBD_MATCH_NAME_DIST) continue;
+            out[i] = (int)j;
+            used_a[i] = used_b[j] = 1;
+            break;
+        }
+    }
+    /* 2. the rest row by row */
+    for (int row = 0; row < 16; row++) {
+        int ai[KBD_MAX_KEYS], bi[KBD_MAX_KEYS];
+        int m = kbd_row_keys(A, row, used_a, ai), n = kbd_row_keys(B, row, used_b, bi);
+        if (m && n) kbd_match_row(ai, ua, m, bi, ub, n, out);
+    }
 }
 
 /* An old (German table) key -> key of the current layout: German by name,
- * the others by position (the German key's center, scaled to the width of
- * the other layout). -1 if there is none. */
+ * the others through kbd_match_layouts. -1 if there is none. */
 static int kbd_legacy_to_current(int legacy) {
     if (legacy < 0 || legacy >= KBD_LEGACY_NUM_KEYS) return -1;
     const char *name = kbd_legacy_key_names[legacy];
     if (!strcmp(kbd_layout_code, "de")) return kbd_layout_index_of(name);
     static KbdLayoutData de;
     static int de_loaded = 0;
+    static int de_to_cur[KBD_MAX_KEYS];
+    static char matched_for[8] = "";
     if (!de_loaded) de_loaded = kbd_layout_parse("de", &de) == 0 ? 1 : -1;
     if (de_loaded != 1) return -1;
-    double right = 0;
-    for (size_t i = 0; i < kbd_num_keys; i++)
-        right = MAX(right, kbd_key_positions[i].x + kbd_key_positions[i].w);
-    for (size_t i = 0; i < de.n; i++) {
-        if (strcmp(de.names[i], name)) continue;
-        double cx = de.pos[i].x + de.pos[i].w / 2.0, cy = de.pos[i].y + de.pos[i].h / 2.0;
-        if (de.right > 0 && right > 0) cx = cx * right / de.right;
-        return kbd_layout_key_at(cx, cy);
+    if (strcmp(matched_for, kbd_layout_code) != 0) {
+        kbd_match_layouts(&de, &kbd_cur_layout, de_to_cur);
+        snprintf(matched_for, sizeof matched_for, "%s", kbd_layout_code);
     }
+    for (size_t i = 0; i < de.n; i++)
+        if (!strcmp(de.names[i], name)) return de_to_cur[i];
     return -1;
 }
 

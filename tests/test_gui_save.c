@@ -256,6 +256,62 @@ int main(int argc, char **argv) {
         int a = kbd_layout_index_of("A"), led_a = -1;
         for (int l = 0; l < 120; l++) if (lm.kbd_wizard_mapping[l] == a) led_a = l;
         CHECK(a >= 0 && led_a >= 0, "L: Japanese layout gets a derived LED for the letter keys (A)");
+        /* row matching (1.28.0): keys with a German counterpart get its LED */
+        {
+            const char *codes[] = { "uk", "es", "jp", "kr" };
+            for (int c = 0; c < 4; c++) {
+                kbd_layout_load(codes[c]);
+                static AppData dm;
+                kbd_mapping_set_defaults(&dm);
+                char list[1024] = "";
+                for (size_t k = 0; k < kbd_num_keys; k++) {
+                    int has = 0;
+                    for (int l = 0; l < 120; l++) if (dm.kbd_wizard_mapping[l] == (int)k) has = 1;
+                    if (!has && strlen(list) < 900) { strcat(list, " ["); strcat(list, kbd_key_names[k]); strcat(list, "]"); }
+                }
+                printf("INFO  layout %s, keys without LED:%s\n", codes[c], list[0] ? list : " none");
+            }
+            kbd_layout_load("jp");
+            static AppData jm;
+            kbd_mapping_set_defaults(&jm);
+            int lb = kbd_layout_index_of("["), sl = kbd_layout_index_of("/"), yen = kbd_layout_index_of("\\");   /* Ro key */
+            int has_lb = 0, has_sl = 0, has_yen = 0;
+            for (int l = 0; l < 120; l++) {
+                if (jm.kbd_wizard_mapping[l] == lb) has_lb = 1;
+                if (jm.kbd_wizard_mapping[l] == sl) has_sl = 1;
+                if (yen >= 0 && jm.kbd_wizard_mapping[l] == yen) has_yen = 1;
+            }
+            CHECK(lb >= 0 && sl >= 0 && has_lb && has_sl, "L: Japanese '[' and '/' get the LEDs of the German keys at their place");
+            CHECK(yen >= 0 && !has_yen, "L: Japanese '\\' (Ro, no German counterpart) has no LED until the wizard ran");
+            int rc = kbd_layout_index_of("Ctrl right"), up = kbd_layout_index_of("Arrow up"), has_rc = 0, has_up = 0;
+            for (int l = 0; l < 120; l++) {
+                if (jm.kbd_wizard_mapping[l] == rc) has_rc = 1;
+                if (jm.kbd_wizard_mapping[l] == up) has_up = 1;
+            }
+            CHECK(has_rc && has_up, "L: Japanese Ctrl right and Arrow up (one row lower) get the German keys' LEDs");
+            int dup = 0;
+            for (size_t k = 0; k < kbd_num_keys; k++) {
+                /* a target key gets the LEDs of at most one German key */
+                int src = -1;
+                for (int l = 0; l < 120; l++) {
+                    if (jm.kbd_wizard_mapping[l] != (int)k) continue;
+                    int legacy = kbd_default_led_position[l];
+                    int g = legacy >= 0 ? legacy : -1;
+                    const char *nm = g >= 0 ? kbd_legacy_key_names[g] : "";
+                    static char last[64];
+                    if (src < 0) { src = 1; snprintf(last, sizeof last, "%s", nm); }
+                    else if (strcmp(last, nm)) dup = 1;
+                }
+            }
+            CHECK(!dup, "L: no Japanese key gets the LEDs of two different German keys");
+            kbd_layout_load("kr");
+            static AppData km;
+            kbd_mapping_set_defaults(&km);
+            int bs = kbd_layout_index_of("\\"), has_bs = 0;
+            for (int l = 0; l < 120; l++) if (bs >= 0 && km.kbd_wizard_mapping[l] == bs) has_bs = 1;
+            CHECK(bs >= 0 && !has_bs, "L: Korean '\\' above Enter (no German counterpart) has no LED until the wizard ran");
+        }
+
         /* German: an old mapping file (before 1.28.0) is converted once */
         CHECK(kbd_layout_load("de") == 0, "L: back to German");
         char old[1024], neu[1024];
