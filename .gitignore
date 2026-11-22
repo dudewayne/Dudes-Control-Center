@@ -1,50 +1,57 @@
-
-*~
-backup/
-backup_archive/
-# Backup folders
-# Build artifacts
-build-deb/
-build-po/
-build-test/
-.*.cmd
 # Compiled binaries
-dcc-cpu-cli
-dcc-cpu-daemon
 dcc-fan-cli
+dcc-cpu-cli
 dcc-fan-daemon
-dcc-gui
+dcc-cpu-daemon
 dcc-kbd-daemon
-*.deb
-debs/
-.DS_Store
-dudes-control-center-cli
-dudes-control-center-cpu-cli
-dudes-control-center-cpu-daemon
-dudes-control-center-daemon
+dcc-gui
+# (names before 1.19.0)
 dudes-control-center-fan-cli
 dudes-control-center-fan-daemon
-dudes-control-center-gui
+dudes-control-center-cpu-cli
+dudes-control-center-cpu-daemon
 dudes-control-center-kbd-backlight-daemon
-.idea/
-# IDE / editor files
-# Internal rules file (not for repository)
+dudes-control-center-gui
+dudes-control-center-cli
+dudes-control-center-daemon
+
+# Build artifacts
+build-deb/
+build-test/
+build-po/
+
+# Packages (tested debs are attached to GitHub releases)
+debs/
+*.deb
+
+# Python bytecode from the tests
+__pycache__/
+*.pyc
+
 # Kernel module build output (drivers/)
+*.o
 *.ko
 *.ko.zst
 *.mod
 *.mod.c
-modules.order
+.*.cmd
 Module.symvers
-# (names before 1.19.0)
-*.o
-# OS files
-# Packages (tested debs are attached to GitHub releases)
-*.pyc
-__pycache__/
-# Python bytecode from the tests
-Rules.md
-*.swo
-*.swp
-Thumbs.db
+modules.order
+
+# Backup folders
+backup/
+backup_archive/
+
+# IDE / editor files
 .vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Internal rules file (not for repository)
+Rules.md
