@@ -13,7 +13,7 @@ All notable changes to this project will be documented in this file.
 ### Fixed
 - The GUI restarted with "Restart now" is not mistaken for a second instance (same process ID).
 - **Fan curve graph texts with Pango**: the axis labels and titles were drawn with cairo's simple text functions, which have no font fallback, so Japanese and Korean showed as boxes. The vertical "Fan Speed (%)" title ran into the "60%" label; it is now centered at the left edge, and the percentage labels are right-aligned next to the axis.
-- The curve point list's columns size themselves to their headers (fixed widths cut off the translated "Fan Speed (%)").
+- The curve point list is as wide as its columns (they size themselves to their headers; fixed widths and a fixed-width scroll area cut off the translated "Fan Speed (%)"). The fan curve graph fills the rest of the row instead of always taking 1000 px.
 
 ## [1.30.0] - 2026-11-22
 

@@ -6117,7 +6117,10 @@ static GtkWidget *create_curve_editor_page(AppData *app) {
     /* Left side: Curve points tree view */
     GtkWidget *tree_frame = gtk_frame_new(_("Temperature Curve Points"));
     GtkWidget *scrolled = gtk_scrolled_window_new(NULL, NULL);
-    gtk_scrolled_window_set_policy(GTK_SCROLLED_WINDOW(scrolled), GTK_POLICY_AUTOMATIC, GTK_POLICY_AUTOMATIC);
+    /* as wide as its columns (translated headers are longer, 1.31.0): no
+     * horizontal scrolling, the natural width is passed on */
+    gtk_scrolled_window_set_policy(GTK_SCROLLED_WINDOW(scrolled), GTK_POLICY_NEVER, GTK_POLICY_AUTOMATIC);
+    gtk_scrolled_window_set_propagate_natural_width(GTK_SCROLLED_WINDOW(scrolled), TRUE);
     
     /* Create list store with columns: Temperature (text), Fan % (int) */
     app->curve_store = gtk_list_store_new(2, G_TYPE_STRING, G_TYPE_INT);
@@ -6150,13 +6153,13 @@ static GtkWidget *create_curve_editor_page(AppData *app) {
     /* Right side: Temperature curve graph */
     GtkWidget *graph_frame = gtk_frame_new(_("Temperature Curve Graph"));
     app->curve_graph = gtk_drawing_area_new();
-    gtk_widget_set_size_request(app->curve_graph, 1000, 430);
+    gtk_widget_set_size_request(app->curve_graph, 700, 430);   /* fills the rest of the row */
     
     /* Connect draw signal */
     g_signal_connect(app->curve_graph, "draw", G_CALLBACK(draw_curve_graph), app);
     
     gtk_container_add(GTK_CONTAINER(graph_frame), app->curve_graph);
-    gtk_box_pack_start(GTK_BOX(hbox), graph_frame, FALSE, FALSE, 0);
+    gtk_box_pack_start(GTK_BOX(hbox), graph_frame, TRUE, TRUE, 0);
     
     gtk_box_pack_start(GTK_BOX(vbox), hbox, FALSE, FALSE, 0);
     
