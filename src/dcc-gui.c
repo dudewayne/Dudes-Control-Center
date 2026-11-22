@@ -7778,13 +7778,16 @@ static GtkWidget *create_settings_page(AppData *app) {
         "frequencies stay as they were last set.",
         "Keyboard daemon, Keyboard Backlight tab, keyboard profiles in the tray menu. The LEDs keep their last colors.",
     };
-    for (int c = 0; c < COMP_COUNT; c++) {
+    /* Alphabetical like the tabs and the tray menu: CPU, Fan, Keyboard */
+    static const int row_order[COMP_COUNT] = { COMP_CPU, COMP_FAN, COMP_KEYBOARD };
+    for (int row = 0; row < COMP_COUNT; row++) {
+        int c = row_order[row];
         GtkWidget *sw = gtk_switch_new();
         gtk_widget_set_valign(sw, GTK_ALIGN_START);
         g_object_set_data(G_OBJECT(sw), "component", GINT_TO_POINTER(c));
         app->settings_switch[c] = sw;
         app->settings_switch_sig[c] = g_signal_connect(sw, "state-set", G_CALLBACK(on_settings_switch), app);
-        gtk_grid_attach(GTK_GRID(grid), sw, 0, c, 1, 1);
+        gtk_grid_attach(GTK_GRID(grid), sw, 0, row, 1, 1);
 
         GtkWidget *box = gtk_box_new(GTK_ORIENTATION_VERTICAL, 2);
         GtkWidget *title = gtk_label_new(NULL);
@@ -7799,12 +7802,12 @@ static GtkWidget *create_settings_page(AppData *app) {
         gtk_box_pack_start(GTK_BOX(box), title, FALSE, FALSE, 0);
         gtk_box_pack_start(GTK_BOX(box), text, FALSE, FALSE, 0);
         gtk_widget_set_hexpand(box, TRUE);
-        gtk_grid_attach(GTK_GRID(grid), box, 1, c, 1, 1);
+        gtk_grid_attach(GTK_GRID(grid), box, 1, row, 1, 1);
 
         app->settings_state[c] = gtk_label_new("");
         gtk_widget_set_valign(app->settings_state[c], GTK_ALIGN_START);
         gtk_label_set_xalign(GTK_LABEL(app->settings_state[c]), 0.0);
-        gtk_grid_attach(GTK_GRID(grid), app->settings_state[c], 2, c, 1, 1);
+        gtk_grid_attach(GTK_GRID(grid), app->settings_state[c], 2, row, 1, 1);
     }
     gtk_container_add(GTK_CONTAINER(frame), grid);
     gtk_box_pack_start(GTK_BOX(vbox), frame, FALSE, FALSE, 0);
