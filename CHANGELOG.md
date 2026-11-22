@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [Unreleased]
+
+### Fixed
+- CPU daemon: the intended 31-character limit of the command word is written into the format (`%.31s`), so the test build (other optimization level) has no warning either. No change in behavior.
+
 ## [1.18.8] - 2026-11-22
 
 ### Fixed

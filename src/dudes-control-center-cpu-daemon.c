@@ -96,7 +96,7 @@ static void parse_command(const char *cmd, char *action, char *arg1, char *arg2,
         action[act_len] = '\0';
         pos = sep + 1;
     } else {
-        snprintf(action, 32, "%s", pos);
+        snprintf(action, 32, "%.31s", pos);   /* command word, at most 31 chars */
         return;
     }
 
