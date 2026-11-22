@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 ## [1.29.0] - 2026-11-22
 
 ### Added
-- **Appearance setting** in the Settings tab: **Follow the system** (default), **Dark** or **Light**, stored in `config.json`. Dark and light switch the GTK theme of the app only: to the installed dark or light variant of the desktop theme (e.g. Mint-Y-Aqua and Mint-Y-Dark-Aqua), otherwise through GTK's dark-theme preference. Following the system also follows later desktop theme changes. The note under the setting shows the theme in use.
+- **Appearance setting** in the Settings tab: **Follow the system** (default), **Dark** or **Light**, stored in `config.json`. Dark and light switch the GTK theme of the app only: to the installed dark or light variant of the desktop theme (e.g. Mint-Y-Aqua and Mint-Y-Dark-Aqua), otherwise through GTK's dark-theme preference. Following the system also follows later desktop theme changes: the app watches the desktop's theme setting (`org.cinnamon.desktop.interface gtk-theme`, otherwise GNOME's) and applies a new theme right away; with Dark or Light it switches to the new theme's matching variant. The note under the setting shows the theme in use.
 - **Light keyboard pictures** for all layouts: the German one as provided, UK, Spanish, Japanese and Korean made from their dark pictures with the same colors. The keyboard picture switches with the theme.
 - The **fan curve graph** is drawn in dark colors on dark themes (it was always white).
 

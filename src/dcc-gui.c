@@ -8794,17 +8794,54 @@ static int theme_variant_candidates(const char *name, int dark, char out[4][128]
     return n;
 }
 
+static int theme_dir_exists(const char *base, const char *sub, const char *name) {
+    gchar *path = g_build_filename(base, sub, name, "gtk-3.0", NULL);
+    int ok = g_file_test(path, G_FILE_TEST_IS_DIR);
+    g_free(path);
+    return ok;
+}
+
 static int theme_installed(const char *name) {
-    char path[512];
-    snprintf(path, sizeof path, "%s/themes/%s/gtk-3.0", g_get_user_data_dir(), name);
-    if (g_file_test(path, G_FILE_TEST_IS_DIR)) return 1;
-    snprintf(path, sizeof path, "%s/.themes/%s/gtk-3.0", g_get_home_dir(), name);
-    if (g_file_test(path, G_FILE_TEST_IS_DIR)) return 1;
-    for (const gchar *const *d = g_get_system_data_dirs(); *d; d++) {
-        snprintf(path, sizeof path, "%s/themes/%s/gtk-3.0", *d, name);
-        if (g_file_test(path, G_FILE_TEST_IS_DIR)) return 1;
-    }
+    if (!name || !*name || strchr(name, '/')) return 0;
+    if (theme_dir_exists(g_get_user_data_dir(), "themes", name)) return 1;
+    if (theme_dir_exists(g_get_home_dir(), ".themes", name)) return 1;
+    for (const gchar *const *d = g_get_system_data_dirs(); *d; d++)
+        if (theme_dir_exists(*d, "themes", name)) return 1;
     return 0;
+}
+
+/* The desktop's theme setting, read directly from its settings (Cinnamon,
+ * otherwise GNOME): GTK's own theme setting did not follow a theme change
+ * made in the desktop's settings while the app was running. g_free it. */
+static GSettings *appearance_desktop_settings(const char **key) {
+    static GSettings *gs = NULL;
+    static const char *found_key = NULL;
+    static int tried = 0;
+    if (!tried) {
+        tried = 1;
+        const char *schemas[] = { "org.cinnamon.desktop.interface", "org.gnome.desktop.interface" };
+        GSettingsSchemaSource *src = g_settings_schema_source_get_default();
+        for (int i = 0; i < 2 && !gs && src; i++) {
+            GSettingsSchema *schema = g_settings_schema_source_lookup(src, schemas[i], TRUE);
+            if (!schema) continue;
+            if (g_settings_schema_has_key(schema, "gtk-theme")) {
+                gs = g_settings_new(schemas[i]);
+                found_key = "gtk-theme";
+            }
+            g_settings_schema_unref(schema);
+        }
+    }
+    if (key) *key = found_key;
+    return gs;
+}
+
+static gchar *appearance_desktop_theme(void) {
+    const char *key = NULL;
+    GSettings *gs = appearance_desktop_settings(&key);
+    if (!gs || !key) return NULL;
+    gchar *t = g_settings_get_string(gs, key);
+    if (t && !*t) { g_free(t); t = NULL; }
+    return t;
 }
 
 /* Set the GTK theme of this app for the chosen appearance */
@@ -8814,9 +8851,20 @@ static void appearance_apply_theme(int mode) {
     /* back to the desktop's values first (also the base for the variants) */
     gtk_settings_reset_property(gs, "gtk-theme-name");
     gtk_settings_reset_property(gs, "gtk-application-prefer-dark-theme");
-    if (mode == APPEARANCE_SYSTEM) return;
-    gchar *theme = NULL;
-    g_object_get(gs, "gtk-theme-name", &theme, NULL);
+    gchar *theme = appearance_desktop_theme();
+    if (!theme) g_object_get(gs, "gtk-theme-name", &theme, NULL);
+    if (mode == APPEARANCE_SYSTEM) {
+        /* the desktop's theme as set now (GTK may still have an old one) */
+        gchar *cur = NULL;
+        g_object_get(gs, "gtk-theme-name", &cur, NULL);
+        if (theme && (!cur || strcmp(cur, theme) != 0)) {
+            g_object_set(gs, "gtk-theme-name", theme, NULL);
+            g_print("[GUI] Appearance system: desktop theme %s\n", theme);
+        }
+        g_free(cur);
+        g_free(theme);
+        return;
+    }
     char cand[4][128];
     int n = theme_variant_candidates(theme, mode == APPEARANCE_DARK, cand);
     for (int i = 0; i < n; i++)
@@ -8873,6 +8921,18 @@ static void on_gtk_theme_changed(GObject *obj, GParamSpec *pspec, gpointer user_
     g_idle_add(appearance_refresh_idle, user_data);
 }
 
+/* The theme was changed in the desktop's settings: follow it (or, with a
+ * fixed dark/light mode, use the new theme's matching variant) */
+static void on_desktop_theme_changed(GSettings *gs, const gchar *key, gpointer user_data) {
+    (void)gs;
+    AppData *app = (AppData *)user_data;
+    gchar *t = appearance_desktop_theme();
+    g_print("[GUI] Desktop theme changed (%s): %s\n", key, t ? t : "?");
+    g_free(t);
+    appearance_apply_theme(app->appearance);
+    g_idle_add(appearance_refresh_idle, app);
+}
+
 /* Appearance at start: config.json "appearance", default: follow the system */
 static void appearance_init(AppData *app) {
     app->appearance = APPEARANCE_SYSTEM;
@@ -8883,6 +8943,13 @@ static void appearance_init(AppData *app) {
     cJSON_Delete(json);
     appearance_apply_theme(app->appearance);
     app->is_dark = appearance_detect_dark(NULL);
+    const char *key = NULL;
+    GSettings *desk = appearance_desktop_settings(&key);
+    if (desk && key) {
+        gchar *sig = g_strdup_printf("changed::%s", key);
+        g_signal_connect(desk, sig, G_CALLBACK(on_desktop_theme_changed), app);
+        g_free(sig);
+    }
     g_print("[GUI] Appearance: %s, window is %s\n", appearance_names[app->appearance], app->is_dark ? "dark" : "light");
 }
 
