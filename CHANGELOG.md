@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.24.2] - 2026-11-22
+
+### Fixed
+- **Keyboard tab layout**: the LED Wizard (its buttons and status line) moved to the right side of the Backlight section, next to Backlight Off and Brightness; it is the key-to-LED mapping, not part of the zone editor. The keyboard picture is now at the top of the Visual Zone Editor and takes only the height it needs for its width; the Zones list next to it has the same height. The picture used to be centered in all the free space, with empty areas above and below it.
+
 ## [1.24.1] - 2026-11-22
 
 ### Fixed

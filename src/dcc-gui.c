@@ -452,6 +452,8 @@ typedef struct {
     char kbd_edit_name[256];
     int kbd_edit_loaded;
     int kbd_sel_zone;                  /* zone being edited, -1: whole keyboard */
+    int kbd_canvas_width_used;         /* canvas width its height was computed for */
+    int kbd_canvas_height_want;
     GtkListStore *kbd_zone_store;
     GtkWidget *kbd_zone_view;
     GtkWidget *kbd_zone_rename_btn;
@@ -5047,6 +5049,31 @@ static void kbd_refresh_key_colors(AppData *app) {
     kbd_redraw_canvas(app);
 }
 
+/* The keyboard picture keeps its aspect ratio: the canvas asks for the
+ * height that fits its width (the zone list next to it gets the same
+ * height), instead of filling all free space with the picture centered in
+ * it (1.24.2). Only recomputed when the width changed noticeably, so a
+ * scrollbar appearing or disappearing cannot make it oscillate. */
+static gboolean kbd_canvas_apply_height(gpointer user_data) {
+    AppData *app = (AppData *)user_data;
+    if (app->kbd_keyboard_canvas && app->kbd_canvas_height_want > 0)
+        gtk_widget_set_size_request(app->kbd_keyboard_canvas, -1, app->kbd_canvas_height_want);
+    return G_SOURCE_REMOVE;
+}
+
+static void on_kbd_canvas_size_allocate(GtkWidget *widget, GdkRectangle *alloc, gpointer user_data) {
+    (void)widget;
+    AppData *app = (AppData *)user_data;
+    if (!app->kbd_keyboard_image || alloc->width <= 1) return;
+    if (app->kbd_canvas_width_used && abs(alloc->width - app->kbd_canvas_width_used) < 24) return;
+    double iw = cairo_image_surface_get_width(app->kbd_keyboard_image);
+    double ih = cairo_image_surface_get_height(app->kbd_keyboard_image);
+    if (iw <= 0) return;
+    app->kbd_canvas_width_used = alloc->width;
+    app->kbd_canvas_height_want = (int)(alloc->width * ih / iw + 0.5);
+    g_idle_add(kbd_canvas_apply_height, app);   /* not during the allocation itself */
+}
+
 /* Draw callback for keyboard canvas */
 static gboolean kbd_canvas_draw(GtkWidget *widget, cairo_t *cr, gpointer user_data) {
     (void)widget;
@@ -5065,9 +5092,8 @@ static gboolean kbd_canvas_draw(GtkWidget *widget, cairo_t *cr, gpointer user_da
         double scale = (scale_x < scale_y) ? scale_x : scale_y;
         
         double scaled_w = img_width * scale;
-        double scaled_h = img_height * scale;
         double offset_x = (width - scaled_w) / 2.0;
-        double offset_y = (height - scaled_h) / 2.0;
+        double offset_y = 0;   /* picture at the top (1.24.2) */
         
         cairo_save(cr);
         cairo_translate(cr, offset_x, offset_y);
@@ -5156,9 +5182,8 @@ static gboolean kbd_canvas_button_press(GtkWidget *widget, GdkEventButton *event
     double scale = (scale_x < scale_y) ? scale_x : scale_y;
     
     double scaled_w = img_width * scale;
-    double scaled_h = img_height * scale;
     double offset_x = (width - scaled_w) / 2.0;
-    double offset_y = (height - scaled_h) / 2.0;
+    double offset_y = 0;   /* picture at the top (1.24.2) */
     
     /* Convert click to image coordinates */
     double unscaled_x = (event->x - offset_x) / scale;
@@ -7228,7 +7253,26 @@ static GtkWidget *create_keyboard_page(AppData *app) {
     gtk_label_set_xalign(GTK_LABEL(off_switch_note), 0.0);
     gtk_box_pack_start(GTK_BOX(off_switch_vbox), off_switch_note, FALSE, FALSE, 0);
 
-    gtk_container_add(GTK_CONTAINER(off_switch_frame), off_switch_vbox);
+    /* Backlight settings on the left, the LED Wizard on the right (1.24.2:
+     * it is the key-to-LED mapping, not part of the zone editor) */
+    GtkWidget *backlight_row = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 12);
+    gtk_box_pack_start(GTK_BOX(backlight_row), off_switch_vbox, FALSE, FALSE, 0);
+    gtk_box_pack_start(GTK_BOX(backlight_row), gtk_separator_new(GTK_ORIENTATION_VERTICAL), FALSE, FALSE, 0);
+    GtkWidget *wizard_box = gtk_box_new(GTK_ORIENTATION_VERTICAL, 6);
+    {
+        GtkWidget *wizard_title = gtk_label_new(NULL);
+        gtk_label_set_markup(GTK_LABEL(wizard_title), "<b>LED Wizard</b>");
+        gtk_label_set_xalign(GTK_LABEL(wizard_title), 0.0);
+        gtk_box_pack_start(GTK_BOX(wizard_box), wizard_title, FALSE, FALSE, 0);
+        GtkWidget *wizard_note = gtk_label_new("Lights one LED after the other; click the matching key on the picture "
+                                               "below. Needed once for per-key colors.");
+        gtk_label_set_xalign(GTK_LABEL(wizard_note), 0.0);
+        gtk_label_set_line_wrap(GTK_LABEL(wizard_note), TRUE);
+        gtk_widget_set_name(wizard_note, "kbd-off-switch-note");
+        gtk_box_pack_start(GTK_BOX(wizard_box), wizard_note, FALSE, FALSE, 0);
+    }
+    gtk_box_pack_start(GTK_BOX(backlight_row), wizard_box, TRUE, TRUE, 0);
+    gtk_container_add(GTK_CONTAINER(off_switch_frame), backlight_row);
     gtk_box_pack_start(GTK_BOX(vbox), off_switch_frame, FALSE, FALSE, 0);
 
     /* --- Preset Colors section --- */
@@ -7306,20 +7350,22 @@ static GtkWidget *create_keyboard_page(AppData *app) {
     gtk_box_pack_start(GTK_BOX(wizard_btn_row), app->kbd_led_wizard_nokey_btn, FALSE, FALSE, 0);
     gtk_box_pack_start(GTK_BOX(wizard_btn_row), app->kbd_led_wizard_save_btn, FALSE, FALSE, 0);
     gtk_box_pack_start(GTK_BOX(wizard_btn_row), app->kbd_led_wizard_cancel_btn, FALSE, FALSE, 0);
-    gtk_box_pack_start(GTK_BOX(zone_vbox), wizard_btn_row, FALSE, FALSE, 0);
+    gtk_box_pack_start(GTK_BOX(wizard_box), wizard_btn_row, FALSE, FALSE, 0);
     
     /* LED Wizard status label */
     app->kbd_led_wizard_label = gtk_label_new("");
     gtk_label_set_xalign(GTK_LABEL(app->kbd_led_wizard_label), 0.0);
     gtk_widget_set_name(app->kbd_led_wizard_label, "kbd-wizard-label");
     gtk_widget_set_no_show_all(app->kbd_led_wizard_label, TRUE);   /* shown once the wizard runs */
-    gtk_box_pack_start(GTK_BOX(zone_vbox), app->kbd_led_wizard_label, FALSE, FALSE, 0);
+    gtk_label_set_line_wrap(GTK_LABEL(app->kbd_led_wizard_label), TRUE);
+    gtk_box_pack_start(GTK_BOX(wizard_box), app->kbd_led_wizard_label, FALSE, FALSE, 0);
     
     /* Keyboard schematic canvas */
     app->kbd_keyboard_canvas = gtk_drawing_area_new();
     gtk_widget_set_events(app->kbd_keyboard_canvas, GDK_BUTTON_PRESS_MASK);
     g_signal_connect(app->kbd_keyboard_canvas, "draw", G_CALLBACK(kbd_canvas_draw), app);
     g_signal_connect(app->kbd_keyboard_canvas, "button-press-event", G_CALLBACK(kbd_canvas_button_press), app);
+    g_signal_connect(app->kbd_keyboard_canvas, "size-allocate", G_CALLBACK(on_kbd_canvas_size_allocate), app);
     /* Picture on the left, zone list on the right */
     GtkWidget *canvas_row = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 8);
     gtk_box_pack_start(GTK_BOX(canvas_row), app->kbd_keyboard_canvas, TRUE, TRUE, 0);
@@ -7368,7 +7414,7 @@ static GtkWidget *create_keyboard_page(AppData *app) {
         gtk_widget_set_size_request(zframe, 300, -1);
         gtk_box_pack_start(GTK_BOX(canvas_row), zframe, FALSE, FALSE, 0);
     }
-    gtk_box_pack_start(GTK_BOX(zone_vbox), canvas_row, TRUE, TRUE, 0);
+    gtk_box_pack_start(GTK_BOX(zone_vbox), canvas_row, FALSE, FALSE, 0);   /* as high as the picture */
 
     /* Load keyboard image */
     app->kbd_keyboard_image = cairo_image_surface_create_from_png("/usr/share/doc/dudes-control-center/images/keyboard_dark.png");
@@ -7382,7 +7428,7 @@ static GtkWidget *create_keyboard_page(AppData *app) {
 
 
     gtk_container_add(GTK_CONTAINER(zone_frame), zone_vbox);
-    gtk_box_pack_start(GTK_BOX(vbox), zone_frame, TRUE, TRUE, 0);
+    gtk_box_pack_start(GTK_BOX(vbox), zone_frame, FALSE, FALSE, 0);
 
     return vbox;
 }
