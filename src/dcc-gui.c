@@ -30,6 +30,7 @@
 #endif
 
 #include "dcc-log.h"
+#include "dcc-common.h"
 #include "dcc-cpu-common.h"
 #include "dcc-kbd-common.h"
 #include <cairo.h>
@@ -4735,6 +4736,7 @@ static void parse_status(AppData *app, const char *response) {
     /* Parse response and update labels */
     int cpu_temp = 0, gpu_temp = 0, cpu_fan_rpm = 0, gpu_fan_rpm = 0;
     int auto_mode = 1, fan_duty = 0, emergency_auto = -1;
+    int cpu_fan_duty = -1, gpu_fan_duty = -1;   /* EC duty per fan (daemons before 1.19.2: missing) */
     
     char *token = strtok(buffer, "\n");
     while (token != NULL) {
@@ -4751,6 +4753,10 @@ static void parse_status(AppData *app, const char *response) {
         } else if (strncmp(token, "FAN_DUTY=", 9) == 0) {
             fan_duty = atoi(token + 9);
             app->last_known_fan_duty = fan_duty; /* Cache for manual mode */
+        } else if (strncmp(token, "CPU_FAN_DUTY=", 13) == 0) {
+            cpu_fan_duty = atoi(token + 13);
+        } else if (strncmp(token, "GPU_FAN_DUTY=", 13) == 0) {
+            gpu_fan_duty = atoi(token + 13);
         } else if (strncmp(token, "EMERGENCY_AUTO=", 15) == 0) {
             emergency_auto = atoi(token + 15);
         }
@@ -4758,11 +4764,12 @@ static void parse_status(AppData *app, const char *response) {
     }
     
     /* Update labels */
-    char cpu_text[32], gpu_text[32], cpu_rpm_text[32], gpu_rpm_text[32];
+    char cpu_text[32], gpu_text[32], cpu_rpm_text[64], gpu_rpm_text[64];
     snprintf(cpu_text, sizeof(cpu_text), "CPU: %d°C", cpu_temp);
     snprintf(gpu_text, sizeof(gpu_text), "GPU: %d°C", gpu_temp);
-    snprintf(cpu_rpm_text, sizeof(cpu_rpm_text), "CPU Fan: %d RPM (%d%%)", cpu_fan_rpm, (cpu_fan_rpm * 100) / 6022);
-    snprintf(gpu_rpm_text, sizeof(gpu_rpm_text), "GPU Fan: %d RPM (%d%%)", gpu_fan_rpm, (gpu_fan_rpm * 100) / 5859);
+    /* Percent = duty set in the EC for each fan; RPM = measured speed */
+    format_fan_text(cpu_rpm_text, sizeof(cpu_rpm_text), "CPU Fan", cpu_fan_rpm, cpu_fan_duty);
+    format_fan_text(gpu_rpm_text, sizeof(gpu_rpm_text), "GPU Fan", gpu_fan_rpm, gpu_fan_duty);
     
     gtk_label_set_text(GTK_LABEL(app->cpu_temp_label), cpu_text);
     gtk_label_set_text(GTK_LABEL(app->gpu_temp_label), gpu_text);

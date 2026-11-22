@@ -47,7 +47,7 @@ dcc-gui --debug    # more output in GUI.log
 
 | Tab | Contents |
 |---|---|
-| **Status** | CPU/GPU temperature, fan RPM and duty, auto/manual fan mode. Manual mode: +/- in 10% steps from **0% (fans off)** to 100%. |
+| **Status** | CPU/GPU temperature, each fan's RPM and duty (from the EC), auto/manual fan mode. Manual mode: +/- in 10% steps from **0% (fans off)** to 100%. |
 | **Curve Editor** | Graphical temperature-to-fan-speed curve per fan profile; add, edit and delete points. |
 | **Fan Profiles** | Create, rename, delete and activate fan profiles. |
 | **CPU Profiles** | Power mode (**Performance / Balanced / Power Save**), per-core min/max frequency profiles, the CPU hard limit. |
@@ -174,7 +174,7 @@ Designed for Clevo-based notebooks with EC access at I/O ports 0x62/0x66 and an 
 | Fan1 RPM | 0xD0/0xD1 | CPU fan RPM (high/low byte) |
 | Fan2 RPM | 0xD2/0xD3 | GPU fan RPM (high/low byte) |
 
-Fan percentage from RPM: `rpm * 100 / 6022` (CPU fan) and `rpm * 100 / 5859` (GPU fan), capped at 100%.
+Fan percentage: the duty set in the EC for each fan (`0xCE`/`0xCF`, 0-255) converted to 0-100%. The RPM shown next to it is the measured speed (`2156220 / raw`). The percentage is not derived from the RPM, because the maximum RPM differs between fans and changes with dust and age.
 
 ### Default fan curve
 

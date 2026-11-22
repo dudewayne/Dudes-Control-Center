@@ -32,8 +32,6 @@
 #define GPU_CPU_MAX_DIFF_C     40
 
 /* --- RPM to percentage conversion --- */
-#define CPU_FAN_RPM_AT_100_PERCENT    6022   /* CPU fan max RPM */
-#define GPU_FAN_RPM_AT_100_PERCENT    5859   /* GPU fan max RPM */
 
 /* --- Function prototypes for EC access --- */
 int ec_init(void);
@@ -47,13 +45,19 @@ int get_cpu_temp(void);           /* Returns CPU temperature in °C, or -1 on er
 int get_gpu_temp(void);           /* Returns GPU temperature in °C, or -1 on error */
 
 /* --- Fan control functions --- */
-int get_fan_duty(void);           /* Returns current fan duty 0-100%, or -1 on error */
+/* Fan duty as set in the EC (registers 0xCE/0xCF, 0-255) in percent 0-100,
+ * or -1 if the EC does not answer. This is what the fan was told to run at;
+ * exact on every model, unlike a percentage computed from RPM. */
+int get_cpu_fan_duty(void);
+int get_gpu_fan_duty(void);
+int get_fan_duty(void);           /* = get_cpu_fan_duty() (both fans get the same duty) */
 int get_cpu_fan_rpm(void);        /* Returns CPU fan RPM, or 0 on error */
 int get_gpu_fan_rpm(void);        /* Returns GPU fan RPM, or 0 on error */
 int set_fan_duty(int pct);        /* Set fan duty 0-100%, returns 0 on success, -1 on error */
 
 /* --- Utility functions --- */
-int rpm_to_percentage(int rpm, int is_gpu);  /* Convert RPM to percentage (0-100), is_gpu=1 for GPU fan */
+/* "CPU Fan: 3011 RPM (50%)" - RPM measured, percent = EC duty (duty < 0: unknown) */
+void format_fan_text(char *buf, size_t size, const char *name, int rpm, int duty);
 int clamp(int v, int lo, int hi);
 
 /* --- Shared config path (used by all daemons and GUI) --- */

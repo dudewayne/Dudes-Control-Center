@@ -47,10 +47,9 @@ static int target_duty_from_temp(int temp_c) {
     return 100; /* fallback */
 }
 
-static void print_status(int cpu_temp, int gpu_temp, int cpu_fan_rpm, int gpu_fan_rpm, int fan_duty) {
-    int cpu_fan_pct = rpm_to_percentage(cpu_fan_rpm, 0);
-    int gpu_fan_pct = rpm_to_percentage(gpu_fan_rpm, 1);
-    
+static void print_status(int cpu_temp, int gpu_temp, int cpu_fan_rpm, int gpu_fan_rpm) {
+    char line[96];
+
     printf("=== Dudes Control Center Status ===\n");
     printf("CPU Temperature: %d°C\n", cpu_temp);
     if (gpu_temp >= 0) {
@@ -58,13 +57,11 @@ static void print_status(int cpu_temp, int gpu_temp, int cpu_fan_rpm, int gpu_fa
     } else {
         printf("GPU Temperature: N/A (sensor not available)\n");
     }
-    printf("CPU Fan Speed: %d RPM (%d%%)\n", cpu_fan_rpm, cpu_fan_pct);
-    if (gpu_fan_rpm > 0) {
-        printf("GPU Fan Speed: %d RPM (%d%%)\n", gpu_fan_rpm, gpu_fan_pct);
-    } else {
-        printf("GPU Fan Speed: N/A (sensor not available)\n");
-    }
-    printf("Fan Duty: %d%%\n", fan_duty);
+    /* Percent = duty set in the EC; RPM = measured speed */
+    format_fan_text(line, sizeof line, "CPU Fan", cpu_fan_rpm, get_cpu_fan_duty());
+    printf("%s\n", line);
+    format_fan_text(line, sizeof line, "GPU Fan", gpu_fan_rpm, get_gpu_fan_duty());
+    printf("%s\n", line);
 }
 
 static volatile sig_atomic_t g_stop = 0;
@@ -167,9 +164,7 @@ static int run_set_mode(int percentage) {
     int gpu_temp = get_gpu_temp();
     int cpu_fan_rpm = get_cpu_fan_rpm();
     int gpu_fan_rpm = get_gpu_fan_rpm();
-    int fan_duty = get_fan_duty();
-    
-    print_status(cpu_temp, gpu_temp, cpu_fan_rpm, gpu_fan_rpm, fan_duty);
+    print_status(cpu_temp, gpu_temp, cpu_fan_rpm, gpu_fan_rpm);
     return EXIT_SUCCESS;
 }
 
@@ -179,9 +174,7 @@ static int run_default_mode(void) {
     int gpu_temp = get_gpu_temp();
     int cpu_fan_rpm = get_cpu_fan_rpm();
     int gpu_fan_rpm = get_gpu_fan_rpm();
-    int fan_duty = get_fan_duty();
-    
-    print_status(cpu_temp, gpu_temp, cpu_fan_rpm, gpu_fan_rpm, fan_duty);
+    print_status(cpu_temp, gpu_temp, cpu_fan_rpm, gpu_fan_rpm);
     return EXIT_SUCCESS;
 }
 

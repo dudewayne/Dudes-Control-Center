@@ -391,10 +391,13 @@ static int handle_command(const char *cmd, char *response, size_t resp_size) {
             "CPU_FAN_RPM=%d\n"
             "GPU_FAN_RPM=%d\n"
             "FAN_DUTY=%d\n"
+            "CPU_FAN_DUTY=%d\n"
+            "GPU_FAN_DUTY=%d\n"
             "AUTO_MODE=%d\n"
             "FAILSAFE=%d\n"
             "EMERGENCY_AUTO=%d\n",
-            cpu_temp, gpu_temp, cpu_fan_rpm, gpu_fan_rpm, fan_duty, auto_mode_enabled,
+            cpu_temp, gpu_temp, cpu_fan_rpm, gpu_fan_rpm, fan_duty,
+            get_cpu_fan_duty(), get_gpu_fan_duty(), auto_mode_enabled,
             override_reason != OVERRIDE_NONE ? 1 : 0, emergency_auto_count);
         return 0;
     }

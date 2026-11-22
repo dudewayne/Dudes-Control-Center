@@ -212,11 +212,21 @@ static int clamp_impl(int v, int lo, int hi) {
     return v;
 }
 
-int get_fan_duty(void) {
-    /* Read fan1 duty as representative value */
-    uint8_t raw = ec_io_read(EC_REG_FAN1_DUTY);
-    int pct = (int)((raw / 255.0) * 100.0 + 0.5);
-    return clamp_impl(pct, 0, 100);
+static int fan_duty_pct(uint32_t reg) {
+    uint8_t raw = 0;
+    if (ec_io_read_checked(reg, &raw) != 0) return -1;
+    return ((int)raw * 100 + 127) / 255;     /* 0-255 -> 0-100, rounded */
+}
+
+int get_cpu_fan_duty(void) { return fan_duty_pct(EC_REG_FAN1_DUTY); }
+int get_gpu_fan_duty(void) { return fan_duty_pct(EC_REG_FAN2_DUTY); }
+int get_fan_duty(void)     { return get_cpu_fan_duty(); }
+
+void format_fan_text(char *buf, size_t size, const char *name, int rpm, int duty) {
+    if (duty >= 0 && duty <= 100)
+        snprintf(buf, size, "%s: %d RPM (%d%%)", name, rpm < 0 ? 0 : rpm, duty);
+    else
+        snprintf(buf, size, "%s: %d RPM", name, rpm < 0 ? 0 : rpm);
 }
 
 int get_cpu_fan_rpm(void) {
@@ -263,15 +273,6 @@ int set_fan_duty(int pct) {
 
 /* --- Utility functions --- */
 
-int rpm_to_percentage(int rpm, int is_gpu) {
-    if (rpm <= 0) return 0;
-    
-    /* Use different max RPM values for CPU and GPU fans */
-    double max_rpm = is_gpu ? GPU_FAN_RPM_AT_100_PERCENT : CPU_FAN_RPM_AT_100_PERCENT;
-    double pct = (double)rpm * 100.0 / max_rpm;
-    if (pct > 100.0) pct = 100.0;
-    return (int)(pct + 0.5);
-}
 
 int clamp(int v, int lo, int hi) {
     return clamp_impl(v, lo, hi);

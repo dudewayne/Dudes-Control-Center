@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.19.2] - 2026-11-22
+
+### Fixed
+- **Fan percentage comes from the EC duty instead of an RPM formula**: the GUI and CLI computed the fan percentage from the RPM with fixed maximums measured on one laptop (6022 RPM CPU fan, 5859 RPM GPU fan). That only fits those fans (other models, dust and age change the maximum), RPM is not proportional to the duty, and the GUI rounded differently from the CLI. The percentage is now the duty set in the EC for each fan (registers `0xCE`/`0xCF`), exact on every model, shown next to the measured RPM: `CPU Fan: 3011 RPM (50%)`. If the EC does not answer, only the RPM is shown.
+- The fan daemon's `STATUS` reports `CPU_FAN_DUTY` and `GPU_FAN_DUTY` (read from the EC; differs from `FAN_DUTY` if the EC or BIOS changed a fan). The CLI shows both fans the same way.
+- Removed the fixed maximum RPM values and the GUI's duplicate formula; one shared function formats the fan text.
+- Tests for the fan text and the new `STATUS` fields (8 suites, 176 checks).
+
 ## [1.19.1] - 2026-11-22
 
 ### Fixed

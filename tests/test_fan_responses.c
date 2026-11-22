@@ -44,6 +44,15 @@ int main(void) {
     handle_command("SET_CURVE_POINTS 0 3\n", resp, sizeof resp);
     CHECK(strstr(resp, "0 points") != NULL, "SET_CURVE_POINTS without data stores 0 points");
 
+    /* fan text: percent = EC duty, no RPM-based guess (v1.19.2) */
+    char ft[96];
+    format_fan_text(ft, sizeof ft, "CPU Fan", 3011, 50);
+    CHECK(strcmp(ft, "CPU Fan: 3011 RPM (50%)") == 0, "fan text shows RPM and EC duty");
+    format_fan_text(ft, sizeof ft, "GPU Fan", 2930, -1);
+    CHECK(strcmp(ft, "GPU Fan: 2930 RPM") == 0, "unknown duty -> RPM only, no made-up percentage");
+    format_fan_text(ft, sizeof ft, "CPU Fan", 0, 0);
+    CHECK(strcmp(ft, "CPU Fan: 0 RPM (0%)") == 0, "fans off: 0 RPM (0%)");
+
     printf("\n%d failure(s)\n", fails);
     return fails != 0;
 }

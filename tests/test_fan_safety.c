@@ -6,6 +6,10 @@
 #define get_cpu_temp mock_cpu_temp
 #define get_gpu_temp mock_gpu_temp
 #define set_fan_duty mock_set_fan_duty
+#define get_cpu_fan_rpm mock_cpu_rpm
+#define get_gpu_fan_rpm mock_gpu_rpm
+#define get_cpu_fan_duty mock_cpu_duty
+#define get_gpu_fan_duty mock_gpu_duty
 #define main daemon_main
 #include "dcc-fan-daemon.c"
 #undef main
@@ -14,6 +18,10 @@ static int m_cpu = 50, m_gpu = -1, m_fail_write = 0, m_last_write = -1, m_writes
 int mock_cpu_temp(void) { return m_cpu; }
 int mock_gpu_temp(void) { return m_gpu; }
 int mock_set_fan_duty(int pct) { if (m_fail_write) return -1; m_last_write = pct; m_writes++; return 0; }
+int mock_cpu_rpm(void) { return 3011; }
+int mock_gpu_rpm(void) { return 2930; }
+int mock_cpu_duty(void) { return 50; }
+int mock_gpu_duty(void) { return -1; }   /* EC did not answer */
 
 static int fails = 0;
 #define CHECK(cond, msg) do { if (cond) printf("PASS  %s\n", msg); else { printf("FAIL  %s (duty=%d override=%d active=%d)\n", msg, current_fan_duty, override_reason, active_profile_idx); fails++; } } while (0)
@@ -138,6 +146,11 @@ int main(void) {
     sd_notify_msg("WATCHDOG=1");
     char nb[64] = {0}; recv(ns, nb, sizeof nb - 1, MSG_DONTWAIT);
     CHECK(strcmp(nb, "WATCHDOG=1") == 0, "sd_notify WATCHDOG=1 delivered");
+
+    /* STATUS reports the EC duty of each fan (v1.19.2) */
+    cmd("STATUS\n");
+    CHECK(strstr(resp, "CPU_FAN_DUTY=50\n") && strstr(resp, "GPU_FAN_DUTY=-1\n") &&
+          strstr(resp, "CPU_FAN_RPM=3011\n"), "STATUS reports RPM and EC duty per fan (-1 = EC did not answer)");
 
     printf("\n%d failure(s)\n", fails);
     return fails != 0;
