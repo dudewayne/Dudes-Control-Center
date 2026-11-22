@@ -45,11 +45,15 @@ PACKAGE = dudes-control-center
 # Deb build directory
 DEB_BUILD_DIR = build-deb
 
+# Man pages (1.33.0): man/<name>.<section>, @VERSION@ filled in
+MAN_PAGES = dudes-control-center.7 dcc-gui.1 dcc-fan-cli.1 dcc-cpu-cli.1 dcc-kbd-cli.1 \
+            dcc-fan-daemon.8 dcc-cpu-daemon.8 dcc-kbd-daemon.8 dcc-component.8
+
 # DKMS module name and version
 DKMS_MODULE_NAME = ite_829x
 DKMS_MODULE_VERSION = $(VERSION)
 
-.PHONY: all clean cli daemon cpu-daemon kbd-daemon gui install uninstall deb help test
+.PHONY: all clean cli daemon cpu-daemon kbd-daemon gui install uninstall deb help test man-check
 
 all: $(CLI_TARGET) $(CPU_CLI_TARGET) $(KBD_CLI_TARGET) $(DAEMON_TARGET) $(CPU_DAEMON_TARGET) $(KBD_DAEMON_TARGET) $(GUI_TARGET)
 
@@ -129,6 +133,9 @@ deb: all
 	@cp dcc-hard-limit-enforcer.service $(DEB_BUILD_DIR)/$(PACKAGE)-$(VERSION)/etc/systemd/system/
 	@cp dcc-hard-limit-enforcer.timer $(DEB_BUILD_DIR)/$(PACKAGE)-$(VERSION)/etc/systemd/system/
 	@cp scripts/dcc-hard-limit-enforce.sh $(DEB_BUILD_DIR)/$(PACKAGE)-$(VERSION)/usr/local/bin/dcc-hard-limit-enforce
+	@# Man pages (1.33.0), compressed, next to the programs in /usr/local
+	@for p in $(MAN_PAGES); do n=$${p##*.}; mkdir -p $(DEB_BUILD_DIR)/$(PACKAGE)-$(VERSION)/usr/local/share/man/man$$n && \
+	  sed 's/@VERSION@/$(VERSION)/g' man/$$p | gzip -9n > $(DEB_BUILD_DIR)/$(PACKAGE)-$(VERSION)/usr/local/share/man/man$$n/$$p.gz; done
 	@# Settings tab: switch components on/off through pkexec (1.27.0)
 	@mkdir -p $(DEB_BUILD_DIR)/$(PACKAGE)-$(VERSION)/usr/local/sbin $(DEB_BUILD_DIR)/$(PACKAGE)-$(VERSION)/usr/share/polkit-1/actions
 	@cp scripts/dcc-component.sh $(DEB_BUILD_DIR)/$(PACKAGE)-$(VERSION)/usr/local/sbin/dcc-component
@@ -195,6 +202,9 @@ install: all
 	install -D -m 644 packaging/org.dudes-control-center.component.policy /usr/share/polkit-1/actions/org.dudes-control-center.component.policy
 	mkdir -p /usr/share/dudes-control-center && cp -r resources/layouts /usr/share/dudes-control-center/
 	install -m 644 resources/logo.png /usr/share/dudes-control-center/logo.png
+	for p in $(MAN_PAGES); do n=$${p##*.}; mkdir -p /usr/local/share/man/man$$n && \
+	  sed 's/@VERSION@/$(VERSION)/g' man/$$p | gzip -9n > /usr/local/share/man/man$$n/$$p.gz; done
+	mandb -q 2>/dev/null || true
 	for l in $(UI_LANGS); do mkdir -p /usr/share/locale/$$l/LC_MESSAGES && \
 	  msgfmt -o /usr/share/locale/$$l/LC_MESSAGES/dudes-control-center.mo po/$$l.po; done
 	systemctl daemon-reload
@@ -238,6 +248,7 @@ uninstall:
 	rm -f /etc/systemd/system/dcc-hard-limit-enforcer.service
 	rm -f /etc/systemd/system/dcc-hard-limit-enforcer.timer
 	rm -f /usr/local/bin/dcc-hard-limit-enforce
+	for p in $(MAN_PAGES); do rm -f /usr/local/share/man/man$${p##*.}/$$p.gz; done
 	rm -f /usr/share/applications/dudes-control-center.desktop
 	systemctl daemon-reload
 	update-desktop-database >/dev/null 2>&1 || true
@@ -330,6 +341,11 @@ $(TEST_BUILD)/test_gui_save: tests/test_gui_save.c src/dcc-gui.c $(COMMON_SRC) $
 	  -DDCC_LOCALE_DIR='"$(CURDIR)/$(TEST_BUILD)/locale"' \
 	  -o $@ tests/test_gui_save.c $(COMMON_SRC) $(LOG_SRC) $(GTK_LIBS) $(CJSON_LIBS) -lm
 
+# Man pages render without groff warnings (1.33.0)
+man-check:
+	@for p in $(MAN_PAGES); do out=$$(groff -man -ww -z man/$$p 2>&1); \
+	  if [ -n "$$out" ]; then echo "FAIL  man/$$p: $$out"; exit 1; fi; echo "PASS  man/$$p renders without warnings"; done
+
 # Check the built package: names, units, maintainer scripts (CI runs it after "make deb")
 deb-check:
 	bash tests/check_deb.sh $(DEB_BUILD_DIR)/$(PACKAGE)_$(VERSION)_amd64.deb
@@ -346,6 +362,7 @@ help:
 	@echo "  clean    - Remove built binaries"
 	@echo "  test     - Build and run the test suite (sanitizers, no root needed)"
 	@echo "  deb      - Build .deb package"
+	@echo "  man-check - Check the man pages for groff warnings"
 	@echo "  install  - Install all applications and systemd service"
 	@echo "  uninstall - Remove installed files"
 	@echo "  help     - Show this help message"

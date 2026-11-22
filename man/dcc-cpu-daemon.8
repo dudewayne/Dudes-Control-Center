@@ -1,0 +1,74 @@
+.\" SPDX-License-Identifier: GPL-2.0-only
+.TH DCC-CPU-DAEMON 8 2026-11-22 "Dudes Control Center @VERSION@" "System Administration"
+.nh
+.SH NAME
+dcc-cpu-daemon, dcc-hard-limit-enforce \- CPU frequency daemon of Dudes Control Center
+.SH SYNOPSIS
+.B dcc-cpu-daemon
+.RB [ \-\-foreground | \-f ]
+.br
+.B dcc-hard-limit-enforce
+.SH DESCRIPTION
+.B dcc-cpu-daemon
+runs as root from
+.BR dcc-cpu-daemon.service .
+It sets the CPU governor and the minimum and maximum frequency of each core
+through
+.IR /sys/devices/system/cpu/cpu*/cpufreq ,
+applies CPU profiles and keeps every core at or below the hard frequency
+limit.
+Profiles and the hard limit come from the desktop user's
+.I profiles.json
+(see
+.BR dudes-control-center (7));
+on start the daemon applies the hard limit to all cores.
+.PP
+Clients connect to
+.IR /run/dcc-cpu.sock ;
+only root and members of the group
+.B dudes-control-center
+are accepted.
+.PP
+.B dcc-hard-limit-enforce
+is a fail-safe that works without the daemon:
+.B dcc-hard-limit-enforcer.timer
+runs it every 10 seconds (first 10 seconds after boot).
+It reads the hard limit from
+.I profiles.json
+with the rights of that file's owner and lowers every core whose maximum
+frequency is above it.
+.SH OPTIONS
+.TP
+.BR \-\-foreground ", " \-f
+Stay in the foreground (the service uses this).
+.SH FILES
+.TP
+.I /run/dcc-cpu.sock
+Command socket.
+.TP
+.I /var/log/dudes-control-center/CPU_DAEMON.log
+Daemon log (rotated at 1 MB, 5 old files kept).
+.TP
+.I /var/log/dudes-control-center/HARD_LIMIT_ENFORCER.log
+Log of the fail-safe (capped at 1 MB).
+.TP
+.I /etc/systemd/system/dcc-cpu-daemon.service
+.TQ
+.I /etc/systemd/system/dcc-hard-limit-enforcer.service
+.TQ
+.I /etc/systemd/system/dcc-hard-limit-enforcer.timer
+Units; none of them starts while
+.I /etc/dudes-control-center/disabled-cpu
+exists.
+.SH ENVIRONMENT
+.TP
+.B DCC_PROFILES_PATH
+Absolute path of the
+.I profiles.json
+to use, for example set in a systemd drop-in.
+.SH SEE ALSO
+.BR dudes-control-center (7),
+.BR dcc-cpu-cli (1),
+.BR dcc-gui (1),
+.BR dcc-component (8),
+.BR systemd.timer (5)

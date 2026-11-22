@@ -1,0 +1,84 @@
+.\" SPDX-License-Identifier: GPL-2.0-only
+.TH DCC-FAN-DAEMON 8 2026-11-22 "Dudes Control Center @VERSION@" "System Administration"
+.nh
+.SH NAME
+dcc-fan-daemon \- fan control daemon of Dudes Control Center
+.SH SYNOPSIS
+.B dcc-fan-daemon
+.RB [ \-\-foreground | \-f ]
+.RB [ \-\-debug | \-d ]
+.RB [ \-\-help | \-h ]
+.SH DESCRIPTION
+.B dcc-fan-daemon
+runs as root from
+.BR dcc-fan-daemon.service .
+Every 5 seconds it reads the CPU and GPU temperatures and sets both fans
+through the embedded controller (EC), either along the active fan curve
+(automatic mode) or to the fixed speed chosen in
+.BR dcc-gui (1)
+(manual mode).
+Fan curves come from the desktop user's
+.I profiles.json
+(see
+.BR dudes-control-center (7)).
+.PP
+Clients connect to
+.IR /run/dcc-fan.sock ;
+only root and members of the group
+.B dudes-control-center
+are accepted (checked with SO_PEERCRED on every connection).
+.SS Safety
+.TP
+.B Watchdog
+The daemon reports to the systemd watchdog every 2 seconds.
+If its main loop hangs for 30 seconds, systemd kills and restarts it.
+.TP
+.B Stop fail-safe
+Whenever the service stops (crash, watchdog, stop, update), its
+.B ExecStopPost
+sets the fans to 100\~% with
+.BR "dcc-fan-cli \-\-set 100" .
+.TP
+.B Sensor failure
+After 2 invalid CPU temperature readings in a row the fans run at 100\~%
+until the sensor delivers valid values again.
+.TP
+.B Emergency temperature
+At 95\~\(deC or more (CPU or GPU) the fans run at 100\~% in every mode until
+the temperature drops below 90\~\(deC.
+An emergency ends manual mode; control returns to the fan curve.
+.SH OPTIONS
+.TP
+.BR \-\-foreground ", " \-f
+Stay in the foreground (the service uses this).
+.TP
+.BR \-\-debug ", " \-d
+Log every control step.
+The log level can also be changed at run time with
+.BR "dcc-fan-cli \-\-log\-level" .
+.TP
+.BR \-\-help ", " \-h
+Show a short help.
+.SH FILES
+.TP
+.I /run/dcc-fan.sock
+Command socket.
+.TP
+.I /var/log/dudes-control-center/FAN_DAEMON.log
+Log (rotated at 1 MB, 5 old files kept).
+.TP
+.I /etc/systemd/system/dcc-fan-daemon.service
+Service; it does not start while
+.I /etc/dudes-control-center/disabled-fan
+exists.
+.SH NOTES
+Switching fan control off with
+.BR dcc-component (8)
+leaves the fans at 100\~% until the next reboot; no EC command is known that
+hands them back to the firmware while the system runs.
+.SH SEE ALSO
+.BR dudes-control-center (7),
+.BR dcc-fan-cli (1),
+.BR dcc-gui (1),
+.BR dcc-component (8),
+.BR systemd.service (5)

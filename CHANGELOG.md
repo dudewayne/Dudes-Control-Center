@@ -6,6 +6,12 @@ Programs and services were named `dudes-control-center-*` before 1.19.0 (for exa
 
 ## [Unreleased]
 
+## [1.33.0] - 2026-11-22
+
+### Added
+- **Man pages** for all programs, installed with the package under `/usr/local/share/man`: `dudes-control-center(7)` (overview: components, access group, profiles, files), `dcc-gui(1)`, `dcc-fan-cli(1)`, `dcc-cpu-cli(1)`, `dcc-kbd-cli(1)`, `dcc-fan-daemon(8)` (with the safety mechanisms), `dcc-cpu-daemon(8)` (with the hard limit enforcer), `dcc-kbd-daemon(8)` and `dcc-component(8)`. They are written in roff (`man/`), get the version filled in at build time and are installed compressed; `make install` and `make uninstall` handle them too.
+- `make man-check` (also in CI) checks that every page renders without groff warnings; `make deb-check` checks that all nine are in the package with the version filled in.
+
 ### Documentation
 - **README**: a no-warranty disclaimer at the top; the AI credits say the application was initially coded with Bionic AI Agent and that code review, hardening, bug fixing and the final polish were done by Claude (Anthropic); screenshots of all tabs (`docs/screenshots/`); a requirements box, a contents line, a quick start, a Settings section and a screenshot at the top; `gettext` added to the build dependencies; a note on the tray icon under GNOME; shorter safety and license sections that point to COPYRIGHT.md.
 - **COPYRIGHT.md**: the line about the fan curves is gone. The project's own work needs no entry in the third-party list.
@@ -864,7 +870,8 @@ Programs and services were named `dudes-control-center-*` before 1.19.0 (for exa
 - Unix socket IPC between GUI and daemon
 - Watchdog timer and fail-safe mode in daemon
 
-[Unreleased]: https://github.com/dudewayne/Dudes-Control-Center/compare/v1.32.1...HEAD
+[Unreleased]: https://github.com/dudewayne/Dudes-Control-Center/compare/v1.33.0...HEAD
+[1.33.0]: https://github.com/dudewayne/Dudes-Control-Center/compare/v1.32.1...v1.33.0
 [1.32.1]: https://github.com/dudewayne/Dudes-Control-Center/compare/v1.32.0...v1.32.1
 [1.32.0]: https://github.com/dudewayne/Dudes-Control-Center/compare/v1.31.0...v1.32.0
 [1.31.0]: https://github.com/dudewayne/Dudes-Control-Center/compare/v1.30.0...v1.31.0

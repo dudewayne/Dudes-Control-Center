@@ -1,0 +1,81 @@
+.\" SPDX-License-Identifier: GPL-2.0-only
+.TH DCC-GUI 1 2026-11-22 "Dudes Control Center @VERSION@" "User Commands"
+.nh
+.SH NAME
+dcc-gui \- desktop application of Dudes Control Center
+.SH SYNOPSIS
+.B dcc-gui
+.RB [ \-\-debug ]
+.SH DESCRIPTION
+.B dcc-gui
+is the GTK3 front end for the fan, CPU and keyboard daemons.
+It runs as the desktop user and talks to the daemons over their sockets, so
+the user must be a member of the group
+.BR dudes-control-center .
+Only one instance runs at a time; a second start exits with status 1 (open the
+running one from its tray icon).
+Closing the window hides it; the application keeps running in the tray until
+.B Exit
+is chosen in the tray menu.
+.SS Tabs
+.TP
+.B Status
+Temperatures, fan speeds, CPU frequencies and the active fan, CPU and
+keyboard profiles.
+.TP
+.B Fan
+Fan curves (temperature to fan speed) with a graph, fixed speeds in 10\~% steps
+and automatic mode.
+.TP
+.B CPU
+Governor, per-core frequency profiles and the hard frequency limit.
+.TP
+.B Keyboard
+Keyboard profiles with a base color and named zones, edited on a picture of
+the keyboard (click or drag to select keys), brightness, on/off and the LED
+wizard that maps keys to LEDs.
+.TP
+.B Settings
+Language, appearance (system, dark, light), keyboard layout, and switching
+the fan, CPU or keyboard part on or off (asks for the administrator password,
+see
+.BR dcc-component (8)).
+.TP
+.B Logs
+The daemon and GUI logs.
+.TP
+.B About
+Version and credits.
+.SH OPTIONS
+.TP
+.B \-\-debug
+Write debug messages to the GUI log.
+.SH EXIT STATUS
+0 after
+.B Exit
+in the tray menu, 1 if another instance is already running.
+.SH ENVIRONMENT
+.TP
+.B LANGUAGE ", " LANG
+Used for the interface language when the Settings tab is set to the system
+language.
+Available: English, German, Spanish, Japanese, Korean, British English.
+.SH FILES
+.TP
+.I ~/.config/dudes-control-center/config.json
+GUI settings.
+.TP
+.I ~/.config/dudes-control-center/profiles.json
+Fan, CPU and keyboard profiles (shared with the daemons).
+.TP
+.I ~/.config/dudes-control-center/keyboard_led_mapping_<layout>.csv
+LED wizard mapping per keyboard layout.
+.TP
+.I ~/.cache/dudes-control-center/logs/GUI.log
+GUI log.
+.SH SEE ALSO
+.BR dudes-control-center (7),
+.BR dcc-fan-cli (1),
+.BR dcc-cpu-cli (1),
+.BR dcc-kbd-cli (1),
+.BR dcc-component (8)

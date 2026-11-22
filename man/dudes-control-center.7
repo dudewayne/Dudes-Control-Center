@@ -1,0 +1,119 @@
+.\" SPDX-License-Identifier: GPL-2.0-only
+.TH DUDES-CONTROL-CENTER 7 2026-11-22 "Dudes Control Center @VERSION@" "Dudes Control Center"
+.nh
+.SH NAME
+dudes-control-center \- fan, CPU and keyboard backlight control for Clevo notebooks
+.SH DESCRIPTION
+Dudes Control Center controls the fans, the CPU frequency and the per-key RGB
+keyboard backlight of Clevo notebooks (tested on the Clevo X58xWNx).
+It consists of three root daemons, a GTK3 desktop application, three
+command line tools and a kernel driver for the keyboard controller.
+.PP
+.B Warning:
+the software writes to the embedded controller (EC) and to CPU frequency
+settings.
+It comes without any warranty; wrong fan settings can overheat the hardware.
+.SS Components
+.TP
+.BR dcc-gui (1)
+Desktop application with the tabs Status, Fan, CPU, Keyboard, Settings, Logs
+and About, and a tray icon.
+.TP
+.BR dcc-fan-cli (1)
+Show temperatures and fan speeds, set a fixed fan speed, change the fan
+daemon's log level.
+.TP
+.BR dcc-cpu-cli (1)
+Show the CPU state, apply CPU profiles, set the governor and the hard
+frequency limit.
+.TP
+.BR dcc-kbd-cli (1)
+Switch the keyboard backlight on or off, set brightness and color, activate
+keyboard profiles.
+.TP
+.BR dcc-fan-daemon (8)
+Fan control along the active fan curve, with watchdog and temperature
+fail-safes.
+.TP
+.BR dcc-cpu-daemon (8)
+CPU governor, frequency profiles and the hard frequency limit, plus the
+.B dcc-hard-limit-enforcer
+timer.
+.TP
+.BR dcc-kbd-daemon (8)
+Keyboard backlight: profiles with a base color and named zones, brightness,
+on/off state across reboots.
+.TP
+.BR dcc-component (8)
+Root helper that switches the fan, CPU or keyboard part on or off (used by the
+Settings tab through
+.BR pkexec (1)).
+.TP
+.B ite_829x
+DKMS kernel module for the ITE 829x keyboard controller; it provides the LEDs
+.I rgb:kbd_backlight*
+under
+.IR /sys/class/leds .
+.SS Access
+The daemons listen on Unix sockets in
+.IR /run .
+Only root and members of the group
+.B dudes-control-center
+may send commands; the package adds the installing desktop user to it.
+After being added, log out and in again.
+To add another user:
+.PP
+.RS
+.B sudo usermod \-aG dudes\-control\-center
+.I user
+.RE
+.SS Profiles
+Fan curves, CPU profiles with the hard limit and keyboard profiles are stored
+in the desktop user's
+.IR ~/.config/dudes-control-center/profiles.json .
+The root daemons find that file in this order: the environment variable
+.BR DCC_PROFILES_PATH ,
+the user named in
+.IR /etc/dudes-control-center/user ,
+the first member of the group
+.BR dudes-control-center ,
+the user with uid 1000.
+.SH FILES
+.TP
+.I ~/.config/dudes-control-center/profiles.json
+Fan, CPU and keyboard profiles.
+.TP
+.I ~/.config/dudes-control-center/config.json
+GUI settings (language, appearance, visible components).
+.TP
+.I ~/.config/dudes-control-center/keyboard_led_mapping_<layout>.csv
+Key-to-LED mapping from the LED wizard, per keyboard layout.
+.TP
+.I /etc/dudes-control-center/
+.I user
+(whose profiles the daemons read) and the
+.IR disabled- <component>
+flags written by
+.BR dcc-component (8).
+.TP
+.I /var/log/dudes-control-center/
+Daemon logs: FAN_DAEMON.log, CPU_DAEMON.log, KBD_BACKLIGHT_DAEMON.log,
+HARD_LIMIT_ENFORCER.log.
+.TP
+.I ~/.cache/dudes-control-center/logs/GUI.log
+Log of the desktop application.
+.TP
+.I /usr/share/dudes-control-center/layouts/
+Keyboard layouts (de, uk, es, jp, kr): key positions and pictures.
+.SH SEE ALSO
+.BR dcc-gui (1),
+.BR dcc-fan-cli (1),
+.BR dcc-cpu-cli (1),
+.BR dcc-kbd-cli (1),
+.BR dcc-fan-daemon (8),
+.BR dcc-cpu-daemon (8),
+.BR dcc-kbd-daemon (8),
+.BR dcc-component (8),
+.BR systemctl (1)
+.PP
+https://github.com/dudewayne/Dudes-Control-Center

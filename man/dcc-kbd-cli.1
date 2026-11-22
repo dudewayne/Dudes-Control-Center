@@ -1,0 +1,72 @@
+.\" SPDX-License-Identifier: GPL-2.0-only
+.TH DCC-KBD-CLI 1 2026-11-22 "Dudes Control Center @VERSION@" "User Commands"
+.nh
+.SH NAME
+dcc-kbd-cli \- control the keyboard backlight
+.SH SYNOPSIS
+.B dcc-kbd-cli
+.RI [ option ]
+.SH DESCRIPTION
+.B dcc-kbd-cli
+talks to
+.BR dcc-kbd-daemon (8)
+over
+.IR /run/dcc-kbd.sock .
+The user must be root or a member of the group
+.BR dudes-control-center .
+Without options it shows whether the backlight is on, the brightness, the
+number of LEDs and the active profile.
+.SH OPTIONS
+.TP
+.B \-\-on
+Switch the backlight on with the active profile.
+.TP
+.B \-\-off
+Switch the backlight off; it stays off after a reboot until switched on.
+.TP
+.BI \-\-brightness " level"
+Set the hardware brightness, from 0 to the maximum (usually 10).
+.TP
+.BI \-\-color " color"
+Light the whole keyboard in one color without changing any profile.
+.I color
+is
+.IR R , G , B
+(each 0\-255),
+.BI # RRGGBB
+or one of
+.BR white ", " red ", " green ", " blue ", " yellow ", " cyan ", "
+.BR magenta ", " orange ", " purple .
+The active profile returns with
+.B \-\-profile
+or after a restart of the daemon.
+.TP
+.B \-\-list\-profiles
+List the keyboard profiles; the active one is marked with
+.BR * .
+.TP
+.BI \-\-profile " name"
+Activate a keyboard profile.
+.TP
+.BI \-\-show\-profile " name"
+Show the base color and the zones of a profile.
+.TP
+.B \-\-help
+Show a short help.
+.SH EXIT STATUS
+0 on success, 1 on an error (daemon not reachable, unknown profile, invalid
+value).
+.SH EXAMPLES
+.TP
+.B dcc-kbd-cli \-\-brightness 5
+Half brightness.
+.TP
+.B dcc-kbd-cli \-\-color 0,128,255
+Whole keyboard light blue.
+.TP
+.B dcc-kbd-cli \-\-profile """Gaming"""
+Activate the profile Gaming.
+.SH SEE ALSO
+.BR dudes-control-center (7),
+.BR dcc-kbd-daemon (8),
+.BR dcc-gui (1)

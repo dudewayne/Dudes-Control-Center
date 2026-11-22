@@ -139,7 +139,7 @@ dcc-kbd-cli --profile "Gaming"
 dcc-kbd-cli --show-profile "Gaming"
 ```
 
-`--help` shows all options. `--set` and `--auto` access the EC directly and need root. `dcc-kbd-cli` talks to the keyboard daemon like the GUI does (members of the `dudes-control-center` group).
+`--help` shows all options; every program has a man page (`man dcc-kbd-cli`, ...), and `man dudes-control-center` gives an overview of all parts. `--set` and `--auto` access the EC directly and need root. `dcc-kbd-cli` talks to the keyboard daemon like the GUI does (members of the `dudes-control-center` group).
 
 ## Safety features
 

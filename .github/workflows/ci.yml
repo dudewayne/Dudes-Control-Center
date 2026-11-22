@@ -18,7 +18,7 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
-            build-essential pkg-config libgtk-3-dev libcjson-dev python3 gettext
+            build-essential pkg-config libgtk-3-dev libcjson-dev python3 gettext groff-base
 
       # AddressSanitizer crashes on the runner kernels' high-entropy ASLR;
       # reduce it so the sanitizer builds can run.
@@ -30,6 +30,9 @@ jobs:
 
       - name: Run test suite
         run: make test
+
+      - name: Check man pages
+        run: make man-check
 
       - name: Build .deb package
         run: make deb

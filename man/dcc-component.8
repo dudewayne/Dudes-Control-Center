@@ -1,0 +1,74 @@
+.\" SPDX-License-Identifier: GPL-2.0-only
+.TH DCC-COMPONENT 8 2026-11-22 "Dudes Control Center @VERSION@" "System Administration"
+.nh
+.SH NAME
+dcc-component \- switch parts of Dudes Control Center on or off
+.SH SYNOPSIS
+.B dcc-component
+.BR enable | disable
+.BR fan | cpu | keyboard
+.br
+.B dcc-component status
+.SH DESCRIPTION
+.B dcc-component
+switches the fan, CPU or keyboard part of Dudes Control Center on or off
+and keeps that choice across reboots and package updates.
+The Settings tab of
+.BR dcc-gui (1)
+runs it through
+.BR pkexec (1);
+polkit asks for the administrator password (action
+.BR org.dudes-control-center.component ).
+.TP
+.B disable
+Writes the flag file
+.IR /etc/dudes-control-center/disabled- <component>
+and stops the part's units.
+The units carry
+.B ConditionPathExists=!
+on that file, so systemd does not start them again.
+.TP
+.B enable
+Removes the flag file and starts the units.
+.TP
+.B status
+Prints one line per part:
+.IR component " " enabled | disabled .
+Needs no root.
+.SS Units per part
+.TP
+.B fan
+dcc-fan-daemon.service
+.TP
+.B cpu
+dcc-cpu-daemon.service, dcc-hard-limit-enforcer.service and .timer
+.TP
+.B keyboard
+dcc-kbd-daemon.service
+.SH EXIT STATUS
+0 on success, 1 when run without root, 2 for an unknown action or part.
+.SH NOTES
+Switching
+.B fan
+off leaves the fans at 100\~% until the next reboot (the fan service's stop
+fail-safe); after the reboot the firmware controls them.
+.SH FILES
+.TP
+.IR /etc/dudes-control-center/disabled-fan ", " disabled-cpu ", " disabled-keyboard
+Flag files.
+.TP
+.I /usr/share/polkit-1/actions/org.dudes-control-center.component.policy
+polkit action.
+.SH EXAMPLES
+.TP
+.B sudo dcc-component disable keyboard
+Stop the keyboard daemon; the LEDs keep their last colors.
+.TP
+.B dcc-component status
+.SH SEE ALSO
+.BR dudes-control-center (7),
+.BR dcc-gui (1),
+.BR dcc-fan-daemon (8),
+.BR dcc-cpu-daemon (8),
+.BR dcc-kbd-daemon (8),
+.BR pkexec (1)

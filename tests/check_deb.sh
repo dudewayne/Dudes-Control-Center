@@ -42,6 +42,12 @@ done
 check "grep -q '^Depends:.*librsvg2-common' '$TMP/ctrl/control'" "package depends on the SVG loader (librsvg2-common)"
 
 check "[ -s '$R/usr/share/dudes-control-center/logo.png' ]" "About page logo installed"
+
+# Man pages (1.33.0): installed compressed, version filled in, render without warnings
+for p in dudes-control-center.7 dcc-gui.1 dcc-fan-cli.1 dcc-cpu-cli.1 dcc-kbd-cli.1 dcc-fan-daemon.8 dcc-cpu-daemon.8 dcc-kbd-daemon.8 dcc-component.8; do
+    f="$R/usr/local/share/man/man${p##*.}/$p.gz"
+    check "[ -s '$f' ] && zcat '$f' | grep -q '^\\.TH .*\"Dudes Control Center [0-9][0-9.]*\"' && [ -z \"\$(zcat '$f' | groff -man -ww -z 2>&1)\" ]" "man page $p installed and renders without warnings"
+done
 for l in de es ja ko en_GB; do
     check "[ -s '$R/usr/share/locale/$l/LC_MESSAGES/dudes-control-center.mo' ]" "UI translation $l installed"
 done

@@ -1,0 +1,60 @@
+.\" SPDX-License-Identifier: GPL-2.0-only
+.TH DCC-CPU-CLI 1 2026-11-22 "Dudes Control Center @VERSION@" "User Commands"
+.nh
+.SH NAME
+dcc-cpu-cli \- show and set CPU frequency settings
+.SH SYNOPSIS
+.B dcc-cpu-cli
+.RI [ option ]
+.SH DESCRIPTION
+.B dcc-cpu-cli
+talks to
+.BR dcc-cpu-daemon (8)
+over
+.IR /run/dcc-cpu.sock .
+The user must be root or a member of the group
+.BR dudes-control-center .
+Without options it shows the governor and the frequencies of all cores.
+.SH OPTIONS
+.TP
+.B \-\-list\-profiles
+List the custom CPU profiles with their index.
+.TP
+.BI \-\-apply\-profile " N"
+Apply the custom profile with index
+.IR N .
+.TP
+.BI \-\-governor " name"
+Set the governor on all cores, for example
+.BR performance ,
+.BR schedutil ,
+.BR powersave .
+Which governors exist depends on the CPU frequency driver.
+.TP
+.BI \-\-hard\-limit " GHz"
+Set the hard frequency limit (for example 3.8).
+No core may run above it, whatever profile is active; the
+.B dcc-hard-limit-enforcer
+timer checks it every 10 seconds.
+.TP
+.B \-\-hard\-limit\-get
+Show the hard frequency limit.
+.TP
+.B \-\-help
+Show a short help.
+.SH EXIT STATUS
+0 on success, 1 on an error (daemon not reachable, invalid value, refused
+command).
+.SH EXAMPLES
+.TP
+.B dcc-cpu-cli \-\-list\-profiles
+.TQ
+.B dcc-cpu-cli \-\-apply\-profile 0
+Apply the first custom profile.
+.TP
+.B dcc-cpu-cli \-\-hard\-limit 3.8
+Never run faster than 3.8 GHz.
+.SH SEE ALSO
+.BR dudes-control-center (7),
+.BR dcc-cpu-daemon (8),
+.BR dcc-gui (1)

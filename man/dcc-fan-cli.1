@@ -1,0 +1,83 @@
+.\" SPDX-License-Identifier: GPL-2.0-only
+.TH DCC-FAN-CLI 1 2026-11-22 "Dudes Control Center @VERSION@" "User Commands"
+.nh
+.SH NAME
+dcc-fan-cli \- show and set the notebook fan speed
+.SH SYNOPSIS
+.B dcc-fan-cli
+.br
+.B dcc-fan-cli \-\-set
+.I percent
+.br
+.B dcc-fan-cli \-\-auto
+.br
+.B dcc-fan-cli \-\-log\-level
+.I level
+.br
+.B dcc-fan-cli \-\-log\-level\-get
+.br
+.B dcc-fan-cli \-\-help
+.SH DESCRIPTION
+Without options,
+.B dcc-fan-cli
+shows the CPU and GPU temperatures and the speed of both fans (duty in
+percent and measured RPM).
+.PP
+The status display,
+.B \-\-set
+and
+.B \-\-auto
+read and write the embedded controller (EC) directly and need root.
+.B \-\-log\-level
+and
+.B \-\-log\-level\-get
+talk to
+.BR dcc-fan-daemon (8)
+and need membership in the group
+.BR dudes-control-center .
+.PP
+For normal use, choose fan curves and fixed speeds in
+.BR dcc-gui (1);
+the daemon then keeps them across reboots and applies its safety checks.
+.SH OPTIONS
+.TP
+.BI \-\-set " percent"
+Set both fans to a fixed duty: 0, 10, 20, ... 100 (0 switches the fans off).
+While
+.BR dcc-fan-daemon (8)
+runs, it overwrites this value at its next control step; the daemon's
+service uses
+.B \-\-set 100
+as its fail-safe when it stops.
+.TP
+.B \-\-auto
+Run a simple built-in temperature control in the foreground until
+.B Ctrl+C .
+Invalid CPU temperatures set the fans to 100\~%.
+Stop
+.B dcc-fan-daemon
+first, otherwise both write to the EC.
+.TP
+.BI \-\-log\-level " level"
+Set the daemon's log level:
+.BR ERROR ", " WARN ", " INFO " or " DEBUG .
+.TP
+.B \-\-log\-level\-get
+Show the daemon's log level.
+.TP
+.BR \-\-help ", " \-h
+Show a short help.
+.SH EXIT STATUS
+0 on success, 1 on an error (no EC access, daemon not reachable, invalid
+value).
+.SH EXAMPLES
+.TP
+.B sudo dcc-fan-cli
+Show temperatures and fans.
+.TP
+.B dcc-fan-cli \-\-log\-level DEBUG
+Let the daemon log every control step.
+.SH SEE ALSO
+.BR dudes-control-center (7),
+.BR dcc-fan-daemon (8),
+.BR dcc-gui (1)
