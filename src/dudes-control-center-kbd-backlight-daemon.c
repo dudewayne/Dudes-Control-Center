@@ -28,7 +28,6 @@
 /* Global state */
 static volatile sig_atomic_t g_running = 1;
 static int server_fd = -1;
-static int g_client_fd = -1;
 
 /* Signal handlers only set flags: logging (stdio, localtime, locks) is not
  * async-signal-safe and could deadlock the daemon on shutdown. */
@@ -674,74 +673,128 @@ static int handle_command(const char *cmd, char *response, size_t resp_size) {
     return -1;
 }
 
-/* Handle new client connection (non-blocking, persistent) */
-static void handle_client_nonblocking(int client_fd) {
-    int flags = fcntl(client_fd, F_GETFL, 0);
-    fcntl(client_fd, F_SETFL, flags | O_NONBLOCK);
+/* --- Clients: several at once, newline-framed commands (like the CPU daemon).
+ * Before 1.18.5 every new connection closed the previous one, and a command
+ * split across two reads was lost. --- */
+#define KBD_UNTERMINATED_CMD_MS 200
 
-    /* Close previous client if any */
-    if (g_client_fd >= 0) {
-        close(g_client_fd);
-    }
+typedef struct {
+    int fd;
+    char buf[KBD_BUFFER_SIZE];
+    size_t len;
+    double last_rx;          /* monotonic time of the last received data */
+} KbdClient;
 
-    g_client_fd = client_fd;
-    LOG_INFO("[KBD_DAEMON] Client connected (non-blocking)");
+static KbdClient g_clients[KBD_MAX_CLIENTS];
+
+static double mono_now(void) {
+    struct timespec ts;
+    clock_gettime(CLOCK_MONOTONIC, &ts);
+    return (double)ts.tv_sec + ts.tv_nsec / 1e9;
 }
 
-/* Process pending client data (call from main loop) */
-static void process_client(void) {
-    if (g_client_fd < 0) return;
+static void client_drop(KbdClient *c, const char *why) {
+    if (c->fd < 0) return;
+    LOG_INFO("[KBD_DAEMON] Client fd %d disconnected: %s", c->fd, why);
+    close(c->fd);
+    c->fd = -1;
+    c->len = 0;
+}
 
-    char buffer[KBD_BUFFER_SIZE] = {0};
-    char response[KBD_MAX_RESPONSE_LEN] = {0};
+/* Never block the daemon on a client that stopped reading */
+static int client_send(KbdClient *c, const char *data, size_t len) {
+    size_t sent = 0;
+    while (sent < len) {
+        ssize_t w = send(c->fd, data + sent, len - sent, MSG_NOSIGNAL | MSG_DONTWAIT);
+        if (w < 0) {
+            if (errno == EINTR) continue;
+            return -1;
+        }
+        sent += (size_t)w;
+    }
+    return 0;
+}
 
-    memset(buffer, 0, sizeof(buffer));
-    ssize_t bytes_read = read(g_client_fd, buffer, sizeof(buffer) - 1);
-    if (bytes_read == 0) {
-        LOG_INFO("[KBD_DAEMON] Client disconnected");
-        close(g_client_fd);
-        g_client_fd = -1;
+/* Run one command and send its response. Returns -1 if the client was dropped. */
+static int client_run_command(KbdClient *c, const char *cmd) {
+    static char response[KBD_MAX_RESPONSE_LEN];
+    response[0] = '\0';
+    handle_command(cmd, response, sizeof(response));
+    if (client_send(c, response, strlen(response)) != 0) {
+        client_drop(c, "not reading responses");
+        return -1;
+    }
+    return 0;
+}
+
+/* Process every complete (newline-terminated) command in the client buffer */
+static void client_process_lines(KbdClient *c) {
+    char *nl;
+    while (c->fd >= 0 && (nl = memchr(c->buf, '\n', c->len)) != NULL) {
+        size_t line_len = (size_t)(nl - c->buf);
+        char cmd[KBD_BUFFER_SIZE];
+        memcpy(cmd, c->buf, line_len);
+        cmd[line_len] = '\0';
+        if (line_len > 0 && cmd[line_len - 1] == '\r') cmd[line_len - 1] = '\0';
+
+        size_t rest = c->len - line_len - 1;
+        memmove(c->buf, nl + 1, rest);
+        c->len = rest;
+
+        if (cmd[0] != '\0' && client_run_command(c, cmd) != 0) return;
+    }
+}
+
+static void client_read(KbdClient *c) {
+    if (c->len >= sizeof(c->buf) - 1) {
+        client_drop(c, "command too long");
         return;
-    } else if (bytes_read < 0) {
-        if (errno != EAGAIN && errno != EWOULDBLOCK) {
-            LOG_ERROR("[KBD_DAEMON] Client read error: %s", strerror(errno));
-            close(g_client_fd);
-            g_client_fd = -1;
-        }
-        return; /* No data available, that's OK */
     }
-
-    buffer[bytes_read] = '\0';
-
-    /* Process each line as a separate command */
-    char *line = strtok(buffer, "\n");
-    while (line != NULL && strlen(line) > 0) {
-        LOG_DEBUG("[KBD_DAEMON] Received command: '%s'", line);
-
-        response[0] = '\0';
-        handle_command(line, response, sizeof(response));
-
-        LOG_DEBUG("[KBD_DAEMON] Sending response: '%s'", response);
-
-        size_t total_len = strlen(response);
-        size_t total_sent = 0;
-        while (total_sent < total_len) {
-            ssize_t bytes_written = write(g_client_fd, response + total_sent, total_len - total_sent);
-            if (bytes_written < 0) {
-                if (errno == EAGAIN || errno == EWOULDBLOCK) {
-                    usleep(1000);
-                    continue;
-                }
-                LOG_ERROR("[KBD_DAEMON] Error writing to client: %s", strerror(errno));
-                close(g_client_fd);
-                g_client_fd = -1;
-                return;
-            }
-            total_sent += bytes_written;
-        }
-
-        line = strtok(NULL, "\n");
+    ssize_t n = recv(c->fd, c->buf + c->len, sizeof(c->buf) - 1 - c->len, MSG_DONTWAIT);
+    if (n == 0) { client_drop(c, "closed by peer"); return; }
+    if (n < 0) {
+        if (errno != EAGAIN && errno != EWOULDBLOCK && errno != EINTR) client_drop(c, strerror(errno));
+        return;
     }
+    c->len += (size_t)n;
+    c->last_rx = mono_now();
+    client_process_lines(c);
+}
+
+/* A command without a trailing newline runs once the client has been quiet
+ * for KBD_UNTERMINATED_CMD_MS */
+static void client_flush_unterminated(KbdClient *c, double now) {
+    if (c->fd < 0 || c->len == 0) return;
+    if ((now - c->last_rx) * 1000.0 < KBD_UNTERMINATED_CMD_MS) return;
+    char cmd[KBD_BUFFER_SIZE];
+    memcpy(cmd, c->buf, c->len);
+    cmd[c->len] = '\0';
+    c->len = 0;
+    client_run_command(c, cmd);
+}
+
+static void client_accept(void) {
+    int fd = accept4(server_fd, NULL, NULL, SOCK_NONBLOCK | SOCK_CLOEXEC);
+    if (fd < 0) {
+        if (errno != EAGAIN && errno != EWOULDBLOCK && errno != EINTR)
+            LOG_ERROR("[KBD_DAEMON] accept() failed: %s", strerror(errno));
+        return;
+    }
+    if (!dcc_peer_authorized(fd)) {
+        dcc_reject_client(fd);
+        return;
+    }
+    for (int i = 0; i < KBD_MAX_CLIENTS; i++) {
+        if (g_clients[i].fd < 0) {
+            g_clients[i].fd = fd;
+            g_clients[i].len = 0;
+            g_clients[i].last_rx = mono_now();
+            LOG_INFO("[KBD_DAEMON] Client connected (fd %d, slot %d)", fd, i);
+            return;
+        }
+    }
+    LOG_WARN("[KBD_DAEMON] Too many clients (%d), rejecting fd %d", KBD_MAX_CLIENTS, fd);
+    close(fd);
 }
 
 /* Initialize Unix socket */
@@ -826,24 +879,26 @@ int main(int argc, char *argv[]) {
 
     LOG_INFO("[KBD_DAEMON] Daemon started successfully");
 
+    for (int i = 0; i < KBD_MAX_CLIENTS; i++) g_clients[i].fd = -1;
+
     /* Main loop */
     while (g_running) {
         fd_set read_fds;
-        struct timeval timeout;
-        int max_fd = server_fd;
-
         FD_ZERO(&read_fds);
         FD_SET(server_fd, &read_fds);
-
-        /* Also monitor client socket for incoming data */
-        if (g_client_fd >= 0) {
-            FD_SET(g_client_fd, &read_fds);
-            if (g_client_fd > max_fd)
-                max_fd = g_client_fd;
+        int max_fd = server_fd;
+        int pending_unterminated = 0;
+        for (int i = 0; i < KBD_MAX_CLIENTS; i++) {
+            if (g_clients[i].fd >= 0) {
+                FD_SET(g_clients[i].fd, &read_fds);
+                if (g_clients[i].fd > max_fd) max_fd = g_clients[i].fd;
+                if (g_clients[i].len > 0) pending_unterminated = 1;
+            }
         }
 
-        timeout.tv_sec = 1;
-        timeout.tv_usec = 0;
+        struct timeval timeout;
+        timeout.tv_sec = pending_unterminated ? 0 : 1;
+        timeout.tv_usec = pending_unterminated ? 50000 : 0;
 
         int activity = select(max_fd + 1, &read_fds, NULL, NULL, &timeout);
         if (g_got_sighup) {
@@ -858,31 +913,19 @@ int main(int argc, char *argv[]) {
             break;
         }
 
-        if (FD_ISSET(server_fd, &read_fds)) {
-            struct sockaddr_un client_addr;
-            socklen_t client_len = sizeof(client_addr);
-
-            int client_fd = accept(server_fd, (struct sockaddr *)&client_addr, &client_len);
-            if (client_fd < 0) {
-                if (errno == EINTR || errno == EWOULDBLOCK) continue;
-                LOG_ERROR("[KBD_DAEMON] accept() failed: %s", strerror(errno));
-                continue;
+        if (activity > 0) {
+            if (FD_ISSET(server_fd, &read_fds)) client_accept();
+            for (int i = 0; i < KBD_MAX_CLIENTS; i++) {
+                if (g_clients[i].fd >= 0 && FD_ISSET(g_clients[i].fd, &read_fds))
+                    client_read(&g_clients[i]);
             }
-
-            /* Reject before handle_client_nonblocking() closes the current client */
-            if (!dcc_peer_authorized(client_fd)) {
-                dcc_reject_client(client_fd);
-                continue;
-            }
-
-            handle_client_nonblocking(client_fd);
         }
 
-        /* Process client data if there's activity on the client socket */
-        if (g_client_fd >= 0 && FD_ISSET(g_client_fd, &read_fds)) {
-            process_client();
-        }
+        double now = mono_now();
+        for (int i = 0; i < KBD_MAX_CLIENTS; i++) client_flush_unterminated(&g_clients[i], now);
     }
+
+    for (int i = 0; i < KBD_MAX_CLIENTS; i++) client_drop(&g_clients[i], "daemon shutting down");
 
     /* Cleanup */
     if (g_stop_signal)
@@ -892,11 +935,6 @@ int main(int argc, char *argv[]) {
     if (server_fd >= 0) {
         close(server_fd);
         unlink(KBD_SOCKET_PATH);
-    }
-
-    if (g_client_fd >= 0) {
-        close(g_client_fd);
-        g_client_fd = -1;
     }
 
     kbd_led_cleanup();

@@ -6,7 +6,8 @@ Usage: python3 tests/test_kbd_daemon.py <empty-work-dir> <kbdd_test binary>
 The test binary is the real daemon built by "make test" with relative paths:
 socket "kbd.sock", LEDs "leds", profiles "cfg/profiles.json", logs "logs".
 Covers per-key lighting (v1.18.0): SET_KEYS_COLOR, long LED lists, zones per
-color, saving and restoring profiles, TURN_ON keeping the colors.
+color, saving and restoring profiles, TURN_ON keeping the colors; several
+clients and newline framing (v1.18.5).
 """
 import json
 import os
@@ -93,6 +94,27 @@ try:
 
     check(ask(s, "SET_KEYS_COLOR::nope::1").startswith("ERROR"), "invalid color rejected")
     check(ask(s, "SET_KEYS_COLOR::1,2,3::999,-4,x").startswith("ERROR"), "list without valid LEDs rejected")
+
+    # several clients at once, framing (v1.18.5)
+    b = connect("kbd.sock")
+    check("PONG" in ask(b, "PING") and "PONG" in ask(s, "PING"),
+          "a second client does not disconnect the first")
+    b.sendall(b"SET_KEYS_COLOR::10,20,30::")
+    time.sleep(0.05)
+    b.sendall(b"100,101\n")
+    time.sleep(0.4)
+    check(colors()[100] == (10, 20, 30) and colors()[101] == (10, 20, 30),
+          "command split across two writes is executed once complete")
+    b.recv(65536)
+    r = ask(b, "PING\nPING", newline=True)
+    check(r.count("PONG") == 2, "two commands in one write both answered")
+    c = connect("kbd.sock")
+    check("PONG" in ask(c, "PING", newline=False, wait=0.6), "command without newline answered after a short pause")
+    c.close()
+    b.close()
+    time.sleep(0.2)
+    check("PONG" in ask(s, "PING"), "first client still connected after the others left")
+    ask(s, "SET_KEYS_COLOR::0,255,0::100,101")
 
     r = ask(s, "SAVE_PROFILE::Start")
     data = json.load(open("cfg/profiles.json"))

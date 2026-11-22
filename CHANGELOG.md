@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.18.5] - 2026-11-22
+
+### Fixed
+- **Keyboard daemon serves several clients at once**: every new connection closed the previous one, so the CLI, a script or a second GUI window disconnected the GUI from the keyboard daemon (the CPU daemon had the same bug until 1.16.4). Up to 10 clients are served now.
+- **Keyboard commands are newline-framed**: a command that arrived in two pieces was lost or cut in half - more likely since commands can be up to 4 KB (1.18.0). Commands now run once their newline arrives; a command without a newline runs after a 200 ms pause, as before. A client that stops reading responses is disconnected instead of blocking the daemon.
+- Test suite covers both (8 suites, 158 checks).
+
 ## [1.18.4] - 2026-11-22
 
 ### Fixed
