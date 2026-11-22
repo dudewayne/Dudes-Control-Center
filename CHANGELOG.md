@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.32.1] - 2026-11-22
+
+### Fixed
+- **Log views: "g_utf8_validate ... failed"**: a log view read its file from an arbitrary byte (the first load starts 10 KB before the end) up to the current end, which may be a line still being written. A cut inside a multi-byte character (°, ü, ß, ...) made GTK reject the text and log an error. The views now take only complete lines (the rest is read on the next refresh) and replace invalid bytes.
+- **Fan curve graph: all curve points orange**: only the first point was drawn orange; the others were filled with the outline color of the previous point and looked like gaps in the line.
+- Tests for the log line handling.
+
 ## [1.32.0] - 2026-11-22
 
 ### Added

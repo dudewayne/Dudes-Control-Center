@@ -6353,6 +6353,9 @@ static gboolean draw_curve_graph(GtkWidget *widget, cairo_t *cr, gpointer user_d
         double x = left_margin + (graph_width * temps[i] / 100.0);
         double y = top_margin + (graph_height * (1.0 - speeds[i] / 100.0));
         
+        /* orange for every point (1.32.1: only the first was orange, the
+         * outline color of the previous point filled the others) */
+        cairo_set_source_rgb(cr, 1.0, 0.3, 0.0);
         cairo_arc(cr, x, y, 5.0, 0, 2 * M_PI);
         cairo_fill(cr);
         
@@ -6650,6 +6653,39 @@ static GtkWidget *create_clickable_link(const char *url) {
     return event_box;
 }
 
+/* Log views (1.32.1): keep only complete lines of a chunk read from a log
+ * file and make it valid UTF-8. A chunk can start inside a line (the first
+ * load starts 10 KB before the end) and end inside one (still being
+ * written); a cut inside a multi-byte character (°, ü, ß...) made GTK reject
+ * the text ("g_utf8_validate ... failed"). Returns the number of bytes of
+ * the file used (up to the last newline); *buf is replaced by the text. */
+static size_t log_complete_lines(char **buf, size_t len, int skip_first) {
+    char *b = *buf;
+    char *last_nl = NULL;
+    for (size_t i = len; i > 0; i--)
+        if (b[i - 1] == '\n') { last_nl = b + i - 1; break; }
+    if (!last_nl) {
+        b[0] = '\0';
+        return 0;
+    }
+    size_t used = (size_t)(last_nl - b) + 1;
+    b[used] = '\0';
+    if (skip_first) {
+        char *nl = strchr(b, '\n');
+        memmove(b, nl + 1, strlen(nl + 1) + 1);
+    }
+    if (!g_utf8_validate(b, -1, NULL)) {
+        gchar *valid = g_utf8_make_valid(b, -1);
+        char *copy = strdup(valid);
+        g_free(valid);
+        if (copy) {
+            free(b);
+            *buf = copy;
+        }
+    }
+    return used;
+}
+
 /* Forward declarations for log viewer */
 static gboolean refresh_logs_timer(gpointer user_data);
 static void load_gui_logs(AppData *app);
@@ -6817,10 +6853,19 @@ static void load_gui_logs(AppData *app) {
         return;
     }
     
+    /* starting inside a line? (the first load starts 10 KB before the end) */
+    int mid_line = 0;
+    if (last_file_size > 0 && fseek(f, last_file_size - 1, SEEK_SET) == 0) mid_line = fgetc(f) != '\n';
     fseek(f, last_file_size, SEEK_SET);
     size_t bytes_read = fread(new_content, 1, new_size, f);
     new_content[bytes_read] = '\0';
     fclose(f);
+    long read_up_to = last_file_size + (long)log_complete_lines(&new_content, bytes_read, mid_line);
+    if (!new_content || !new_content[0]) {   /* no complete line yet */
+        free(new_content);
+        last_file_size = read_up_to;
+        return;
+    }
     
     /* Split into lines */
     GSList *lines = NULL;
@@ -6869,7 +6914,7 @@ static void load_gui_logs(AppData *app) {
     }
     g_slist_free(lines);
     
-    last_file_size = file_size;
+    last_file_size = read_up_to;   /* an unfinished last line is read next time */
     
     /* Scroll to top */
     gtk_text_buffer_get_start_iter(app->gui_log_buffer, &start_iter);
@@ -6938,10 +6983,19 @@ static void load_daemon_logs(AppData *app) {
         return;
     }
     
+    /* starting inside a line? (the first load starts 10 KB before the end) */
+    int mid_line = 0;
+    if (last_file_size > 0 && fseek(f, last_file_size - 1, SEEK_SET) == 0) mid_line = fgetc(f) != '\n';
     fseek(f, last_file_size, SEEK_SET);
     size_t bytes_read = fread(new_content, 1, new_size, f);
     new_content[bytes_read] = '\0';
     fclose(f);
+    long read_up_to = last_file_size + (long)log_complete_lines(&new_content, bytes_read, mid_line);
+    if (!new_content || !new_content[0]) {   /* no complete line yet */
+        free(new_content);
+        last_file_size = read_up_to;
+        return;
+    }
     
     /* Split into lines */
     GSList *lines = NULL;
@@ -6990,7 +7044,7 @@ static void load_daemon_logs(AppData *app) {
     }
     g_slist_free(lines);
     
-    last_file_size = file_size;
+    last_file_size = read_up_to;   /* an unfinished last line is read next time */
     
     /* Scroll to top */
     gtk_text_buffer_get_start_iter(app->daemon_log_buffer, &start_iter);
@@ -7053,10 +7107,19 @@ static void load_cpu_daemon_logs(AppData *app) {
         return;
     }
     
+    /* starting inside a line? (the first load starts 10 KB before the end) */
+    int mid_line = 0;
+    if (last_file_size > 0 && fseek(f, last_file_size - 1, SEEK_SET) == 0) mid_line = fgetc(f) != '\n';
     fseek(f, last_file_size, SEEK_SET);
     size_t bytes_read = fread(new_content, 1, new_size, f);
     new_content[bytes_read] = '\0';
     fclose(f);
+    long read_up_to = last_file_size + (long)log_complete_lines(&new_content, bytes_read, mid_line);
+    if (!new_content || !new_content[0]) {   /* no complete line yet */
+        free(new_content);
+        last_file_size = read_up_to;
+        return;
+    }
     
     GSList *lines = NULL;
     char *saveptr = NULL;
@@ -7099,7 +7162,7 @@ static void load_cpu_daemon_logs(AppData *app) {
     }
     g_slist_free(lines);
     
-    last_file_size = file_size;
+    last_file_size = read_up_to;   /* an unfinished last line is read next time */
     
     gtk_text_buffer_get_start_iter(app->cpu_daemon_log_buffer, &start_iter);
     gtk_text_view_scroll_to_iter(GTK_TEXT_VIEW(app->cpu_daemon_log_view), &start_iter, 0.0, FALSE, 0.0, 0.0);
@@ -7161,10 +7224,19 @@ static void load_kbd_daemon_logs(AppData *app) {
         return;
     }
     
+    /* starting inside a line? (the first load starts 10 KB before the end) */
+    int mid_line = 0;
+    if (last_file_size > 0 && fseek(f, last_file_size - 1, SEEK_SET) == 0) mid_line = fgetc(f) != '\n';
     fseek(f, last_file_size, SEEK_SET);
     size_t bytes_read = fread(new_content, 1, new_size, f);
     new_content[bytes_read] = '\0';
     fclose(f);
+    long read_up_to = last_file_size + (long)log_complete_lines(&new_content, bytes_read, mid_line);
+    if (!new_content || !new_content[0]) {   /* no complete line yet */
+        free(new_content);
+        last_file_size = read_up_to;
+        return;
+    }
     
     GSList *lines = NULL;
     char *saveptr = NULL;
@@ -7207,7 +7279,7 @@ static void load_kbd_daemon_logs(AppData *app) {
     }
     g_slist_free(lines);
     
-    last_file_size = file_size;
+    last_file_size = read_up_to;   /* an unfinished last line is read next time */
     
     gtk_text_buffer_get_start_iter(app->kbd_daemon_log_buffer, &start_iter);
     gtk_text_view_scroll_to_iter(GTK_TEXT_VIEW(app->kbd_daemon_log_view), &start_iter, 0.0, FALSE, 0.0, 0.0);

@@ -259,6 +259,30 @@ int main(int argc, char **argv) {
         CHECK(UI_NUM_LANGUAGES == 7, "I: language list: system, US, UK, German, Spanish, Japanese, Korean");
     }
 
+    /* G: log views keep only complete, valid lines (v1.32.1) */
+    {
+        /* chunk that starts in the middle of "°" and of a line, and ends inside a line */
+        const char raw[] = "\xb0" "C] cut line\n[1] 66\xc2\xb0" "C ok\n[2] unfinished \xc3";
+        char *b = malloc(sizeof raw);
+        memcpy(b, raw, sizeof raw);
+        size_t used = log_complete_lines(&b, sizeof raw - 1, 1);
+        CHECK(used == strlen("\xb0" "C] cut line\n[1] 66\xc2\xb0" "C ok\n") && !strcmp(b, "[1] 66\xc2\xb0" "C ok\n") &&
+              g_utf8_validate(b, -1, NULL),
+              "G: partial first and last lines dropped, the rest is valid UTF-8");
+        free(b);
+        const char bad[] = "[3] broken \xff byte\n";
+        b = malloc(sizeof bad);
+        memcpy(b, bad, sizeof bad);
+        used = log_complete_lines(&b, sizeof bad - 1, 0);
+        CHECK(used == sizeof bad - 1 && g_utf8_validate(b, -1, NULL) && strstr(b, "broken") && strstr(b, "byte"),
+              "G: invalid bytes in a line are replaced, the line is kept");
+        free(b);
+        b = malloc(16);
+        strcpy(b, "no newline");
+        CHECK(log_complete_lines(&b, 10, 0) == 0 && b[0] == '\0', "G: no complete line yet -> nothing used");
+        free(b);
+    }
+
     /* A: appearance (v1.29.0): theme variants and light pictures */
     {
         char c[4][128];
