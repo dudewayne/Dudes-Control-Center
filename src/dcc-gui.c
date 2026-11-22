@@ -351,6 +351,9 @@ static int kbd_legacy_to_current(int legacy) {
 #endif
 #define DCC_COMPONENT_HELPER "/usr/local/sbin/dcc-component"
 enum { COMP_FAN = 0, COMP_CPU = 1, COMP_KEYBOARD = 2, COMP_COUNT = 3 };
+/* Appearance setting (1.29.0) */
+enum { APPEARANCE_SYSTEM = 0, APPEARANCE_DARK = 1, APPEARANCE_LIGHT = 2 };
+static const char *const appearance_names[3] = { "system", "dark", "light" };
 static const char *const dcc_component_names[COMP_COUNT] = { "fan", "cpu", "keyboard" };
 
 static int dcc_component_disabled(int comp) {
@@ -672,6 +675,11 @@ typedef struct {
     gulong settings_switch_sig[3];
     int settings_busy;                 /* a pkexec helper is running */
     GtkWidget *settings_layout_combo;
+    /* Appearance (1.29.0) */
+    int appearance;                    /* APPEARANCE_SYSTEM / _DARK / _LIGHT */
+    int is_dark;                       /* the window is drawn dark right now */
+    GtkWidget *settings_appearance_combo;
+    GtkWidget *settings_appearance_note;
     GtkWidget *settings_layout_note;
     /* Zone editor (1.24.0) */
     KbdProfileEdit kbd_edit;           /* profile being edited (shown as a preview) */
@@ -825,6 +833,11 @@ static int check_unsaved_changes(AppData *app); /* Returns 1 if changes applied,
 static GtkWidget* create_tray_menu(AppData *app);
 static GtkWidget *create_settings_page(AppData *app);
 static void on_settings_layout_changed(GtkComboBox *combo, gpointer user_data);
+static void on_settings_appearance_changed(GtkComboBox *combo, gpointer user_data);
+static void appearance_refresh(AppData *app);
+static void appearance_apply_theme(int mode);
+static void appearance_save_choice(int mode);
+static void on_gtk_theme_changed(GObject *obj, GParamSpec *pspec, gpointer user_data);
 static void settings_update_layout_note(AppData *app);
 static void kbd_mapping_path(char *buf, size_t size, const char *code);
 static void kbd_load_layout_picture(AppData *app);
@@ -5330,7 +5343,9 @@ static void kbd_load_layout_picture(AppData *app) {
         app->kbd_keyboard_image = NULL;
     }
     char path[512];
-    snprintf(path, sizeof path, "%s/%s/keyboard_dark.svg", DCC_LAYOUT_DIR, kbd_layout_code);
+    snprintf(path, sizeof path, "%s/%s/keyboard_%s.svg", DCC_LAYOUT_DIR, kbd_layout_code, app->is_dark ? "dark" : "light");
+    if (access(path, R_OK) != 0)               /* only a dark picture */
+        snprintf(path, sizeof path, "%s/%s/keyboard_dark.svg", DCC_LAYOUT_DIR, kbd_layout_code);
     GError *err = NULL;
     GdkPixbuf *pb = gdk_pixbuf_new_from_file(path, &err);
     if (pb) {
@@ -6142,12 +6157,14 @@ static gboolean draw_curve_graph(GtkWidget *widget, cairo_t *cr, gpointer user_d
     }
     
     /* Clear background */
-    cairo_set_source_rgb(cr, 1.0, 1.0, 1.0);  /* White */
+    /* colors follow the theme (1.29.0) */
+    const double bg = app->is_dark ? 0.14 : 1.0, grid = app->is_dark ? 0.28 : 0.9, fg = app->is_dark ? 0.88 : 0.0;
+    cairo_set_source_rgb(cr, bg, bg, bg);
     cairo_rectangle(cr, 0, 0, width, height);
     cairo_fill(cr);
     
     /* Draw grid lines and axes */
-    cairo_set_source_rgb(cr, 0.9, 0.9, 0.9);  /* Light gray for grid */
+    cairo_set_source_rgb(cr, grid, grid, grid);
     cairo_set_line_width(cr, 1.0);
     
     /* Horizontal grid lines (fan speed) - every 10% */
@@ -6167,7 +6184,7 @@ static gboolean draw_curve_graph(GtkWidget *widget, cairo_t *cr, gpointer user_d
     cairo_stroke(cr);
     
     /* Draw axes */
-    cairo_set_source_rgb(cr, 0.0, 0.0, 0.0);  /* Black for axes */
+    cairo_set_source_rgb(cr, fg, fg, fg);   /* axes */
     cairo_set_line_width(cr, 2.0);
     
     /* X-axis (temperature) */
@@ -6181,7 +6198,7 @@ static gboolean draw_curve_graph(GtkWidget *widget, cairo_t *cr, gpointer user_d
     
     /* Draw axis labels */
     cairo_set_font_size(cr, 10.0);
-    cairo_set_source_rgb(cr, 0.0, 0.0, 0.0);
+    cairo_set_source_rgb(cr, fg, fg, fg);   /* labels */
     
     /* Y-axis labels (fan speed %) - every 20% */
     for (int i = 0; i <= 5; i++) {
@@ -6273,8 +6290,8 @@ static gboolean draw_curve_graph(GtkWidget *widget, cairo_t *cr, gpointer user_d
         cairo_arc(cr, x, y, 5.0, 0, 2 * M_PI);
         cairo_fill(cr);
         
-        /* White outline for better visibility */
-        cairo_set_source_rgb(cr, 1.0, 1.0, 1.0);
+        /* outline in the background color for better visibility */
+        cairo_set_source_rgb(cr, bg, bg, bg);
         cairo_arc(cr, x, y, 5.0, 0, 2 * M_PI);
         cairo_stroke(cr);
     }
@@ -7140,7 +7157,7 @@ static GtkWidget *create_about_page(void) {
     GtkWidget *title = gtk_label_new(NULL);
     {
         char t[256];
-        snprintf(t, sizeof(t), "<span size='xx-large' weight='bold' foreground='#2c3e50'>Dudes Control Center</span>"
+        snprintf(t, sizeof(t), "<span size='xx-large' weight='bold'>Dudes Control Center</span>"
                                "  <span size='large' foreground='#7f8c8d'>Version %s</span>", APP_VERSION);
         gtk_label_set_markup(GTK_LABEL(title), t);
     }
@@ -7203,7 +7220,7 @@ static GtkWidget *create_about_page(void) {
     gtk_widget_set_halign(contact, GTK_ALIGN_CENTER);
     GtkWidget *contact_text = gtk_label_new(NULL);
     gtk_label_set_markup(GTK_LABEL(contact_text),
-        "<span weight='bold' foreground='#2c3e50'>Contact:</span> <b>Dudemeister</b>  GitHub:");
+        "<b>Contact:</b> <b>Dudemeister</b>  GitHub:");
     gtk_box_pack_start(GTK_BOX(contact), contact_text, FALSE, FALSE, 0);
     gtk_box_pack_start(GTK_BOX(contact), create_clickable_link("https://github.com/dudewayne/Dudes-Control-Center"),
                        FALSE, FALSE, 0);
@@ -7863,6 +7880,10 @@ GtkWidget *page4 = create_log_page(app);
     gtk_notebook_append_page(GTK_NOTEBOOK(app->notebook), page6, gtk_label_new("About"));
     
     settings_apply_visibility(app);   /* hide the tabs of switched-off components */
+    /* desktop theme changes while following the system (1.29.0) */
+    g_signal_connect(gtk_settings_get_default(), "notify::gtk-theme-name", G_CALLBACK(on_gtk_theme_changed), app);
+    g_signal_connect(gtk_settings_get_default(), "notify::gtk-application-prefer-dark-theme",
+                     G_CALLBACK(on_gtk_theme_changed), app);
 
     /* Connect notebook page-switch signal to update profile tab when switching to it */
     app->page_switched_handler_id = g_signal_connect(app->notebook, "switch-page", G_CALLBACK(on_notebook_page_switched), app);
@@ -8023,6 +8044,30 @@ static gboolean on_settings_switch(GtkSwitch *sw, gboolean state, gpointer user_
     return TRUE;   /* the state is set when the helper is done */
 }
 
+/* Which theme is in use and whether it is dark */
+static void settings_update_appearance_note(AppData *app) {
+    if (!app->settings_appearance_note) return;
+    gchar *theme = NULL;
+    g_object_get(gtk_settings_get_default(), "gtk-theme-name", &theme, NULL);
+    gchar *t = g_strdup_printf("%sTheme in use: %s (%s). The keyboard picture and the fan curve graph follow it.",
+                               app->appearance == APPEARANCE_SYSTEM ? "Uses the desktop's theme and follows its changes. " : "",
+                               theme ? theme : "?", app->is_dark ? "dark" : "light");
+    gtk_label_set_text(GTK_LABEL(app->settings_appearance_note), t);
+    g_free(t);
+    g_free(theme);
+}
+
+static void on_settings_appearance_changed(GtkComboBox *combo, gpointer user_data) {
+    AppData *app = (AppData *)user_data;
+    int mode = gtk_combo_box_get_active(combo);
+    if (mode < 0 || mode > 2 || mode == app->appearance) return;
+    app->appearance = mode;
+    appearance_save_choice(mode);
+    appearance_apply_theme(mode);
+    appearance_refresh(app);
+    show_status(app, "Appearance changed");
+}
+
 /* What the LED mapping of the current layout is based on */
 static void settings_update_layout_note(AppData *app) {
     if (!app->settings_layout_note) return;
@@ -8117,6 +8162,30 @@ static GtkWidget *create_settings_page(AppData *app) {
     }
     gtk_container_add(GTK_CONTAINER(frame), grid);
     gtk_box_pack_start(GTK_BOX(vbox), frame, FALSE, FALSE, 0);
+
+    /* Appearance (1.29.0) */
+    {
+        GtkWidget *aframe = gtk_frame_new("Appearance");
+        GtkWidget *abox = gtk_box_new(GTK_ORIENTATION_VERTICAL, 6);
+        gtk_container_set_border_width(GTK_CONTAINER(abox), 10);
+        GtkWidget *row = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 10);
+        gtk_box_pack_start(GTK_BOX(row), gtk_label_new("Mode:"), FALSE, FALSE, 0);
+        app->settings_appearance_combo = gtk_combo_box_text_new();
+        gtk_combo_box_text_append(GTK_COMBO_BOX_TEXT(app->settings_appearance_combo), "system", "Follow the system");
+        gtk_combo_box_text_append(GTK_COMBO_BOX_TEXT(app->settings_appearance_combo), "dark", "Dark");
+        gtk_combo_box_text_append(GTK_COMBO_BOX_TEXT(app->settings_appearance_combo), "light", "Light");
+        gtk_combo_box_set_active(GTK_COMBO_BOX(app->settings_appearance_combo), app->appearance);
+        g_signal_connect(app->settings_appearance_combo, "changed", G_CALLBACK(on_settings_appearance_changed), app);
+        gtk_box_pack_start(GTK_BOX(row), app->settings_appearance_combo, FALSE, FALSE, 0);
+        gtk_box_pack_start(GTK_BOX(abox), row, FALSE, FALSE, 0);
+        app->settings_appearance_note = gtk_label_new("");
+        gtk_label_set_xalign(GTK_LABEL(app->settings_appearance_note), 0.0);
+        gtk_label_set_line_wrap(GTK_LABEL(app->settings_appearance_note), TRUE);
+        gtk_box_pack_start(GTK_BOX(abox), app->settings_appearance_note, FALSE, FALSE, 0);
+        gtk_container_add(GTK_CONTAINER(aframe), abox);
+        gtk_box_pack_start(GTK_BOX(vbox), aframe, FALSE, FALSE, 0);
+        settings_update_appearance_note(app);
+    }
 
     /* Keyboard layout (1.28.0) */
     {
@@ -8690,6 +8759,141 @@ static void config_write(cJSON *json) {
     }
 }
 
+/* ============================================================
+ * Appearance (1.29.0): follow the system, or dark / light for this app.
+ * Dark and light switch the GTK theme of this process only: to the theme's
+ * dark or light variant if one is installed (Mint-Y-Aqua <-> Mint-Y-Dark-Aqua),
+ * otherwise through gtk-application-prefer-dark-theme (themes with a
+ * gtk-dark.css, e.g. Adwaita). "Follow the system" gives the desktop's
+ * settings back. Whether the window ends up dark is read from the theme's
+ * background color; the keyboard picture and the fan curve graph follow it.
+ * ============================================================ */
+
+/* Names a theme's dark (dark=1) or light variant could have, best first;
+ * returns how many were written (0: the name already is that variant) */
+static int theme_variant_candidates(const char *name, int dark, char out[4][128]) {
+    int n = 0;
+    if (!name || !*name) return 0;
+    int is_dark = strcasestr(name, "dark") != NULL;
+    if (dark) {
+        if (is_dark) return 0;
+        /* Mint-Y-Aqua -> Mint-Y-Dark-Aqua: after the second part */
+        const char *d1 = strchr(name, '-'), *d2 = d1 ? strchr(d1 + 1, '-') : NULL;
+        if (d2) snprintf(out[n++], 128, "%.*s-Dark%s", (int)(d2 - name), name, d2);
+        snprintf(out[n++], 128, "%s-Dark", name);
+        snprintf(out[n++], 128, "%s-dark", name);
+    } else {
+        if (!is_dark) return 0;
+        const char *tags[] = { "-Darker", "-Dark", "-dark" };
+        for (int t = 0; t < 3 && n < 4; t++) {
+            const char *pos = strstr(name, tags[t]);
+            if (!pos) continue;
+            snprintf(out[n++], 128, "%.*s%s", (int)(pos - name), name, pos + strlen(tags[t]));
+        }
+    }
+    return n;
+}
+
+static int theme_installed(const char *name) {
+    char path[512];
+    snprintf(path, sizeof path, "%s/themes/%s/gtk-3.0", g_get_user_data_dir(), name);
+    if (g_file_test(path, G_FILE_TEST_IS_DIR)) return 1;
+    snprintf(path, sizeof path, "%s/.themes/%s/gtk-3.0", g_get_home_dir(), name);
+    if (g_file_test(path, G_FILE_TEST_IS_DIR)) return 1;
+    for (const gchar *const *d = g_get_system_data_dirs(); *d; d++) {
+        snprintf(path, sizeof path, "%s/themes/%s/gtk-3.0", *d, name);
+        if (g_file_test(path, G_FILE_TEST_IS_DIR)) return 1;
+    }
+    return 0;
+}
+
+/* Set the GTK theme of this app for the chosen appearance */
+static void appearance_apply_theme(int mode) {
+    GtkSettings *gs = gtk_settings_get_default();
+    if (!gs) return;
+    /* back to the desktop's values first (also the base for the variants) */
+    gtk_settings_reset_property(gs, "gtk-theme-name");
+    gtk_settings_reset_property(gs, "gtk-application-prefer-dark-theme");
+    if (mode == APPEARANCE_SYSTEM) return;
+    gchar *theme = NULL;
+    g_object_get(gs, "gtk-theme-name", &theme, NULL);
+    char cand[4][128];
+    int n = theme_variant_candidates(theme, mode == APPEARANCE_DARK, cand);
+    for (int i = 0; i < n; i++)
+        if (theme_installed(cand[i])) {
+            g_object_set(gs, "gtk-theme-name", cand[i], NULL);
+            g_print("[GUI] Appearance %s: theme %s instead of %s\n", appearance_names[mode], cand[i], theme ? theme : "?");
+            break;
+        }
+    g_object_set(gs, "gtk-application-prefer-dark-theme", mode == APPEARANCE_DARK, NULL);
+    g_free(theme);
+}
+
+/* Is the theme dark? Its window background color decides */
+static int appearance_detect_dark(GtkWidget *widget) {
+    GtkWidget *tmp = NULL;
+    if (!widget) widget = tmp = gtk_window_new(GTK_WINDOW_TOPLEVEL);
+    GdkRGBA c;
+    int dark = 0;
+    if (gtk_style_context_lookup_color(gtk_widget_get_style_context(widget), "theme_bg_color", &c))
+        dark = 0.299 * c.red + 0.587 * c.green + 0.114 * c.blue < 0.5;
+    else {
+        gchar *theme = NULL;
+        gboolean prefer = FALSE;
+        g_object_get(gtk_settings_get_default(), "gtk-theme-name", &theme, "gtk-application-prefer-dark-theme", &prefer, NULL);
+        dark = prefer || (theme && strcasestr(theme, "dark"));
+        g_free(theme);
+    }
+    if (tmp) gtk_widget_destroy(tmp);
+    return dark;
+}
+
+static void settings_update_appearance_note(AppData *app);
+
+/* After a theme change: picture, graph and notes in the new colors */
+static void appearance_refresh(AppData *app) {
+    int dark = appearance_detect_dark(app->window);
+    if (dark != app->is_dark) {
+        app->is_dark = dark;
+        g_print("[GUI] Appearance: window is %s\n", dark ? "dark" : "light");
+        kbd_load_layout_picture(app);
+        if (app->curve_graph) gtk_widget_queue_draw(app->curve_graph);
+    }
+    settings_update_appearance_note(app);
+}
+
+static gboolean appearance_refresh_idle(gpointer user_data) {
+    appearance_refresh((AppData *)user_data);
+    return G_SOURCE_REMOVE;
+}
+
+/* The desktop theme changed (matters while following the system) */
+static void on_gtk_theme_changed(GObject *obj, GParamSpec *pspec, gpointer user_data) {
+    (void)obj; (void)pspec;
+    g_idle_add(appearance_refresh_idle, user_data);
+}
+
+/* Appearance at start: config.json "appearance", default: follow the system */
+static void appearance_init(AppData *app) {
+    app->appearance = APPEARANCE_SYSTEM;
+    cJSON *json = config_read();
+    cJSON *v = cJSON_GetObjectItem(json, "appearance");
+    if (cJSON_IsString(v))
+        for (int i = 0; i < 3; i++) if (!strcmp(v->valuestring, appearance_names[i])) app->appearance = i;
+    cJSON_Delete(json);
+    appearance_apply_theme(app->appearance);
+    app->is_dark = appearance_detect_dark(NULL);
+    g_print("[GUI] Appearance: %s, window is %s\n", appearance_names[app->appearance], app->is_dark ? "dark" : "light");
+}
+
+static void appearance_save_choice(int mode) {
+    cJSON *json = config_read();
+    cJSON_DeleteItemFromObject(json, "appearance");
+    cJSON_AddStringToObject(json, "appearance", appearance_names[mode]);
+    config_write(json);
+    cJSON_Delete(json);
+}
+
 /* Keyboard layout at start: config.json, otherwise the system's keyboard
  * layout (/etc/default/keyboard XKBLAYOUT), otherwise German */
 static void kbd_layout_init(void) {
@@ -8993,6 +9197,7 @@ int main(int argc, char *argv[]) {
     app.kbd_sel_zone = -1;
     
     /* Create main window */
+    appearance_init(&app);   /* theme and dark/light before the window is built (1.29.0) */
     kbd_layout_init();   /* before the keyboard tab is built */
     kbd_mapping_set_defaults(&app);   /* until the wizard CSV is loaded */
     GtkWidget *window = create_main_window(&app);

@@ -2,6 +2,17 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.29.0] - 2026-11-22
+
+### Added
+- **Appearance setting** in the Settings tab: **Follow the system** (default), **Dark** or **Light**, stored in `config.json`. Dark and light switch the GTK theme of the app only: to the installed dark or light variant of the desktop theme (e.g. Mint-Y-Aqua and Mint-Y-Dark-Aqua), otherwise through GTK's dark-theme preference. Following the system also follows later desktop theme changes. The note under the setting shows the theme in use.
+- **Light keyboard pictures** for all layouts: the German one as provided, UK, Spanish, Japanese and Korean made from their dark pictures with the same colors. The keyboard picture switches with the theme.
+- The **fan curve graph** is drawn in dark colors on dark themes (it was always white).
+
+### Fixed
+- About page: the title and "Contact" no longer use a fixed dark blue that was hard to read on dark themes.
+- Tests for the theme variants and the light pictures.
+
 ## [1.28.0] - 2026-11-22
 
 ### Added

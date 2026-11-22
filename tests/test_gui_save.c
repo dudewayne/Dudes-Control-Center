@@ -220,6 +220,29 @@ int main(int argc, char **argv) {
         printf("SKIP  U: unsaved CPU profile changes (no display)\n");
     }
 
+    /* A: appearance (v1.29.0): theme variants and light pictures */
+    {
+        char c[4][128];
+        int n = theme_variant_candidates("Mint-Y-Aqua", 1, c);
+        CHECK(n >= 1 && !strcmp(c[0], "Mint-Y-Dark-Aqua"), "A: dark variant of Mint-Y-Aqua is Mint-Y-Dark-Aqua");
+        n = theme_variant_candidates("Mint-Y-Dark-Aqua", 0, c);
+        CHECK(n >= 1 && !strcmp(c[0], "Mint-Y-Aqua"), "A: light variant of Mint-Y-Dark-Aqua is Mint-Y-Aqua");
+        n = theme_variant_candidates("Mint-L-Darker-Aqua", 0, c);
+        CHECK(n >= 1 && !strcmp(c[0], "Mint-L-Aqua"), "A: light variant of Mint-L-Darker-Aqua is Mint-L-Aqua");
+        CHECK(theme_variant_candidates("Mint-Y-Dark-Aqua", 1, c) == 0 && theme_variant_candidates("Adwaita", 0, c) == 0,
+              "A: a theme that already is the wanted variant needs no other");
+        n = theme_variant_candidates("Adwaita", 1, c);
+        CHECK(n >= 1 && !strcmp(c[0], "Adwaita-Dark"), "A: single-part theme name -> name-Dark");
+        int all = 1;
+        const char *codes[] = { "de", "uk", "es", "jp", "kr" };
+        for (int i = 0; i < 5; i++) {
+            char path[1024];
+            snprintf(path, sizeof path, "%s/%s/keyboard_light.svg", DCC_LAYOUT_DIR, codes[i]);
+            if (access(path, R_OK) != 0) all = 0;
+        }
+        CHECK(all, "A: every layout has a light keyboard picture");
+    }
+
     /* L: keyboard layouts from keys.csv (v1.28.0) */
     {
         const char *codes[] = { "de", "uk", "es", "jp", "kr" };

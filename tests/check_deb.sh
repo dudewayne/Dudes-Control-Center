@@ -37,7 +37,7 @@ done
 
 # Keyboard layouts (1.28.0): key positions and picture per layout, SVG loader dependency
 for c in de uk es jp kr; do
-    check "[ -s '$R/usr/share/dudes-control-center/layouts/$c/keys.csv' ] && grep -q '<svg' '$R/usr/share/dudes-control-center/layouts/$c/keyboard_dark.svg'" "layout $c: keys.csv and keyboard_dark.svg installed"
+    check "[ -s '$R/usr/share/dudes-control-center/layouts/$c/keys.csv' ] && grep -q '<svg' '$R/usr/share/dudes-control-center/layouts/$c/keyboard_dark.svg' && grep -q '<svg' '$R/usr/share/dudes-control-center/layouts/$c/keyboard_light.svg'" "layout $c: keys.csv, dark and light picture installed"
 done
 check "grep -q '^Depends:.*librsvg2-common' '$TMP/ctrl/control'" "package depends on the SVG loader (librsvg2-common)"
 
