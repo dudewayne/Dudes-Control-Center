@@ -1,4 +1,5 @@
 #!/bin/sh
+# SPDX-License-Identifier: GPL-2.0-only
 set -e
 if [ "$1" = "remove" ]; then
     systemctl stop dcc-kbd-daemon 2>/dev/null || true

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-2.0-only
 /*
  * dcc-cpu-common.h
  * Common header for Dudes Control Center CPU Speed Control subsystem

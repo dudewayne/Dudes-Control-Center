@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-2.0-only
 /*
  * dcc-kbd-common.c
  * Common implementation for Keyboard Backlight Control in Dudes Control Center

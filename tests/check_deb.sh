@@ -1,4 +1,5 @@
 #!/bin/bash
+# SPDX-License-Identifier: GPL-2.0-only
 # Checks the built .deb (run by "make deb-check" and CI after "make deb").
 # Usage: tests/check_deb.sh <package.deb>
 set -u
@@ -36,6 +37,8 @@ done
 # third-party driver: TUXEDO copyright and GPL text shipped with it
 check "grep -q 'TUXEDO Computers GmbH' '$R'/usr/src/ite_829x-*/ite_829x.c && grep -q 'GNU GENERAL PUBLIC LICENSE' '$R'/usr/src/ite_829x-*/LICENSE" "ite_829x source keeps the TUXEDO copyright and ships the GPL"
 check "grep -q 'TUXEDO Computers GmbH' '$R/usr/share/doc/dudes-control-center/copyright'" "copyright file credits TUXEDO for the driver"
+check "grep -q '^License: GPL-2.0-only' '$R/usr/share/doc/dudes-control-center/copyright' && grep -q 'agramian/clevo-fan-control' '$R/usr/share/doc/dudes-control-center/copyright'" "copyright file: project GPL-2.0-only, fan code origin credited"
+check "grep -q 'GNU GENERAL PUBLIC LICENSE' '$R/usr/share/doc/dudes-control-center/LICENSE'" "project LICENSE with the GPL text installed"
 
 # maintainer scripts
 for s in preinst postinst prerm postrm; do

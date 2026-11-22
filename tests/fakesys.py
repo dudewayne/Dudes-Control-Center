@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-2.0-only
 """Shared helpers for the Python tests: a fake cpufreq sysfs tree and a
 client for the daemons' newline-framed socket protocol."""
 import os

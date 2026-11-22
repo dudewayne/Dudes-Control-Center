@@ -1,4 +1,5 @@
 #!/bin/sh
+# SPDX-License-Identifier: GPL-2.0-only
 set -e
 if [ "$1" = "configure" ]; then
     # Access control: members of @GROUP@ may control the daemons

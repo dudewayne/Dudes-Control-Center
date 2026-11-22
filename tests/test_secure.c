@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-2.0-only
 /*
  * test_secure.c - socket peer authorization and symlink-safe user-file I/O
  * (dcc-secure.c, added in v1.16.1).

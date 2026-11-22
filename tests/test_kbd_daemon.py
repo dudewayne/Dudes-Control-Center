@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-2.0-only
 """End-to-end test of the keyboard backlight daemon against a fake
 /sys/class/leds (no root, no hardware).
 

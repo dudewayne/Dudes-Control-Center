@@ -1,4 +1,5 @@
 #!/bin/bash
+# SPDX-License-Identifier: GPL-2.0-only
 # Runs the Dudes Control Center test suite. Called by "make test".
 # Usage: tests/run_tests.sh <build-dir with test binaries>
 #

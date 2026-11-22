@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-2.0-only
 /*
  * test_paths.c - which user's profiles.json the root daemons use
  * (dcc_profiles_path in dcc-secure.c, v1.18.1).

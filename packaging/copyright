@@ -1,0 +1,38 @@
+Format: https://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
+Upstream-Name: Dudes Control Center
+Source: https://github.com/dudewayne/Dudes-Control-Center
+
+Files: *
+Copyright: 2026 Dudemeister and contributors
+License: GPL-2.0-only
+Comment: The Embedded Controller fan access is based on fan-control by steiiin
+ (https://github.com/steiiin/fan-control), a fork of clevo-fan-control by
+ agramian (https://github.com/agramian/clevo-fan-control, GPL-2.0), which is
+ based on Clevo Fan Control Indicator by AqD
+ (https://github.com/SkyLandTW/clevo-indicator) and on fanctrl.c by
+ Jonas Diemer.
+
+Files: usr/src/ite_829x-*/*
+Copyright: 2019-2023 TUXEDO Computers GmbH <tux@tuxedocomputers.com>
+License: GPL-2.0+
+Comment: ITE 829x keyboard backlight driver from tuxedo-drivers
+ (https://github.com/tuxedocomputers/tuxedo-drivers, src/ite_829x/ite_829x.c),
+ modified for Dudes Control Center. The full text with the origin is in
+ /usr/src/ite_829x-<version>/LICENSE.
+
+License: GPL-2.0-only
+ This program is free software; you can redistribute it and/or modify it under
+ the terms of the GNU General Public License version 2 as published by the Free
+ Software Foundation.
+ .
+ On Debian systems, the full text of the GNU General Public License version 2
+ can be found in /usr/share/common-licenses/GPL-2.
+
+License: GPL-2.0+
+ This program is free software; you can redistribute it and/or modify it under
+ the terms of the GNU General Public License as published by the Free Software
+ Foundation; either version 2 of the License, or (at your option) any later
+ version.
+ .
+ On Debian systems, the full text of the GNU General Public License version 2
+ can be found in /usr/share/common-licenses/GPL-2.

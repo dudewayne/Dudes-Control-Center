@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-2.0-only
 /*
  * test_fan_responses.c - fan daemon response building (regression for the
  * GET_PROFILE stack overflow fixed in v1.16.1). No hardware access.

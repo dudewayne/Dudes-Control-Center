@@ -1,4 +1,5 @@
 #!/bin/bash
+# SPDX-License-Identifier: GPL-2.0-only
 # dcc-hard-limit-enforce.sh
 # Fail-safe enforcement script for CPU hard frequency limit.
 # Reads the hard limit from profiles.json and writes it to sysfs.

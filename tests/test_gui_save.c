@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-2.0-only
 /*
  * test_gui_save.c - GUI profile saving (keyboard section preserved, sections
  * kept when a daemon is unreachable, corrupt file untouched) and GUI log

@@ -1,4 +1,5 @@
 #!/bin/bash
+# SPDX-License-Identifier: GPL-2.0-only
 # Stop, update, and restart the dcc-fan-daemon service with proper cleanup
 
 echo "=== Restarting Dudes Control Center Fan Daemon ==="

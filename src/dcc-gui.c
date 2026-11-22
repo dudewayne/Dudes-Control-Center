@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-2.0-only
 /*
  * Dudes Control Center - GUI Application
  * GTK-based fan control interface
@@ -6141,10 +6142,14 @@ static GtkWidget *create_about_page(void) {
     GtkWidget *thanks2_vbox = gtk_box_new(GTK_ORIENTATION_VERTICAL, 5);
     gtk_widget_set_halign(thanks2_vbox, GTK_ALIGN_CENTER);
     GtkWidget *thanks2_text = gtk_label_new(NULL);
-    gtk_label_set_markup(GTK_LABEL(thanks2_text), "<span size='medium'>Grateful to the original creator of <b>fan-control</b></span>");
+    gtk_label_set_markup(GTK_LABEL(thanks2_text),
+        "<span size='medium'>Fan control code based on <b>fan-control</b> by steiiin, a fork of "
+        "<b>clevo-fan-control</b> by agramian (GPL-2.0)</span>");
     gtk_box_pack_start(GTK_BOX(thanks2_vbox), thanks2_text, TRUE, FALSE, 0);
     GtkWidget *thanks2_link = create_clickable_link("https://github.com/steiiin/fan-control");
     gtk_box_pack_start(GTK_BOX(thanks2_vbox), thanks2_link, TRUE, FALSE, 0);
+    GtkWidget *thanks2b_link = create_clickable_link("https://github.com/agramian/clevo-fan-control");
+    gtk_box_pack_start(GTK_BOX(thanks2_vbox), thanks2b_link, TRUE, FALSE, 0);
     gtk_box_pack_start(GTK_BOX(thanks_vbox), thanks2_vbox, TRUE, FALSE, 0);
 
     /* Credit: the ite_829x keyboard driver is TUXEDO Computers' (tuxedo-drivers, GPL-2.0+) */
@@ -6184,6 +6189,14 @@ static GtkWidget *create_about_page(void) {
     GtkWidget *thanks5_link = create_clickable_link("https://www.clevo.com.tw/");
     gtk_box_pack_start(GTK_BOX(thanks5_vbox), thanks5_link, TRUE, FALSE, 0);
     gtk_box_pack_start(GTK_BOX(thanks_vbox), thanks5_vbox, TRUE, FALSE, 0);
+
+    /* License */
+    GtkWidget *license_label = gtk_label_new(NULL);
+    gtk_label_set_markup(GTK_LABEL(license_label),
+        "<span size='small'>Licensed under the GNU General Public License version 2. "
+        "The keyboard driver is GPL-2.0-or-later (TUXEDO Computers).</span>");
+    gtk_widget_set_halign(license_label, GTK_ALIGN_CENTER);
+    gtk_box_pack_start(GTK_BOX(thanks_vbox), license_label, FALSE, FALSE, 10);
     
     /* Contact info section */
     GtkWidget *contact_sep = gtk_separator_new(GTK_ORIENTATION_HORIZONTAL);

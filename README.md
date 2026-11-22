@@ -209,7 +209,8 @@ This application was **completely coded by AI** using [Bionic AI Agent](https://
 
 ### Special Thanks To:
 - **[LM Studio](https://lmstudio.ai/)** - For the Bionic AI Agent that created this entire application
-- **[steiiin](https://github.com/steiiin/fan-control)** - Original creator of the fan-control source code that inspired this project
+- **[steiiin](https://github.com/steiiin/fan-control)** - Creator of fan-control, the source of this project's fan control code
+- **[agramian](https://github.com/agramian/clevo-fan-control)**, **[AqD](https://github.com/SkyLandTW/clevo-indicator)** and **Jonas Diemer** - Authors of clevo-fan-control, Clevo Fan Control Indicator and fanctrl.c, on which fan-control is based
 - **[TUXEDO Computers](https://github.com/tuxedocomputers/tuxedo-drivers)** - Authors of the `ite_829x` keyboard backlight driver (part of tuxedo-drivers), which this project uses in modified form
 - **Linus Torvalds** - Founder of Linux [Blog](https://torvalds-family.blogspot.com/)
 - **The Great Linux Community** - For continuous support and innovation
@@ -221,13 +222,17 @@ This application was **completely coded by AI** using [Bionic AI Agent](https://
 
 ## License
 
-This project uses code inspired by [fan-control](https://github.com/steiiin/fan-control). Please refer to the original project for its license terms.
+Dudes Control Center is licensed under the **GNU General Public License version 2** (GPL-2.0-only), see [LICENSE](LICENSE).
 
-The keyboard driver `drivers/ite_829x.c` is copyright 2019-2023 TUXEDO Computers GmbH and licensed under the **GNU GPL version 2 or later**; the modified version in this repository is distributed under the same license ([drivers/LICENSE](drivers/LICENSE)). The package installs the license with the driver source (`/usr/src/ite_829x-<version>/LICENSE`) and in `/usr/share/doc/dudes-control-center/copyright`.
+- **Fan control code**: the Embedded Controller access is based on [fan-control](https://github.com/steiiin/fan-control) by steiiin, a fork of [clevo-fan-control](https://github.com/agramian/clevo-fan-control) by agramian (GPL-2.0), which in turn is based on [Clevo Fan Control Indicator](https://github.com/SkyLandTW/clevo-indicator) by AqD and on `fanctrl.c` by Jonas Diemer. fan-control has no license file of its own; as a fork of GPL-2.0 code it is used under the GPL-2.0, which is why this project is GPL-2.0.
+- **Keyboard driver**: `drivers/ite_829x.c` is copyright 2019-2023 TUXEDO Computers GmbH, from [tuxedo-drivers](https://github.com/tuxedocomputers/tuxedo-drivers), licensed GPL-2.0-or-later and used here under the GPL-2.0 ([drivers/LICENSE](drivers/LICENSE)).
+
+The package installs `/usr/share/doc/dudes-control-center/copyright` (machine-readable, all origins and licenses) and `LICENSE`, plus the driver's license with its source (`/usr/src/ite_829x-<version>/LICENSE`).
 
 ## References
 
 - Original fan-control: https://github.com/steiiin/fan-control
+- clevo-fan-control (fan-control's origin, GPL-2.0): https://github.com/agramian/clevo-fan-control
 - tuxedo-drivers (origin of the ite_829x keyboard driver): https://github.com/tuxedocomputers/tuxedo-drivers
 - Tuxedo Control Center (design reference): https://github.com/tuxedocomputers/tuxedo-control-center
 - GTK Documentation: https://docs.gtk.org/gtk3/

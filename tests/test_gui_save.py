@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-2.0-only
 """Runs test_gui_save (C) against a fake fan daemon and a test build of the CPU daemon.
 
 Usage: python3 tests/test_gui_save.py <empty-work-dir> <test_gui_save binary> <cpud_test binary>

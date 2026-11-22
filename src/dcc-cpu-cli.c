@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-2.0-only
 /*
  * dcc-cpu-cli.c
  * Command-line interface for controlling CPU frequency profiles

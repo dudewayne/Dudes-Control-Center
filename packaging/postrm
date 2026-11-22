@@ -1,4 +1,5 @@
 #!/bin/sh
+# SPDX-License-Identifier: GPL-2.0-only
 set -e
 if [ "$1" = "purge" ]; then
     rm -rf /home/*/.config/dudes-control-center/ 2>/dev/null || true

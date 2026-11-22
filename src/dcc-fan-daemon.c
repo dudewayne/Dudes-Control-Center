@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-2.0-only
 /*
  * dcc-fan-daemon.c
  * Background daemon for controlling notebook fans

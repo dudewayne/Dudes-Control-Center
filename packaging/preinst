@@ -1,4 +1,5 @@
 #!/bin/sh
+# SPDX-License-Identifier: GPL-2.0-only
 set -e
 # 1.19.0 renamed the commands and services from dudes-control-center-* to
 # dcc-*. Stop and disable the old services now, while their files (and the

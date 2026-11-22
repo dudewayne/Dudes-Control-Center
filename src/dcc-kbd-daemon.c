@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-2.0-only
 /*
  * dcc-kbd-daemon.c
  * Keyboard Backlight Control Daemon for Dudes Control Center

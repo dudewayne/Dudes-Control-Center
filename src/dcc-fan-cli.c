@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-2.0-only
 /*
  * dcc-fan-cli.c
  * Command-line interface for controlling notebook fans

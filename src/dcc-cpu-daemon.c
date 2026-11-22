@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-2.0-only
 /*
  * dcc-cpu-daemon.c
  * Background daemon for CPU speed/frequency control

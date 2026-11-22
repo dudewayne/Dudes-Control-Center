@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-2.0-only
 #ifndef DUDES_CONTROL_CENTER_LOG_H
 #define DUDES_CONTROL_CENTER_LOG_H
 

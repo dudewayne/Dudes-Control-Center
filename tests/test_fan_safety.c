@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-2.0-only
 /*
  * test_fan_safety.c - fan daemon safety logic with mocked sensors and EC
  * (fail-safe, emergency override, profile handling, client I/O, sd_notify).

@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-2.0-only
 """End-to-end test of the CPU daemon against a fake sysfs (no root, no hardware).
 
 Usage: python3 tests/test_cpu_daemon.py <empty-work-dir> <cpud_test binary>

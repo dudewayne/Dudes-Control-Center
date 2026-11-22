@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-2.0-only
 /*
  * dcc-secure.c
  * Security helpers shared by the root daemons (see header for details).
