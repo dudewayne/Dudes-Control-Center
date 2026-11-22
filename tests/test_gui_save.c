@@ -148,6 +148,20 @@ int main(int argc, char **argv) {
     CHECK(manual_speed_step(95, +10) == 100 && manual_speed_step(100, +10) == 100, "M: plus caps at 100%");
     CHECK(manual_speed_step(37, -10) == 30, "M: odd value rounds down to the 10% step");
 
+    /* T: CPU daemon replies end with a NUL marker, so a command no longer
+     * costs a 200 ms wait (v1.20.1) */
+    {
+        gint64 t0 = g_get_monotonic_time();
+        const char *r = NULL;
+        for (int i = 0; i < 10; i++) r = send_cpu_command(&app, "GET_HARD_LIMIT");
+        double ms = (g_get_monotonic_time() - t0) / 1000.0 / 10.0;
+        printf("      (CPU command round trip: %.1f ms)\n", ms);
+        CHECK(r && strncmp(r, "OK HARD_LIMIT=", 14) == 0 && ms < 50.0,
+              "T: CPU daemon command answered without the old 200 ms wait");
+        r = send_cpu_command(&app, "LIST_CUSTOM_PROFILES_JSON");
+        CHECK(r && strchr(r, '{') && r[strlen(r) - 1] != '\0', "T: longer replies still read completely");
+    }
+
     /* K: keyboard key -> LED lookup (v1.17.3) */
     CHECK(sizeof kbd_position_to_led_id / sizeof kbd_position_to_led_id[0] == KBD_NUM_KEYS &&
           sizeof kbd_key_names / sizeof kbd_key_names[0] == KBD_NUM_KEYS &&

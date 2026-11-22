@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.20.1] - 2026-11-22
+
+### Fixed
+- **CPU tab (and keyboard actions) much faster**: the GUI could not tell where a reply from the CPU or keyboard daemon ended, so after every reply it waited until the connection had been quiet for 200 ms. Loading a CPU profile sends 4-6 commands and saving more, which added up to a second or more; each key color change cost about 0.6 s. The daemons now end every reply with a NUL byte as end marker and the GUI stops reading there: a command takes about 0.1 ms instead of 200 ms. The GUI also waits up to 3 s for a slow command instead of giving up after 200 ms (which could leave a late reply to be read as the answer to the next command), and still works with older daemons that send no marker.
+- Test: CPU command round trip under 50 ms (measured 0.1 ms) (8 suites, 189 checks).
+
 ## [1.20.0] - 2026-11-22
 
 ### Added

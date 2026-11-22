@@ -735,7 +735,9 @@ static int client_run_command(KbdClient *c, const char *cmd) {
     static char response[KBD_MAX_RESPONSE_LEN];
     response[0] = '\0';
     handle_command(cmd, response, sizeof(response));
-    if (client_send(c, response, strlen(response)) != 0) {
+    /* The reply ends with its NUL byte: an end marker, so clients can stop
+     * reading at once instead of waiting for the connection to go quiet */
+    if (client_send(c, response, strlen(response) + 1) != 0) {
         client_drop(c, "not reading responses");
         return -1;
     }

@@ -759,7 +759,10 @@ static const char *send_cpu_command(AppData *app, const char *cmd) {
         struct pollfd pfd;
         pfd.fd = app->cpu_socket_fd;
         pfd.events = POLLIN;
-        int poll_ret = poll(&pfd, 1, 200); /* 200ms timeout */
+        /* Replies end with a NUL byte (daemons since 1.20.1): stop there. Wait
+         * up to 3 s for a slow command; once data arrived, an older daemon
+         * without the marker is detected by 200 ms of silence. */
+        int poll_ret = poll(&pfd, 1, total_received == 0 ? 3000 : 200);
         if (poll_ret < 0) {
             char ts[32];
             get_timestamp(ts, sizeof(ts));
@@ -796,7 +799,9 @@ static const char *send_cpu_command(AppData *app, const char *cmd) {
             app->cpu_connected = 0;
             return response;
         }
+        int done = memchr(response + total_received, '\0', (size_t)received) != NULL;
         total_received += received;
+        if (done) break;   /* end marker */
     }
 
     if (strcmp(cmd, "STATUS") != 0) {
@@ -3612,7 +3617,8 @@ static const char *send_keyboard_command_once(AppData *app, const char *cmd) {
         struct pollfd pfd;
         pfd.fd = app->kbd_socket_fd;
         pfd.events = POLLIN;
-        int poll_ret = poll(&pfd, 1, 200);
+        /* stop at the reply's NUL end marker (see send_cpu_command) */
+        int poll_ret = poll(&pfd, 1, total_received == 0 ? 3000 : 200);
         if (poll_ret < 0) {
             char ts[32];
             get_timestamp(ts, sizeof(ts));
@@ -3649,7 +3655,9 @@ static const char *send_keyboard_command_once(AppData *app, const char *cmd) {
             app->kbd_connected = 0;
             return response;
         }
+        int done = memchr(response + total_received, '\0', (size_t)received) != NULL;
         total_received += received;
+        if (done) break;   /* end marker */
     }
 
     return response;
