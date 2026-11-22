@@ -368,11 +368,10 @@ static void cpu_profile_set_epp(const char *name, const char *epp) {
 int cpu_control_init(void) {
     LOG_INFO("[CPU] Initializing CPU control subsystem");
 
-    /* Load profiles from disk */
-    if (cpu_profiles_load_all() != 0) {
-        LOG_WARN("[CPU] Could not load saved profiles, using defaults");
-
-        /* Create default profiles, but only for governors this system offers
+    /* Built-in power modes (Performance / Balanced / Power Save); they are not
+     * stored on disk. User profiles are loaded below from profiles.json. */
+    {
+        /* Create the power modes, but only for governors this system offers
          * (if the list cannot be read at all, keep all three) */
         int have_perf  = cpu_governor_available("performance");
         int have_sched = cpu_governor_available("schedutil");
@@ -403,6 +402,7 @@ int cpu_control_init(void) {
         if (cpu_profile_get("Balanced")) cpu_profile_set_active("Balanced");
         else if (cpu_profile_get("Power Save")) cpu_profile_set_active("Power Save");
         else if (g_cpu_state.num_profiles > 0) cpu_profile_set_active(g_cpu_state.profiles[0].name);
+        LOG_INFO("[CPU] %d built-in power modes available", g_cpu_state.num_profiles);
     }
 
     /* Load custom profiles (also loads hard limit from profiles.json) */
@@ -1096,13 +1096,8 @@ static ConditionType condition_type_from_string(const char *str) {
 /* --- Profile persistence (JSON) --- */
 
 
-/* CPU governor profiles (Performance, Balanced, Power Save) are hardcoded defaults.
- * They are no longer loaded from the shared profiles.json file.
- * Return -1 so the caller creates the defaults. */
-int cpu_profiles_load_all(void) {
-    LOG_INFO("[CPU] Governor profiles are hardcoded, skipping disk load");
-    return -1;
-}
+/* The power modes (Performance, Balanced, Power Save) are built in and created
+ * by cpu_control_init(); they are not stored on disk. */
 
 /* Set last used profile marker */
 int cpu_profile_set_last_used(const char *name) {

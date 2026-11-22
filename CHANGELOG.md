@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.18.2] - 2026-11-22
+
+### Fixed
+- **CPU daemon loaded its profiles twice at startup**: `cpu_control_init()` and the daemon's `main()` both loaded the custom profiles and the hard limit, so every message and warning about them (e.g. an unavailable governor) appeared twice in the log. They are loaded once now; SIGHUP still reloads them.
+- **False "Could not load saved profiles, using defaults" warning at every start**: the power modes (Performance / Balanced / Power Save) are built in and never loaded from disk, but a leftover stub always reported a failed load. Removed; the log now says how many built-in power modes are available.
+- Tests check the startup log for both (8 suites, 144 checks).
+
 ## [1.18.1] - 2026-11-22
 
 ### Fixed

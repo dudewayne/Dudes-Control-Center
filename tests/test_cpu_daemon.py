@@ -146,6 +146,12 @@ finally:
 
 log = open("logs/CPU_DAEMON.log").read()
 check("SIGHUP: reloading configuration" in log, "SIGHUP reload runs in the main loop")
+startup = log.split("SIGHUP: reloading configuration")[0]
+check(startup.count("custom profiles from") == 1,
+      f"profiles loaded once at startup (v1.18.2; loaded {startup.count('custom profiles from')}x)")
+check(startup.count("which this system does not offer") == 1, "unavailable-governor warning logged once at startup")
+check("Could not load saved profiles" not in log, "no false 'could not load saved profiles' warning")
+check(log.split("SIGHUP: reloading configuration")[1].count("custom profiles from") == 1, "SIGHUP reloads the profiles")
 check("core 10: invalid max frequency 3 Hz" in log, "corrupt per-core value reported in the log")
 check("uses governor 'schedutil', which this system does not offer" in log, "unavailable governor reported at startup")
 sys.exit(check.finish())

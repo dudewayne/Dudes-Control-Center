@@ -1082,11 +1082,9 @@ int main(int argc, char *argv[]) {
         return 1;
     }
 
-    LOG_INFO("[DAEMON] CPU control initialized, loaded %d governor policies", g_cpu_state.num_profiles);
-
-    /* Load custom profiles from JSON */
-    cpu_custom_profile_load_json();
-    LOG_INFO("[DAEMON] Loaded %d custom profiles", g_cpu_state.num_custom_profiles);
+    /* cpu_control_init() already loaded the custom profiles and the hard limit */
+    LOG_INFO("[DAEMON] CPU control initialized: %d power modes, %d custom profiles",
+             g_cpu_state.num_profiles, g_cpu_state.num_custom_profiles);
 
     /* Set up signal handlers */
     signal(SIGINT, on_sigint);
@@ -1115,7 +1113,6 @@ int main(int argc, char *argv[]) {
         if (g_reload) {
             g_reload = 0;
             LOG_INFO("[DAEMON] SIGHUP: reloading configuration");
-            cpu_profiles_load_all();
             cpu_custom_profile_load_json();
         }
 
