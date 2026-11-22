@@ -754,6 +754,22 @@ int main(int argc, char **argv) {
         gchar *sel = gtk_text_buffer_get_selection_bounds(rb, &s, &e) ? gtk_text_buffer_get_text(rb, &s, &e, FALSE) : NULL;
         CHECK(sel && g_ascii_strcasecmp(sel, "hard limit") == 0, "H: search selects the match (case ignored)");
         g_free(sel);
+        /* Shift+Enter goes back to the previous match, Enter forward (v1.34.0) */
+        {
+            GtkTextIter m1;
+            gtk_text_buffer_get_selection_bounds(rb, &m1, &e);
+            int first = gtk_text_iter_get_offset(&m1);
+            GdkEventKey kev = { .type = GDK_KEY_PRESS, .keyval = GDK_KEY_Return, .state = 0 };
+            gboolean handled = on_help_search_key(help.search, &kev, NULL);
+            help_search(0, 0);                              /* what "activate" does for Enter */
+            gtk_text_buffer_get_selection_bounds(rb, &s, &e);
+            int second = gtk_text_iter_get_offset(&s);
+            kev.state = GDK_SHIFT_MASK;
+            gboolean handled_shift = on_help_search_key(help.search, &kev, NULL);
+            gtk_text_buffer_get_selection_bounds(rb, &s, &e);
+            CHECK(!handled && second > first && handled_shift && gtk_text_iter_get_offset(&s) == first,
+                  "H: Enter finds the next match, Shift+Enter goes back to the previous one");
+        }
         gtk_entry_set_text(GTK_ENTRY(help.search), "zzqx-no-such-text");
         help_search(0, 1);
         CHECK(strcmp(gtk_label_get_text(GTK_LABEL(help.search_status)), _("Not found")) == 0, "H: search says when nothing matches");

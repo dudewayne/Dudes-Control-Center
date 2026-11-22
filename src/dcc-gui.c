@@ -7885,6 +7885,17 @@ static void help_search(int backward, int from_start) {
 static void on_help_search_changed(GtkSearchEntry *e, gpointer d) { (void)e; (void)d; help_search(0, 1); }
 static void on_help_search_next(GtkWidget *e, gpointer d) { (void)e; (void)d; help_search(0, 0); }
 static void on_help_search_prev(GtkWidget *e, gpointer d) { (void)e; (void)d; help_search(1, 0); }
+/* GtkEntry takes Shift+Enter as a plain Enter ("activate"); GtkSearchEntry
+ * only binds Ctrl+Shift+G to "previous-match". Shift+Enter goes back here. */
+static gboolean on_help_search_key(GtkWidget *e, GdkEventKey *ev, gpointer d) {
+    (void)e; (void)d;
+    if ((ev->keyval == GDK_KEY_Return || ev->keyval == GDK_KEY_KP_Enter || ev->keyval == GDK_KEY_ISO_Enter)
+        && (ev->state & GDK_SHIFT_MASK)) {
+        help_search(1, 0);
+        return TRUE;
+    }
+    return FALSE;
+}
 static void on_help_tab_switched(GtkNotebook *nb, GtkWidget *page, guint num, gpointer d) {
     (void)nb; (void)page; (void)num; (void)d;
     if (help.search_status) gtk_label_set_text(GTK_LABEL(help.search_status), "");
@@ -7907,6 +7918,7 @@ static GtkWidget *create_help_page(void) {
     g_signal_connect(help.search, "activate", G_CALLBACK(on_help_search_next), NULL);
     g_signal_connect(help.search, "next-match", G_CALLBACK(on_help_search_next), NULL);
     g_signal_connect(help.search, "previous-match", G_CALLBACK(on_help_search_prev), NULL);
+    g_signal_connect(help.search, "key-press-event", G_CALLBACK(on_help_search_key), NULL);
 
     help.notebook = gtk_notebook_new();
     const char *titles[HELP_COUNT] = { N_("README"), N_("Changelog"), N_("License") };
