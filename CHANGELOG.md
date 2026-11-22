@@ -2,6 +2,22 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.24.0] - 2026-11-22
+
+### Added
+- **Keyboard zone editor**: a keyboard profile is now a **base color** (keys in no zone) plus named **zones** (name, color, keys). A **zone list** next to the keyboard picture shows each zone with its color and number of LEDs and has **Create, Rename, Save, Delete**. While a zone is selected, clicking keys on the picture adds or removes them (a key belongs to one zone) and the preset colors color that zone; with no zone selected they color the whole keyboard (the base color, zones keep their colors), so one-colored profiles need nothing else. **Whole Keyboard** stops editing a zone; with no zone selected, clicking a key selects its zone.
+- **Custom colors**: "Custom…" opens a color chooser for any color, for the zone or the whole keyboard.
+- **Profile preview**: selecting a keyboard profile in the dropdown shows it on the keyboard and the picture without activating it; leaving the Keyboard tab (or closing the window) brings the active profile back.
+- **Unsaved-changes dialog** for keyboard profiles (Cancel / Discard Changes / Save Changes) before switching profiles, Create, Activate, leaving the tab, closing the window or quitting, like the Fan and CPU tabs.
+- Keyboard daemon: `PREVIEW` (show a profile's colors without saving), `GET_PROFILE` (a saved profile's base color and zones), `RESTORE_ACTIVE`; profiles.json stores the base color as `"base": {"r","g","b"}`.
+
+### Fixed
+- **Save writes the profile you are editing**: it copied the keyboard's current colors (usually the active profile's) into whatever profile was selected, so selecting another profile and saving mixed two profiles; after saving, the dropdown jumped back to the active profile.
+- **New keyboard profiles start empty** instead of as a copy of the colors shown at that moment.
+- **Deleting a profile before the active one** made the next profile active (the `[*]` moved) while the keyboard kept the old colors.
+- The old zone "Base" (whole keyboard color before 1.24.0) is read as the profile's base color. The unconnected "Add Zone" / "Apply Zones" buttons are gone.
+- Tests for the zone model, preview, base color, profile reading and the delete fix.
+
 ## [1.23.0] - 2026-11-22
 
 ### Added

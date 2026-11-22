@@ -337,6 +337,53 @@ int main(int argc, char **argv) {
     kbd_parse_zone_colors(&kb, "ERROR Not connected to keyboard daemon");
     CHECK(!kb.kbd_led_has_color[0], "K: error response clears the colors");
 
+    /* Z: zone editor model (v1.24.0) */
+    {
+        static KbdProfileEdit e, f;
+        CHECK(kbd_edit_parse(&e, "PROFILE_START COUNT=2 name=Gaming\n"
+                                 "BASE color=0,0,50\n"
+                                 "ZONE 0 name=W A S D color=255,0,0 keys=4 10 11 12 13\n"
+                                 "ZONE 1 name=Arrows color=0,255,0 keys=2 13 119\n"
+                                 "PROFILE_END\n") == 0 &&
+              e.has_base && e.base[2] == 50 && e.num_zones == 2 && !strcmp(e.zones[0].name, "W A S D") &&
+              e.zones[0].n == 4 && e.zones[1].leds[1] == 119,
+              "Z: GET_PROFILE read: base color, zone names with spaces, LEDs");
+        CHECK(kbd_edit_parse(&f, "ERROR Profile not found") == -1, "Z: error answer is not a profile");
+        unsigned char rgb[120][3], has[120];
+        kbd_edit_colors(&e, rgb, has);
+        CHECK(has[0] && rgb[0][2] == 50 && rgb[10][0] == 255 && rgb[13][1] == 255 && rgb[119][1] == 255,
+              "Z: colors: base everywhere, zones on top, later zone wins");
+        GString *g = g_string_new(NULL);
+        kbd_edit_encode(&e, g);
+        CHECK(!strcmp(g->str, "0,0,50::W A S D|255,0,0|10,11,12,13;Arrows|0,255,0|13,119"),
+              "Z: PREVIEW encoding");
+        g_string_free(g, TRUE);
+        f = e;
+        CHECK(kbd_edit_equal(&e, &f), "Z: unchanged copy is equal (nothing unsaved)");
+        int key[2] = { 20, 21 };
+        CHECK(kbd_edit_toggle_leds(&f, 0, key, 2) == 1 && f.zones[0].n == 6 && !kbd_edit_equal(&e, &f),
+              "Z: click on a key adds its LEDs to the zone -> unsaved");
+        int k13[1] = { 13 };
+        CHECK(kbd_edit_toggle_leds(&f, 0, k13, 1) == 0 && !kbd_zone_has_led(&f.zones[0], 13),
+              "Z: click on a key of the zone removes it");
+        CHECK(kbd_edit_toggle_leds(&f, 0, k13, 1) == 1 && !kbd_zone_has_led(&f.zones[1], 13),
+              "Z: adding a key takes it out of the other zones");
+        CHECK(kbd_edit_zone_at_led(&f, 13) == 0 && kbd_edit_zone_at_led(&f, 119) == 1 &&
+              kbd_edit_zone_at_led(&f, 50) == -1, "Z: zone shown by an LED (none: base color)");
+        CHECK(kbd_zone_name_problem(&e, "Arrows", -1) && !kbd_zone_name_problem(&e, "Arrows", 1) &&
+              kbd_zone_name_problem(&e, "a|b", -1) && kbd_zone_name_problem(&e, "a;b", -1) &&
+              kbd_zone_name_problem(&e, "a::b", -1) && kbd_zone_name_problem(&e, "", -1) &&
+              !kbd_zone_name_problem(&e, "Numpad", -1),
+              "Z: zone names: unique, not empty, without | ; ::");
+        memset(&f, 0, sizeof f);
+        g = g_string_new(NULL);
+        kbd_edit_encode(&f, g);
+        CHECK(!strcmp(g->str, "-::"), "Z: empty profile -> no base, no zones");
+        g_string_free(g, TRUE);
+        kbd_parse_zone_colors(&kb, "ZONES_START COUNT=0\nBASE color=1,2,3\nZONES_END\n");
+        CHECK(kb.kbd_led_has_color[77] && kb.kbd_led_rgb[77][2] == 3, "Z: GET_ZONES base color shown on the picture");
+    }
+
     /* R: keyboard daemon restarted -> the GUI reconnects and resends (v1.18.6) */
     {
         unlink(KBD_SOCKET_PATH);

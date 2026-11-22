@@ -49,6 +49,23 @@ typedef struct {
 /* Number of keys on the schematic (kbd_key_names / kbd_key_positions) */
 #define KBD_NUM_KEYS 113
 
+/* Keyboard profile being edited in the zone editor (1.24.0): a base color
+ * for keys in no zone plus named zones, each with a color and its LEDs.
+ * Same content as a profile in the keyboard daemon. */
+#define KBD_GUI_MAX_ZONES 32
+typedef struct {
+    char name[64];
+    unsigned char rgb[3];
+    int leds[120];
+    int n;
+} KbdZoneEdit;
+typedef struct {
+    int has_base;
+    unsigned char base[3];
+    int num_zones;
+    KbdZoneEdit zones[KBD_GUI_MAX_ZONES];
+} KbdProfileEdit;
+
 /* Default LED wizard mapping: key position per LED (-1 = the LED lights no
  * key), used until the LED wizard has saved
  * ~/.config/dudes-control-center/keyboard_led_mapping.csv. Same format as
@@ -429,18 +446,29 @@ typedef struct {
     guint kbd_refresh_timer_id;
     int kbd_active_profile_idx;
     int kbd_profiles_modified; /* Track unsaved changes */
+    /* Zone editor (1.24.0) */
+    KbdProfileEdit kbd_edit;           /* profile being edited (shown as a preview) */
+    KbdProfileEdit kbd_saved;          /* the same profile as saved */
+    char kbd_edit_name[256];
+    int kbd_edit_loaded;
+    int kbd_sel_zone;                  /* zone being edited, -1: whole keyboard */
+    GtkListStore *kbd_zone_store;
+    GtkWidget *kbd_zone_view;
+    GtkWidget *kbd_zone_rename_btn;
+    GtkWidget *kbd_zone_delete_btn;
+    GtkWidget *kbd_mode_label;
+    gulong kbd_profile_combo_signal_id;
+    gulong kbd_zone_sel_signal_id;
 
     /* Keyboard zone editor widgets (dynamic zones) */
     GtkWidget *kbd_zone_name_entries[32];
     GtkWidget *kbd_zone_color_buttons[32];
     GtkWidget *kbd_zone_delete_buttons[32];
-    GtkWidget *kbd_add_zone_btn;
     GtkWidget *kbd_off_switch; /* Toggle to disable keyboard backlight */
     GtkWidget *kbd_brightness_scale; /* keyboard hardware brightness 0..max */
     guint kbd_brightness_timer;      /* debounce while the slider is dragged */
     int kbd_brightness_max;
     int kbd_off_active; /* 1 when off switch is active */
-    GtkWidget *kbd_apply_zones_btn;
     int kbd_num_zones;
     
     /* LED Wizard state */
@@ -501,7 +529,6 @@ static void parse_cpu_status(AppData *app, const char *response);
 static void connect_to_keyboard_daemon(AppData *app);
 static int kbd_ensure_connected(AppData *app);
 static const char *send_keyboard_command(AppData *app, const char *cmd);
-static void load_keyboard_profiles(AppData *app);
 static void on_kbd_create_profile_clicked(GtkWidget *widget, gpointer user_data);
 static void on_kbd_delete_profile_clicked(GtkWidget *widget, gpointer user_data);
 static void on_kbd_rename_profile_clicked(GtkWidget *widget, gpointer user_data);
@@ -523,6 +550,10 @@ static void kbd_save_led_mapping_csv(AppData *app);
 static void kbd_load_led_mapping_csv(AppData *app);
 static void kbd_mapping_set_defaults(AppData *app);
 static void kbd_refresh_key_colors(AppData *app);
+static int kbd_check_unsaved_changes(AppData *app);   /* 1 saved/none, 0 discarded, -1 cancelled */
+static void kbd_enter_tab(AppData *app);
+static int kbd_leave_tab(AppData *app);                /* -1: user cancelled */
+static void load_keyboard_profiles_select(AppData *app, const char *select_name);
 static void kbd_sync_power_switch(AppData *app);
 static gboolean cpu_refresh_timer_callback(gpointer user_data);
 static void cpu_load_initial_data(AppData *app);
@@ -3806,8 +3837,9 @@ static const char *send_keyboard_command(AppData *app, const char *cmd) {
     return r;
 }
 
-/* Load keyboard profiles from daemon */
-static void load_keyboard_profiles(AppData *app) {
+/* Reload the profile list and select select_name (NULL or not found: the
+ * active profile) without running the selection handler */
+static void load_keyboard_profiles_select(AppData *app, const char *select_name) {
     if (!kbd_ensure_connected(app)) {
         g_print("[GUI] Keyboard daemon not connected, skipping profile load\n");
         return;
@@ -3819,7 +3851,10 @@ static void load_keyboard_profiles(AppData *app) {
         return;
     }
 
+    if (app->kbd_profile_combo_signal_id)
+        g_signal_handler_block(app->kbd_profile_combo, app->kbd_profile_combo_signal_id);
     gtk_list_store_clear(app->kbd_profile_store);
+    int select_idx = -1;
 
     /* Parse response: PROFILES_START COUNT=N ... PROFILE i [*] Name ... PROFILES_END */
     char *resp_copy = g_strdup(response);
@@ -3862,6 +3897,7 @@ static void load_keyboard_profiles(AppData *app) {
             if (is_active) {
                 active_idx = idx;
             }
+            if (select_name && strcmp(select_name, name) == 0) select_idx = idx;
             profile_count++;
         }
 
@@ -3869,398 +3905,671 @@ static void load_keyboard_profiles(AppData *app) {
     }
     g_free(resp_copy);
 
-    /* Select the active profile */
-    if (active_idx >= 0) {
-        gtk_combo_box_set_active(GTK_COMBO_BOX(app->kbd_profile_combo), active_idx);
-        app->kbd_active_profile_idx = active_idx;
-    }
+    /* Select the requested profile, otherwise the active one */
+    if (active_idx >= 0) app->kbd_active_profile_idx = active_idx;
+    if (select_idx >= 0 || active_idx >= 0)
+        gtk_combo_box_set_active(GTK_COMBO_BOX(app->kbd_profile_combo), select_idx >= 0 ? select_idx : active_idx);
+    if (app->kbd_profile_combo_signal_id)
+        g_signal_handler_unblock(app->kbd_profile_combo, app->kbd_profile_combo_signal_id);
 
     update_daemon_status_labels(app);
 
     g_print("[GUI] Loaded %d keyboard profiles (active idx=%d)\n", profile_count, active_idx);
 }
 
+/* ============================================================
+ * Keyboard zone editor (1.24.0)
+ * A profile is a base color (keys in no zone) plus named zones. The GUI
+ * edits a copy (kbd_edit) and sends it to the daemon as a preview after
+ * every change, so the keyboard shows the profile being edited; Save
+ * stores exactly that, Activate makes it the profile in use. Leaving the
+ * Keyboard tab brings the active profile back.
+ * ============================================================ */
+
+/* Parse GET_PROFILE / GET_ZONES ("BASE color=r,g,b", "ZONE i name=.. color=r,g,b keys=N l1 l2 ..") */
+static int kbd_edit_parse(KbdProfileEdit *e, const char *resp) {
+    memset(e, 0, sizeof *e);
+    if (!resp || (strncmp(resp, "PROFILE_START", 13) != 0 && strncmp(resp, "ZONES_START", 11) != 0))
+        return -1;
+    const char *line = resp;
+    while (line && *line) {
+        const char *next = strchr(line, '\n');
+        size_t len = next ? (size_t)(next - line) : strlen(line);
+        char buf[2048];
+        if (len >= sizeof buf) len = sizeof buf - 1;
+        memcpy(buf, line, len);
+        buf[len] = '\0';
+        unsigned r, g, b;
+        if (sscanf(buf, "BASE color=%u,%u,%u", &r, &g, &b) == 3) {
+            e->has_base = 1;
+            e->base[0] = r > 255 ? 255 : r;
+            e->base[1] = g > 255 ? 255 : g;
+            e->base[2] = b > 255 ? 255 : b;
+        } else if (strncmp(buf, "ZONE ", 5) == 0 && e->num_zones < KBD_GUI_MAX_ZONES) {
+            char *nm = strstr(buf, " name="), *c = nm ? strstr(nm, " color=") : NULL;
+            char *k = c ? strstr(c, " keys=") : NULL;
+            int n = 0, used = 0;
+            if (nm && c && k && sscanf(c + 7, "%u,%u,%u", &r, &g, &b) == 3 &&
+                sscanf(k + 6, "%d%n", &n, &used) == 1) {
+                KbdZoneEdit *z = &e->zones[e->num_zones];
+                size_t nl = (size_t)(c - (nm + 6));
+                if (nl >= sizeof z->name) nl = sizeof z->name - 1;
+                memcpy(z->name, nm + 6, nl);
+                z->name[nl] = '\0';
+                z->rgb[0] = r > 255 ? 255 : r;
+                z->rgb[1] = g > 255 ? 255 : g;
+                z->rgb[2] = b > 255 ? 255 : b;
+                const char *q = k + 6 + used;
+                for (int i = 0; i < n; i++) {
+                    int led = -1, adv = 0;
+                    if (sscanf(q, " %d%n", &led, &adv) != 1) break;
+                    q += adv;
+                    if (led >= 0 && led < 120 && z->n < 120) z->leds[z->n++] = led;
+                }
+                e->num_zones++;
+            }
+        }
+        line = next ? next + 1 : NULL;
+    }
+    return 0;
+}
+
+/* Color per LED: base color, then the zones (a later zone wins) */
+static void kbd_edit_colors(const KbdProfileEdit *e, unsigned char rgb[120][3], unsigned char has[120]) {
+    memset(has, 0, 120);
+    if (e->has_base)
+        for (int i = 0; i < 120; i++) {
+            memcpy(rgb[i], e->base, 3);
+            has[i] = 1;
+        }
+    for (int z = 0; z < e->num_zones; z++)
+        for (int k = 0; k < e->zones[z].n; k++) {
+            int led = e->zones[z].leds[k];
+            if (led < 0 || led >= 120) continue;
+            memcpy(rgb[led], e->zones[z].rgb, 3);
+            has[led] = 1;
+        }
+}
+
+static int kbd_edit_equal(const KbdProfileEdit *a, const KbdProfileEdit *b) {
+    if (a->has_base != b->has_base || a->num_zones != b->num_zones) return 0;
+    if (a->has_base && memcmp(a->base, b->base, 3) != 0) return 0;
+    for (int z = 0; z < a->num_zones; z++) {
+        const KbdZoneEdit *x = &a->zones[z], *y = &b->zones[z];
+        if (strcmp(x->name, y->name) != 0 || memcmp(x->rgb, y->rgb, 3) != 0 || x->n != y->n ||
+            memcmp(x->leds, y->leds, sizeof(int) * (size_t)x->n) != 0)
+            return 0;
+    }
+    return 1;
+}
+
+/* "base::zones" for PREVIEW (base "r,g,b" or "-", zones "name|r,g,b|l,l;...") */
+static void kbd_edit_encode(const KbdProfileEdit *e, GString *out) {
+    if (e->has_base) g_string_append_printf(out, "%u,%u,%u", e->base[0], e->base[1], e->base[2]);
+    else g_string_append(out, "-");
+    g_string_append(out, "::");
+    for (int z = 0; z < e->num_zones; z++) {
+        const KbdZoneEdit *zone = &e->zones[z];
+        g_string_append_printf(out, "%s%s|%u,%u,%u|", z ? ";" : "", zone->name,
+                               zone->rgb[0], zone->rgb[1], zone->rgb[2]);
+        for (int k = 0; k < zone->n; k++) g_string_append_printf(out, k ? ",%d" : "%d", zone->leds[k]);
+    }
+}
+
+static int kbd_zone_has_led(const KbdZoneEdit *z, int led) {
+    for (int k = 0; k < z->n; k++) if (z->leds[k] == led) return 1;
+    return 0;
+}
+
+static void kbd_zone_remove_led(KbdZoneEdit *z, int led) {
+    int w = 0;
+    for (int k = 0; k < z->n; k++) if (z->leds[k] != led) z->leds[w++] = z->leds[k];
+    z->n = w;
+}
+
+/* Click on a key while zone zi is edited: if all its LEDs are in the zone
+ * they leave it (back to the base color, returns 0); otherwise they join it
+ * and leave every other zone (returns 1). */
+static int kbd_edit_toggle_leds(KbdProfileEdit *e, int zi, const int *leds, int n) {
+    if (zi < 0 || zi >= e->num_zones || n <= 0) return -1;
+    KbdZoneEdit *z = &e->zones[zi];
+    int all_in = 1;
+    for (int i = 0; i < n; i++) if (!kbd_zone_has_led(z, leds[i])) all_in = 0;
+    if (all_in) {
+        for (int i = 0; i < n; i++) kbd_zone_remove_led(z, leds[i]);
+        return 0;
+    }
+    for (int i = 0; i < n; i++) {
+        if (leds[i] < 0 || leds[i] >= 120) continue;
+        for (int o = 0; o < e->num_zones; o++) if (o != zi) kbd_zone_remove_led(&e->zones[o], leds[i]);
+        if (!kbd_zone_has_led(z, leds[i]) && z->n < 120) z->leds[z->n++] = leds[i];
+    }
+    return 1;
+}
+
+/* Zone whose color an LED shows (the last zone containing it), -1: base */
+static int kbd_edit_zone_at_led(const KbdProfileEdit *e, int led) {
+    for (int z = e->num_zones - 1; z >= 0; z--)
+        if (kbd_zone_has_led(&e->zones[z], led)) return z;
+    return -1;
+}
+
+/* NULL if name can be used for zone except_idx (-1: a new zone), else why not */
+static const char *kbd_zone_name_problem(const KbdProfileEdit *e, const char *name, int except_idx) {
+    if (!name || !*name) return "The name is empty.";
+    if (strlen(name) >= sizeof e->zones[0].name) return "The name is too long.";
+    if (strpbrk(name, "|;\n") || strstr(name, "::")) return "The name must not contain | ; or ::";
+    for (int z = 0; z < e->num_zones; z++)
+        if (z != except_idx && strcmp(e->zones[z].name, name) == 0) return "A zone with this name already exists.";
+    return NULL;
+}
+
+/* Name entered in a small dialog (g_free it), NULL if cancelled */
+static gchar *kbd_ask_name(AppData *app, const char *title, const char *prompt, const char *initial,
+                           const char *ok_label) {
+    GtkWidget *dialog = gtk_dialog_new_with_buttons(title, GTK_WINDOW(app->window),
+                                                    GTK_DIALOG_MODAL | GTK_DIALOG_DESTROY_WITH_PARENT,
+                                                    "_Cancel", GTK_RESPONSE_CANCEL,
+                                                    ok_label, GTK_RESPONSE_ACCEPT, NULL);
+    gtk_window_set_resizable(GTK_WINDOW(dialog), FALSE);
+    gtk_window_set_default_size(GTK_WINDOW(dialog), 350, -1);
+    GtkWidget *content = gtk_dialog_get_content_area(GTK_DIALOG(dialog));
+    gtk_container_set_border_width(GTK_CONTAINER(content), 10);
+    gtk_box_pack_start(GTK_BOX(content), gtk_label_new(prompt), FALSE, FALSE, 0);
+    GtkWidget *entry = gtk_entry_new();
+    gtk_entry_set_text(GTK_ENTRY(entry), initial ? initial : "");
+    gtk_box_pack_start(GTK_BOX(content), entry, TRUE, TRUE, 0);
+    gtk_widget_show_all(content);
+    gtk_dialog_set_default_response(GTK_DIALOG(dialog), GTK_RESPONSE_ACCEPT);
+    g_signal_connect(entry, "activate", G_CALLBACK(on_entry_activate), dialog);
+    gchar *name = NULL;
+    if (gtk_dialog_run(GTK_DIALOG(dialog)) == GTK_RESPONSE_ACCEPT)
+        name = g_strstrip(g_strdup(gtk_entry_get_text(GTK_ENTRY(entry))));
+    gtk_widget_destroy(dialog);
+    return name;
+}
+
+static void kbd_message(AppData *app, GtkMessageType type, const char *text) {
+    GtkWidget *d = gtk_message_dialog_new(GTK_WINDOW(app->window), GTK_DIALOG_MODAL | GTK_DIALOG_DESTROY_WITH_PARENT,
+                                          type, GTK_BUTTONS_OK, "%s", text);
+    gtk_dialog_run(GTK_DIALOG(d));
+    gtk_widget_destroy(d);
+}
+
+static int kbd_confirm(AppData *app, const char *title, const char *text) {
+    GtkWidget *d = gtk_message_dialog_new(GTK_WINDOW(app->window), GTK_DIALOG_MODAL | GTK_DIALOG_DESTROY_WITH_PARENT,
+                                          GTK_MESSAGE_QUESTION, GTK_BUTTONS_YES_NO, "%s", text);
+    gtk_window_set_title(GTK_WINDOW(d), title);
+    int yes = gtk_dialog_run(GTK_DIALOG(d)) == GTK_RESPONSE_YES;
+    gtk_widget_destroy(d);
+    return yes;
+}
+
+static void kbd_status(AppData *app, const char *fmt, ...) G_GNUC_PRINTF(2, 3);
+static void kbd_status(AppData *app, const char *fmt, ...) {
+    va_list ap;
+    va_start(ap, fmt);
+    gchar *msg = g_strdup_vprintf(fmt, ap);
+    va_end(ap);
+    if (app->kbd_profile_status_label) gtk_label_set_text(GTK_LABEL(app->kbd_profile_status_label), msg);
+    g_print("[GUI] Keyboard: %s\n", msg);
+    g_free(msg);
+}
+
+/* Name of the profile selected in the dropdown (static buffer), NULL if none */
+static const char *kbd_selected_profile_name(AppData *app, int *is_active) {
+    static char name[256];
+    GtkTreeIter iter;
+    if (is_active) *is_active = 0;
+    if (!gtk_combo_box_get_active_iter(GTK_COMBO_BOX(app->kbd_profile_combo), &iter)) return NULL;
+    gchar *display = NULL;
+    gtk_tree_model_get(GTK_TREE_MODEL(app->kbd_profile_store), &iter, 0, &display, -1);
+    if (!display) return NULL;
+    if (is_active) *is_active = strncmp(display, "[*]", 3) == 0;
+    snprintf(name, sizeof name, "%s", kbd_profile_name_from_display(display));
+    g_free(display);
+    return name;
+}
+
+static int kbd_profile_exists(AppData *app, const char *name, int *is_active) {
+    GtkTreeIter iter;
+    if (is_active) *is_active = 0;
+    if (!gtk_tree_model_get_iter_first(GTK_TREE_MODEL(app->kbd_profile_store), &iter)) return 0;
+    do {
+        gchar *display = NULL;
+        gtk_tree_model_get(GTK_TREE_MODEL(app->kbd_profile_store), &iter, 0, &display, -1);
+        int found = display && strcmp(kbd_profile_name_from_display(display), name) == 0;
+        if (found && is_active) *is_active = strncmp(display, "[*]", 3) == 0;
+        g_free(display);
+        if (found) return 1;
+    } while (gtk_tree_model_iter_next(GTK_TREE_MODEL(app->kbd_profile_store), &iter));
+    return 0;
+}
+
+/* Keys of the zone being edited are highlighted on the picture */
+static void kbd_highlight_zone(AppData *app) {
+    app->kbd_num_selected_leds = 0;
+    int zi = app->kbd_sel_zone;
+    if (zi < 0 || zi >= app->kbd_edit.num_zones) return;
+    const KbdZoneEdit *z = &app->kbd_edit.zones[zi];
+    for (int k = 0; k < z->n && k < 120; k++) app->kbd_selected_led_indices[app->kbd_num_selected_leds++] = z->leds[k];
+}
+
+static void kbd_update_mode_label(AppData *app) {
+    if (!app->kbd_mode_label) return;
+    int zi = app->kbd_sel_zone;
+    gchar *t;
+    if (zi >= 0 && zi < app->kbd_edit.num_zones)
+        t = g_strdup_printf("Coloring zone '%s' (%d LEDs): click keys on the picture to add or remove them.",
+                            app->kbd_edit.zones[zi].name, app->kbd_edit.zones[zi].n);
+    else
+        t = g_strdup("Coloring the whole keyboard (base color; zones keep their colors). "
+                     "Select a zone in the list to color its keys.");
+    gtk_label_set_text(GTK_LABEL(app->kbd_mode_label), t);
+    g_free(t);
+}
+
+/* Zone list = kbd_edit's zones; selects kbd_sel_zone */
+static void kbd_zone_list_refresh(AppData *app) {
+    if (!app->kbd_zone_store) return;
+    GtkTreeSelection *sel = gtk_tree_view_get_selection(GTK_TREE_VIEW(app->kbd_zone_view));
+    g_signal_handler_block(sel, app->kbd_zone_sel_signal_id);
+    gtk_list_store_clear(app->kbd_zone_store);
+    for (int z = 0; z < app->kbd_edit.num_zones; z++) {
+        const KbdZoneEdit *zone = &app->kbd_edit.zones[z];
+        gchar *swatch = g_strdup_printf("<span foreground=\"#%02X%02X%02X\">███</span>",
+                                        zone->rgb[0], zone->rgb[1], zone->rgb[2]);
+        GtkTreeIter it;
+        gtk_list_store_insert_with_values(app->kbd_zone_store, &it, -1, 0, swatch, 1, zone->name, 2, zone->n, -1);
+        g_free(swatch);
+    }
+    if (app->kbd_sel_zone >= app->kbd_edit.num_zones) app->kbd_sel_zone = -1;
+    if (app->kbd_sel_zone >= 0) {
+        GtkTreePath *path = gtk_tree_path_new_from_indices(app->kbd_sel_zone, -1);
+        gtk_tree_selection_select_path(sel, path);
+        gtk_tree_path_free(path);
+    }
+    g_signal_handler_unblock(sel, app->kbd_zone_sel_signal_id);
+    int has = app->kbd_sel_zone >= 0;
+    if (app->kbd_zone_rename_btn) gtk_widget_set_sensitive(app->kbd_zone_rename_btn, has);
+    if (app->kbd_zone_delete_btn) gtk_widget_set_sensitive(app->kbd_zone_delete_btn, has);
+}
+
+/* Show kbd_edit on the keyboard; light_on: a color was chosen (switches the light on) */
+static void kbd_send_preview(AppData *app, int light_on) {
+    if (!app->kbd_edit_loaded) return;
+    GString *cmd = g_string_new("PREVIEW::");
+    kbd_edit_encode(&app->kbd_edit, cmd);
+    if (light_on) g_string_append(cmd, "::on");
+    const char *r = send_keyboard_command(app, cmd->str);
+    if (!r || strncmp(r, "OK", 2) != 0) g_print("[GUI] PREVIEW failed: %s\n", r ? r : "NULL");
+    g_string_free(cmd, TRUE);
+}
+
+/* Everything that shows kbd_edit, after a change */
+static void kbd_edit_changed(AppData *app, int send_preview, int light_on) {
+    kbd_edit_colors(&app->kbd_edit, app->kbd_led_rgb, app->kbd_led_has_color);
+    kbd_zone_list_refresh(app);
+    kbd_highlight_zone(app);
+    kbd_update_mode_label(app);
+    if (send_preview) kbd_send_preview(app, light_on);
+    kbd_redraw_canvas(app);
+}
+
+/* kbd_edit = kbd_saved = the saved profile name */
+static int kbd_load_edit_profile(AppData *app, const char *name) {
+    char cmd[512];
+    snprintf(cmd, sizeof cmd, "GET_PROFILE::%s", name);
+    const char *r = send_keyboard_command(app, cmd);
+    if (kbd_edit_parse(&app->kbd_edit, r) != 0) {
+        g_print("[GUI] Could not read keyboard profile '%s': %s\n", name, r ? r : "NULL");
+        return -1;
+    }
+    app->kbd_saved = app->kbd_edit;
+    snprintf(app->kbd_edit_name, sizeof app->kbd_edit_name, "%s", name);
+    app->kbd_edit_loaded = 1;
+    app->kbd_sel_zone = -1;
+    return 0;
+}
+
+static int kbd_unsaved(const AppData *app) {
+    return app->kbd_edit_loaded && !kbd_edit_equal(&app->kbd_edit, &app->kbd_saved);
+}
+
+/* Show profile name: the active one as it is, another one as a preview */
+static void kbd_show_profile(AppData *app, const char *name, int is_active) {
+    if (kbd_load_edit_profile(app, name) != 0) return;
+    if (is_active) send_keyboard_command(app, "RESTORE_ACTIVE");
+    kbd_edit_changed(app, !is_active, 0);
+    kbd_sync_power_switch(app);
+}
+
+/* Save kbd_edit into its profile (the one being edited, not the active one) */
+static int kbd_save_edit(AppData *app) {
+    if (!app->kbd_edit_loaded || !kbd_ensure_connected(app)) return -1;
+    kbd_send_preview(app, 0);                     /* the daemon stores its live colors */
+    char cmd[512];
+    snprintf(cmd, sizeof cmd, "SAVE_PROFILE::%s", app->kbd_edit_name);
+    const char *r = send_keyboard_command(app, cmd);
+    if (!r || strncmp(r, "OK", 2) != 0) {
+        kbd_status(app, "Could not save '%s': %s", app->kbd_edit_name, r ? r : "no response");
+        return -1;
+    }
+    app->kbd_saved = app->kbd_edit;
+    char name[256];
+    snprintf(name, sizeof name, "%s", app->kbd_edit_name);
+    load_keyboard_profiles_select(app, name);     /* stays on the profile just saved */
+    kbd_status(app, "Profile saved: %s", name);
+    return 0;
+}
+
+static int kbd_check_unsaved_changes(AppData *app) {
+    if (!kbd_unsaved(app)) return 1;
+    GtkWidget *dialog = gtk_message_dialog_new(GTK_WINDOW(app->window), GTK_DIALOG_MODAL,
+                                               GTK_MESSAGE_WARNING, GTK_BUTTONS_NONE, NULL);
+    gchar *markup = g_markup_printf_escaped(
+        "<b>Warning:</b> You have unsaved changes to the keyboard profile '%s'.\n\nWhat would you like to do?",
+        app->kbd_edit_name);
+    gtk_message_dialog_set_markup(GTK_MESSAGE_DIALOG(dialog), markup);
+    g_free(markup);
+    gtk_dialog_add_button(GTK_DIALOG(dialog), "_Cancel", -102);
+    gtk_dialog_add_button(GTK_DIALOG(dialog), "_Discard Changes", -100);
+    gtk_dialog_add_button(GTK_DIALOG(dialog), "_Save Changes", -101);
+    gtk_widget_show_all(dialog);
+    gint response = gtk_dialog_run(GTK_DIALOG(dialog));
+    gtk_widget_destroy(dialog);
+    if (response == -101) return kbd_save_edit(app) == 0 ? 1 : -1;
+    if (response == -100) {
+        app->kbd_edit = app->kbd_saved;
+        app->kbd_sel_zone = -1;
+        kbd_edit_changed(app, 1, 0);
+        kbd_status(app, "Changes discarded");
+        return 0;
+    }
+    return -1;
+}
+
+/* Entering the Keyboard tab: edit the active profile */
+static void kbd_enter_tab(AppData *app) {
+    load_keyboard_profiles_select(app, NULL);
+    int is_active = 0;
+    const char *name = kbd_selected_profile_name(app, &is_active);
+    if (!name) {
+        app->kbd_edit_loaded = 0;
+        memset(&app->kbd_edit, 0, sizeof app->kbd_edit);
+        kbd_edit_changed(app, 0, 0);
+        return;
+    }
+    if (kbd_load_edit_profile(app, name) == 0) kbd_edit_changed(app, 0, 0);
+}
+
+/* Leaving the Keyboard tab (or closing the window): ask about unsaved
+ * changes, then the keyboard shows the active profile again */
+static int kbd_leave_tab(AppData *app) {
+    if (!app->kbd_connected) return 0;
+    if (kbd_check_unsaved_changes(app) < 0) return -1;
+    send_keyboard_command(app, "RESTORE_ACTIVE");
+    load_keyboard_profiles_select(app, NULL);
+    int is_active = 0;
+    const char *name = kbd_selected_profile_name(app, &is_active);
+    if (name && kbd_load_edit_profile(app, name) == 0) kbd_edit_changed(app, 0, 0);
+    kbd_sync_power_switch(app);
+    return 0;
+}
+
+/* Dropdown: show the selected profile (a preview unless it is the active one) */
+static void on_kbd_profile_changed(GtkComboBox *combo, gpointer user_data) {
+    (void)combo;
+    AppData *app = (AppData *)user_data;
+    int is_active = 0;
+    const char *sel = kbd_selected_profile_name(app, &is_active);
+    if (!sel || !kbd_ensure_connected(app)) return;
+    char name[256];
+    snprintf(name, sizeof name, "%s", sel);
+    if (app->kbd_edit_loaded && strcmp(name, app->kbd_edit_name) != 0 && kbd_unsaved(app)) {
+        char old[256];
+        snprintf(old, sizeof old, "%s", app->kbd_edit_name);
+        if (kbd_check_unsaved_changes(app) < 0) {
+            load_keyboard_profiles_select(app, old);      /* stay on the edited profile */
+            return;
+        }
+        load_keyboard_profiles_select(app, name);
+        kbd_profile_exists(app, name, &is_active);
+    }
+    kbd_show_profile(app, name, is_active);
+    if (is_active) kbd_status(app, "Active profile: %s", name);
+    else kbd_status(app, "Preview: %s - Activate to use it, Save to keep changes", name);
+}
+
 /* Callback: Create new keyboard profile */
 static void on_kbd_create_profile_clicked(GtkWidget *widget, gpointer user_data) {
     (void)widget;
     AppData *app = (AppData *)user_data;
-    g_print("[GUI] Create keyboard profile clicked\n");
-
-    if (!kbd_ensure_connected(app)) {
-        g_print("[GUI] Keyboard daemon not connected, skipping\n");
-        return;
-    }
-
-    /* Show dialog to enter profile name */
-    GtkWidget *dialog = gtk_dialog_new_with_buttons("Create Keyboard Profile",
-                                                    GTK_WINDOW(app->window),
-                                                    GTK_DIALOG_MODAL | GTK_DIALOG_DESTROY_WITH_PARENT,
-                                                    "_Cancel", GTK_RESPONSE_CANCEL,
-                                                    "_Create", GTK_RESPONSE_ACCEPT,
-                                                    NULL);
-    gtk_window_set_resizable(GTK_WINDOW(dialog), FALSE);
-    gtk_window_set_default_size(GTK_WINDOW(dialog), 350, -1);
-
-    GtkWidget *content = gtk_dialog_get_content_area(GTK_DIALOG(dialog));
-    gtk_container_set_border_width(GTK_CONTAINER(content), 10);
-
-    GtkWidget *label = gtk_label_new("Enter profile name:");
-    gtk_box_pack_start(GTK_BOX(content), label, FALSE, FALSE, 0);
-
-    GtkWidget *entry = gtk_entry_new();
-    gtk_box_pack_start(GTK_BOX(content), entry, TRUE, TRUE, 0);
-
-    gtk_widget_show_all(content);
-
-    /* Set Accept as default so Enter key triggers profile creation */
-    gtk_dialog_set_default_response(GTK_DIALOG(dialog), GTK_RESPONSE_ACCEPT);
-    g_signal_connect(entry, "activate", G_CALLBACK(on_entry_activate), dialog);
-
-    if (gtk_dialog_run(GTK_DIALOG(dialog)) == GTK_RESPONSE_ACCEPT) {
-        const gchar *name = gtk_entry_get_text(GTK_ENTRY(entry));
-
-        if (strlen(name) > 0) {
-            /* Check for duplicate profile name */
-            int duplicate = 0;
-            GtkTreeIter iter;
-            if (gtk_tree_model_get_iter_first(GTK_TREE_MODEL(app->kbd_profile_store), &iter)) {
-                do {
-                    gchar *existing_name = NULL;
-                    gtk_tree_model_get(GTK_TREE_MODEL(app->kbd_profile_store), &iter, 0, &existing_name, -1);
-                    if (existing_name && strcmp(kbd_profile_name_from_display(existing_name), name) == 0) {
-                        duplicate = 1;
-                        g_free(existing_name);
-                        break;
-                    }
-                    g_free(existing_name);
-                } while (gtk_tree_model_iter_next(GTK_TREE_MODEL(app->kbd_profile_store), &iter));
-            }
-
-            if (duplicate) {
-                GtkWidget *error_dialog = gtk_message_dialog_new(GTK_WINDOW(app->window),
-                                                                 GTK_DIALOG_MODAL | GTK_DIALOG_DESTROY_WITH_PARENT,
-                                                                 GTK_MESSAGE_ERROR,
-                                                                 GTK_BUTTONS_OK,
-                                                                 "A keyboard profile with the name '%s' already exists.",
-                                                                 name);
-                gtk_dialog_run(GTK_DIALOG(error_dialog));
-                gtk_widget_destroy(error_dialog);
-                gtk_widget_destroy(dialog);
-                return;
-            }
-
-            /* Send CREATE_PROFILE command using :: delimiter for names with spaces */
-            char cmd[512];
-            snprintf(cmd, sizeof(cmd), "CREATE_PROFILE::%s", name);
-            const char *response = send_keyboard_command(app, cmd);
-            g_print("[GUI] CREATE_PROFILE response: %s\n", response ? response : "NULL");
-
-            /* Reload the profile list */
-            load_keyboard_profiles(app);
-
-            /* Find and select the newly created profile */
-            int new_idx = -1;
-            if (gtk_tree_model_get_iter_first(GTK_TREE_MODEL(app->kbd_profile_store), &iter)) {
-                int i = 0;
-                do {
-                    gchar *existing_name = NULL;
-                    gtk_tree_model_get(GTK_TREE_MODEL(app->kbd_profile_store), &iter, 0, &existing_name, -1);
-                    if (existing_name && strcmp(kbd_profile_name_from_display(existing_name), name) == 0) {
-                        new_idx = i;
-                        g_free(existing_name);
-                        break;
-                    }
-                    g_free(existing_name);
-                    i++;
-                } while (gtk_tree_model_iter_next(GTK_TREE_MODEL(app->kbd_profile_store), &iter));
-            }
-
-            if (new_idx >= 0) {
-                gtk_combo_box_set_active(GTK_COMBO_BOX(app->kbd_profile_combo), new_idx);
-                app->kbd_active_profile_idx = new_idx;
-                g_print("[GUI] Selected newly created keyboard profile at index %d\n", new_idx);
-            }
-
-            gtk_label_set_text(GTK_LABEL(app->kbd_profile_status_label),
-                              "Profile created successfully");
+    if (!kbd_ensure_connected(app)) return;
+    if (kbd_check_unsaved_changes(app) < 0) return;
+    gchar *name = kbd_ask_name(app, "Create Keyboard Profile", "Enter profile name:", "", "_Create");
+    if (!name) return;
+    if (!*name || strstr(name, "::")) {
+        kbd_message(app, GTK_MESSAGE_ERROR, "Please enter a name (without ::).");
+    } else if (kbd_profile_exists(app, name, NULL)) {
+        gchar *t = g_strdup_printf("A keyboard profile with the name '%s' already exists.", name);
+        kbd_message(app, GTK_MESSAGE_ERROR, t);
+        g_free(t);
+    } else {
+        char cmd[512];
+        snprintf(cmd, sizeof cmd, "CREATE_PROFILE::%s", name);
+        const char *r = send_keyboard_command(app, cmd);
+        if (r && strncmp(r, "OK", 2) == 0) {
+            load_keyboard_profiles_select(app, name);
+            kbd_show_profile(app, name, 0);           /* new profiles start empty */
+            kbd_status(app, "Profile '%s' created: pick a color for the whole keyboard or create zones", name);
+        } else {
+            kbd_status(app, "Could not create '%s': %s", name, r ? r : "no response");
         }
     }
-
-    gtk_widget_destroy(dialog);
+    g_free(name);
 }
 
 /* Callback: Delete keyboard profile */
 static void on_kbd_delete_profile_clicked(GtkWidget *widget, gpointer user_data) {
     (void)widget;
     AppData *app = (AppData *)user_data;
-    g_print("[GUI] Delete keyboard profile clicked\n");
-
-    if (!kbd_ensure_connected(app)) {
-        g_print("[GUI] Keyboard daemon not connected, skipping\n");
+    if (!kbd_ensure_connected(app)) return;
+    const char *sel = kbd_selected_profile_name(app, NULL);
+    if (!sel) { kbd_status(app, "No profile selected"); return; }
+    char name[256];
+    snprintf(name, sizeof name, "%s", sel);
+    gchar *q = g_strdup_printf("Are you sure you want to delete keyboard profile '%s'?", name);
+    int yes = kbd_confirm(app, "Delete Profile", q);
+    g_free(q);
+    if (!yes) return;
+    char cmd[512];
+    snprintf(cmd, sizeof cmd, "DELETE_PROFILE::%s", name);
+    const char *r = send_keyboard_command(app, cmd);
+    if (!r || strncmp(r, "OK", 2) != 0) {
+        kbd_status(app, "Could not delete '%s': %s", name, r ? r : "no response");
         return;
     }
-
-    /* Get currently selected profile */
-    int active = gtk_combo_box_get_active(GTK_COMBO_BOX(app->kbd_profile_combo));
-    if (active < 0) {
-        g_print("[GUI] No profile selected for deletion\n");
-        return;
-    }
-
-    /* Get the profile name */
-    gchar *profile_name = NULL;
-    GtkTreeIter iter;
-    if (!gtk_combo_box_get_active_iter(GTK_COMBO_BOX(app->kbd_profile_combo), &iter)) {
-        g_print("[GUI] Could not get selected profile\n");
-        return;
-    }
-    gtk_tree_model_get(GTK_TREE_MODEL(app->kbd_profile_store), &iter, 0, &profile_name, -1);
-    if (!profile_name) {
-        g_print("[GUI] Could not get profile name\n");
-        return;
-    }
-
-    /* Extract clean profile name from display string */
-    const char *clean_name = kbd_profile_name_from_display(profile_name);
-
-    /* Show confirmation dialog */
-    GtkWidget *dialog = gtk_message_dialog_new(GTK_WINDOW(app->window),
-                                                GTK_DIALOG_MODAL | GTK_DIALOG_DESTROY_WITH_PARENT,
-                                                GTK_MESSAGE_QUESTION,
-                                                GTK_BUTTONS_YES_NO,
-                                                "Are you sure you want to delete keyboard profile '%s'?",
-                                                clean_name);
-    gtk_window_set_title(GTK_WINDOW(dialog), "Delete Profile");
-
-    int result = gtk_dialog_run(GTK_DIALOG(dialog));
-    gtk_widget_destroy(dialog);
-
-    if (result == GTK_RESPONSE_YES) {
-        /* Send DELETE_PROFILE command using :: delimiter for names with spaces */
-        char cmd[512];
-        snprintf(cmd, sizeof(cmd), "DELETE_PROFILE::%s", clean_name);
-        const char *response = send_keyboard_command(app, cmd);
-        g_print("[GUI] DELETE_PROFILE response: %s\n", response ? response : "NULL");
-
-        /* Reload the profile list */
-        load_keyboard_profiles(app);
-
-        gtk_label_set_text(GTK_LABEL(app->kbd_profile_status_label),
-                          "Profile deleted successfully");
-    }
-
-    g_free(profile_name);
+    /* back to the active profile (the one now at its place, if it was the active one) */
+    app->kbd_edit_loaded = 0;
+    send_keyboard_command(app, "RESTORE_ACTIVE");
+    kbd_enter_tab(app);
+    kbd_sync_power_switch(app);
+    kbd_status(app, "Profile deleted: %s", name);
 }
 
 /* Callback: Rename keyboard profile */
 static void on_kbd_rename_profile_clicked(GtkWidget *widget, gpointer user_data) {
     (void)widget;
     AppData *app = (AppData *)user_data;
-    g_print("[GUI] Rename keyboard profile clicked\n");
-
-    if (!kbd_ensure_connected(app)) {
-        g_print("[GUI] Keyboard daemon not connected, skipping\n");
-        return;
-    }
-
-    /* Get currently selected profile */
-    int active = gtk_combo_box_get_active(GTK_COMBO_BOX(app->kbd_profile_combo));
-    if (active < 0) {
-        g_print("[GUI] No profile selected for rename\n");
-        return;
-    }
-
-    /* Get the profile name */
-    gchar *old_name = NULL;
-    GtkTreeIter iter;
-    if (!gtk_combo_box_get_active_iter(GTK_COMBO_BOX(app->kbd_profile_combo), &iter)) {
-        g_print("[GUI] Could not get selected profile\n");
-        return;
-    }
-    gtk_tree_model_get(GTK_TREE_MODEL(app->kbd_profile_store), &iter, 0, &old_name, -1);
-    if (!old_name) {
-        g_print("[GUI] Could not get profile name\n");
-        return;
-    }
-
-    /* Extract clean profile name from display string */
-    const char *clean_old_name = kbd_profile_name_from_display(old_name);
-
-    /* Show dialog to enter new profile name */
-    GtkWidget *dialog = gtk_dialog_new_with_buttons("Rename Keyboard Profile",
-                                                    GTK_WINDOW(app->window),
-                                                    GTK_DIALOG_MODAL | GTK_DIALOG_DESTROY_WITH_PARENT,
-                                                    "_Cancel", GTK_RESPONSE_CANCEL,
-                                                    "_Rename", GTK_RESPONSE_ACCEPT,
-                                                    NULL);
-    gtk_window_set_resizable(GTK_WINDOW(dialog), FALSE);
-    gtk_window_set_default_size(GTK_WINDOW(dialog), 350, -1);
-
-    GtkWidget *content = gtk_dialog_get_content_area(GTK_DIALOG(dialog));
-    gtk_container_set_border_width(GTK_CONTAINER(content), 10);
-
-    GtkWidget *label = gtk_label_new("Enter new profile name:");
-    gtk_box_pack_start(GTK_BOX(content), label, FALSE, FALSE, 0);
-
-    GtkWidget *entry = gtk_entry_new();
-    gtk_entry_set_text(GTK_ENTRY(entry), clean_old_name);
-    gtk_box_pack_start(GTK_BOX(content), entry, TRUE, TRUE, 0);
-
-    gtk_widget_show_all(content);
-
-    gtk_dialog_set_default_response(GTK_DIALOG(dialog), GTK_RESPONSE_ACCEPT);
-    g_signal_connect(entry, "activate", G_CALLBACK(on_entry_activate), dialog);
-
-    if (gtk_dialog_run(GTK_DIALOG(dialog)) == GTK_RESPONSE_ACCEPT) {
-        const gchar *new_name = gtk_entry_get_text(GTK_ENTRY(entry));
-
-        if (strlen(new_name) > 0 && strcmp(new_name, clean_old_name) != 0) {
-            /* Check for duplicate profile name */
-            int duplicate = 0;
-            GtkTreeIter iter2;
-            if (gtk_tree_model_get_iter_first(GTK_TREE_MODEL(app->kbd_profile_store), &iter2)) {
-                do {
-                    gchar *existing_name = NULL;
-                    gtk_tree_model_get(GTK_TREE_MODEL(app->kbd_profile_store), &iter2, 0, &existing_name, -1);
-                    if (existing_name && strcmp(kbd_profile_name_from_display(existing_name), new_name) == 0) {
-                        duplicate = 1;
-                        g_free(existing_name);
-                        break;
-                    }
-                    g_free(existing_name);
-                } while (gtk_tree_model_iter_next(GTK_TREE_MODEL(app->kbd_profile_store), &iter2));
-            }
-
-            if (duplicate) {
-                GtkWidget *error_dialog = gtk_message_dialog_new(GTK_WINDOW(app->window),
-                                                                 GTK_DIALOG_MODAL | GTK_DIALOG_DESTROY_WITH_PARENT,
-                                                                 GTK_MESSAGE_ERROR,
-                                                                 GTK_BUTTONS_OK,
-                                                                 "A keyboard profile with the name '%s' already exists.",
-                                                                 new_name);
-                gtk_dialog_run(GTK_DIALOG(error_dialog));
-                gtk_widget_destroy(error_dialog);
-                gtk_widget_destroy(dialog);
-                g_free(old_name);
-                return;
-            }
-
-            /* Send RENAME_PROFILE command using :: delimiter for names with spaces */
-            char cmd[512];
-            snprintf(cmd, sizeof(cmd), "RENAME_PROFILE::%s::%s", clean_old_name, new_name);
-            const char *response = send_keyboard_command(app, cmd);
-            g_print("[GUI] RENAME_PROFILE response: %s\n", response ? response : "NULL");
-
-            /* Reload the profile list */
-            load_keyboard_profiles(app);
-
-            gtk_label_set_text(GTK_LABEL(app->kbd_profile_status_label),
-                              "Profile renamed successfully");
+    if (!kbd_ensure_connected(app)) return;
+    const char *sel = kbd_selected_profile_name(app, NULL);
+    if (!sel) { kbd_status(app, "No profile selected"); return; }
+    char old[256];
+    snprintf(old, sizeof old, "%s", sel);
+    gchar *name = kbd_ask_name(app, "Rename Keyboard Profile", "Enter new profile name:", old, "_Rename");
+    if (!name) return;
+    if (!*name || strstr(name, "::")) {
+        kbd_message(app, GTK_MESSAGE_ERROR, "Please enter a name (without ::).");
+    } else if (strcmp(name, old) != 0 && kbd_profile_exists(app, name, NULL)) {
+        gchar *t = g_strdup_printf("A keyboard profile with the name '%s' already exists.", name);
+        kbd_message(app, GTK_MESSAGE_ERROR, t);
+        g_free(t);
+    } else if (strcmp(name, old) != 0) {
+        char cmd[600];
+        snprintf(cmd, sizeof cmd, "RENAME_PROFILE::%s::%s", old, name);
+        const char *r = send_keyboard_command(app, cmd);
+        if (r && strncmp(r, "OK", 2) == 0) {
+            if (strcmp(app->kbd_edit_name, old) == 0)
+                snprintf(app->kbd_edit_name, sizeof app->kbd_edit_name, "%s", name);
+            load_keyboard_profiles_select(app, name);
+            kbd_status(app, "Profile renamed: %s", name);
+        } else {
+            kbd_status(app, "Could not rename '%s': %s", old, r ? r : "no response");
         }
     }
-
-    gtk_widget_destroy(dialog);
-    g_free(old_name);
+    g_free(name);
 }
 
-/* Callback: Save keyboard profile */
+/* Callback: Save the profile being edited */
 static void on_kbd_save_profile_clicked(GtkWidget *widget, gpointer user_data) {
     (void)widget;
     AppData *app = (AppData *)user_data;
-    g_print("[GUI] Save keyboard profile clicked\n");
-
-    if (!kbd_ensure_connected(app)) {
-        g_print("[GUI] Keyboard daemon not connected, skipping\n");
-        return;
-    }
-
-    /* Get currently selected profile name */
-    int active = gtk_combo_box_get_active(GTK_COMBO_BOX(app->kbd_profile_combo));
-    if (active < 0) {
-        g_print("[GUI] No keyboard profile selected to save\n");
-        gtk_label_set_text(GTK_LABEL(app->kbd_profile_status_label), "No profile selected");
-        return;
-    }
-
-    gchar *profile_name = NULL;
-    GtkTreeIter iter;
-    if (!gtk_combo_box_get_active_iter(GTK_COMBO_BOX(app->kbd_profile_combo), &iter)) {
-        g_print("[GUI] Could not get selected profile\n");
-        return;
-    }
-    gtk_tree_model_get(GTK_TREE_MODEL(app->kbd_profile_store), &iter, 0, &profile_name, -1);
-    if (!profile_name) {
-        g_print("[GUI] Could not get profile name\n");
-        return;
-    }
-
-    /* Extract clean profile name from display string */
-    const char *clean_name = kbd_profile_name_from_display(profile_name);
-
-    /* Send SAVE_PROFILE command using :: delimiter for names with spaces */
-    char cmd[512];
-    snprintf(cmd, sizeof(cmd), "SAVE_PROFILE::%s", clean_name);
-    const char *response = send_keyboard_command(app, cmd);
-    g_print("[GUI] SAVE_PROFILE response: %s\n", response ? response : "NULL");
-
-    /* Reload the profile list */
-    load_keyboard_profiles(app);
-
-    gtk_label_set_text(GTK_LABEL(app->kbd_profile_status_label),
-                      g_strconcat("Profile saved: ", clean_name, NULL));
-
-    g_free(profile_name);
+    if (!app->kbd_edit_loaded) { kbd_status(app, "No profile selected"); return; }
+    kbd_save_edit(app);
 }
 
 /* Callback: Activate keyboard profile */
 static void on_kbd_activate_profile_clicked(GtkWidget *widget, gpointer user_data) {
     (void)widget;
     AppData *app = (AppData *)user_data;
-    g_print("[GUI] Activate keyboard profile clicked\n");
-
-    if (!kbd_ensure_connected(app)) {
-        g_print("[GUI] Keyboard daemon not connected, skipping\n");
-        return;
-    }
-
-    /* Get currently selected profile name */
-    int active = gtk_combo_box_get_active(GTK_COMBO_BOX(app->kbd_profile_combo));
-    if (active < 0) {
-        g_print("[GUI] No keyboard profile selected to activate\n");
-        gtk_label_set_text(GTK_LABEL(app->kbd_profile_status_label), "No profile selected");
-        return;
-    }
-
-    gchar *profile_name = NULL;
-    GtkTreeIter iter;
-    if (!gtk_combo_box_get_active_iter(GTK_COMBO_BOX(app->kbd_profile_combo), &iter)) {
-        g_print("[GUI] Could not get selected profile\n");
-        return;
-    }
-    gtk_tree_model_get(GTK_TREE_MODEL(app->kbd_profile_store), &iter, 0, &profile_name, -1);
-    if (!profile_name) {
-        g_print("[GUI] Could not get profile name\n");
-        return;
-    }
-
-    /* Extract clean profile name from display string */
-    const char *clean_name = kbd_profile_name_from_display(profile_name);
-
-    /* Send LOAD_PROFILE command using :: delimiter for names with spaces */
+    if (!kbd_ensure_connected(app)) return;
+    const char *sel = kbd_selected_profile_name(app, NULL);
+    if (!sel) { kbd_status(app, "No profile selected"); return; }
+    char name[256];
+    snprintf(name, sizeof name, "%s", sel);
+    if (kbd_check_unsaved_changes(app) < 0) return;
     char cmd[512];
-    snprintf(cmd, sizeof(cmd), "LOAD_PROFILE::%s", clean_name);
-    const char *response = send_keyboard_command(app, cmd);
-    g_print("[GUI] LOAD_PROFILE response: %s\n", response ? response : "NULL");
-    kbd_refresh_key_colors(app);
+    snprintf(cmd, sizeof cmd, "LOAD_PROFILE::%s", name);
+    const char *r = send_keyboard_command(app, cmd);
+    if (!r || strncmp(r, "OK", 2) != 0) {
+        kbd_status(app, "Could not activate '%s': %s", name, r ? r : "no response");
+        return;
+    }
+    load_keyboard_profiles_select(app, name);
+    if (kbd_load_edit_profile(app, name) == 0) kbd_edit_changed(app, 0, 0);
     kbd_sync_power_switch(app);
+    kbd_status(app, "Activated profile: %s", name);
+}
 
-    /* Reload the profile list to update the [*] marker */
-    load_keyboard_profiles(app);
+/* --- Zone list --- */
+static void on_kbd_zone_selection_changed(GtkTreeSelection *sel, gpointer user_data) {
+    AppData *app = (AppData *)user_data;
+    GtkTreeModel *model = NULL;
+    GtkTreeIter it;
+    app->kbd_sel_zone = -1;
+    if (gtk_tree_selection_get_selected(sel, &model, &it)) {
+        GtkTreePath *path = gtk_tree_model_get_path(model, &it);
+        app->kbd_sel_zone = gtk_tree_path_get_indices(path)[0];
+        gtk_tree_path_free(path);
+    }
+    int has = app->kbd_sel_zone >= 0;
+    gtk_widget_set_sensitive(app->kbd_zone_rename_btn, has);
+    gtk_widget_set_sensitive(app->kbd_zone_delete_btn, has);
+    kbd_highlight_zone(app);
+    kbd_update_mode_label(app);
+    kbd_redraw_canvas(app);
+}
 
-    gtk_label_set_text(GTK_LABEL(app->kbd_profile_status_label),
-                      g_strconcat("Activated profile: ", clean_name, NULL));
+static void on_kbd_whole_keyboard_clicked(GtkWidget *widget, AppData *app) {
+    (void)widget;
+    gtk_tree_selection_unselect_all(gtk_tree_view_get_selection(GTK_TREE_VIEW(app->kbd_zone_view)));
+}
 
-    g_free(profile_name);
+static void on_kbd_zone_create_clicked(GtkWidget *widget, AppData *app) {
+    (void)widget;
+    if (!app->kbd_edit_loaded) { kbd_status(app, "Select a profile first"); return; }
+    KbdProfileEdit *e = &app->kbd_edit;
+    if (e->num_zones >= KBD_GUI_MAX_ZONES) {
+        kbd_message(app, GTK_MESSAGE_ERROR, "A profile can have at most 32 zones.");
+        return;
+    }
+    char def[32];
+    int n = e->num_zones + 1;
+    do snprintf(def, sizeof def, "Zone %d", n++); while (kbd_zone_name_problem(e, def, -1));
+    gchar *name = kbd_ask_name(app, "Create Zone", "Enter zone name:", def, "_Create");
+    if (!name) return;
+    const char *problem = kbd_zone_name_problem(e, name, -1);
+    if (problem) {
+        kbd_message(app, GTK_MESSAGE_ERROR, problem);
+    } else {
+        KbdZoneEdit *z = &e->zones[e->num_zones];
+        memset(z, 0, sizeof *z);
+        snprintf(z->name, sizeof z->name, "%s", name);
+        z->rgb[0] = z->rgb[1] = z->rgb[2] = 255;
+        app->kbd_sel_zone = e->num_zones++;
+        kbd_edit_changed(app, 1, 0);
+        kbd_status(app, "Zone '%s' created: click keys to add them, then choose its color", name);
+    }
+    g_free(name);
+}
+
+static void on_kbd_zone_rename_clicked(GtkWidget *widget, AppData *app) {
+    (void)widget;
+    int zi = app->kbd_sel_zone;
+    if (zi < 0 || zi >= app->kbd_edit.num_zones) return;
+    gchar *name = kbd_ask_name(app, "Rename Zone", "Enter new zone name:", app->kbd_edit.zones[zi].name, "_Rename");
+    if (!name) return;
+    const char *problem = kbd_zone_name_problem(&app->kbd_edit, name, zi);
+    if (problem) kbd_message(app, GTK_MESSAGE_ERROR, problem);
+    else {
+        snprintf(app->kbd_edit.zones[zi].name, sizeof app->kbd_edit.zones[zi].name, "%s", name);
+        kbd_edit_changed(app, 1, 0);
+        kbd_status(app, "Zone renamed: %s - click Save to keep it", name);
+    }
+    g_free(name);
+}
+
+static void on_kbd_zone_delete_clicked(GtkWidget *widget, AppData *app) {
+    (void)widget;
+    KbdProfileEdit *e = &app->kbd_edit;
+    int zi = app->kbd_sel_zone;
+    if (zi < 0 || zi >= e->num_zones) return;
+    gchar *q = g_strdup_printf("Delete zone '%s'? Its keys get the base color.", e->zones[zi].name);
+    int yes = kbd_confirm(app, "Delete Zone", q);
+    g_free(q);
+    if (!yes) return;
+    char name[64];
+    snprintf(name, sizeof name, "%s", e->zones[zi].name);
+    memmove(&e->zones[zi], &e->zones[zi + 1], sizeof e->zones[0] * (size_t)(e->num_zones - zi - 1));
+    e->num_zones--;
+    app->kbd_sel_zone = -1;
+    kbd_edit_changed(app, 1, 0);
+    kbd_status(app, "Zone deleted: %s - click Save to keep it", name);
+}
+
+static void on_kbd_zone_save_clicked(GtkWidget *widget, AppData *app) {
+    (void)widget;
+    on_kbd_save_profile_clicked(NULL, app);
+}
+
+/* A color (preset or custom) for the zone being edited, or the whole keyboard */
+static void kbd_apply_color(AppData *app, int r, int g, int b, const char *what) {
+    if (!kbd_ensure_connected(app)) { kbd_status(app, "Keyboard daemon not connected"); return; }
+    if (!app->kbd_edit_loaded) { kbd_status(app, "Select or create a profile first"); return; }
+    KbdProfileEdit *e = &app->kbd_edit;
+    int zi = app->kbd_sel_zone;
+    unsigned char *dst = (zi >= 0 && zi < e->num_zones) ? e->zones[zi].rgb : e->base;
+    if (!(zi >= 0 && zi < e->num_zones)) e->has_base = 1;
+    dst[0] = (unsigned char)r;
+    dst[1] = (unsigned char)g;
+    dst[2] = (unsigned char)b;
+    kbd_edit_changed(app, 1, 1);
+    kbd_sync_power_switch(app);
+    if (zi >= 0 && zi < e->num_zones)
+        kbd_status(app, "%s: zone '%s' - click Save to keep it", what, e->zones[zi].name);
+    else
+        kbd_status(app, "%s: whole keyboard - click Save to keep it", what);
 }
 
 /* Callback: Keyboard backlight off switch toggled */
@@ -4378,8 +4687,8 @@ AppData *app = (AppData *)user_data;
     gtk_label_set_text(GTK_LABEL(app->kbd_led_wizard_label), "LED Wizard saved!");
     gtk_widget_show(app->kbd_led_wizard_label);
     
-    /* Clear selection and redraw */
-    app->kbd_num_selected_leds = 0;
+    /* Back to the zone being edited and redraw */
+    kbd_highlight_zone(app);
     kbd_redraw_canvas(app);
 }
 
@@ -4405,8 +4714,8 @@ static void on_led_wizard_cancel_clicked(GtkWidget *widget, gpointer user_data) 
     gtk_label_set_text(GTK_LABEL(app->kbd_led_wizard_label), "LED Wizard cancelled");
     gtk_widget_show(app->kbd_led_wizard_label);
     
-    /* Clear selection and redraw */
-    app->kbd_num_selected_leds = 0;
+    /* Back to the zone being edited and redraw */
+    kbd_highlight_zone(app);
     kbd_redraw_canvas(app);
 }
 
@@ -4455,8 +4764,8 @@ static void kbd_wizard_finish(AppData *app) {
     gtk_label_set_text(GTK_LABEL(app->kbd_led_wizard_label), "LED Wizard completed!");
     gtk_widget_show(app->kbd_led_wizard_label);
     
-    /* Clear selection and redraw */
-    app->kbd_num_selected_leds = 0;
+    /* Back to the zone being edited and redraw */
+    kbd_highlight_zone(app);
     kbd_redraw_canvas(app);
     
     /* Save mapping to CSV */
@@ -4706,43 +5015,35 @@ static void kbd_key_path(cairo_t *cr, size_t i, double ox, double oy, double s) 
     cairo_close_path(cr);
 }
 
-/* Parse a GET_ZONES response ("ZONE i name=.. color=r,g,b keys=N k1 k2 ...")
- * into the per-LED colors shown on the keyboard canvas. */
+/* Forward: zone editor helpers (defined with the profile handlers) */
+static int kbd_edit_parse(KbdProfileEdit *e, const char *resp);
+static void kbd_edit_colors(const KbdProfileEdit *e, unsigned char rgb[120][3], unsigned char has[120]);
+static int kbd_unsaved(const AppData *app);
+static int kbd_load_edit_profile(AppData *app, const char *name);
+static void kbd_send_preview(AppData *app, int light_on);
+
+/* Parse a GET_ZONES response (base color + zones) into the per-LED colors
+ * shown on the keyboard canvas. */
 static void kbd_parse_zone_colors(AppData *app, const char *response) {
-    memset(app->kbd_led_has_color, 0, sizeof app->kbd_led_has_color);
-    if (!response) return;
-    const char *line = response;
-    while (line && *line) {
-        const char *next = strchr(line, '\n');
-        if (strncmp(line, "ZONE ", 5) == 0) {
-            const char *c = strstr(line, " color=");
-            const char *k = strstr(line, " keys=");
-            unsigned r = 0, g = 0, b = 0;
-            int n = 0, used = 0;
-            if (c && k && (!next || (c < next && k < next)) &&
-                sscanf(c + 7, "%u,%u,%u", &r, &g, &b) == 3 &&
-                sscanf(k + 6, "%d%n", &n, &used) == 1) {
-                const char *q = k + 6 + used;
-                for (int i = 0; i < n; i++) {
-                    int led = -1, adv = 0;
-                    if (sscanf(q, " %d%n", &led, &adv) != 1) break;
-                    q += adv;
-                    if (led >= 0 && led < 120) {
-                        app->kbd_led_rgb[led][0] = (unsigned char)(r > 255 ? 255 : r);
-                        app->kbd_led_rgb[led][1] = (unsigned char)(g > 255 ? 255 : g);
-                        app->kbd_led_rgb[led][2] = (unsigned char)(b > 255 ? 255 : b);
-                        app->kbd_led_has_color[led] = 1;
-                    }
-                }
-            }
-        }
-        line = next ? next + 1 : NULL;
+    static KbdProfileEdit e;
+    if (kbd_edit_parse(&e, response) != 0) {
+        memset(app->kbd_led_has_color, 0, sizeof app->kbd_led_has_color);
+        return;
     }
+    kbd_edit_colors(&e, app->kbd_led_rgb, app->kbd_led_has_color);
 }
 
+/* (Re)connected: show the profile being edited (resend unsaved changes) */
 static void kbd_refresh_key_colors(AppData *app) {
     if (!kbd_ensure_connected(app)) return;
-    kbd_parse_zone_colors(app, send_keyboard_command(app, "GET_ZONES"));
+    if (app->kbd_edit_loaded && kbd_unsaved(app)) {
+        kbd_send_preview(app, 0);
+        kbd_edit_colors(&app->kbd_edit, app->kbd_led_rgb, app->kbd_led_has_color);
+    } else if (app->kbd_edit_loaded && kbd_load_edit_profile(app, app->kbd_edit_name) == 0) {
+        kbd_edit_colors(&app->kbd_edit, app->kbd_led_rgb, app->kbd_led_has_color);
+    } else {
+        kbd_parse_zone_colors(app, send_keyboard_command(app, "GET_ZONES"));
+    }
     kbd_redraw_canvas(app);
 }
 
@@ -4893,35 +5194,33 @@ static gboolean kbd_canvas_button_press(GtkWidget *widget, GdkEventButton *event
                 return TRUE;
             }
             
-            /* Normal mode: toggle all LEDs of the key (deselect if all are selected) */
+            /* Zone editor: a click adds the key to the zone being edited or
+             * removes it; with no zone selected it selects the key's zone */
             int key_leds[120];
             int n_leds = kbd_leds_for_key(app, kbd_key_group_primary(i), key_leds, 120);
+            const char *kname = i < KBD_NUM_KEYS ? kbd_key_names[i] : "?";
             if (n_leds == 0) {
-                g_print("[GUI] Key '%s' has no LED in the mapping (run the LED wizard)\n",
-                        i < KBD_NUM_KEYS ? kbd_key_names[i] : "?");
+                kbd_status(app, "Key '%s' has no LED in the mapping (run the LED wizard)", kname);
                 return TRUE;
             }
-            int all_selected = 1;
-            for (int k = 0; k < n_leds && all_selected; k++)
-                all_selected = kbd_led_is_selected(app, key_leds[k]);
-            for (int k = 0; k < n_leds; k++) {
-                int sel = kbd_led_is_selected(app, key_leds[k]);
-                if (all_selected && sel) {
-                    for (int s = 0; s < app->kbd_num_selected_leds; s++) {
-                        if (app->kbd_selected_led_indices[s] == key_leds[k]) {
-                            app->kbd_selected_led_indices[s] =
-                                app->kbd_selected_led_indices[app->kbd_num_selected_leds - 1];
-                            app->kbd_num_selected_leds--;
-                            break;
-                        }
-                    }
-                } else if (!all_selected && !sel && app->kbd_num_selected_leds < 120) {
-                    app->kbd_selected_led_indices[app->kbd_num_selected_leds++] = key_leds[k];
+            if (!app->kbd_edit_loaded) return TRUE;
+            int zi = app->kbd_sel_zone;
+            if (zi >= 0 && zi < app->kbd_edit.num_zones) {
+                int added = kbd_edit_toggle_leds(&app->kbd_edit, zi, key_leds, n_leds);
+                kbd_edit_changed(app, 1, 0);
+                kbd_status(app, "'%s' %s zone '%s' - click Save to keep it", kname,
+                           added ? "added to" : "removed from", app->kbd_edit.zones[zi].name);
+            } else {
+                int z = kbd_edit_zone_at_led(&app->kbd_edit, key_leds[0]);
+                if (z >= 0) {
+                    GtkTreePath *path = gtk_tree_path_new_from_indices(z, -1);
+                    gtk_tree_selection_select_path(gtk_tree_view_get_selection(GTK_TREE_VIEW(app->kbd_zone_view)), path);
+                    gtk_tree_path_free(path);
+                    kbd_status(app, "Zone '%s' selected", app->kbd_edit.zones[z].name);
+                } else {
+                    kbd_status(app, "'%s' has the base color - select or create a zone to color single keys", kname);
                 }
             }
-
-            /* Redraw canvas */
-            kbd_redraw_canvas(app);
             return TRUE;
         }
     }
@@ -4931,52 +5230,29 @@ static gboolean kbd_canvas_button_press(GtkWidget *widget, GdkEventButton *event
 
 /* Callback: Preset color button clicked */
 static void on_preset_color_clicked(GtkWidget *widget, AppData *app) {
-    if (!kbd_ensure_connected(app)) {
-        g_print("[GUI] Keyboard daemon not connected, skipping preset color\n");
-        return;
-    }
-
     int *rgb = (int *)g_object_get_data(G_OBJECT(widget), "preset-rgb");
-    if (!rgb) {
-        g_print("[GUI] No RGB data for preset button\n");
-        return;
-    }
-
-    /* Per-key lighting: the selected keys get the color, the others keep theirs.
-     * Without a selection the whole keyboard gets it. */
-    GString *cmd = g_string_new(NULL);
-    g_string_printf(cmd, "SET_KEYS_COLOR::%d,%d,%d::", rgb[0], rgb[1], rgb[2]);
-    if (app->kbd_num_selected_leds > 0) {
-        for (int s = 0; s < app->kbd_num_selected_leds; s++)
-            g_string_append_printf(cmd, s ? ",%d" : "%d", app->kbd_selected_led_indices[s]);
-    } else {
-        g_string_append(cmd, "all");
-    }
-    const char *response = send_keyboard_command(app, cmd->str);
-    g_print("[GUI] %s -> %s\n", cmd->str, response ? response : "NULL");
-    g_string_free(cmd, TRUE);
-    int ok = response && strncmp(response, "OK", 2) == 0;
-
-    const char *name = gtk_button_get_label(GTK_BUTTON(widget));
-    gchar *msg;
-    if (!ok)
-        msg = g_strdup_printf("Could not set color: %s", response ? response : "no response");
-    else if (app->kbd_num_selected_leds > 0)
-        msg = g_strdup_printf("%s: %d LED(s) - click Save to keep it", name, app->kbd_num_selected_leds);
-    else
-        msg = g_strdup_printf("%s: whole keyboard - click Save to keep it", name);
-    gtk_label_set_text(GTK_LABEL(app->kbd_profile_status_label), msg);
-    g_free(msg);
-
-    kbd_refresh_key_colors(app);
-    kbd_sync_power_switch(app);
+    if (!rgb) return;
+    kbd_apply_color(app, rgb[0], rgb[1], rgb[2], gtk_button_get_label(GTK_BUTTON(widget)));
 }
 
-/* Callback: clear the key selection */
-static void on_kbd_clear_selection_clicked(GtkWidget *widget, AppData *app) {
+/* Callback: Custom color (color chooser) */
+static void on_kbd_custom_color_clicked(GtkWidget *widget, AppData *app) {
     (void)widget;
-    app->kbd_num_selected_leds = 0;
-    kbd_redraw_canvas(app);
+    const KbdProfileEdit *e = &app->kbd_edit;
+    int zi = app->kbd_sel_zone;
+    const unsigned char *cur = (zi >= 0 && zi < e->num_zones) ? e->zones[zi].rgb
+                             : (e->has_base ? e->base : (const unsigned char *)"\xff\xff\xff");
+    GtkWidget *dialog = gtk_color_chooser_dialog_new(
+        (zi >= 0 && zi < e->num_zones) ? "Zone Color" : "Keyboard Color", GTK_WINDOW(app->window));
+    gtk_color_chooser_set_use_alpha(GTK_COLOR_CHOOSER(dialog), FALSE);
+    GdkRGBA rgba = { cur[0] / 255.0, cur[1] / 255.0, cur[2] / 255.0, 1.0 };
+    gtk_color_chooser_set_rgba(GTK_COLOR_CHOOSER(dialog), &rgba);
+    if (gtk_dialog_run(GTK_DIALOG(dialog)) == GTK_RESPONSE_OK) {
+        gtk_color_chooser_get_rgba(GTK_COLOR_CHOOSER(dialog), &rgba);
+        kbd_apply_color(app, (int)(rgba.red * 255 + 0.5), (int)(rgba.green * 255 + 0.5),
+                        (int)(rgba.blue * 255 + 0.5), "Custom color");
+    }
+    gtk_widget_destroy(dialog);
 }
 
 /* Parse STATUS response and update UI */
@@ -5718,6 +5994,15 @@ static void on_notebook_page_switched(GtkNotebook *notebook, GtkWidget *page, gi
         }
     }
     
+    /* Leaving the Keyboard tab: unsaved changes, then the active profile again (1.24.0) */
+    if (current_page == PAGE_KEYBOARD && page_num != PAGE_KEYBOARD) {
+        if (kbd_leave_tab(app) < 0) {
+            gtk_notebook_set_current_page(GTK_NOTEBOOK(notebook), current_page);
+            g_signal_stop_emission_by_name(G_OBJECT(notebook), "switch-page");
+            return;
+        }
+    }
+
     /* Leaving the CPU tab with unsaved profile changes (1.23.0) */
     if (current_page == PAGE_CPU && page_num != PAGE_CPU && cpu_profile_has_unsaved_changes(app)) {
         if (cpu_check_unsaved_changes(app) < 0) {
@@ -5781,8 +6066,8 @@ static void on_notebook_page_switched(GtkNotebook *notebook, GtkWidget *page, gi
         get_timestamp(ts, sizeof(ts));
         g_print("%s [GUI] Switching to Keyboard Backlight tab\n", ts);
 
-        /* Load keyboard profiles */
-        load_keyboard_profiles(app);
+        /* Edit the active profile */
+        kbd_enter_tab(app);
         
         /* Redraw canvas to show loaded LED mapping */
         if (app->kbd_keyboard_canvas) {
@@ -6872,6 +7157,8 @@ static GtkWidget *create_keyboard_page(AppData *app) {
         gtk_cell_layout_set_attributes(GTK_CELL_LAYOUT(app->kbd_profile_combo), renderer, "text", 0, NULL);
     }
     gtk_combo_box_set_id_column(GTK_COMBO_BOX(app->kbd_profile_combo), 0);
+    app->kbd_profile_combo_signal_id = g_signal_connect(app->kbd_profile_combo, "changed",
+                                                        G_CALLBACK(on_kbd_profile_changed), app);
     gtk_box_pack_start(GTK_BOX(profile_hbox), app->kbd_profile_combo, TRUE, TRUE, 0);
     gtk_box_pack_start(GTK_BOX(profile_vbox), profile_hbox, FALSE, FALSE, 0);
 
@@ -6949,10 +7236,9 @@ static GtkWidget *create_keyboard_page(AppData *app) {
     gtk_container_set_border_width(GTK_CONTAINER(preset_frame), 6);
     GtkWidget *preset_vbox = gtk_box_new(GTK_ORIENTATION_VERTICAL, 6);
 
-    GtkWidget *preset_label = gtk_label_new(
-        "Color for the keys selected below (none selected: whole keyboard). Save keeps it:");
-    gtk_label_set_xalign(GTK_LABEL(preset_label), 0.0);
-    gtk_box_pack_start(GTK_BOX(preset_vbox), preset_label, FALSE, FALSE, 0);
+    app->kbd_mode_label = gtk_label_new("");
+    gtk_label_set_xalign(GTK_LABEL(app->kbd_mode_label), 0.0);
+    gtk_box_pack_start(GTK_BOX(preset_vbox), app->kbd_mode_label, FALSE, FALSE, 0);
 
     GtkWidget *preset_hbox = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 6);
 
@@ -6977,9 +7263,14 @@ static GtkWidget *create_keyboard_page(AppData *app) {
     }
 
     {
-        GtkWidget *clear_btn = gtk_button_new_with_label("Clear selection");
-        g_signal_connect(clear_btn, "clicked", G_CALLBACK(on_kbd_clear_selection_clicked), app);
-        gtk_box_pack_end(GTK_BOX(preset_hbox), clear_btn, FALSE, FALSE, 0);
+        GtkWidget *custom_btn = gtk_button_new_with_label("Custom…");
+        gtk_widget_set_tooltip_text(custom_btn, "Choose any color");
+        g_signal_connect(custom_btn, "clicked", G_CALLBACK(on_kbd_custom_color_clicked), app);
+        gtk_box_pack_start(GTK_BOX(preset_hbox), custom_btn, FALSE, FALSE, 0);
+        GtkWidget *whole_btn = gtk_button_new_with_label("Whole Keyboard");
+        gtk_widget_set_tooltip_text(whole_btn, "Stop editing a zone: colors go to the whole keyboard (base color)");
+        g_signal_connect(whole_btn, "clicked", G_CALLBACK(on_kbd_whole_keyboard_clicked), app);
+        gtk_box_pack_end(GTK_BOX(preset_hbox), whole_btn, FALSE, FALSE, 0);
     }
     gtk_box_pack_start(GTK_BOX(preset_vbox), preset_hbox, FALSE, FALSE, 0);
     gtk_container_add(GTK_CONTAINER(preset_frame), preset_vbox);
@@ -6990,15 +7281,6 @@ static GtkWidget *create_keyboard_page(AppData *app) {
     gtk_container_set_border_width(GTK_CONTAINER(zone_frame), 6);
     GtkWidget *zone_vbox = gtk_box_new(GTK_ORIENTATION_VERTICAL, 6);
 
-    /* Zone grid (zone name/color entries) */
-    app->kbd_zone_grid = gtk_grid_new();
-    gtk_grid_set_column_spacing(GTK_GRID(app->kbd_zone_grid), 6);
-    gtk_grid_set_row_spacing(GTK_GRID(app->kbd_zone_grid), 4);
-
-    /* Not packed yet: reserved for the zone configuration (Add Zone /
-     * Apply Zones). An empty 50 px area above the keyboard picture made
-     * the window taller for nothing. */
-    g_object_ref_sink(app->kbd_zone_grid);
 
     /* LED Wizard controls */
     GtkWidget *wizard_btn_row = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 6);
@@ -7038,7 +7320,55 @@ static GtkWidget *create_keyboard_page(AppData *app) {
     gtk_widget_set_events(app->kbd_keyboard_canvas, GDK_BUTTON_PRESS_MASK);
     g_signal_connect(app->kbd_keyboard_canvas, "draw", G_CALLBACK(kbd_canvas_draw), app);
     g_signal_connect(app->kbd_keyboard_canvas, "button-press-event", G_CALLBACK(kbd_canvas_button_press), app);
-    gtk_box_pack_start(GTK_BOX(zone_vbox), app->kbd_keyboard_canvas, TRUE, TRUE, 0);
+    /* Picture on the left, zone list on the right */
+    GtkWidget *canvas_row = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 8);
+    gtk_box_pack_start(GTK_BOX(canvas_row), app->kbd_keyboard_canvas, TRUE, TRUE, 0);
+    {
+        GtkWidget *zframe = gtk_frame_new("Zones");
+        GtkWidget *zbox = gtk_box_new(GTK_ORIENTATION_VERTICAL, 4);
+        gtk_container_set_border_width(GTK_CONTAINER(zbox), 4);
+        app->kbd_zone_store = gtk_list_store_new(3, G_TYPE_STRING, G_TYPE_STRING, G_TYPE_INT);
+        app->kbd_zone_view = gtk_tree_view_new_with_model(GTK_TREE_MODEL(app->kbd_zone_store));
+        GtkCellRenderer *rc = gtk_cell_renderer_text_new();
+        gtk_tree_view_append_column(GTK_TREE_VIEW(app->kbd_zone_view),
+            gtk_tree_view_column_new_with_attributes("Color", rc, "markup", 0, NULL));
+        GtkCellRenderer *rn = gtk_cell_renderer_text_new();
+        g_object_set(rn, "ellipsize", PANGO_ELLIPSIZE_END, NULL);
+        GtkTreeViewColumn *cn = gtk_tree_view_column_new_with_attributes("Zone", rn, "text", 1, NULL);
+        gtk_tree_view_column_set_expand(cn, TRUE);
+        gtk_tree_view_append_column(GTK_TREE_VIEW(app->kbd_zone_view), cn);
+        gtk_tree_view_append_column(GTK_TREE_VIEW(app->kbd_zone_view),
+            gtk_tree_view_column_new_with_attributes("LEDs", gtk_cell_renderer_text_new(), "text", 2, NULL));
+        GtkTreeSelection *zsel = gtk_tree_view_get_selection(GTK_TREE_VIEW(app->kbd_zone_view));
+        gtk_tree_selection_set_mode(zsel, GTK_SELECTION_SINGLE);
+        app->kbd_zone_sel_signal_id = g_signal_connect(zsel, "changed", G_CALLBACK(on_kbd_zone_selection_changed), app);
+        GtkWidget *zscroll = gtk_scrolled_window_new(NULL, NULL);
+        gtk_scrolled_window_set_policy(GTK_SCROLLED_WINDOW(zscroll), GTK_POLICY_NEVER, GTK_POLICY_AUTOMATIC);
+        gtk_container_add(GTK_CONTAINER(zscroll), app->kbd_zone_view);
+        gtk_box_pack_start(GTK_BOX(zbox), zscroll, TRUE, TRUE, 0);
+        /* Create, Rename, Save, Delete (like the profile buttons) */
+        GtkWidget *zbtns = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 4);
+        GtkWidget *zc = gtk_button_new_with_label("Create");
+        g_signal_connect(zc, "clicked", G_CALLBACK(on_kbd_zone_create_clicked), app);
+        app->kbd_zone_rename_btn = gtk_button_new_with_label("Rename");
+        g_signal_connect(app->kbd_zone_rename_btn, "clicked", G_CALLBACK(on_kbd_zone_rename_clicked), app);
+        GtkWidget *zs = gtk_button_new_with_label("Save");
+        gtk_widget_set_tooltip_text(zs, "Save the profile with its zones");
+        g_signal_connect(zs, "clicked", G_CALLBACK(on_kbd_zone_save_clicked), app);
+        app->kbd_zone_delete_btn = gtk_button_new_with_label("Delete");
+        g_signal_connect(app->kbd_zone_delete_btn, "clicked", G_CALLBACK(on_kbd_zone_delete_clicked), app);
+        gtk_widget_set_sensitive(app->kbd_zone_rename_btn, FALSE);
+        gtk_widget_set_sensitive(app->kbd_zone_delete_btn, FALSE);
+        gtk_box_pack_start(GTK_BOX(zbtns), zc, TRUE, TRUE, 0);
+        gtk_box_pack_start(GTK_BOX(zbtns), app->kbd_zone_rename_btn, TRUE, TRUE, 0);
+        gtk_box_pack_start(GTK_BOX(zbtns), zs, TRUE, TRUE, 0);
+        gtk_box_pack_start(GTK_BOX(zbtns), app->kbd_zone_delete_btn, TRUE, TRUE, 0);
+        gtk_box_pack_start(GTK_BOX(zbox), zbtns, FALSE, FALSE, 0);
+        gtk_container_add(GTK_CONTAINER(zframe), zbox);
+        gtk_widget_set_size_request(zframe, 300, -1);
+        gtk_box_pack_start(GTK_BOX(canvas_row), zframe, FALSE, FALSE, 0);
+    }
+    gtk_box_pack_start(GTK_BOX(zone_vbox), canvas_row, TRUE, TRUE, 0);
 
     /* Load keyboard image */
     app->kbd_keyboard_image = cairo_image_surface_create_from_png("/usr/share/doc/dudes-control-center/images/keyboard_dark.png");
@@ -7050,13 +7380,6 @@ static GtkWidget *create_keyboard_page(AppData *app) {
         gtk_widget_set_size_request(app->kbd_keyboard_canvas, -1, 200); /* fallback height */
     }
 
-    /* Add zone / Apply buttons row */
-    GtkWidget *zone_btn_row = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 6);
-    app->kbd_add_zone_btn = gtk_button_new_with_label("Add Zone");
-    app->kbd_apply_zones_btn = gtk_button_new_with_label("Apply Zones");
-    gtk_box_pack_start(GTK_BOX(zone_btn_row), app->kbd_add_zone_btn, FALSE, FALSE, 0);
-    gtk_box_pack_start(GTK_BOX(zone_btn_row), app->kbd_apply_zones_btn, FALSE, FALSE, 0);
-    gtk_box_pack_start(GTK_BOX(zone_vbox), zone_btn_row, FALSE, FALSE, 0);
 
     gtk_container_add(GTK_CONTAINER(zone_frame), zone_vbox);
     gtk_box_pack_start(GTK_BOX(vbox), zone_frame, TRUE, TRUE, 0);
@@ -7447,6 +7770,7 @@ static void on_tray_exit(GtkMenuItem *menuitem, gpointer user_data) {
         app->curve_points_modified = 0;
     }
     if (cpu_check_unsaved_changes(app) < 0) return;
+    if (kbd_leave_tab(app) < 0) return;
     
     /* Save window position before exiting if window is visible */
     if (gtk_widget_get_visible(app->window)) {
@@ -7671,6 +7995,8 @@ static gboolean on_window_delete_event(GtkWidget *widget, GdkEvent *event, gpoin
         }
     }
     if (cpu_check_unsaved_changes(app) < 0) return TRUE;   /* CPU profile (1.23.0) */
+    if (gtk_notebook_get_current_page(GTK_NOTEBOOK(app->notebook)) == PAGE_KEYBOARD &&
+        kbd_leave_tab(app) < 0) return TRUE;                 /* keyboard profile (1.24.0) */
     
     /* Save current window position before hiding */
     gtk_window_get_position(GTK_WINDOW(widget), &app->window_x, &app->window_y);
@@ -7815,6 +8141,7 @@ int main(int argc, char *argv[]) {
     AppData app = {0};
     app.emergency_auto_seen = -1;   /* first STATUS only records the count */
     app.cpu_running_profile_idx = -1;
+    app.kbd_sel_zone = -1;
     kbd_mapping_set_defaults(&app);   /* until the wizard CSV is loaded */
     
     /* Create main window */

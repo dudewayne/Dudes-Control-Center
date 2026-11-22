@@ -50,19 +50,21 @@ dcc-gui --debug    # more output in GUI.log
 | **Status** | CPU/GPU temperature, each fan's RPM and duty (from the EC), auto/manual fan mode. Manual mode: +/- in 10% steps from **0% (fans off)** to 100%. |
 | **Fan Profiles** | One dropdown for all fan profiles (the one in use is marked "(Active)"): Create, Rename, Save, Delete, **Activate**, and the graphical temperature-to-fan-speed curve of the selected profile (add, edit, delete points; Save keeps them, Cancel discards them). Shows a warning with "Disable Manual Mode" while manual mode is on. |
 | **CPU Profiles** | Power mode (**Performance / Balanced / Power Save**), per-core min/max frequency profiles (Create, Rename, Save, Delete, Activate; unsaved changes are asked about before switching profiles, leaving the tab or closing), the CPU hard limit. |
-| **Keyboard Backlight** | Keyboard profiles, **brightness slider**, backlight off switch, colors, the keyboard picture for **per-key lighting**, the LED wizard. |
+| **Keyboard Backlight** | Keyboard profiles, **brightness slider**, backlight off switch, preset and custom colors, the **zone editor** (keyboard picture + zone list) for per-key lighting, the LED wizard. |
 | **Logs** | Live GUI, CPU daemon, fan daemon and keyboard daemon logs (newest on top). |
 | **About** | Version, credits, links. |
 
 **Tray icon:** left click shows/hides the window, right click opens a menu with fan and CPU profiles. Closing the window minimizes to the tray. Window position and size are remembered; only one GUI instance can run.
 
-### Per-key keyboard lighting
+### Keyboard profiles and zones
 
 1. Run the **LED Wizard** once: it lights each LED in turn and you click the matching key on the picture. The mapping is saved in `~/.config/dudes-control-center/keyboard_led_mapping.csv`. Keys with several LEDs (Space, Enter, ...) get all of them. "Skip" keeps an LED's current key, "No Key" marks an LED that lights no key; the label shows the key each LED has now. Until the wizard has run, a built-in mapping for this keyboard is used.
-2. Click keys on the picture to select them, then click a color: exactly those keys change, the others keep their color. With no keys selected, the color applies to the whole keyboard. **Clear selection** deselects all keys.
-3. **Save** stores the colors in the keyboard profile; **Activate** brings them back. The keyboard daemon restores the active profile when it starts.
-4. **Backlight Off** switches the keyboard off until you switch it on again, choose a color or activate a profile, also across reboots. Opening the GUI does not change the backlight.
-5. **Brightness** (0-10) is the keyboard's hardware brightness and works on top of the colors. It is the same setting as the keyboard slider of the desktop (e.g. Linux Mint's battery/power applet), so either one can be used; the level is kept across reboots.
+2. A keyboard profile has a **base color** (every key that is in no zone) and any number of **zones** (a name, a color and its keys). Selecting a profile in the dropdown shows it on the keyboard and the picture; leaving the Keyboard tab brings the active profile back.
+3. **No zone selected**: a preset color or **Custom…** colors the whole keyboard (the base color; zones keep their colors). That is all a one-colored profile needs.
+4. **Zones** (list next to the picture): **Create** a zone, then click keys on the picture to add or remove them (a key belongs to one zone) and pick its color with a preset or **Custom…**. **Rename** and **Delete** work on the selected zone; **Whole Keyboard** stops editing a zone. With no zone selected, clicking a key selects its zone.
+5. **Save** (profile or zone list) stores the profile being edited; **Activate** makes it the profile in use. The keyboard daemon restores the active profile when it starts. Unsaved changes are asked about before switching profiles, leaving the tab or closing.
+6. **Backlight Off** switches the keyboard off until you switch it on again, choose a color or activate a profile, also across reboots. Opening the GUI does not change the backlight.
+7. **Brightness** (0-10) is the keyboard's hardware brightness and works on top of the colors. It is the same setting as the keyboard slider of the desktop (e.g. Linux Mint's battery/power applet), so either one can be used; the level is kept across reboots.
 
 ### CPU power modes
 
