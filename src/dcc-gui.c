@@ -668,6 +668,8 @@ typedef struct {
     guint kbd_refresh_timer_id;
     int kbd_active_profile_idx;
     int kbd_profiles_modified; /* Track unsaved changes */
+    /* Status tab: Active Profiles (1.30.0) */
+    GtkWidget *active_fan_label, *active_cpu_label, *active_mode_label, *active_kbd_label;
     /* Settings tab (1.27.0) */
     GtkWidget *page_widgets[8];        /* notebook page per PAGE_* */
     GtkWidget *settings_switch[3];
@@ -5941,7 +5943,30 @@ static GtkWidget *create_status_page(AppData *app) {
         gtk_scrolled_window_set_max_content_height(GTK_SCROLLED_WINDOW(core_scrolled), 400);
         gtk_container_set_border_width(GTK_CONTAINER(core_scrolled), 5);
         gtk_container_add(GTK_CONTAINER(core_frame), core_scrolled);
-        gtk_box_pack_start(GTK_BOX(vbox), core_frame, TRUE, TRUE, 0);
+        /* Per-core frequencies and Active Profiles side by side, same width (1.30.0) */
+        GtkWidget *row = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 10);
+        gtk_box_set_homogeneous(GTK_BOX(row), TRUE);
+        gtk_box_pack_start(GTK_BOX(row), core_frame, TRUE, TRUE, 0);
+        GtkWidget *prof_frame = gtk_frame_new("Active Profiles");
+        GtkWidget *grid = gtk_grid_new();
+        gtk_container_set_border_width(GTK_CONTAINER(grid), 10);
+        gtk_grid_set_row_spacing(GTK_GRID(grid), 8);
+        gtk_grid_set_column_spacing(GTK_GRID(grid), 12);
+        const char *names[4] = { "Fan profile:", "CPU profile:", "Power mode:", "Keyboard profile:" };
+        GtkWidget **vals[4] = { &app->active_fan_label, &app->active_cpu_label, &app->active_mode_label, &app->active_kbd_label };
+        for (int r = 0; r < 4; r++) {
+            GtkWidget *n = gtk_label_new(names[r]);
+            gtk_label_set_xalign(GTK_LABEL(n), 0.0);
+            gtk_grid_attach(GTK_GRID(grid), n, 0, r, 1, 1);
+            *vals[r] = gtk_label_new("--");
+            gtk_label_set_xalign(GTK_LABEL(*vals[r]), 0.0);
+            gtk_label_set_ellipsize(GTK_LABEL(*vals[r]), PANGO_ELLIPSIZE_END);
+            gtk_widget_set_hexpand(*vals[r], TRUE);
+            gtk_grid_attach(GTK_GRID(grid), *vals[r], 1, r, 1, 1);
+        }
+        gtk_container_add(GTK_CONTAINER(prof_frame), grid);
+        gtk_box_pack_start(GTK_BOX(row), prof_frame, TRUE, TRUE, 0);
+        gtk_box_pack_start(GTK_BOX(vbox), row, TRUE, TRUE, 0);
         
         /* 4-column grid for compact display */
         app->cpu_core_grid = gtk_grid_new();
@@ -9164,9 +9189,73 @@ static gboolean on_window_delete_event(GtkWidget *widget, GdkEvent *event, gpoin
 }
 
 /* Refresh timer callback - fetch STATUS and update UI every 2 seconds */
+/* Status tab: the profiles in use right now (1.30.0) */
+static void status_set(GtkWidget *label, const char *text, int grey) {
+    if (!label) return;
+    if (grey) {
+        gchar *m = g_markup_printf_escaped("<span foreground='#888888'>%s</span>", text);
+        gtk_label_set_markup(GTK_LABEL(label), m);
+        g_free(m);
+    } else {
+        gtk_label_set_text(GTK_LABEL(label), text);
+    }
+}
+
+static void status_update_active_profiles(AppData *app) {
+    if (!app->active_fan_label) return;
+    char buf[256];
+    /* fan */
+    if (dcc_component_disabled(COMP_FAN)) status_set(app->active_fan_label, "Fan control switched off", 1);
+    else if (!app->connected) status_set(app->active_fan_label, "Fan daemon not connected", 1);
+    else {
+        const char *name = (app->profile_names && app->active_profile_idx >= 0 && app->active_profile_idx < app->num_profiles)
+                         ? app->profile_names[app->active_profile_idx] : "--";
+        if (app->in_manual_mode) snprintf(buf, sizeof buf, "%s (manual mode: %d%%)", name, app->manual_current_speed);
+        else snprintf(buf, sizeof buf, "%s", name);
+        status_set(app->active_fan_label, buf, 0);
+    }
+    /* CPU profile and power mode */
+    if (dcc_component_disabled(COMP_CPU)) {
+        status_set(app->active_cpu_label, "CPU control switched off", 1);
+        status_set(app->active_mode_label, "CPU control switched off", 1);
+    } else if (!app->cpu_connected) {
+        status_set(app->active_cpu_label, "CPU daemon not connected", 1);
+        status_set(app->active_mode_label, "CPU daemon not connected", 1);
+    } else {
+        const char *cpu = "--";
+        gchar *disp = NULL;
+        GtkTreeIter it;
+        if (app->cpu_running_profile_idx >= 0 && app->cpu_custom_profile_store &&
+            gtk_tree_model_iter_nth_child(GTK_TREE_MODEL(app->cpu_custom_profile_store), &it, NULL, app->cpu_running_profile_idx)) {
+            gtk_tree_model_get(GTK_TREE_MODEL(app->cpu_custom_profile_store), &it, 0, &disp, -1);
+            if (disp) cpu = cpu_profile_name_from_display(disp);
+        }
+        status_set(app->active_cpu_label, cpu, 0);
+        g_free(disp);
+        const char *mode = app->cpu_page_governor_label ? gtk_label_get_text(GTK_LABEL(app->cpu_page_governor_label)) : NULL;
+        status_set(app->active_mode_label, mode && *mode ? mode : "--", 0);
+    }
+    /* keyboard: asked over an existing connection only (no reconnect here) */
+    if (dcc_component_disabled(COMP_KEYBOARD)) status_set(app->active_kbd_label, "Keyboard backlight switched off", 1);
+    else if (!app->kbd_connected || app->kbd_socket_fd < 0) status_set(app->active_kbd_label, "Keyboard daemon not connected", 1);
+    else {
+        const char *r = send_keyboard_command_once(app, "LIST_PROFILES");
+        const char *act = r ? strstr(r, "[*] ") : NULL;
+        if (act) {
+            act += 4;
+            size_t n = strcspn(act, "\n");
+            snprintf(buf, sizeof buf, "%.*s", (int)MIN(n, sizeof buf - 1), act);
+            status_set(app->active_kbd_label, buf, 0);
+        } else {
+            status_set(app->active_kbd_label, "--", 0);
+        }
+    }
+}
+
 static gboolean refresh_timer_callback(gpointer user_data) {
     AppData *app = (AppData *)user_data;
     update_daemon_status_labels(app);
+    status_update_active_profiles(app);
     char ts[32];
     get_timestamp(ts, sizeof(ts));
     

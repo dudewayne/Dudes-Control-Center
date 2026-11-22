@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.30.0] - 2026-11-22
+
+### Added
+- **Status tab: Active Profiles** next to the Per-Core CPU Frequencies (both sections the same width): the active fan profile (with the speed while manual mode is on), the active CPU profile, the power mode (governor and EPP, as on the CPU tab) and the active keyboard profile. Updated every 2 seconds; a switched-off or unreachable component is shown as such in grey.
+
 ## [1.29.1] - 2026-11-22
 
 ### Fixed
