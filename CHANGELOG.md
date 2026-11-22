@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.20.4] - 2026-11-22
+
+### Fixed
+- **Choosing a power mode for the active profile applies it right away**: since 1.17.1 the power mode list only edited the loaded profile (stored on Save, applied on Activate). Because a profile is always loaded, choosing a mode never changed the CPU. Now, if the loaded profile is the active one, the mode is applied immediately (governor and energy preference only; the profile's frequency limits stay) and the profile is marked as changed - **Save** keeps the mode in the profile. For a profile that is not active, choosing a mode still only edits it.
+- New CPU daemon command `SET_POWER_MODE|<mode>`: sets only governor and EPP of a power mode. `APPLY_GOVERNOR` also resets every core's maximum frequency to the hard limit, which would override the active profile's per-core limits.
+- Tests for `SET_POWER_MODE` (8 suites, 194 checks).
+
 ## [1.20.3] - 2026-11-22
 
 ### Fixed

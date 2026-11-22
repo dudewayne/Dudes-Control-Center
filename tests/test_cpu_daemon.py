@@ -107,6 +107,12 @@ try:
     ask(a, "APPLY_GOVERNOR|Balanced")
     st = ask(a, "STATUS")
     check("ACTIVE_GOVERNOR=Balanced\n" in st and "EPP=balance_performance\n" in st, "STATUS: Balanced")
+    # SET_POWER_MODE: governor + EPP only, the profile's core limits stay (v1.20.4)
+    wr("sys/cpu0/cpufreq/scaling_max_freq", 3000000)
+    r = ask(a, "SET_POWER_MODE|Power Save")
+    check(r.startswith("OK") and gov_epp(0) == ("powersave", "power") and read_khz("sys", 0, "scaling_max_freq") == 3000000,
+          "SET_POWER_MODE switches governor + EPP and keeps the core limits")
+    check(ask(a, "SET_POWER_MODE|Turbo").startswith("ERROR"), "unknown power mode rejected")
     ask(a, "APPLY_GOVERNOR|Performance")
 
     # several clients at once

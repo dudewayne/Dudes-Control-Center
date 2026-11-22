@@ -75,7 +75,7 @@ A power mode is a governor plus the CPU's energy performance preference (EPP), l
 | Balanced | `powersave` + EPP `balance_performance` | `schedutil` |
 | Power Save | `powersave` + EPP `power` | `powersave` + EPP `power` |
 
-Only modes the system supports are offered. Each per-core profile stores its mode (changed in the list, stored with **Save**, applied with **Activate**). `power-profiles-daemon` also sets EPP; to give this application full control: `sudo systemctl mask --now power-profiles-daemon`.
+Only modes the system supports are offered. Each per-core profile stores its mode (changed in the list, stored with **Save**). For the active profile a new mode takes effect right away; for another profile when it is activated. `power-profiles-daemon` also sets EPP; to give this application full control: `sudo systemctl mask --now power-profiles-daemon`.
 
 ## Command line
 

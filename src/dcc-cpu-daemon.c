@@ -233,6 +233,24 @@ static void handle_command(const char *cmd, char *response, size_t resp_size) {
         return;
     }
 
+    /* --- SET_POWER_MODE <name> --- governor + EPP of a power mode only,
+     * leaving the active profile's frequency limits alone (APPLY_GOVERNOR
+     * also resets every core's maximum to the hard limit) */
+    if (strcmp(action, "SET_POWER_MODE") == 0) {
+        const CpuProfile *p = arg1[0] ? cpu_profile_get(arg1) : NULL;
+        if (!p) {
+            snprintf(response, resp_size, "ERROR Unknown power mode '%s'\n", arg1);
+            return;
+        }
+        if (cpu_apply_governor_and_epp(enum_to_governor(p->governor), p->epp, arg1) == 0) {
+            snprintf(response, resp_size, "OK Power mode '%s' set\n", arg1);
+            LOG_INFO("[DAEMON] Power mode '%s' set (profile frequencies unchanged)", arg1);
+        } else {
+            snprintf(response, resp_size, "ERROR Failed to set power mode '%s'\n", arg1);
+        }
+        return;
+    }
+
     /* --- APPLY_GOVERNOR <name> --- */
     if (strcmp(action, "APPLY_GOVERNOR") == 0) {
         if (!arg1[0]) {

@@ -384,7 +384,8 @@ typedef struct {
     GtkWidget *cpu_core_min_spinners[32]; /* Spinners for min freq per core */
     GtkAdjustment *cpu_core_max_adjustments[32];
     GtkAdjustment *cpu_core_min_adjustments[32];
-    int cpu_active_custom_profile_idx;
+    int cpu_active_custom_profile_idx;   /* profile selected in the CPU tab */
+    int cpu_running_profile_idx;         /* profile the daemon marks active ([*]), -1 = none */
     int cpu_freq_profiles_modified; /* Track unsaved changes */
 
     /* Hard limit configuration UI */
@@ -1118,14 +1119,25 @@ static void on_cpu_governor_changed(GtkWidget *widget, gpointer user_data) {
         return;
     }
 
-    /* With a per-core profile loaded, the power mode belongs to that profile:
-     * it is stored on Save and applied on Activate (it used to switch the
-     * whole system immediately, which made it impossible to set per profile). */
+    /* With a per-core profile loaded, the power mode belongs to that profile
+     * and is stored on Save. If that profile is the active one, the mode is
+     * also applied right away (governor + EPP only, its frequencies stay);
+     * for another profile it takes effect when that profile is activated. */
     if (app->cpu_active_custom_profile_idx >= 0) {
         mark_cpu_freq_profiles_modified(app);
-        g_print("[GUI] Power mode '%s' selected for the loaded profile (saved with Save, applied with Activate)\n",
-                governor_name);
-        show_status(app, "Power mode changed - click Save to store it in the profile, Activate to apply it");
+        if (app->cpu_active_custom_profile_idx == app->cpu_running_profile_idx) {
+            char command[256];
+            snprintf(command, sizeof(command), "SET_POWER_MODE|%s", governor_name);
+            const char *response = send_cpu_command(app, command);
+            int ok = response && strncmp(response, "OK", 2) == 0;
+            g_print("[GUI] Power mode '%s' for the active profile: %s\n", governor_name, response ? response : "NULL");
+            show_status(app, ok ? "Power mode applied - click Save to keep it in the profile"
+                                : "Failed to apply the power mode");
+        } else {
+            g_print("[GUI] Power mode '%s' selected for an inactive profile (saved with Save, applied with Activate)\n",
+                    governor_name);
+            show_status(app, "Power mode changed - click Save to store it in the profile, Activate to apply it");
+        }
         g_free(governor_name);
         return;
     }
@@ -1219,6 +1231,7 @@ static void load_cpu_custom_profiles_select(AppData *app, int select_idx) {
         line = strtok(NULL, "\n");
     }
     g_free(resp_copy);
+    app->cpu_running_profile_idx = active_idx;   /* [*] */
 
     /* Select the requested profile, otherwise the active one */
     if (select_idx >= 0 && select_idx < profile_count) {
@@ -7528,6 +7541,7 @@ int main(int argc, char *argv[]) {
     
     AppData app = {0};
     app.emergency_auto_seen = -1;   /* first STATUS only records the count */
+    app.cpu_running_profile_idx = -1;
     
     /* Create main window */
     GtkWidget *window = create_main_window(&app);
