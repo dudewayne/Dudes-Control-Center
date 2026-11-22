@@ -7172,22 +7172,31 @@ static GtkWidget *about_credit(const char *markup, const char *link1, const char
 #endif
 
 static GtkWidget *create_about_page(void) {
-    /* Layout (1.29.1): the logo on top in the middle with the credits left
-     * and right of it (each column centered on the logo); below the logo
-     * title and version, the AI note, the contact and the license */
+    /* Layout (1.29.1): name and version on top, the logo below it in the
+     * middle with the credits left and right of it (each column centered on
+     * the logo); below the logo the AI note, the contact and the license */
     GtkWidget *vbox = gtk_box_new(GTK_ORIENTATION_VERTICAL, 6);
     gtk_container_set_border_width(GTK_CONTAINER(vbox), 12);
+
+    /* Application name and version on top, over the logo */
+    GtkWidget *title = gtk_label_new(NULL);
+    {
+        char t[256];
+        snprintf(t, sizeof(t), "<span size='xx-large' weight='bold'>Dudes Control Center</span>"
+                               "  <span size='large' foreground='#7f8c8d'>Version %s</span>", APP_VERSION);
+        gtk_label_set_markup(GTK_LABEL(title), t);
+    }
+    gtk_widget_set_halign(title, GTK_ALIGN_CENTER);
+    gtk_box_pack_start(GTK_BOX(vbox), title, FALSE, FALSE, 2);
 
     GtkWidget *top = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 24);
     gtk_box_set_homogeneous(GTK_BOX(top), TRUE);   /* left, logo, right: equal widths */
 
-    /* Left: the AI credits and the code this project is built on */
+    /* Left: Claude and the code this project is built on */
     GtkWidget *left = gtk_box_new(GTK_ORIENTATION_VERTICAL, 16);
     gtk_widget_set_valign(left, GTK_ALIGN_CENTER);
     gtk_box_pack_start(GTK_BOX(left), about_credit(
         "Coded with <b>Claude</b> (Claude Code) by <b>Anthropic</b>", "https://www.anthropic.com/", NULL), FALSE, FALSE, 0);
-    gtk_box_pack_start(GTK_BOX(left), about_credit(
-        "Special thanks to the creators of <b>Bionic AI Agent</b>", "https://lmstudio.ai/", NULL), FALSE, FALSE, 0);
     gtk_box_pack_start(GTK_BOX(left), about_credit(
         "Fan control code based on <b>fan-control</b> by steiiin, a fork of <b>clevo-fan-control</b> by agramian (GPL-2.0)",
         "https://github.com/steiiin/fan-control", "https://github.com/agramian/clevo-fan-control"), FALSE, FALSE, 0);
@@ -7210,9 +7219,11 @@ static GtkWidget *create_about_page(void) {
     gtk_widget_set_valign(logo, GTK_ALIGN_START);
     gtk_box_pack_start(GTK_BOX(top), logo, TRUE, TRUE, 0);
 
-    /* Right: Linux, its community and the hardware */
+    /* Right: Bionic AI Agent, Linux, its community and the hardware */
     GtkWidget *right = gtk_box_new(GTK_ORIENTATION_VERTICAL, 16);
     gtk_widget_set_valign(right, GTK_ALIGN_CENTER);
+    gtk_box_pack_start(GTK_BOX(right), about_credit(
+        "Special thanks to the creators of <b>Bionic AI Agent</b>", "https://lmstudio.ai/", NULL), FALSE, FALSE, 0);
     gtk_box_pack_start(GTK_BOX(right), about_credit(
         "Honoring <b>Linus Torvalds</b>, the visionary founder of Linux", "https://torvalds-family.blogspot.com/", NULL),
         FALSE, FALSE, 0);
@@ -7224,16 +7235,7 @@ static GtkWidget *create_about_page(void) {
     gtk_box_pack_start(GTK_BOX(top), right, TRUE, TRUE, 0);
     gtk_box_pack_start(GTK_BOX(vbox), top, FALSE, FALSE, 0);
 
-    /* Below the logo: title, the AI note, contact */
-    GtkWidget *title = gtk_label_new(NULL);
-    {
-        char t[256];
-        snprintf(t, sizeof(t), "<span size='xx-large' weight='bold'>Dudes Control Center</span>"
-                               "  <span size='large' foreground='#7f8c8d'>Version %s</span>", APP_VERSION);
-        gtk_label_set_markup(GTK_LABEL(title), t);
-    }
-    gtk_widget_set_halign(title, GTK_ALIGN_CENTER);
-    gtk_box_pack_start(GTK_BOX(vbox), title, FALSE, FALSE, 2);
+    /* Below the logo: the AI note, contact */
 
     GtkWidget *ai_text = gtk_label_new(NULL);
     gtk_label_set_markup(GTK_LABEL(ai_text), "<span weight='bold'>This application was completely coded by AI</span>");
