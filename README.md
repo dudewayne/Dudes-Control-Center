@@ -58,7 +58,7 @@ dcc-gui --debug    # more output in GUI.log
 
 ### Per-key keyboard lighting
 
-1. Run the **LED Wizard** once: it lights each LED in turn and you click the matching key on the picture. The mapping is saved in `~/.config/dudes-control-center/keyboard_led_mapping.csv`. Keys with several LEDs (Space, Enter, ...) get all of them.
+1. Run the **LED Wizard** once: it lights each LED in turn and you click the matching key on the picture. The mapping is saved in `~/.config/dudes-control-center/keyboard_led_mapping.csv`. Keys with several LEDs (Space, Enter, ...) get all of them. "Skip" keeps an LED's current key, "No Key" marks an LED that lights no key; the label shows the key each LED has now. Until the wizard has run, a built-in mapping for this keyboard is used.
 2. Click keys on the picture to select them, then click a color: exactly those keys change, the others keep their color. With no keys selected, the color applies to the whole keyboard. **Clear selection** deselects all keys.
 3. **Save Profile** stores the colors in the keyboard profile; **Activate Profile** brings them back. The keyboard daemon restores the active profile when it starts.
 4. **Backlight Off** switches the keyboard off until you switch it on again, choose a color or activate a profile, also across reboots. Opening the GUI does not change the backlight.

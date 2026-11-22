@@ -163,7 +163,7 @@ int main(int argc, char **argv) {
     }
 
     /* K: keyboard key -> LED lookup (v1.17.3) */
-    CHECK(sizeof kbd_position_to_led_id / sizeof kbd_position_to_led_id[0] == KBD_NUM_KEYS &&
+    CHECK(sizeof kbd_default_led_position / sizeof kbd_default_led_position[0] == 120 &&
           sizeof kbd_key_names / sizeof kbd_key_names[0] == KBD_NUM_KEYS &&
           sizeof kbd_key_positions / sizeof kbd_key_positions[0] == KBD_NUM_KEYS,
           "K: key name, position and default LED tables have the same size");
@@ -173,9 +173,40 @@ int main(int argc, char **argv) {
     CHECK(ok_names, "K: every key has a name and a non-empty position");
     static AppData kb;  /* zeroed */
     int leds[120], n;
+    /* built-in mapping (1.22.0): LED -> key, several LEDs per key, unused LEDs */
+    kbd_mapping_set_defaults(&kb);
+    {
+        int ok = 1, used[KBD_NUM_KEYS] = {0};
+        for (int l = 0; l < 120; l++) {
+            int p = kb.kbd_wizard_mapping[l];
+            if (p < -1 || p >= KBD_NUM_KEYS) ok = 0;
+            if (p >= 0) used[p]++;
+        }
+        CHECK(ok, "K: built-in mapping only names existing keys");
+        int pos_nde = -1, pos_ins = -1, pos_sz = -1, pos_lt = -1, pos_space = -1;
+        for (int i = 0; i < KBD_NUM_KEYS; i++) {
+            if (!strcmp(kbd_key_names[i], "Numpad ,")) pos_nde = i;
+            if (!strcmp(kbd_key_names[i], "Numpad 0")) pos_ins = i;
+            if (!strcmp(kbd_key_names[i], "ß") && pos_sz < 0) pos_sz = i;
+            if (!strcmp(kbd_key_names[i], "<")) pos_lt = i;
+            if (!strcmp(kbd_key_names[i], "Space")) pos_space = i;
+        }
+        CHECK(kb.kbd_wizard_mapping[32] == -1 && kb.kbd_wizard_mapping[81] == -1,
+              "K: built-in mapping: LED 32 and 81 light no key");
+        CHECK(kb.kbd_wizard_mapping[82] == pos_lt && kb.kbd_wizard_mapping[31] == pos_sz,
+              "K: built-in mapping: <> on LED 82 only, ß on LED 31");
+        n = kbd_leds_for_position(&kb, pos_lt, leds, 120);
+        CHECK(n == 1 && leds[0] == 82, "K: built-in mapping: <> has one LED");
+        n = kbd_leds_for_position(&kb, pos_nde, leds, 120);
+        int n2 = kbd_leds_for_position(&kb, pos_ins, leds + 4, 4);
+        CHECK(n == 1 && leds[0] != 32 && n2 == 1 && leds[4] != 81,
+              "K: built-in mapping: Numpad , and Numpad 0 have their own LEDs");
+        n = kbd_leds_for_position(&kb, pos_space, leds, 120);
+        CHECK(n >= 2, "K: built-in mapping: Space has several LEDs");
+    }
     memset(kb.kbd_wizard_mapping, -1, sizeof kb.kbd_wizard_mapping);
     n = kbd_leds_for_position(&kb, 0, leds, 120);
-    CHECK(n == 1 && leds[0] == kbd_position_to_led_id[0], "K: no wizard mapping -> default table");
+    CHECK(n == 0, "K: empty wizard mapping -> no LEDs (no fallback to another table)");
     kb.kbd_wizard_mapping[4] = 103;   /* Space: several LEDs */
     kb.kbd_wizard_mapping[17] = 103;
     kb.kbd_wizard_mapping[59] = 103;

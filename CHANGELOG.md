@@ -2,6 +2,17 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.22.0] - 2026-11-22
+
+### Added
+- **LED wizard: "No Key" button**: marks the lit LED as lighting no key (some LEDs of the controller have no key) and goes to the next LED. "Skip" still keeps the LED's current key.
+- The wizard label shows the key each LED has now ("Click the key for LED 32 / 119 (now: no key)"), so wrong assignments are easy to spot.
+
+### Fixed
+- **Wrong keys on the picture during the wizard**: with an empty mapping (the old wizard cleared it when it started) the picture fell back to a built-in one-LED-per-key table with errors: Numpad Entf on LED 32, Numpad Einfg on LED 81, both ß and <> on LED 82, and most of the bottom row shifted. That table is replaced by a built-in LED-to-key mapping in the wizard's own format, taken from a checked wizard run on this keyboard (unused LEDs 32, 55, 73, 81, 107 light no key; Space, Backspace, Shift... have all their LEDs). It is used until a wizard mapping is saved, and nothing falls back to another table anymore.
+- A keyboard daemon reconnect during a wizard run no longer reloads the saved mapping over the wizard's unsaved changes.
+- Tests for the built-in mapping.
+
 ## [1.21.9] - 2026-11-22
 
 ### Fixed

@@ -49,20 +49,24 @@ typedef struct {
 /* Number of keys on the schematic (kbd_key_names / kbd_key_positions) */
 #define KBD_NUM_KEYS 113
 
-/* Default LED ID per key position, used until the LED wizard has created
- * ~/.config/dudes-control-center/keyboard_led_mapping.csv. The wizard
- * mapping takes precedence (it also knows keys driven by several LEDs).
- * LED IDs use the name numbering (rgb:kbd_backlight_N = N) since 1.18.7. */
-static const int kbd_position_to_led_id[KBD_NUM_KEYS] = {
-    0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12,
-    13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25,
-    26, 27, 28, 29, 30, 82, 31, 33, 35, 34, 36, 37, 38,
-    39, 41, 40, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51,
-    52, 53, 54, 75, 56, 57, 58, 79, 59, 61, 60, 62, 63,
-    64, 65, 66, 67, 68, 69, 70, 71, 72, 74, 76, 77, 78,
-    80, 93, 82, 83, 84, 85, 86, 87, 88, 89, 90, 91, 92,
-    94, 113, 95, 96, 97, 98, 119, 99, 105, 110, 112, 114, 109,
-    118, 102, 107, 106, 115, 116, 81, 32, 103
+/* Default LED wizard mapping: key position per LED (-1 = the LED lights no
+ * key), used until the LED wizard has saved
+ * ~/.config/dudes-control-center/keyboard_led_mapping.csv. Same format as
+ * the CSV, so keys with several LEDs (Space, Backspace, Shift...) are
+ * covered. Taken from a checked wizard run on this keyboard (1.22.0); the
+ * old table (one LED per key) had the bottom row, the Numpad 0/, LEDs and
+ * ß/<> wrong. LED IDs use the name numbering (rgb:kbd_backlight_N = N). */
+static const int kbd_default_led_position[120] = {
+      0,   1,   2,   3,   4,   5,   6,   7,   8,   9,  10,  11,
+     12,  13,  14,  15,  16,  17,  18,  19,  20,  21,  22,  23,
+     24,  25,  26,  27,  28,  29,  30,  31,  -1,  33,  34,  34,
+     36,  37,  38,  39,  40,  40,  42,  43,  44,  45,  46,  47,
+     48,  49,  50,  51,  52,  53,  54,  -1,  56,  57,  58,  59,
+     61,  61,  63,  64,  65,  66,  67,  68,  69,  70,  71,  72,
+     73,  -1,  74,  54,  75,  76,  77,  59,  78,  -1,  80,  81,
+     82,  83,  84,  85,  86,  87,  88,  89,  90,  91,  91,  93,
+     94,  95,  96,  97,  99,  99, 100, 101, 102, 103, 103,  -1,
+    103, 103, 104, 105, 106, 106, 107, 108, 109, 110, 111,  97
 };
 
 /* Key names from keyboard_keys_de.csv (one per position index) */
@@ -439,6 +443,7 @@ typedef struct {
     GtkWidget *kbd_led_wizard_btn; /* LED Wizard button */
     GtkWidget *kbd_led_wizard_label; /* Label showing current LED */
     GtkWidget *kbd_led_wizard_skip_btn; /* Skip button */
+    GtkWidget *kbd_led_wizard_nokey_btn; /* No Key button: the LED lights no key */
     GtkWidget *kbd_led_wizard_save_btn; /* Save & Finish button */
     GtkWidget *kbd_led_wizard_cancel_btn; /* Cancel button */
 } AppData;
@@ -501,12 +506,14 @@ static gboolean kbd_canvas_button_press(GtkWidget *widget, GdkEventButton *event
 static void kbd_redraw_canvas(AppData *app);
 static void on_led_wizard_start_clicked(GtkWidget *widget, gpointer user_data);
 static void on_led_wizard_skip_clicked(GtkWidget *widget, gpointer user_data);
+static void on_led_wizard_nokey_clicked(GtkWidget *widget, gpointer user_data);
 static void on_led_wizard_save_finish_clicked(GtkWidget *widget, gpointer user_data);
 static void on_led_wizard_cancel_clicked(GtkWidget *widget, gpointer user_data);
 static void kbd_wizard_step(AppData *app, const char *prev_key_name);
 static void kbd_wizard_finish(AppData *app);
 static void kbd_save_led_mapping_csv(AppData *app);
 static void kbd_load_led_mapping_csv(AppData *app);
+static void kbd_mapping_set_defaults(AppData *app);
 static void kbd_refresh_key_colors(AppData *app);
 static void kbd_sync_power_switch(AppData *app);
 static gboolean cpu_refresh_timer_callback(gpointer user_data);
@@ -4166,13 +4173,15 @@ AppData *app = (AppData *)user_data;
     app->kbd_wizard_active = 1;
     app->kbd_wizard_current_led = 0;
     /* Start from the existing mapping: each click reassigns only the LED
-     * asked for, Skip keeps its key, Cancel restores everything. (It used to
+     * asked for, Skip keeps its key, No Key removes it, Cancel restores
+     * everything. (It used to
      * clear the mapping, so Save & Finish right away wrote an empty file.) */
     memcpy(app->kbd_wizard_backup, app->kbd_wizard_mapping, sizeof(app->kbd_wizard_backup));
     
     /* Update UI */
     gtk_widget_set_sensitive(app->kbd_led_wizard_btn, FALSE);
     gtk_widget_set_sensitive(app->kbd_led_wizard_skip_btn, TRUE);
+    gtk_widget_set_sensitive(app->kbd_led_wizard_nokey_btn, TRUE);
     gtk_widget_set_sensitive(app->kbd_led_wizard_save_btn, TRUE);
     gtk_widget_set_sensitive(app->kbd_led_wizard_cancel_btn, TRUE);
     
@@ -4196,6 +4205,20 @@ AppData *app = (AppData *)user_data;
     }
 }
 
+/* LED Wizard: the lit LED lights no key (unused LED) */
+static void on_led_wizard_nokey_clicked(GtkWidget *widget, gpointer user_data) {
+    (void)widget;
+    AppData *app = (AppData *)user_data;
+
+    if (!app->kbd_wizard_active) return;
+    app->kbd_wizard_mapping[app->kbd_wizard_current_led] = -1;
+    app->kbd_wizard_current_led++;
+    if (app->kbd_wizard_current_led >= 120)
+        kbd_wizard_finish(app);
+    else
+        kbd_wizard_step(app, "no key");
+}
+
 /* LED Wizard: Save & Finish */
 static void on_led_wizard_save_finish_clicked(GtkWidget *widget, gpointer user_data) {
     (void)widget;
@@ -4213,6 +4236,7 @@ AppData *app = (AppData *)user_data;
     /* Update UI */
     gtk_widget_set_sensitive(app->kbd_led_wizard_btn, TRUE);
     gtk_widget_set_sensitive(app->kbd_led_wizard_skip_btn, FALSE);
+    gtk_widget_set_sensitive(app->kbd_led_wizard_nokey_btn, FALSE);
     gtk_widget_set_sensitive(app->kbd_led_wizard_save_btn, FALSE);
     gtk_widget_set_sensitive(app->kbd_led_wizard_cancel_btn, FALSE);
     gtk_label_set_text(GTK_LABEL(app->kbd_led_wizard_label), "LED Wizard saved!");
@@ -4239,6 +4263,7 @@ static void on_led_wizard_cancel_clicked(GtkWidget *widget, gpointer user_data) 
     /* Update UI */
     gtk_widget_set_sensitive(app->kbd_led_wizard_btn, TRUE);
     gtk_widget_set_sensitive(app->kbd_led_wizard_skip_btn, FALSE);
+    gtk_widget_set_sensitive(app->kbd_led_wizard_nokey_btn, FALSE);
     gtk_widget_set_sensitive(app->kbd_led_wizard_save_btn, FALSE);
     gtk_widget_set_sensitive(app->kbd_led_wizard_cancel_btn, FALSE);
     gtk_label_set_text(GTK_LABEL(app->kbd_led_wizard_label), "LED Wizard cancelled");
@@ -4251,14 +4276,17 @@ static void on_led_wizard_cancel_clicked(GtkWidget *widget, gpointer user_data) 
 
 /* LED Wizard: Update UI for current step */
 static void kbd_wizard_step(AppData *app, const char *prev_key_name) {
-    char buf[256];
-    
-    /* Build label showing previous assignment and current LED */
-    if (prev_key_name && app->kbd_wizard_current_led > 0) {
-        snprintf(buf, sizeof(buf), "LED %d -> %s | Click key for LED %d / 119",
-                 app->kbd_wizard_current_led - 1, prev_key_name, app->kbd_wizard_current_led);
+    char buf[320];
+    int led = app->kbd_wizard_current_led;
+    int cur = app->kbd_wizard_mapping[led];
+    const char *now = (cur >= 0 && cur < KBD_NUM_KEYS) ? kbd_key_names[cur] : "no key";
+
+    /* Previous assignment, current LED and the key it has now */
+    if (prev_key_name && led > 0) {
+        snprintf(buf, sizeof(buf), "LED %d -> %s | Click the key for LED %d / 119 (now: %s)",
+                 led - 1, prev_key_name, led, now);
     } else {
-        snprintf(buf, sizeof(buf), "LED Wizard: Click the key for LED %d / 119", app->kbd_wizard_current_led);
+        snprintf(buf, sizeof(buf), "LED Wizard: Click the key for LED %d / 119 (now: %s)", led, now);
     }
     gtk_label_set_text(GTK_LABEL(app->kbd_led_wizard_label), buf);
     gtk_widget_show(app->kbd_led_wizard_label);
@@ -4286,6 +4314,7 @@ static void kbd_wizard_finish(AppData *app) {
     /* Update UI */
     gtk_widget_set_sensitive(app->kbd_led_wizard_btn, TRUE);
     gtk_widget_set_sensitive(app->kbd_led_wizard_skip_btn, FALSE);
+    gtk_widget_set_sensitive(app->kbd_led_wizard_nokey_btn, FALSE);
     gtk_widget_set_sensitive(app->kbd_led_wizard_cancel_btn, FALSE);
     gtk_label_set_text(GTK_LABEL(app->kbd_led_wizard_label), "LED Wizard completed!");
     gtk_widget_show(app->kbd_led_wizard_label);
@@ -4347,6 +4376,8 @@ static void kbd_save_led_mapping_csv(AppData *app) {
 
 /* Load LED mapping from CSV file */
 static void kbd_load_led_mapping_csv(AppData *app) {
+    /* A daemon reconnect calls this too: keep the wizard's unsaved changes */
+    if (app->kbd_wizard_active) return;
     char csv_path[512];
     const char *home = getenv("HOME");
     if (!home) home = "/tmp";
@@ -4354,7 +4385,8 @@ static void kbd_load_led_mapping_csv(AppData *app) {
     
     FILE *f = fopen(csv_path, "r");
     if (!f) {
-        g_print("[GUI] No LED mapping CSV found at %s\n", csv_path);
+        g_print("[GUI] No LED mapping CSV found at %s, using the built-in mapping\n", csv_path);
+        kbd_mapping_set_defaults(app);
         return;
     }
     
@@ -4391,19 +4423,19 @@ static void kbd_load_led_mapping_csv(AppData *app) {
     g_print("[GUI] LED mapping loaded from %s\n", csv_path);
 }
 
-/* LEDs that light a key position: from the LED wizard mapping when one is
- * loaded (a wide key can have several LEDs), otherwise the default table.
+/* LEDs that light a key position (a wide key can have several LEDs): from
+ * the wizard CSV, or the built-in mapping when there is none.
  * Returns the number of LEDs written to out (at most max). */
 static int kbd_leds_for_position(const AppData *app, int pos, int *out, int max) {
-    int n = 0, have_mapping = 0;
-    for (int led = 0; led < 120; led++) {
-        if (app->kbd_wizard_mapping[led] < 0) continue;
-        have_mapping = 1;
-        if (app->kbd_wizard_mapping[led] == pos && n < max) out[n++] = led;
-    }
-    if (!have_mapping && pos >= 0 && pos < KBD_NUM_KEYS && max > 0)
-        out[n++] = kbd_position_to_led_id[pos];
+    int n = 0;
+    for (int led = 0; led < 120; led++)
+        if (app->kbd_wizard_mapping[led] == pos && pos >= 0 && n < max) out[n++] = led;
     return n;
+}
+
+/* The built-in mapping, until a wizard CSV is loaded */
+static void kbd_mapping_set_defaults(AppData *app) {
+    memcpy(app->kbd_wizard_mapping, kbd_default_led_position, sizeof(app->kbd_wizard_mapping));
 }
 
 static int kbd_led_is_selected(const AppData *app, int led) {
@@ -6824,8 +6856,14 @@ static GtkWidget *create_keyboard_page(AppData *app) {
     app->kbd_led_wizard_btn = gtk_button_new_with_label("LED Wizard");
     g_signal_connect(app->kbd_led_wizard_btn, "clicked", G_CALLBACK(on_led_wizard_start_clicked), app);
     app->kbd_led_wizard_skip_btn = gtk_button_new_with_label("Skip");
+    gtk_widget_set_tooltip_text(app->kbd_led_wizard_skip_btn, "Keep this LED's current key and go to the next LED");
     g_signal_connect(app->kbd_led_wizard_skip_btn, "clicked", G_CALLBACK(on_led_wizard_skip_clicked), app);
     gtk_widget_set_sensitive(app->kbd_led_wizard_skip_btn, FALSE);
+    app->kbd_led_wizard_nokey_btn = gtk_button_new_with_label("No Key");
+    gtk_widget_set_tooltip_text(app->kbd_led_wizard_nokey_btn, "This LED lights no key: remove its key and go to the next LED");
+    g_signal_connect(app->kbd_led_wizard_nokey_btn, "clicked", G_CALLBACK(on_led_wizard_nokey_clicked), app);
+    gtk_widget_set_sensitive(app->kbd_led_wizard_nokey_btn, FALSE);
+    gtk_widget_set_sensitive(app->kbd_led_wizard_nokey_btn, FALSE);
     app->kbd_led_wizard_cancel_btn = gtk_button_new_with_label("Cancel");
     g_signal_connect(app->kbd_led_wizard_cancel_btn, "clicked", G_CALLBACK(on_led_wizard_cancel_clicked), app);
     gtk_widget_set_sensitive(app->kbd_led_wizard_cancel_btn, FALSE);
@@ -6834,6 +6872,7 @@ static GtkWidget *create_keyboard_page(AppData *app) {
     gtk_widget_set_sensitive(app->kbd_led_wizard_save_btn, FALSE);
     gtk_box_pack_start(GTK_BOX(wizard_btn_row), app->kbd_led_wizard_btn, FALSE, FALSE, 0);
     gtk_box_pack_start(GTK_BOX(wizard_btn_row), app->kbd_led_wizard_skip_btn, FALSE, FALSE, 0);
+    gtk_box_pack_start(GTK_BOX(wizard_btn_row), app->kbd_led_wizard_nokey_btn, FALSE, FALSE, 0);
     gtk_box_pack_start(GTK_BOX(wizard_btn_row), app->kbd_led_wizard_save_btn, FALSE, FALSE, 0);
     gtk_box_pack_start(GTK_BOX(wizard_btn_row), app->kbd_led_wizard_cancel_btn, FALSE, FALSE, 0);
     gtk_box_pack_start(GTK_BOX(zone_vbox), wizard_btn_row, FALSE, FALSE, 0);
@@ -7617,6 +7656,7 @@ int main(int argc, char *argv[]) {
     AppData app = {0};
     app.emergency_auto_seen = -1;   /* first STATUS only records the count */
     app.cpu_running_profile_idx = -1;
+    kbd_mapping_set_defaults(&app);   /* until the wizard CSV is loaded */
     
     /* Create main window */
     GtkWidget *window = create_main_window(&app);
