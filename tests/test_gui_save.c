@@ -187,6 +187,38 @@ int main(int argc, char **argv) {
     kbd_parse_zone_colors(&kb, "ERROR Not connected to keyboard daemon");
     CHECK(!kb.kbd_led_has_color[0], "K: error response clears the colors");
 
+    /* R: keyboard daemon restarted -> the GUI reconnects and resends (v1.18.6) */
+    {
+        unlink(KBD_SOCKET_PATH);
+        int lst = socket(AF_UNIX, SOCK_STREAM, 0);
+        struct sockaddr_un a = { .sun_family = AF_UNIX };
+        snprintf(a.sun_path, sizeof a.sun_path, "%s", KBD_SOCKET_PATH);
+        bind(lst, (struct sockaddr *)&a, sizeof a);
+        listen(lst, 4);
+        static AppData ka;  /* zeroed */
+        ka.kbd_socket_fd = -1;
+        memset(ka.kbd_wizard_mapping, -1, sizeof ka.kbd_wizard_mapping);
+        CHECK(kbd_ensure_connected(&ka) == 1, "R: GUI connects to the keyboard daemon");
+        int c1 = accept(lst, NULL, NULL);
+        close(c1);                       /* the daemon goes away ... */
+        close(lst);
+        unlink(KBD_SOCKET_PATH);
+        lst = socket(AF_UNIX, SOCK_STREAM, 0);   /* ... and comes back */
+        bind(lst, (struct sockaddr *)&a, sizeof a);
+        listen(lst, 4);
+        send_keyboard_command(&ka, "SET_KEYS_COLOR::1,2,3::5");
+        int c2 = accept4(lst, NULL, NULL, SOCK_NONBLOCK);
+        char got[8192] = "";
+        ssize_t n = c2 >= 0 ? recv(c2, got, sizeof got - 1, 0) : -1;
+        if (n > 0) got[n] = '\0';
+        CHECK(c2 >= 0 && strstr(got, "SET_KEYS_COLOR::1,2,3::5") != NULL,
+              "R: after a daemon restart the command is resent on a new connection");
+        if (c2 >= 0) close(c2);
+        close(lst);
+        unlink(KBD_SOCKET_PATH);
+        if (ka.kbd_socket_fd >= 0) close(ka.kbd_socket_fd);
+    }
+
     printf("\n%d failure(s)\n", fails);
     return fails != 0;
 }

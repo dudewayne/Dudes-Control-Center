@@ -164,8 +164,15 @@ static int handle_command(const char *cmd, char *response, size_t resp_size) {
 
     free(cmd_dup);
 
-    LOG_INFO("[KBD_DAEMON] Received command: '%s' args='%s' '%s' '%s' '%s'",
-              action, arg1, arg2, arg3, arg4);
+    /* Read-only polling commands (the GUI asks regularly) only at DEBUG level */
+    int quiet = strcmp(action, "STATUS") == 0 || strcmp(action, "PING") == 0 ||
+                strcmp(action, "GET_ZONES") == 0 || strncmp(action, "LIST_", 5) == 0 ||
+                strncmp(action, "GET_", 4) == 0;
+    if (quiet)
+        LOG_DEBUG("[KBD_DAEMON] Received command: '%s' args='%s'", action, arg1);
+    else
+        LOG_INFO("[KBD_DAEMON] Received command: '%s' args='%s' '%s' '%s' '%s'",
+                  action, arg1, arg2, arg3, arg4);
 
     const KbdLedState *state = kbd_led_get_state();
 

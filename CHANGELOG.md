@@ -8,8 +8,11 @@ All notable changes to this project will be documented in this file.
 - **Opening the GUI no longer turns the keyboard backlight on**: the GUI sent `TURN_ON` at every start, which undid "Backlight Off" and, before 1.18.0, replaced the colors with white. The GUI now only reads the daemon's state and shows it on the **Backlight Off** switch.
 - **"Backlight Off" survives restarts and reboots**: the keyboard daemon remembers it (`/var/lib/dudes-control-center/kbd_backlight_off`) and stays off when it starts. Otherwise it restores the active profile's colors, or white if the profile has none (this used to depend on the GUI being opened).
 - The Backlight Off switch follows the real state: choosing a color, activating a profile with colors or finishing the LED wizard switches the light on, and the switch now shows that. `STATUS` reports `IS_ON=1` after a restored profile.
+- **The GUI reconnects to the keyboard daemon**: after the daemon was restarted or updated, the GUI stayed disconnected and silently skipped keyboard actions ("not connected, skipping"). It now reconnects when a keyboard action finds the connection gone (and resends the command), and checks the connection every 6 s, which also keeps the Backlight Off switch in sync.
+- GUI commands to the daemons no longer risk a `SIGPIPE` when a daemon has gone away (`send` with `MSG_NOSIGNAL`).
+- The keyboard daemon logs read-only polling commands (`STATUS`, `GET_*`, `LIST_*`, `PING`) only at DEBUG level.
 - `apt purge` also removes `/var/lib/dudes-control-center`.
-- Tests for the off state and start-up lighting (8 suites, 165 checks).
+- Tests for the off state, start-up lighting and the GUI reconnect (8 suites, 167 checks).
 
 ### Documentation (since 1.18.5)
 - README rewritten for the current state: all components (CPU and keyboard daemons, `ite_829x` DKMS module, hard-limit enforcer), installation from the release `.deb`, the GUI tabs, per-key lighting and the LED wizard, CPU power modes, manual fan mode down to 0% and the emergency handover, configuration and which user's `profiles.json` the daemons use, log files, building and testing, troubleshooting. Removed outdated parts (version 1.0 badge, GTK4, 10% minimum, old log names, running daemons by hand).

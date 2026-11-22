@@ -260,7 +260,7 @@ $(TEST_BUILD)/kbdd_test: $(KBD_DAEMON_DEPS) | $(TEST_BUILD)
 
 $(TEST_BUILD)/test_gui_save: tests/test_gui_save.c src/dudes-control-center-gui.c $(COMMON_SRC) $(LOG_SRC) $(LOG_HDR) | $(TEST_BUILD)
 	$(CC) $(TEST_CFLAGS) -w $(GTK_CFLAGS) $(CJSON_CFLAGS) -DAPP_VERSION='"$(VERSION)"' \
-	  -DSOCKET_PATH='"fan.sock"' -DCPU_SOCKET_PATH='"cpu.sock"' \
+	  -DSOCKET_PATH='"fan.sock"' -DCPU_SOCKET_PATH='"cpu.sock"' -DKBD_SOCKET_PATH='"kbd.sock"' \
 	  -o $@ tests/test_gui_save.c $(COMMON_SRC) $(LOG_SRC) $(GTK_LIBS) $(CJSON_LIBS) -lm
 
 # Help target

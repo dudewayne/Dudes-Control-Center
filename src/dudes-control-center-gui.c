@@ -478,6 +478,7 @@ static void parse_cpu_status(AppData *app, const char *response);
 
 /* Forward declarations for keyboard daemon connection */
 static void connect_to_keyboard_daemon(AppData *app);
+static int kbd_ensure_connected(AppData *app);
 static void disconnect_from_keyboard_daemon(AppData *app);
 static const char *send_keyboard_command(AppData *app, const char *cmd);
 static void load_keyboard_profiles(AppData *app);
@@ -664,7 +665,7 @@ static const char *send_command(AppData *app, const char *cmd) {
     }
     
     /* Send command */
-    ssize_t sent = write(app->socket_fd, cmd_with_newline, strlen(cmd_with_newline));
+    ssize_t sent = send(app->socket_fd, cmd_with_newline, strlen(cmd_with_newline), MSG_NOSIGNAL);  /* EPIPE instead of SIGPIPE */
     if (sent < 0) {
         char ts[32];
         get_timestamp(ts, sizeof(ts));
@@ -731,7 +732,7 @@ static const char *send_cpu_command(AppData *app, const char *cmd) {
         g_print("%s [GUI] CPU Sending: %s\n", ts, cmd);
     }
 
-    ssize_t sent = write(app->cpu_socket_fd, cmd_with_newline, strlen(cmd_with_newline));
+    ssize_t sent = send(app->cpu_socket_fd, cmd_with_newline, strlen(cmd_with_newline), MSG_NOSIGNAL);  /* EPIPE instead of SIGPIPE */
     g_free(cmd_with_newline);
     if (sent < 0) {
         char ts[32];
@@ -3595,8 +3596,8 @@ static void disconnect_from_keyboard_daemon(AppData *app) {
     }
 }
 
-/* Send command to keyboard daemon */
-static const char *send_keyboard_command(AppData *app, const char *cmd) {
+/* Send command to keyboard daemon (one attempt, see send_keyboard_command) */
+static const char *send_keyboard_command_once(AppData *app, const char *cmd) {
     static char response[8192];
 
     if (!app->kbd_connected || app->kbd_socket_fd < 0) {
@@ -3605,7 +3606,7 @@ static const char *send_keyboard_command(AppData *app, const char *cmd) {
     }
 
     gchar *cmd_with_newline = g_strdup_printf("%s\n", cmd);
-    ssize_t sent = write(app->kbd_socket_fd, cmd_with_newline, strlen(cmd_with_newline));
+    ssize_t sent = send(app->kbd_socket_fd, cmd_with_newline, strlen(cmd_with_newline), MSG_NOSIGNAL);  /* EPIPE instead of SIGPIPE */
     g_free(cmd_with_newline);
     if (sent < 0) {
         char ts[32];
@@ -3669,9 +3670,34 @@ static const char *send_keyboard_command(AppData *app, const char *cmd) {
     return response;
 }
 
+/* Send a command to the keyboard daemon. If the connection is gone (e.g. the
+ * daemon was restarted or updated), reconnect and retry once - before 1.18.6
+ * the GUI stayed disconnected and silently skipped keyboard actions. */
+/* (Re)connect to the keyboard daemon if needed. Returns 1 if connected. */
+static int kbd_ensure_connected(AppData *app) {
+    if (app->kbd_connected && app->kbd_socket_fd >= 0) return 1;
+    if (app->kbd_socket_fd >= 0) {      /* stale socket left by a lost connection */
+        close(app->kbd_socket_fd);
+        app->kbd_socket_fd = -1;
+    }
+    app->kbd_connected = 0;
+    connect_to_keyboard_daemon(app);
+    return app->kbd_connected;
+}
+
+static const char *send_keyboard_command(AppData *app, const char *cmd) {
+    if (!kbd_ensure_connected(app)) return send_keyboard_command_once(app, cmd);
+    const char *r = send_keyboard_command_once(app, cmd);
+    if (!app->kbd_connected) {          /* the send/receive found a dead connection */
+        g_print("[GUI] Keyboard daemon connection lost - reconnecting\n");
+        if (kbd_ensure_connected(app)) r = send_keyboard_command_once(app, cmd);
+    }
+    return r;
+}
+
 /* Load keyboard profiles from daemon */
 static void load_keyboard_profiles(AppData *app) {
-    if (!app->kbd_connected) {
+    if (!kbd_ensure_connected(app)) {
         g_print("[GUI] Keyboard daemon not connected, skipping profile load\n");
         return;
     }
@@ -3753,7 +3779,7 @@ static void on_kbd_create_profile_clicked(GtkWidget *widget, gpointer user_data)
     AppData *app = (AppData *)user_data;
     g_print("[GUI] Create keyboard profile clicked\n");
 
-    if (!app->kbd_connected) {
+    if (!kbd_ensure_connected(app)) {
         g_print("[GUI] Keyboard daemon not connected, skipping\n");
         return;
     }
@@ -3862,7 +3888,7 @@ static void on_kbd_delete_profile_clicked(GtkWidget *widget, gpointer user_data)
     AppData *app = (AppData *)user_data;
     g_print("[GUI] Delete keyboard profile clicked\n");
 
-    if (!app->kbd_connected) {
+    if (!kbd_ensure_connected(app)) {
         g_print("[GUI] Keyboard daemon not connected, skipping\n");
         return;
     }
@@ -3925,7 +3951,7 @@ static void on_kbd_rename_profile_clicked(GtkWidget *widget, gpointer user_data)
     AppData *app = (AppData *)user_data;
     g_print("[GUI] Rename keyboard profile clicked\n");
 
-    if (!app->kbd_connected) {
+    if (!kbd_ensure_connected(app)) {
         g_print("[GUI] Keyboard daemon not connected, skipping\n");
         return;
     }
@@ -4036,7 +4062,7 @@ static void on_kbd_save_profile_clicked(GtkWidget *widget, gpointer user_data) {
     AppData *app = (AppData *)user_data;
     g_print("[GUI] Save keyboard profile clicked\n");
 
-    if (!app->kbd_connected) {
+    if (!kbd_ensure_connected(app)) {
         g_print("[GUI] Keyboard daemon not connected, skipping\n");
         return;
     }
@@ -4085,7 +4111,7 @@ static void on_kbd_activate_profile_clicked(GtkWidget *widget, gpointer user_dat
     AppData *app = (AppData *)user_data;
     g_print("[GUI] Activate keyboard profile clicked\n");
 
-    if (!app->kbd_connected) {
+    if (!kbd_ensure_connected(app)) {
         g_print("[GUI] Keyboard daemon not connected, skipping\n");
         return;
     }
@@ -4136,7 +4162,7 @@ static gboolean on_kbd_off_switch_toggled(GtkSwitch *sw, gboolean new_state, gpo
     AppData *app = (AppData *)user_data;
     gboolean is_on = new_state; /* Use new_state, gtk_switch_get_state() returns old state during signal */
 
-    if (!app->kbd_connected) {
+    if (!kbd_ensure_connected(app)) {
         g_print("[GUI] Keyboard daemon not connected, skipping off switch toggle\n");
         return TRUE;  /* handled: keep the switch where it is */
     }
@@ -4419,9 +4445,11 @@ static int kbd_parse_is_on(const char *response) {
 /* Show the daemon's real power state on the "Backlight Off" switch
  * (without sending anything back) */
 static void kbd_sync_power_switch(AppData *app) {
-    if (!app->kbd_connected || !app->kbd_off_switch) return;
+    if (!app->kbd_off_switch || !kbd_ensure_connected(app)) return;
     int is_on = kbd_parse_is_on(send_keyboard_command(app, "STATUS"));
     if (is_on < 0) return;
+    if (app->kbd_off_active == !is_on && gtk_switch_get_active(GTK_SWITCH(app->kbd_off_switch)) == !is_on)
+        return;   /* unchanged */
     app->kbd_off_active = !is_on;
     g_signal_handlers_block_by_func(app->kbd_off_switch, G_CALLBACK(on_kbd_off_switch_toggled), app);
     gtk_switch_set_active(GTK_SWITCH(app->kbd_off_switch), !is_on);
@@ -4465,7 +4493,7 @@ static void kbd_parse_zone_colors(AppData *app, const char *response) {
 }
 
 static void kbd_refresh_key_colors(AppData *app) {
-    if (!app->kbd_connected) return;
+    if (!kbd_ensure_connected(app)) return;
     kbd_parse_zone_colors(app, send_keyboard_command(app, "GET_ZONES"));
     kbd_redraw_canvas(app);
 }
@@ -4663,7 +4691,7 @@ static gboolean kbd_canvas_button_press(GtkWidget *widget, GdkEventButton *event
 
 /* Callback: Preset color button clicked */
 static void on_preset_color_clicked(GtkWidget *widget, AppData *app) {
-    if (!app->kbd_connected) {
+    if (!kbd_ensure_connected(app)) {
         g_print("[GUI] Keyboard daemon not connected, skipping preset color\n");
         return;
     }
@@ -7257,6 +7285,14 @@ static gboolean refresh_timer_callback(gpointer user_data) {
     char ts[32];
     get_timestamp(ts, sizeof(ts));
     
+    /* Every 6 s: keep the keyboard connection alive (reconnects after a
+     * daemon restart) and the Backlight Off switch in sync with the daemon */
+    static int kbd_tick = 0;
+    if (++kbd_tick >= 3) {
+        kbd_tick = 0;
+        kbd_sync_power_switch(app);
+    }
+
     if (!app->connected) {
         /* Try to reconnect when disconnected (e.g., after suspend) */
         g_print("%s [GUI] Not connected, attempting to reconnect...\n", ts);
