@@ -4,7 +4,7 @@ After=network.target
 
 [Service]
 Type=simple
-ExecStart=/usr/local/bin/dudes-control-center-cpu-daemon --foreground
+ExecStart=/usr/local/bin/dcc-cpu-daemon --foreground
 Restart=always
 User=root
 

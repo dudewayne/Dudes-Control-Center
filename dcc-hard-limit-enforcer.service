@@ -4,7 +4,7 @@ Documentation=man:systemd.timer(5)
 
 [Service]
 Type=oneshot
-ExecStart=/usr/local/bin/dudes-control-center-hard-limit-enforce
+ExecStart=/usr/local/bin/dcc-hard-limit-enforce
 User=root
 StandardOutput=journal
 StandardError=journal

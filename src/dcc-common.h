@@ -1,5 +1,5 @@
 /*
- * dudes-control-center-common.h
+ * dcc-common.h
  * Common header for Dudes Control Center applications
  */
 

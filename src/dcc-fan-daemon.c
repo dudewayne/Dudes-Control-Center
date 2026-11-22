@@ -1,5 +1,5 @@
 /*
- * dudes-control-center-fan-daemon.c
+ * dcc-fan-daemon.c
  * Background daemon for controlling notebook fans
  * Runs as a systemd service and provides IPC via Unix socket
  */
@@ -21,13 +21,13 @@
 #include <stdbool.h>
 #include <stdint.h>
 #include <stddef.h>
-#include "dudes-control-center-common.h"
-#include "dudes-control-center-log.h"
-#include "dudes-control-center-secure.h"
+#include "dcc-common.h"
+#include "dcc-log.h"
+#include "dcc-secure.h"
 #include <cjson/cJSON.h>
 
-#define PROGRAM_NAME "dudes-control-center-fan-daemon"
-#define SOCKET_PATH "/run/dudes-control-center-fan.sock"
+#define PROGRAM_NAME "dcc-fan-daemon"
+#define SOCKET_PATH "/run/dcc-fan.sock"
 /* profiles.json of the desktop user (see dcc_profiles_path in secure.h) */
 static const char *profile_path(void) {
 #ifdef PROFILE_PATH_OVERRIDE
@@ -1122,7 +1122,7 @@ int main(int argc, char *argv[]) {
     
     /* Check for duplicate instance via PID file */
     {
-        const char *pid_file = "/run/dudes-control-center-fan-daemon.pid";
+        const char *pid_file = "/run/dcc-fan-daemon.pid";
         FILE *pf = fopen(pid_file, "r");
         if (pf) {
             int old_pid;
@@ -1327,7 +1327,7 @@ int main(int argc, char *argv[]) {
     ec_cleanup();
 
     /* Clean up PID file on normal exit */
-    unlink("/run/dudes-control-center-fan-daemon.pid");
+    unlink("/run/dcc-fan-daemon.pid");
 
     LOG_INFO("Daemon stopped.");
     log_cleanup();

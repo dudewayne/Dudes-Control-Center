@@ -6,7 +6,7 @@ Documentation=man:systemd.timer(5)
 OnBootSec=10
 OnUnitActiveSec=10
 AccuracySec=1
-Unit=dudes-control-center-hard-limit-enforcer.service
+Unit=dcc-hard-limit-enforcer.service
 
 [Install]
 WantedBy=timers.target

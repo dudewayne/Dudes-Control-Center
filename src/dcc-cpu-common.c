@@ -1,5 +1,5 @@
 /*
- * dudes-control-center-cpu-common.c
+ * dcc-cpu-common.c
  * Common implementation for Dudes Control Center CPU Speed Control subsystem
  */
 
@@ -14,9 +14,9 @@
 #include <time.h>
 #include <ctype.h>
 #include <cjson/cJSON.h>
-#include "dudes-control-center-cpu-common.h"
-#include "dudes-control-center-log.h"
-#include "dudes-control-center-secure.h"
+#include "dcc-cpu-common.h"
+#include "dcc-log.h"
+#include "dcc-secure.h"
 
 /* --- Global state --- */
 CpuControlState g_cpu_state = {0};

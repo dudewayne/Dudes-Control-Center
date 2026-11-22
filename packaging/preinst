@@ -1,0 +1,19 @@
+#!/bin/sh
+set -e
+# 1.19.0 renamed the commands and services from dudes-control-center-* to
+# dcc-*. Stop and disable the old services now, while their files (and the
+# old fan CLI used by the fan service's ExecStopPost fail-safe) still exist.
+# The new services are enabled and started by postinst.
+if [ "$1" = "upgrade" ] || [ "$1" = "install" ]; then
+    for u in dudes-control-center-hard-limit-enforcer.timer \
+             dudes-control-center-hard-limit-enforcer.service \
+             dudes-control-center-kbd-backlight-daemon.service \
+             dudes-control-center-cpu-daemon.service \
+             dudes-control-center-fan-daemon.service; do
+        if [ -e "/etc/systemd/system/$u" ]; then
+            systemctl stop "$u" 2>/dev/null || true
+            systemctl disable "$u" 2>/dev/null || true
+        fi
+    done
+fi
+exit 0

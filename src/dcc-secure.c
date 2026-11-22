@@ -1,11 +1,11 @@
 /*
- * dudes-control-center-secure.c
+ * dcc-secure.c
  * Security helpers shared by the root daemons (see header for details).
  */
 
 #define _GNU_SOURCE
-#include "dudes-control-center-secure.h"
-#include "dudes-control-center-log.h"
+#include "dcc-secure.h"
+#include "dcc-log.h"
 
 #include <errno.h>
 #include <fcntl.h>

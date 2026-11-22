@@ -1,0 +1,54 @@
+#!/bin/sh
+set -e
+if [ "$1" = "configure" ]; then
+    # Access control: members of @GROUP@ may control the daemons
+    groupadd -f --system @GROUP@
+    DCC_USER=""
+    if [ -n "${SUDO_USER:-}" ] && [ "$SUDO_USER" != "root" ]; then DCC_USER="$SUDO_USER";
+    elif [ -n "${PKEXEC_UID:-}" ]; then DCC_USER=$(id -nu "$PKEXEC_UID" 2>/dev/null || true); fi
+    if [ -n "$DCC_USER" ]; then
+        usermod -aG @GROUP@ "$DCC_USER" && echo "Added $DCC_USER to group @GROUP@"
+        # The daemons use ~/.config/dudes-control-center/profiles.json of this user
+        if [ ! -s /etc/dudes-control-center/user ]; then mkdir -p /etc/dudes-control-center; echo "$DCC_USER" > /etc/dudes-control-center/user; echo "Profiles of user $DCC_USER (/etc/dudes-control-center/user)"; fi
+    else
+        echo "NOTE: add your desktop user to the control group: sudo usermod -aG @GROUP@ <user>"
+    fi
+    # 1.19.0 renamed the services (dudes-control-center-* -> dcc-*): preinst
+    # stopped and disabled the old ones; remove what may be left of them
+    rm -f /etc/systemd/system/*.wants/dudes-control-center-*.service \
+          /etc/systemd/system/*.wants/dudes-control-center-*.timer \
+          /etc/systemd/system/dudes-control-center-*.service \
+          /etc/systemd/system/dudes-control-center-*.timer
+    systemctl daemon-reload
+    # DKMS: register and build ite_829x kernel module
+    DKMS_MOD_NAME=ite_829x
+    DKMS_MOD_VER=@VERSION@
+    if [ -d /usr/src/$DKMS_MOD_NAME-$DKMS_MOD_VER ]; then
+        # Unregister all other versions, including broken leftovers whose source is gone
+        for d in /var/lib/dkms/$DKMS_MOD_NAME/[0-9]*; do
+            [ -d "$d" ] || continue
+            v=${d##*/}
+            [ "$v" = "$DKMS_MOD_VER" ] && continue
+            dkms remove -m $DKMS_MOD_NAME -v "$v" --all >/dev/null 2>&1 || true
+            # dkms remove can report success without removing a broken entry
+            if [ -d "$d" ]; then rm -rf "$d"; fi
+        done
+        dkms add -m $DKMS_MOD_NAME -v $DKMS_MOD_VER || true
+        dkms build -m $DKMS_MOD_NAME -v $DKMS_MOD_VER || true
+        dkms install --force -m $DKMS_MOD_NAME -v $DKMS_MOD_VER || true
+        # Unload the old module and load the freshly built one
+        modprobe -r $DKMS_MOD_NAME 2>/dev/null || true
+        modprobe $DKMS_MOD_NAME || true
+        echo "ite_829x: $(modinfo -F version $DKMS_MOD_NAME 2>/dev/null || echo unknown) from $(modinfo -n $DKMS_MOD_NAME 2>/dev/null)"
+    fi
+    systemctl enable dcc-fan-daemon
+    systemctl restart dcc-fan-daemon || systemctl start dcc-fan-daemon
+    systemctl enable dcc-cpu-daemon
+    systemctl restart dcc-cpu-daemon || systemctl start dcc-cpu-daemon
+    systemctl enable dcc-kbd-daemon
+    systemctl restart dcc-kbd-daemon || systemctl start dcc-kbd-daemon
+    systemctl enable dcc-hard-limit-enforcer.timer
+    systemctl start dcc-hard-limit-enforcer.timer || true
+    update-desktop-database >/dev/null 2>&1 || true
+fi
+exit 0

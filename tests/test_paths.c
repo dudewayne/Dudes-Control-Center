@@ -1,11 +1,11 @@
 /*
  * test_paths.c - which user's profiles.json the root daemons use
- * (dcc_profiles_path in dudes-control-center-secure.c, v1.18.1).
+ * (dcc_profiles_path in dcc-secure.c, v1.18.1).
  *
  * Usage: test_paths   (run in an empty directory; built with
  *        DCC_USER_FILE="user", i.e. a file in the current directory)
  */
-#include "dudes-control-center-secure.h"
+#include "dcc-secure.h"
 
 #include <pwd.h>
 #include <stdio.h>

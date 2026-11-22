@@ -1,5 +1,5 @@
 #define _GNU_SOURCE
-#include "dudes-control-center-log.h"
+#include "dcc-log.h"
 #include <dirent.h>
 #include <libgen.h>
 

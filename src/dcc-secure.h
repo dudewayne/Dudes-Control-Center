@@ -1,5 +1,5 @@
 /*
- * dudes-control-center-secure.h
+ * dcc-secure.h
  * Security helpers shared by the root daemons:
  *   - authorization of socket clients (SO_PEERCRED + group membership)
  *   - safe reading/writing of files inside a user's home directory

@@ -5,7 +5,7 @@
  * and a test build of the CPU daemon in the working directory.
  */
 #define main gui_main
-#include "dudes-control-center-gui.c"
+#include "dcc-gui.c"
 #undef main
 
 static int fails = 0;

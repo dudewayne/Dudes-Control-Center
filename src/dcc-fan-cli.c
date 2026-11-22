@@ -1,11 +1,11 @@
 /*
- * dudes-control-center-fan-cli.c
+ * dcc-fan-cli.c
  * Command-line interface for controlling notebook fans
  * 
  * Usage:
- *   ./dudes-control-center-fan-cli              - Show CPU/GPU temps and fan status (default)
- *   ./dudes-control-center-fan-cli --set 10     - Set fan speed to 10% (in 10% steps: 0,10,...,100; 0 = fans off)
- *   ./dudes-control-center-fan-cli --auto       - Enable automatic fan control based on temperature
+ *   ./dcc-fan-cli              - Show CPU/GPU temps and fan status (default)
+ *   ./dcc-fan-cli --set 10     - Set fan speed to 10% (in 10% steps: 0,10,...,100; 0 = fans off)
+ *   ./dcc-fan-cli --auto       - Enable automatic fan control based on temperature
  */
 
 #include <stdio.h>
@@ -13,9 +13,9 @@
 #include <string.h>
 #include <signal.h>
 #include <unistd.h>
-#include "dudes-control-center-common.h"
+#include "dcc-common.h"
 
-#define PROGRAM_NAME "dudes-control-center-fan-cli"
+#define PROGRAM_NAME "dcc-fan-cli"
 
 /* Auto mode target duty calculation (similar to fan-control) */
 static int target_duty_from_temp(int temp_c) {

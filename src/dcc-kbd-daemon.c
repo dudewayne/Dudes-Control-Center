@@ -1,5 +1,5 @@
 /*
- * dudes-control-center-kbd-backlight-daemon.c
+ * dcc-kbd-daemon.c
  * Keyboard Backlight Control Daemon for Dudes Control Center
  * Runs as a systemd service and provides IPC via Unix socket
  */
@@ -19,11 +19,11 @@
 #include <time.h>
 #include <sys/time.h>
 
-#include "dudes-control-center-kbd-common.h"
-#include "dudes-control-center-log.h"
-#include "dudes-control-center-secure.h"
+#include "dcc-kbd-common.h"
+#include "dcc-log.h"
+#include "dcc-secure.h"
 
-#define PROGRAM_NAME "dudes-control-center-kbd-backlight-daemon"
+#define PROGRAM_NAME "dcc-kbd-daemon"
 
 /* Global state */
 static volatile sig_atomic_t g_running = 1;

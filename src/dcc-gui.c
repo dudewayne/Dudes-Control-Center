@@ -29,9 +29,9 @@
 #define M_PI_2 (M_PI / 2.0)
 #endif
 
-#include "dudes-control-center-log.h"
-#include "dudes-control-center-cpu-common.h"
-#include "dudes-control-center-kbd-common.h"
+#include "dcc-log.h"
+#include "dcc-cpu-common.h"
+#include "dcc-kbd-common.h"
 #include <cairo.h>
 #include <cairo-gobject.h>
 
@@ -119,10 +119,10 @@ static const KeyPos kbd_key_positions[KBD_NUM_KEYS] = {
 
 /* Socket paths are overridable at build time (used by the test suite) */
 #ifndef SOCKET_PATH
-#define SOCKET_PATH "/run/dudes-control-center-fan.sock"
+#define SOCKET_PATH "/run/dcc-fan.sock"
 #endif
 #ifndef CPU_SOCKET_PATH
-#define CPU_SOCKET_PATH "/run/dudes-control-center-cpu.sock"
+#define CPU_SOCKET_PATH "/run/dcc-cpu.sock"
 #endif
 #define BUFFER_SIZE 4096
 #define MAX_CURVE_POINTS 50
@@ -3420,9 +3420,9 @@ static void connect_to_daemon(AppData *app) {
                                                     "Daemon is not running!\n\n"
                                                     "The socket file does not exist at: %s\n\n"
                                                     "To start the daemon, run in a terminal:\n"
-                                                    "  sudo dudes-control-center-fan-daemon --foreground\n\n"
+                                                    "  sudo dcc-fan-daemon --foreground\n\n"
                                                     "Or enable the systemd service:\n"
-                                                    "  sudo systemctl enable --now dudes-control-center-fan-daemon",
+                                                    "  sudo systemctl enable --now dcc-fan-daemon",
                                                     SOCKET_PATH);
         gtk_dialog_run(GTK_DIALOG(dialog));
         gtk_widget_destroy(dialog);

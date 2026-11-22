@@ -1,0 +1,16 @@
+#!/bin/sh
+set -e
+if [ "$1" = "remove" ]; then
+    systemctl stop dcc-kbd-daemon 2>/dev/null || true
+    systemctl disable dcc-kbd-daemon 2>/dev/null || true
+    # DKMS: unload ite_829x kernel module
+    rmmod ite_829x 2>/dev/null || true
+    systemctl stop dcc-fan-daemon 2>/dev/null || true
+    systemctl disable dcc-fan-daemon 2>/dev/null || true
+    systemctl stop dcc-cpu-daemon 2>/dev/null || true
+    systemctl disable dcc-cpu-daemon 2>/dev/null || true
+    systemctl stop dcc-hard-limit-enforcer.timer 2>/dev/null || true
+    systemctl disable dcc-hard-limit-enforcer.timer 2>/dev/null || true
+    systemctl daemon-reload
+fi
+exit 0

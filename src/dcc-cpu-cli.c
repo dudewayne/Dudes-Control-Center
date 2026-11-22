@@ -1,14 +1,14 @@
 /*
- * dudes-control-center-cpu-cli.c
+ * dcc-cpu-cli.c
  * Command-line interface for controlling CPU frequency profiles
  *
  * Usage:
- *   ./dudes-control-center-cpu-cli                    - Show CPU status (default)
- *   ./dudes-control-center-cpu-cli --list-profiles    - List custom CPU profiles
- *   ./dudes-control-center-cpu-cli --apply-profile 0  - Apply custom profile by index
- *   ./dudes-control-center-cpu-cli --governor perf    - Set governor
- *   ./dudes-control-center-cpu-cli --hard-limit 3.8   - Set hard limit (GHz)
- *   ./dudes-control-center-cpu-cli --hard-limit-get   - Get hard limit
+ *   ./dcc-cpu-cli                    - Show CPU status (default)
+ *   ./dcc-cpu-cli --list-profiles    - List custom CPU profiles
+ *   ./dcc-cpu-cli --apply-profile 0  - Apply custom profile by index
+ *   ./dcc-cpu-cli --governor perf    - Set governor
+ *   ./dcc-cpu-cli --hard-limit 3.8   - Set hard limit (GHz)
+ *   ./dcc-cpu-cli --hard-limit-get   - Get hard limit
  */
 
 #include <stdio.h>
@@ -22,9 +22,9 @@
 #include <stdint.h>
 #include <inttypes.h>
 
-#define CPU_SOCKET_PATH "/run/dudes-control-center-cpu.sock"
+#define CPU_SOCKET_PATH "/run/dcc-cpu.sock"
 #define CPU_BUFFER_SIZE 4096
-#define PROGRAM_NAME "dudes-control-center-cpu-cli"
+#define PROGRAM_NAME "dcc-cpu-cli"
 
 /* --- Daemon socket communication --- */
 

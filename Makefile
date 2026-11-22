@@ -1,5 +1,5 @@
 # Makefile for Dudes Control Center Applications
-# Builds: dudes-control-center-fan-cli, dudes-control-center-fan-daemon, dudes-control-center-cpu-daemon, dudes-control-center-kbd-backlight-daemon, dudes-control-center-gui, hard-limit-enforcer
+# Builds: dcc-fan-cli, dcc-fan-daemon, dcc-cpu-daemon, dcc-kbd-daemon, dcc-gui, hard-limit-enforcer
 
 # Rule 8: Use all CPU cores for compilation
 MAKEFLAGS += -j$(shell nproc)
@@ -18,24 +18,24 @@ CJSON_CFLAGS = $(shell pkg-config --cflags libcjson 2>/dev/null || echo "")
 CJSON_LIBS = $(shell pkg-config --libs libcjson 2>/dev/null || echo "-lcjson")
 
 # Source files
-COMMON_SRC = src/dudes-control-center-common.c
-COMMON_HDR = src/dudes-control-center-common.h
-LOG_SRC = src/dudes-control-center-log.c
-LOG_HDR = src/dudes-control-center-log.h
+COMMON_SRC = src/dcc-common.c
+COMMON_HDR = src/dcc-common.h
+LOG_SRC = src/dcc-log.c
+LOG_HDR = src/dcc-log.h
 # Socket authorization + safe user-file I/O for the root daemons
-SECURE_SRC = src/dudes-control-center-secure.c
-SECURE_HDR = src/dudes-control-center-secure.h
+SECURE_SRC = src/dcc-secure.c
+SECURE_HDR = src/dcc-secure.h
 
-# Group whose members may control the daemons (see src/dudes-control-center-secure.h)
+# Group whose members may control the daemons (see src/dcc-secure.h)
 DCC_GROUP = dudes-control-center
 
 # Targets
-CLI_TARGET = dudes-control-center-fan-cli
-CPU_CLI_TARGET = dudes-control-center-cpu-cli
-DAEMON_TARGET = dudes-control-center-fan-daemon
-CPU_DAEMON_TARGET = dudes-control-center-cpu-daemon
-KBD_DAEMON_TARGET = dudes-control-center-kbd-backlight-daemon
-GUI_TARGET = dudes-control-center-gui
+CLI_TARGET = dcc-fan-cli
+CPU_CLI_TARGET = dcc-cpu-cli
+DAEMON_TARGET = dcc-fan-daemon
+CPU_DAEMON_TARGET = dcc-cpu-daemon
+KBD_DAEMON_TARGET = dcc-kbd-daemon
+GUI_TARGET = dcc-gui
 
 # Version from VERSION file
 VERSION := $(shell cat VERSION 2>/dev/null || echo "0.0.0")
@@ -52,31 +52,31 @@ DKMS_MODULE_VERSION = $(VERSION)
 
 all: $(CLI_TARGET) $(CPU_CLI_TARGET) $(DAEMON_TARGET) $(CPU_DAEMON_TARGET) $(KBD_DAEMON_TARGET) $(GUI_TARGET)
 
-$(CLI_TARGET): $(COMMON_SRC) src/dudes-control-center-fan-cli.c $(COMMON_HDR)
-	$(CC) $(CFLAGS) -o $@ $(COMMON_SRC) src/dudes-control-center-fan-cli.c $(LDFLAGS_COMMON)
+$(CLI_TARGET): $(COMMON_SRC) src/dcc-fan-cli.c $(COMMON_HDR)
+	$(CC) $(CFLAGS) -o $@ $(COMMON_SRC) src/dcc-fan-cli.c $(LDFLAGS_COMMON)
 
-$(DAEMON_TARGET): $(COMMON_SRC) $(LOG_SRC) $(SECURE_SRC) src/dudes-control-center-fan-daemon.c $(COMMON_HDR) $(LOG_HDR) $(SECURE_HDR) VERSION
-	$(CC) $(CFLAGS) $(CJSON_CFLAGS) -o $@ $(COMMON_SRC) $(LOG_SRC) $(SECURE_SRC) src/dudes-control-center-fan-daemon.c $(LDFLAGS_COMMON) $(CJSON_LIBS)
+$(DAEMON_TARGET): $(COMMON_SRC) $(LOG_SRC) $(SECURE_SRC) src/dcc-fan-daemon.c $(COMMON_HDR) $(LOG_HDR) $(SECURE_HDR) VERSION
+	$(CC) $(CFLAGS) $(CJSON_CFLAGS) -o $@ $(COMMON_SRC) $(LOG_SRC) $(SECURE_SRC) src/dcc-fan-daemon.c $(LDFLAGS_COMMON) $(CJSON_LIBS)
 
-$(CPU_DAEMON_TARGET): src/dudes-control-center-cpu-common.c $(LOG_SRC) $(SECURE_SRC) src/dudes-control-center-cpu-daemon.c src/dudes-control-center-cpu-common.h $(LOG_HDR) $(SECURE_HDR) VERSION
-	$(CC) $(CFLAGS) $(CJSON_CFLAGS) -o $@ src/dudes-control-center-cpu-common.c $(LOG_SRC) $(SECURE_SRC) src/dudes-control-center-cpu-daemon.c $(LDFLAGS_COMMON) $(CJSON_LIBS)
+$(CPU_DAEMON_TARGET): src/dcc-cpu-common.c $(LOG_SRC) $(SECURE_SRC) src/dcc-cpu-daemon.c src/dcc-cpu-common.h $(LOG_HDR) $(SECURE_HDR) VERSION
+	$(CC) $(CFLAGS) $(CJSON_CFLAGS) -o $@ src/dcc-cpu-common.c $(LOG_SRC) $(SECURE_SRC) src/dcc-cpu-daemon.c $(LDFLAGS_COMMON) $(CJSON_LIBS)
 
-$(GUI_TARGET): $(COMMON_SRC) $(LOG_SRC) src/dudes-control-center-gui.c $(COMMON_HDR) $(LOG_HDR) src/dudes-control-center-kbd-common.h src/dudes-control-center-cpu-common.h VERSION
-	$(CC) $(CFLAGS) $(GTK_CFLAGS) $(CJSON_CFLAGS) -DAPP_VERSION="\"$(VERSION)\"" -o $@ $(COMMON_SRC) src/dudes-control-center-log.c src/dudes-control-center-gui.c $(LDFLAGS_COMMON) $(GTK_LIBS) $(CJSON_LIBS)
+$(GUI_TARGET): $(COMMON_SRC) $(LOG_SRC) src/dcc-gui.c $(COMMON_HDR) $(LOG_HDR) src/dcc-kbd-common.h src/dcc-cpu-common.h VERSION
+	$(CC) $(CFLAGS) $(GTK_CFLAGS) $(CJSON_CFLAGS) -DAPP_VERSION="\"$(VERSION)\"" -o $@ $(COMMON_SRC) src/dcc-log.c src/dcc-gui.c $(LDFLAGS_COMMON) $(GTK_LIBS) $(CJSON_LIBS)
 
 cli: $(CLI_TARGET)
 
 cpu-cli: $(CPU_CLI_TARGET)
 
-$(CPU_CLI_TARGET): src/dudes-control-center-cpu-cli.c src/dudes-control-center-cpu-common.h
-	$(CC) $(CFLAGS) -o $@ src/dudes-control-center-cpu-cli.c $(LDFLAGS_COMMON)
+$(CPU_CLI_TARGET): src/dcc-cpu-cli.c src/dcc-cpu-common.h
+	$(CC) $(CFLAGS) -o $@ src/dcc-cpu-cli.c $(LDFLAGS_COMMON)
 
 daemon: $(DAEMON_TARGET)
 
 cpu-daemon: $(CPU_DAEMON_TARGET)
 
-$(KBD_DAEMON_TARGET): src/dudes-control-center-kbd-common.c $(LOG_SRC) $(SECURE_SRC) src/dudes-control-center-kbd-backlight-daemon.c src/dudes-control-center-kbd-common.h $(COMMON_HDR) $(LOG_HDR) $(SECURE_HDR) VERSION
-	$(CC) $(CFLAGS) $(CJSON_CFLAGS) -o $@ src/dudes-control-center-kbd-common.c $(LOG_SRC) $(SECURE_SRC) src/dudes-control-center-kbd-backlight-daemon.c $(LDFLAGS_COMMON) $(CJSON_LIBS)
+$(KBD_DAEMON_TARGET): src/dcc-kbd-common.c $(LOG_SRC) $(SECURE_SRC) src/dcc-kbd-daemon.c src/dcc-kbd-common.h $(COMMON_HDR) $(LOG_HDR) $(SECURE_HDR) VERSION
+	$(CC) $(CFLAGS) $(CJSON_CFLAGS) -o $@ src/dcc-kbd-common.c $(LOG_SRC) $(SECURE_SRC) src/dcc-kbd-daemon.c $(LDFLAGS_COMMON) $(CJSON_LIBS)
 
 kbd-daemon: $(KBD_DAEMON_TARGET)
 
@@ -108,12 +108,12 @@ deb: all
 	@cp dudes-control-center.desktop $(DEB_BUILD_DIR)/$(PACKAGE)-$(VERSION)/usr/share/applications/
 	@cp DudesControlCenter.png $(DEB_BUILD_DIR)/$(PACKAGE)-$(VERSION)/usr/share/pixmaps/ 2>/dev/null || true
 	@cp DudesControlCenter.png $(DEB_BUILD_DIR)/$(PACKAGE)-$(VERSION)/usr/share/icons/hicolor/256x256/apps/dudes-control-center.png 2>/dev/null || true
-	@cp dudes-control-center-fan-daemon.service $(DEB_BUILD_DIR)/$(PACKAGE)-$(VERSION)/etc/systemd/system/
-	@cp dudes-control-center-cpu-daemon.service $(DEB_BUILD_DIR)/$(PACKAGE)-$(VERSION)/etc/systemd/system/
-	@cp dudes-control-center-kbd-backlight-daemon.service $(DEB_BUILD_DIR)/$(PACKAGE)-$(VERSION)/etc/systemd/system/
-	@cp dudes-control-center-hard-limit-enforcer.service $(DEB_BUILD_DIR)/$(PACKAGE)-$(VERSION)/etc/systemd/system/
-	@cp dudes-control-center-hard-limit-enforcer.timer $(DEB_BUILD_DIR)/$(PACKAGE)-$(VERSION)/etc/systemd/system/
-	@cp scripts/dudes-control-center-hard-limit-enforce.sh $(DEB_BUILD_DIR)/$(PACKAGE)-$(VERSION)/usr/local/bin/dudes-control-center-hard-limit-enforce
+	@cp dcc-fan-daemon.service $(DEB_BUILD_DIR)/$(PACKAGE)-$(VERSION)/etc/systemd/system/
+	@cp dcc-cpu-daemon.service $(DEB_BUILD_DIR)/$(PACKAGE)-$(VERSION)/etc/systemd/system/
+	@cp dcc-kbd-daemon.service $(DEB_BUILD_DIR)/$(PACKAGE)-$(VERSION)/etc/systemd/system/
+	@cp dcc-hard-limit-enforcer.service $(DEB_BUILD_DIR)/$(PACKAGE)-$(VERSION)/etc/systemd/system/
+	@cp dcc-hard-limit-enforcer.timer $(DEB_BUILD_DIR)/$(PACKAGE)-$(VERSION)/etc/systemd/system/
+	@cp scripts/dcc-hard-limit-enforce.sh $(DEB_BUILD_DIR)/$(PACKAGE)-$(VERSION)/usr/local/bin/dcc-hard-limit-enforce
 	@# DKMS kernel module source
 	@mkdir -p $(DEB_BUILD_DIR)/$(PACKAGE)-$(VERSION)/usr/src/$(DKMS_MODULE_NAME)-$(DKMS_MODULE_VERSION)
 	@cp drivers/ite_829x.c $(DEB_BUILD_DIR)/$(PACKAGE)-$(VERSION)/usr/src/$(DKMS_MODULE_NAME)-$(DKMS_MODULE_VERSION)/
@@ -129,12 +129,13 @@ deb: all
 	@echo 'Section: admin' >> $(DEB_BUILD_DIR)/$(PACKAGE)-$(VERSION)/DEBIAN/control
 	@echo 'Priority: optional' >> $(DEB_BUILD_DIR)/$(PACKAGE)-$(VERSION)/DEBIAN/control
 	@echo 'Depends: libgtk-3-0, libcjson1, dkms' >> $(DEB_BUILD_DIR)/$(PACKAGE)-$(VERSION)/DEBIAN/control
-	@printf '#!/bin/sh\nset -e\nif [ "$$1" = "configure" ]; then\n    # Access control: members of $(DCC_GROUP) may control the daemons\n    groupadd -f --system $(DCC_GROUP)\n    DCC_USER=""\n    if [ -n "$${SUDO_USER:-}" ] && [ "$$SUDO_USER" != "root" ]; then DCC_USER="$$SUDO_USER";\n    elif [ -n "$${PKEXEC_UID:-}" ]; then DCC_USER=$$(id -nu "$$PKEXEC_UID" 2>/dev/null || true); fi\n    if [ -n "$$DCC_USER" ]; then\n        usermod -aG $(DCC_GROUP) "$$DCC_USER" && echo "Added $$DCC_USER to group $(DCC_GROUP)"\n        # The daemons use ~/.config of this user:/dudes-control-center/profiles.json\n        if [ ! -s /etc/dudes-control-center/user ]; then mkdir -p /etc/dudes-control-center; echo "$$DCC_USER" > /etc/dudes-control-center/user; echo "Profiles of user $$DCC_USER (/etc/dudes-control-center/user)"; fi\n    else\n        echo "NOTE: add your desktop user to the control group: sudo usermod -aG $(DCC_GROUP) <user>"\n    fi\n    systemctl daemon-reload\n    # DKMS: register and build ite_829x kernel module\n    DKMS_MOD_NAME=ite_829x\n    DKMS_MOD_VER=$(VERSION)\n    if [ -d /usr/src/$$DKMS_MOD_NAME-$$DKMS_MOD_VER ]; then\n        # Unregister all other versions, including broken leftovers whose source is gone\n        for d in /var/lib/dkms/$$DKMS_MOD_NAME/[0-9]*; do\n            [ -d "$$d" ] || continue\n            v=$${d##*/}\n            [ "$$v" = "$$DKMS_MOD_VER" ] && continue\n            dkms remove -m $$DKMS_MOD_NAME -v "$$v" --all >/dev/null 2>&1 || true\n            # dkms remove can report success without removing a broken entry\n            if [ -d "$$d" ]; then rm -rf "$$d"; fi\n        done\n        dkms add -m $$DKMS_MOD_NAME -v $$DKMS_MOD_VER || true\n        dkms build -m $$DKMS_MOD_NAME -v $$DKMS_MOD_VER || true\n        dkms install --force -m $$DKMS_MOD_NAME -v $$DKMS_MOD_VER || true\n        # Unload the old module and load the freshly built one\n        modprobe -r $$DKMS_MOD_NAME 2>/dev/null || true\n        modprobe $$DKMS_MOD_NAME || true\n        echo "ite_829x: $$(modinfo -F version $$DKMS_MOD_NAME 2>/dev/null || echo unknown) from $$(modinfo -n $$DKMS_MOD_NAME 2>/dev/null)"\n    fi\n    systemctl enable dudes-control-center-fan-daemon\n    systemctl restart dudes-control-center-fan-daemon || systemctl start dudes-control-center-fan-daemon\n    systemctl enable dudes-control-center-cpu-daemon\n    systemctl restart dudes-control-center-cpu-daemon || systemctl start dudes-control-center-cpu-daemon\n    systemctl enable dudes-control-center-kbd-backlight-daemon\n    systemctl restart dudes-control-center-kbd-backlight-daemon || systemctl start dudes-control-center-kbd-backlight-daemon\n    systemctl enable dudes-control-center-hard-limit-enforcer.timer\n    systemctl start dudes-control-center-hard-limit-enforcer.timer || true\n    update-desktop-database >/dev/null 2>&1 || true\nfi\nexit 0\n' > $(DEB_BUILD_DIR)/$(PACKAGE)-$(VERSION)/DEBIAN/postinst
-	@chmod 755 $(DEB_BUILD_DIR)/$(PACKAGE)-$(VERSION)/DEBIAN/postinst
-	@printf '#!/bin/sh\nset -e\nif [ "$$1" = "remove" ]; then\n    systemctl stop dudes-control-center-kbd-backlight-daemon 2>/dev/null || true\n    systemctl disable dudes-control-center-kbd-backlight-daemon 2>/dev/null || true\n    # DKMS: unload ite_829x kernel module\n    rmmod ite_829x 2>/dev/null || true\n    systemctl stop dudes-control-center-fan-daemon 2>/dev/null || true\n    systemctl disable dudes-control-center-fan-daemon 2>/dev/null || true\n    systemctl stop dudes-control-center-cpu-daemon 2>/dev/null || true\n    systemctl disable dudes-control-center-cpu-daemon 2>/dev/null || true\n    systemctl stop dudes-control-center-hard-limit-enforcer.timer 2>/dev/null || true\n    systemctl disable dudes-control-center-hard-limit-enforcer.timer 2>/dev/null || true\n    systemctl daemon-reload\nfi\nexit 0\n' > $(DEB_BUILD_DIR)/$(PACKAGE)-$(VERSION)/DEBIAN/prerm
-	@chmod 755 $(DEB_BUILD_DIR)/$(PACKAGE)-$(VERSION)/DEBIAN/prerm
-	@printf '#!/bin/sh\nset -e\nif [ "$$1" = "purge" ]; then\n    rm -rf /home/*/.config/dudes-control-center/ 2>/dev/null || true\n    rm -rf /var/log/dudes-control-center/ 2>/dev/null || true\n    rm -rf /etc/dudes-control-center/ 2>/dev/null || true\n    rm -rf /var/lib/dudes-control-center/ 2>/dev/null || true\n    rm -f /etc/systemd/system/dudes-control-center-fan-daemon.service 2>/dev/null || true\n    rm -f /etc/systemd/system/dudes-control-center-cpu-daemon.service 2>/dev/null || true\n    rm -f /etc/systemd/system/dudes-control-center-kbd-backlight-daemon.service 2>/dev/null || true\n    rm -f /etc/systemd/system/dudes-control-center-hard-limit-enforcer.service 2>/dev/null || true\n    rm -f /etc/systemd/system/dudes-control-center-hard-limit-enforcer.timer 2>/dev/null || true\n    # DKMS: unregister and remove ite_829x\n    dkms remove -m ite_829x --all 2>/dev/null || true\n    rm -rf /usr/src/ite_829x-* 2>/dev/null || true\n    systemctl daemon-reload 2>/dev/null || true\nfi\nexit 0\n' > $(DEB_BUILD_DIR)/$(PACKAGE)-$(VERSION)/DEBIAN/postrm
-	@chmod 755 $(DEB_BUILD_DIR)/$(PACKAGE)-$(VERSION)/DEBIAN/postrm
+	@# Maintainer scripts from packaging/ (@VERSION@ and @GROUP@ filled in)
+	@for f in preinst postinst prerm postrm; do \
+		sed -e 's/@VERSION@/$(VERSION)/g' -e 's/@GROUP@/$(DCC_GROUP)/g' packaging/$$f > $(DEB_BUILD_DIR)/$(PACKAGE)-$(VERSION)/DEBIAN/$$f; \
+		chmod 755 $(DEB_BUILD_DIR)/$(PACKAGE)-$(VERSION)/DEBIAN/$$f; \
+	done
+	@# Old command names (before 1.19.0) keep working for now
+	@for n in gui fan-cli cpu-cli; do ln -s dcc-$$n $(DEB_BUILD_DIR)/$(PACKAGE)-$(VERSION)/usr/local/bin/dudes-control-center-$$n; done
 	@cd $(DEB_BUILD_DIR) && dpkg-deb --build $(PACKAGE)-$(VERSION) $(PACKAGE)_$(VERSION)_amd64.deb
 	@echo "Built: $(DEB_BUILD_DIR)/$(PACKAGE)_$(VERSION)_amd64.deb"
 
@@ -155,26 +156,26 @@ install: all
 	fi
 	@echo "Creating systemd service for daemon..."
 	install -d /etc/systemd/system
-	cp dudes-control-center-fan-daemon.service /etc/systemd/system/
-	cp dudes-control-center-cpu-daemon.service /etc/systemd/system/
-	cp dudes-control-center-kbd-backlight-daemon.service /etc/systemd/system/
-	cp dudes-control-center-hard-limit-enforcer.service /etc/systemd/system/
-	cp dudes-control-center-hard-limit-enforcer.timer /etc/systemd/system/
+	cp dcc-fan-daemon.service /etc/systemd/system/
+	cp dcc-cpu-daemon.service /etc/systemd/system/
+	cp dcc-kbd-daemon.service /etc/systemd/system/
+	cp dcc-hard-limit-enforcer.service /etc/systemd/system/
+	cp dcc-hard-limit-enforcer.timer /etc/systemd/system/
 	@echo "Installing hard limit enforcer script..."
-	install -m 755 scripts/dudes-control-center-hard-limit-enforce.sh /usr/local/bin/dudes-control-center-hard-limit-enforce
+	install -m 755 scripts/dcc-hard-limit-enforce.sh /usr/local/bin/dcc-hard-limit-enforce
 	systemctl daemon-reload
-	systemctl enable dudes-control-center-fan-daemon
-	systemctl enable dudes-control-center-cpu-daemon
+	systemctl enable dcc-fan-daemon
+	systemctl enable dcc-cpu-daemon
 	@echo "Enabling keyboard backlight daemon..."
-	systemctl enable dudes-control-center-kbd-backlight-daemon
+	systemctl enable dcc-kbd-daemon
 	@echo "Enabling hard limit enforcer timer..."
-	systemctl enable dudes-control-center-hard-limit-enforcer.timer
-	systemctl start dudes-control-center-hard-limit-enforcer.timer || true
+	systemctl enable dcc-hard-limit-enforcer.timer
+	systemctl start dcc-hard-limit-enforcer.timer || true
 	@echo "Restarting daemons..."
-	systemctl restart dudes-control-center-fan-daemon || systemctl start dudes-control-center-fan-daemon
-	systemctl restart dudes-control-center-cpu-daemon || systemctl start dudes-control-center-cpu-daemon
+	systemctl restart dcc-fan-daemon || systemctl start dcc-fan-daemon
+	systemctl restart dcc-cpu-daemon || systemctl start dcc-cpu-daemon
 	@echo "Starting keyboard backlight daemon..."
-	systemctl restart dudes-control-center-kbd-backlight-daemon || systemctl start dudes-control-center-kbd-backlight-daemon
+	systemctl restart dcc-kbd-daemon || systemctl start dcc-kbd-daemon
 	@echo "Installing desktop launcher..."
 	install -m 644 dudes-control-center.desktop /usr/share/applications/
 	update-desktop-database >/dev/null 2>&1 || true
@@ -182,26 +183,26 @@ install: all
 
 uninstall:
 	@echo "Uninstalling applications..."
-	systemctl stop dudes-control-center-fan-daemon 2>/dev/null || true
-	systemctl disable dudes-control-center-fan-daemon 2>/dev/null || true
-	systemctl stop dudes-control-center-cpu-daemon 2>/dev/null || true
-	systemctl disable dudes-control-center-cpu-daemon 2>/dev/null || true
-	systemctl stop dudes-control-center-kbd-backlight-daemon 2>/dev/null || true
-	systemctl disable dudes-control-center-kbd-backlight-daemon 2>/dev/null || true
-	systemctl stop dudes-control-center-hard-limit-enforcer.timer 2>/dev/null || true
-	systemctl disable dudes-control-center-hard-limit-enforcer.timer 2>/dev/null || true
+	systemctl stop dcc-fan-daemon 2>/dev/null || true
+	systemctl disable dcc-fan-daemon 2>/dev/null || true
+	systemctl stop dcc-cpu-daemon 2>/dev/null || true
+	systemctl disable dcc-cpu-daemon 2>/dev/null || true
+	systemctl stop dcc-kbd-daemon 2>/dev/null || true
+	systemctl disable dcc-kbd-daemon 2>/dev/null || true
+	systemctl stop dcc-hard-limit-enforcer.timer 2>/dev/null || true
+	systemctl disable dcc-hard-limit-enforcer.timer 2>/dev/null || true
 	rm -f /usr/local/bin/$(CLI_TARGET)
 	rm -f /usr/local/bin/$(CPU_CLI_TARGET)
 	rm -f /usr/local/bin/$(DAEMON_TARGET)
 	rm -f /usr/local/bin/$(CPU_DAEMON_TARGET)
 	rm -f /usr/local/bin/$(KBD_DAEMON_TARGET)
 	rm -f /usr/local/bin/$(GUI_TARGET)
-	rm -f /etc/systemd/system/dudes-control-center-fan-daemon.service
-	rm -f /etc/systemd/system/dudes-control-center-cpu-daemon.service
-	rm -f /etc/systemd/system/dudes-control-center-kbd-backlight-daemon.service
-	rm -f /etc/systemd/system/dudes-control-center-hard-limit-enforcer.service
-	rm -f /etc/systemd/system/dudes-control-center-hard-limit-enforcer.timer
-	rm -f /usr/local/bin/dudes-control-center-hard-limit-enforce
+	rm -f /etc/systemd/system/dcc-fan-daemon.service
+	rm -f /etc/systemd/system/dcc-cpu-daemon.service
+	rm -f /etc/systemd/system/dcc-kbd-daemon.service
+	rm -f /etc/systemd/system/dcc-hard-limit-enforcer.service
+	rm -f /etc/systemd/system/dcc-hard-limit-enforcer.timer
+	rm -f /usr/local/bin/dcc-hard-limit-enforce
 	rm -f /usr/share/applications/dudes-control-center.desktop
 	systemctl daemon-reload
 	update-desktop-database >/dev/null 2>&1 || true
@@ -217,9 +218,9 @@ TEST_BUILD = build-test
 TEST_CFLAGS = -g -O1 -fno-omit-frame-pointer -fsanitize=address,undefined -fno-sanitize-recover=undefined -Isrc
 # The current user's group plays the role of "dudes-control-center" in tests
 TEST_GROUP := $(shell id -gn)
-FAN_DAEMON_DEPS = src/dudes-control-center-fan-daemon.c $(COMMON_SRC) $(COMMON_HDR) $(LOG_SRC) $(LOG_HDR) $(SECURE_SRC) $(SECURE_HDR)
-KBD_DAEMON_DEPS = src/dudes-control-center-kbd-backlight-daemon.c src/dudes-control-center-kbd-common.c src/dudes-control-center-kbd-common.h $(COMMON_HDR) $(LOG_SRC) $(LOG_HDR) $(SECURE_SRC) $(SECURE_HDR)
-CPU_DAEMON_DEPS = src/dudes-control-center-cpu-daemon.c src/dudes-control-center-cpu-common.c src/dudes-control-center-cpu-common.h $(LOG_SRC) $(LOG_HDR) $(SECURE_SRC) $(SECURE_HDR)
+FAN_DAEMON_DEPS = src/dcc-fan-daemon.c $(COMMON_SRC) $(COMMON_HDR) $(LOG_SRC) $(LOG_HDR) $(SECURE_SRC) $(SECURE_HDR)
+KBD_DAEMON_DEPS = src/dcc-kbd-daemon.c src/dcc-kbd-common.c src/dcc-kbd-common.h $(COMMON_HDR) $(LOG_SRC) $(LOG_HDR) $(SECURE_SRC) $(SECURE_HDR)
+CPU_DAEMON_DEPS = src/dcc-cpu-daemon.c src/dcc-cpu-common.c src/dcc-cpu-common.h $(LOG_SRC) $(LOG_HDR) $(SECURE_SRC) $(SECURE_HDR)
 
 TEST_BINS = $(TEST_BUILD)/test_fan_responses $(TEST_BUILD)/test_fan_safety \
             $(TEST_BUILD)/test_secure_allow $(TEST_BUILD)/test_secure_deny \
@@ -251,18 +252,22 @@ $(TEST_BUILD)/test_paths: tests/test_paths.c $(SECURE_SRC) $(SECURE_HDR) $(LOG_S
 $(TEST_BUILD)/cpud_test: $(CPU_DAEMON_DEPS) | $(TEST_BUILD)
 	$(CC) $(TEST_CFLAGS) $(CJSON_CFLAGS) -DSOCKET_PATH='"cpu.sock"' -DCPU_LOG_DIR='"logs"' \
 	  -DCPUSYSFS='"sys"' -DCONTROL_CENTER_CONFIG_DIR='"cfg"' -DDCC_AUTH_GROUP='"$(TEST_GROUP)"' \
-	  -o $@ src/dudes-control-center-cpu-daemon.c src/dudes-control-center-cpu-common.c $(LOG_SRC) $(SECURE_SRC) $(CJSON_LIBS)
+	  -o $@ src/dcc-cpu-daemon.c src/dcc-cpu-common.c $(LOG_SRC) $(SECURE_SRC) $(CJSON_LIBS)
 
 # The real keyboard daemon against a fake /sys/class/leds ("leds")
 $(TEST_BUILD)/kbdd_test: $(KBD_DAEMON_DEPS) | $(TEST_BUILD)
 	$(CC) $(TEST_CFLAGS) $(CJSON_CFLAGS) -DKBD_SOCKET_PATH='"kbd.sock"' -DKBD_LOG_DIR='"logs"' \
 	  -DKBD_LEDS_DIR='"leds"' -DKBD_STATE_DIR='"state"' -DMAIN_PROFILES_PATH='"cfg/profiles.json"' -DDCC_AUTH_GROUP='"$(TEST_GROUP)"' \
-	  -o $@ src/dudes-control-center-kbd-backlight-daemon.c src/dudes-control-center-kbd-common.c $(LOG_SRC) $(SECURE_SRC) $(CJSON_LIBS)
+	  -o $@ src/dcc-kbd-daemon.c src/dcc-kbd-common.c $(LOG_SRC) $(SECURE_SRC) $(CJSON_LIBS)
 
-$(TEST_BUILD)/test_gui_save: tests/test_gui_save.c src/dudes-control-center-gui.c $(COMMON_SRC) $(LOG_SRC) $(LOG_HDR) | $(TEST_BUILD)
+$(TEST_BUILD)/test_gui_save: tests/test_gui_save.c src/dcc-gui.c $(COMMON_SRC) $(LOG_SRC) $(LOG_HDR) | $(TEST_BUILD)
 	$(CC) $(TEST_CFLAGS) -w $(GTK_CFLAGS) $(CJSON_CFLAGS) -DAPP_VERSION='"$(VERSION)"' \
 	  -DSOCKET_PATH='"fan.sock"' -DCPU_SOCKET_PATH='"cpu.sock"' -DKBD_SOCKET_PATH='"kbd.sock"' \
 	  -o $@ tests/test_gui_save.c $(COMMON_SRC) $(LOG_SRC) $(GTK_LIBS) $(CJSON_LIBS) -lm
+
+# Check the built package: names, units, maintainer scripts (CI runs it after "make deb")
+deb-check:
+	bash tests/check_deb.sh $(DEB_BUILD_DIR)/$(PACKAGE)_$(VERSION)_amd64.deb
 
 # Help target
 help:

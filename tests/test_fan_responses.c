@@ -4,7 +4,7 @@
  * Build: see "make test".
  */
 #define main daemon_main
-#include "dudes-control-center-fan-daemon.c"
+#include "dcc-fan-daemon.c"
 #undef main
 
 static int fails = 0;

@@ -1,5 +1,5 @@
 /*
- * dudes-control-center-cpu-daemon.c
+ * dcc-cpu-daemon.c
  * Background daemon for CPU speed/frequency control
  * Part of Dudes Control Center
  * Runs as a systemd service and provides IPC via Unix socket
@@ -20,13 +20,13 @@
 #include <time.h>
 #include <stdarg.h>
 
-#include "dudes-control-center-log.h"
-#include "dudes-control-center-secure.h"
-#include "dudes-control-center-cpu-common.h"
+#include "dcc-log.h"
+#include "dcc-secure.h"
+#include "dcc-cpu-common.h"
 
-#define PROGRAM_NAME "dudes-control-center-cpu-daemon"
+#define PROGRAM_NAME "dcc-cpu-daemon"
 #ifndef SOCKET_PATH   /* overridable for tests */
-#define SOCKET_PATH "/run/dudes-control-center-cpu.sock"
+#define SOCKET_PATH "/run/dcc-cpu.sock"
 #endif
 #ifndef CPU_LOG_DIR
 #define CPU_LOG_DIR "/var/log/dudes-control-center"

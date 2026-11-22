@@ -4,7 +4,7 @@ After=network.target
 
 [Service]
 Type=simple
-ExecStart=/usr/local/bin/dudes-control-center-kbd-backlight-daemon
+ExecStart=/usr/local/bin/dcc-kbd-daemon
 Restart=always
 RestartSec=3
 StandardOutput=null

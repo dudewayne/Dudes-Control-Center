@@ -23,6 +23,8 @@ Build dependencies: `build-essential pkg-config libgtk-3-dev libcjson-dev python
 | `kbd_daemon` | `test_kbd_daemon.py` | The real keyboard daemon against a fake 120-LED `/sys/class/leds`: per-key colors (`SET_KEYS_COLOR`), commands over 256 bytes, one zone per color, saving/restoring profiles, `TURN_ON` keeping the colors, restore at start, clean shutdown (v1.18.0); several clients, split commands, newline framing (v1.18.5); off state kept (v1.18.6); LED numbering by name and one-time conversion (v1.18.7) |
 | `gui_save` | `test_gui_save.c` + `test_gui_save.py` | GUI profile saving against a fake fan daemon and the test CPU daemon: keyboard section preserved, sections kept when a daemon is unreachable, corrupt file untouched; GUI log routing (v1.16.3); power-mode matching (v1.17.1); keyboard key/LED lookup and key colors (v1.17.3, v1.18.0) |
 
+**Package check:** `make deb-check` (`check_deb.sh`, run in CI after `make deb`) inspects the built `.deb`: all `dcc-*` programs and units present, every service and the menu entry start a program from the package, no leftover `dudes-control-center-*` names except the compatibility links, maintainer scripts valid and complete (v1.19.0).
+
 `fakesys.py` holds the shared helpers: the fake sysfs tree and the socket client.
 
 ## When a test fails

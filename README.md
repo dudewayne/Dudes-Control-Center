@@ -10,13 +10,15 @@ A control center for Clevo-based notebooks on Linux: fan control through the Emb
 
 | Component | What it does |
 |---|---|
-| `dudes-control-center-fan-daemon` | Fan control via EC I/O ports: fan curves (profiles), manual speed, safety overrides. systemd service with watchdog. |
-| `dudes-control-center-cpu-daemon` | CPU power modes (governor + energy preference), per-core frequency profiles, a hard frequency limit. |
-| `dudes-control-center-kbd-backlight-daemon` | Keyboard backlight: whole-keyboard and per-key colors, brightness, keyboard profiles. |
+| `dcc-fan-daemon` | Fan control via EC I/O ports: fan curves (profiles), manual speed, safety overrides. systemd service with watchdog. |
+| `dcc-cpu-daemon` | CPU power modes (governor + energy preference), per-core frequency profiles, a hard frequency limit. |
+| `dcc-kbd-daemon` | Keyboard backlight: whole-keyboard and per-key colors, brightness, keyboard profiles. |
 | `ite_829x` kernel module (DKMS) | Driver for the ITE 829x keyboard controller: one RGB LED class device per key (`rgb:kbd_backlight*`). |
-| `dudes-control-center-hard-limit-enforcer` | systemd timer (every 10 s) that re-applies the CPU hard limit independently of the CPU daemon. |
-| `dudes-control-center-gui` | GTK3 GUI for everything above, with system tray icon. |
-| `dudes-control-center-fan-cli`, `dudes-control-center-cpu-cli` | Command-line tools for the fan and CPU daemons. |
+| `dcc-hard-limit-enforcer` | systemd timer (every 10 s) that re-applies the CPU hard limit independently of the CPU daemon. |
+| `dcc-gui` | GTK3 GUI for everything above, with system tray icon. |
+| `dcc-fan-cli`, `dcc-cpu-cli` | Command-line tools for the fan and CPU daemons. |
+
+Commands and services use the short prefix **`dcc-`** (since 1.19.0); folders with your data, the package and the access group keep the full name `dudes-control-center`.
 
 ## Installation
 
@@ -34,11 +36,13 @@ The package:
 
 Uninstall with `sudo apt remove dudes-control-center`; `sudo apt purge dudes-control-center` also removes the configuration and logs.
 
+Upgrading from a version before 1.19.0 stops the old `dudes-control-center-*` services and starts the new `dcc-*` ones automatically. The old command names `dudes-control-center-gui`, `-fan-cli` and `-cpu-cli` still work for now (they link to the new ones).
+
 ## GUI
 
 ```bash
-dudes-control-center-gui            # starts minimized to the tray
-dudes-control-center-gui --debug    # more output in GUI.log
+dcc-gui            # starts minimized to the tray
+dcc-gui --debug    # more output in GUI.log
 ```
 
 | Tab | Contents |
@@ -75,16 +79,16 @@ Only modes the system supports are offered. Each per-core profile stores its mod
 ## Command line
 
 ```bash
-dudes-control-center-fan-cli                  # temperatures and fan status
-sudo dudes-control-center-fan-cli --set 40    # fan speed 0,10,...,100 (0 = fans off)
-sudo dudes-control-center-fan-cli --auto      # automatic, temperature-based
-dudes-control-center-fan-cli --log-level DEBUG
+dcc-fan-cli                  # temperatures and fan status
+sudo dcc-fan-cli --set 40    # fan speed 0,10,...,100 (0 = fans off)
+sudo dcc-fan-cli --auto      # automatic, temperature-based
+dcc-fan-cli --log-level DEBUG
 
-dudes-control-center-cpu-cli                  # CPU status
-dudes-control-center-cpu-cli --list-profiles
-dudes-control-center-cpu-cli --apply-profile 0
-dudes-control-center-cpu-cli --hard-limit 3.8 # GHz
-dudes-control-center-cpu-cli --hard-limit-get
+dcc-cpu-cli                  # CPU status
+dcc-cpu-cli --list-profiles
+dcc-cpu-cli --apply-profile 0
+dcc-cpu-cli --hard-limit 3.8 # GHz
+dcc-cpu-cli --hard-limit-get
 ```
 
 `--help` shows all options. `--set` and `--auto` access the EC directly and need root.
@@ -132,7 +136,7 @@ Each daemon logs the chosen path once: `[CONFIG] Using ...`.
 
 ### Sockets and access
 
-- `/run/dudes-control-center-fan.sock`, `/run/dudes-control-center-cpu.sock`, `/run/dudes-control-center-kbd.sock`
+- `/run/dcc-fan.sock`, `/run/dcc-cpu.sock`, `/run/dcc-kbd.sock`
 - Anyone may connect (mode 666), but only root and members of `dudes-control-center` may send commands; others get `ERROR Permission denied`. To add a user (takes effect immediately):
   ```bash
   sudo usermod -aG dudes-control-center <user>
@@ -146,6 +150,7 @@ sudo apt install build-essential pkg-config libgtk-3-dev libcjson-dev python3 dk
 make -j$(nproc)          # all applications
 make deb -j$(nproc)      # Debian package in build-deb/
 make test -j$(nproc)     # test suite
+make deb-check           # check the built package
 ```
 
 `make test` builds the tests with AddressSanitizer and UBSan and runs them without root or hardware: the daemons run against a fake sysfs (CPU frequencies, 120 keyboard LEDs) in temporary directories, so it is safe on a machine with the daemons installed. GitHub Actions runs `make all`, `make test` and `make deb` on every push and pull request. Details: [tests/README.md](tests/README.md).
@@ -179,8 +184,8 @@ Linear interpolation between the points: ≤45°C 20%, 55°C 30%, 60°C 40%, 70�
 
 **GUI says a daemon is not running**
 ```bash
-systemctl status dudes-control-center-fan-daemon dudes-control-center-cpu-daemon dudes-control-center-kbd-backlight-daemon
-sudo systemctl restart dudes-control-center-fan-daemon
+systemctl status dcc-fan-daemon dcc-cpu-daemon dcc-kbd-daemon
+sudo systemctl restart dcc-fan-daemon
 ```
 
 **`ERROR Permission denied` from a daemon**: your user is not in the control group. `id` should list `dudes-control-center`; if not, add it with the `usermod` command above.
@@ -195,7 +200,7 @@ sudo systemctl restart dudes-control-center-fan-daemon
 
 **Test the connection to a daemon:**
 ```bash
-echo STATUS | socat - UNIX-CONNECT:/run/dudes-control-center-fan.sock
+echo STATUS | socat - UNIX-CONNECT:/run/dcc-fan.sock
 ```
 
 ## Credits & Acknowledgments

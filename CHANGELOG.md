@@ -2,10 +2,30 @@
 
 All notable changes to this project will be documented in this file.
 
-## [Unreleased]
+## [1.19.0] - 2026-11-22
+
+### Changed
+- **Short names for commands and services: `dcc-`** instead of `dudes-control-center-`. The application is still called Dudes Control Center.
+
+  | Before | Now |
+  |---|---|
+  | `dudes-control-center-gui` | `dcc-gui` |
+  | `dudes-control-center-fan-cli` / `-cpu-cli` | `dcc-fan-cli` / `dcc-cpu-cli` |
+  | `dudes-control-center-fan-daemon` / `-cpu-daemon` (programs and services) | `dcc-fan-daemon` / `dcc-cpu-daemon` |
+  | `dudes-control-center-kbd-backlight-daemon` (program and service) | `dcc-kbd-daemon` |
+  | `dudes-control-center-hard-limit-enforcer` (service and timer), `-enforce` (script) | `dcc-hard-limit-enforcer`, `dcc-hard-limit-enforce` |
+  | sockets `/run/dudes-control-center-{fan,cpu,kbd}.sock` | `/run/dcc-{fan,cpu,kbd}.sock` |
+  | source files `src/dudes-control-center-*` | `src/dcc-*` |
+
+  **Unchanged** (data and identity): `~/.config/dudes-control-center/`, `~/.cache/dudes-control-center/`, `/etc/dudes-control-center/`, `/var/lib/dudes-control-center/`, `/var/log/dudes-control-center/`, the `dudes-control-center` group, the package name, the menu entry and icon.
+- **Upgrade**: a new `preinst` stops and disables the old services while their files still exist (the fan service's fail-safe sets the fans to 100% until the new daemon runs); `postinst` removes what is left of them and starts the new services. The old commands `dudes-control-center-gui`, `-fan-cli` and `-cpu-cli` stay as links to the new ones for now, so autostart entries and scripts keep working.
+- **Packaging**: the maintainer scripts are real files in `packaging/` (version and group filled in by `make deb`) instead of long `printf` lines in the Makefile.
+
+### Added
+- **Package check** `make deb-check` (`tests/check_deb.sh`, run in CI): all programs and units present, every service and the menu entry start a program that is in the package, no leftover old names except the compatibility links, maintainer scripts valid and complete (33 checks).
 
 ### Fixed
-- CPU daemon: the intended 31-character limit of the command word is written into the format (`%.31s`), so the test build (other optimization level) has no warning either. No change in behavior.
+- CPU daemon: the intended 31-character limit of the command word is written into the format (`%.31s`), so the test build has no warning either. No change in behavior.
 
 ## [1.18.8] - 2026-11-22
 

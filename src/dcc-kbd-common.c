@@ -1,5 +1,5 @@
 /*
- * dudes-control-center-kbd-common.c
+ * dcc-kbd-common.c
  * Common implementation for Keyboard Backlight Control in Dudes Control Center
  */
 
@@ -15,10 +15,10 @@
 #include <errno.h>
 #include <fcntl.h>
 
-#include "dudes-control-center-kbd-common.h"
-#include "dudes-control-center-log.h"
-#include "dudes-control-center-secure.h"
-#include "dudes-control-center-common.h"
+#include "dcc-kbd-common.h"
+#include "dcc-log.h"
+#include "dcc-secure.h"
+#include "dcc-common.h"
 
 /* ============================================================================
  * GLOBAL STATE

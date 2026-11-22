@@ -1,5 +1,5 @@
 /*
- * dudes-control-center-kbd-common.h
+ * dcc-kbd-common.h
  * Common header for Keyboard Backlight Control in Dudes Control Center
  */
 
@@ -10,7 +10,7 @@
 
 /* --- Socket configuration --- */
 #ifndef KBD_SOCKET_PATH
-#define KBD_SOCKET_PATH "/run/dudes-control-center-kbd.sock"
+#define KBD_SOCKET_PATH "/run/dcc-kbd.sock"
 #endif
 #ifndef KBD_LEDS_DIR
 #define KBD_LEDS_DIR "/sys/class/leds"

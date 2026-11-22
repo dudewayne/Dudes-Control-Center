@@ -1,5 +1,5 @@
 #!/bin/bash
-# dudes-control-center-hard-limit-enforce.sh
+# dcc-hard-limit-enforce.sh
 # Fail-safe enforcement script for CPU hard frequency limit.
 # Reads the hard limit from profiles.json and writes it to sysfs.
 # Runs independently of the daemon via systemd timer (as root).

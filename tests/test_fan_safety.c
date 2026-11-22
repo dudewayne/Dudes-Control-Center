@@ -7,7 +7,7 @@
 #define get_gpu_temp mock_gpu_temp
 #define set_fan_duty mock_set_fan_duty
 #define main daemon_main
-#include "dudes-control-center-fan-daemon.c"
+#include "dcc-fan-daemon.c"
 #undef main
 
 static int m_cpu = 50, m_gpu = -1, m_fail_write = 0, m_last_write = -1, m_writes = 0;

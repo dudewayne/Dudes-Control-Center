@@ -1,4 +1,11 @@
 # Compiled binaries
+dcc-fan-cli
+dcc-cpu-cli
+dcc-fan-daemon
+dcc-cpu-daemon
+dcc-kbd-daemon
+dcc-gui
+# (names before 1.19.0)
 dudes-control-center-fan-cli
 dudes-control-center-fan-daemon
 dudes-control-center-cpu-cli

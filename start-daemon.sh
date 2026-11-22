@@ -2,9 +2,9 @@
 # Start the fan control daemon
 
 echo "Stopping any existing daemon instances..."
-pkill -9 dudes-control-center-fan-daemon 2>/dev/null
+pkill -9 dcc-fan-daemon 2>/dev/null
 sleep 1
 
-echo "Starting dudes-control-center-fan-daemon with sudo..."
+echo "Starting dcc-fan-daemon with sudo..."
 cd "$(dirname "$0")"
-sudo ./dudes-control-center-fan-daemon --foreground "$@"
+sudo ./dcc-fan-daemon --foreground "$@"

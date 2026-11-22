@@ -1,9 +1,9 @@
 /*
- * dudes-control-center-common.c
+ * dcc-common.c
  * Common implementation for Dudes Control Center applications
  */
 
-#include "dudes-control-center-common.h"
+#include "dcc-common.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -16,7 +16,7 @@
 #include <sys/socket.h>
 #include <sys/un.h>
 
-#define DAEMON_SOCKET_PATH "/run/dudes-control-center-fan.sock"
+#define DAEMON_SOCKET_PATH "/run/dcc-fan.sock"
 
 /* --- EC I/O helper functions --- */
 

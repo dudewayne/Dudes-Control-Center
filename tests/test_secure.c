@@ -1,14 +1,14 @@
 /*
  * test_secure.c - socket peer authorization and symlink-safe user-file I/O
- * (dudes-control-center-secure.c, added in v1.16.1).
+ * (dcc-secure.c, added in v1.16.1).
  *
  * Usage: test_secure <scratch-dir> <allow|deny>
  *   Built twice by "make test": once with DCC_AUTH_GROUP = the current user's
  *   group (expects "allow") and once with a group that does not exist
  *   (expects "deny").
  */
-#include "dudes-control-center-secure.h"
-#include "dudes-control-center-log.h"
+#include "dcc-secure.h"
+#include "dcc-log.h"
 
 #include <errno.h>
 #include <stdio.h>

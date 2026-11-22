@@ -1,0 +1,18 @@
+#!/bin/sh
+set -e
+if [ "$1" = "purge" ]; then
+    rm -rf /home/*/.config/dudes-control-center/ 2>/dev/null || true
+    rm -rf /var/log/dudes-control-center/ 2>/dev/null || true
+    rm -rf /etc/dudes-control-center/ 2>/dev/null || true
+    rm -rf /var/lib/dudes-control-center/ 2>/dev/null || true
+    rm -f /etc/systemd/system/dcc-fan-daemon.service 2>/dev/null || true
+    rm -f /etc/systemd/system/dcc-cpu-daemon.service 2>/dev/null || true
+    rm -f /etc/systemd/system/dcc-kbd-daemon.service 2>/dev/null || true
+    rm -f /etc/systemd/system/dcc-hard-limit-enforcer.service 2>/dev/null || true
+    rm -f /etc/systemd/system/dcc-hard-limit-enforcer.timer 2>/dev/null || true
+    # DKMS: unregister and remove ite_829x
+    dkms remove -m ite_829x --all 2>/dev/null || true
+    rm -rf /usr/src/ite_829x-* 2>/dev/null || true
+    systemctl daemon-reload 2>/dev/null || true
+fi
+exit 0
