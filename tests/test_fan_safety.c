@@ -46,11 +46,13 @@ int main(void) {
     CHECK(current_fan_duty == 0 && !auto_mode_enabled, "manual 0% applied");
     m_cpu = 96; steps(1);
     CHECK(current_fan_duty == 100 && override_reason == OVERRIDE_EMERGENCY_TEMP, "manual mode: 96C -> emergency 100%");
+    CHECK(auto_mode_enabled && emergency_auto_count == 1,
+          "emergency ends manual mode as soon as it starts (v1.18.4)");
     m_cpu = 92; steps(1);
     CHECK(current_fan_duty == 100, "hysteresis: still 100% at 92C");
     m_cpu = 89; steps(1);
     CHECK(override_reason == OVERRIDE_NONE && auto_mode_enabled && emergency_auto_count == 1,
-          "below 90C after an emergency: manual mode ends, auto mode takes over (v1.18.4)");
+          "below 90C after an emergency: auto mode takes over (v1.18.4)");
     CHECK(current_fan_duty > 0, "fans do not stop again after the emergency");
     cmd("SET_MANUAL 0\n");
     m_cpu = -1; steps(2);
@@ -59,7 +61,11 @@ int main(void) {
     CHECK(current_fan_duty == 0, "manual mode: recovery restores manual duty");
     m_gpu = 97; steps(1);
     CHECK(current_fan_duty == 100, "GPU at 97C also triggers emergency");
+    cmd("SET_MANUAL 20\n");
+    CHECK(current_fan_duty == 100 && !auto_mode_enabled, "manual set during the emergency is held at 100%");
     m_gpu = -1; steps(1);
+    CHECK(auto_mode_enabled && override_reason == OVERRIDE_NONE,
+          "manual set during the emergency -> auto mode when it clears");
 
     /* 4. SET_AUTO 0 keeps current speed */
     cmd("SET_ACTIVE_PROFILE 0\n"); m_cpu = 70; steps(6);

@@ -993,6 +993,16 @@ static void fan_control_step(void) {
                       override_reason_str(wanted), cpu_temp, gpu_temp);
             override_reason = wanted;
         }
+        if (wanted == OVERRIDE_EMERGENCY_TEMP && !auto_mode_enabled) {
+            /* Overheating ends manual mode right away, so the GUI shows it when
+             * the fans speed up. Going back to a low manual speed afterwards
+             * would just heat up again (seen at 0%: 73 -> 95 degC in ~80 s);
+             * the fan curve takes over once the emergency clears. */
+            LOG_WARN("Manual mode (%d%%) ended by the emergency temperature - auto mode takes over when it clears",
+                     manual_duty);
+            auto_mode_enabled = 1;
+            emergency_auto_count++;
+        }
         if (current_fan_duty != 100) {
             fail_safe_fan_max(override_reason_str(wanted));
         }
@@ -1005,10 +1015,8 @@ static void fan_control_step(void) {
         OverrideReason was = override_reason;
         override_reason = OVERRIDE_NONE;
         if (!auto_mode_enabled && was == OVERRIDE_EMERGENCY_TEMP) {
-            /* Going back to a low manual speed would just heat up to the
-             * emergency limit again (seen at 0%: 73 -> 95 degC in ~80 s).
-             * Hand over to the fan curve instead. */
-            LOG_WARN("Manual mode (%d%%) ended by the emergency temperature - switching to auto mode",
+            /* Manual mode set again during the emergency: still hand over */
+            LOG_WARN("Manual mode (%d%%) set during the emergency - switching to auto mode",
                      manual_duty);
             auto_mode_enabled = 1;
             emergency_auto_count++;

@@ -4763,7 +4763,7 @@ static void parse_status(AppData *app, const char *response) {
         if (app->manual_speed_label) gtk_label_set_text(GTK_LABEL(app->manual_speed_label), "--");
         if (ended_by_emergency) {
             g_print("[GUI] Fan daemon switched to auto mode after an emergency temperature\n");
-            show_status(app, "Manual fan mode ended: the CPU/GPU reached 95\302\260C, the fans now follow the curve (auto mode)");
+            show_status(app, "Manual fan mode ended: the CPU/GPU reached 95\302\260C - fans at 100% until it cools down, then the fan curve (auto mode)");
         }
     }
 
