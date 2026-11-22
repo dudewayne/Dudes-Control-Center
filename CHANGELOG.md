@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.24.4] - 2026-11-22
+
+### Fixed
+- **More compact pages, a lower window**: the About page shows title and version in one line, the credits in two columns and the contact in one line, with much less padding. The Logs tab's log views need 150 px instead of 300 px (they still fill the window). The CPU Profiles tab shows the CPU Information in two columns (temperature, load and number of CPUs left; frequencies and power mode right), half the height of the old list.
+
 ## [1.24.3] - 2026-11-22
 
 ### Fixed

@@ -6135,7 +6135,7 @@ static GtkWidget *create_log_page(AppData *app) {
     {
         GtkWidget *scrolled = gtk_scrolled_window_new(NULL, NULL);
         gtk_scrolled_window_set_policy(GTK_SCROLLED_WINDOW(scrolled), GTK_POLICY_AUTOMATIC, GTK_POLICY_ALWAYS);
-        gtk_scrolled_window_set_min_content_height(GTK_SCROLLED_WINDOW(scrolled), 300);
+        gtk_scrolled_window_set_min_content_height(GTK_SCROLLED_WINDOW(scrolled), 150);   /* was 300 (1.24.4) */
         
         app->gui_log_view = gtk_text_view_new();
         gtk_text_view_set_editable(GTK_TEXT_VIEW(app->gui_log_view), FALSE);
@@ -6153,7 +6153,7 @@ static GtkWidget *create_log_page(AppData *app) {
     {
         GtkWidget *scrolled = gtk_scrolled_window_new(NULL, NULL);
         gtk_scrolled_window_set_policy(GTK_SCROLLED_WINDOW(scrolled), GTK_POLICY_AUTOMATIC, GTK_POLICY_ALWAYS);
-        gtk_scrolled_window_set_min_content_height(GTK_SCROLLED_WINDOW(scrolled), 300);
+        gtk_scrolled_window_set_min_content_height(GTK_SCROLLED_WINDOW(scrolled), 150);   /* was 300 (1.24.4) */
         
         app->cpu_daemon_log_view = gtk_text_view_new();
         gtk_text_view_set_editable(GTK_TEXT_VIEW(app->cpu_daemon_log_view), FALSE);
@@ -6171,7 +6171,7 @@ static GtkWidget *create_log_page(AppData *app) {
     {
         GtkWidget *scrolled = gtk_scrolled_window_new(NULL, NULL);
         gtk_scrolled_window_set_policy(GTK_SCROLLED_WINDOW(scrolled), GTK_POLICY_AUTOMATIC, GTK_POLICY_ALWAYS);
-        gtk_scrolled_window_set_min_content_height(GTK_SCROLLED_WINDOW(scrolled), 300);
+        gtk_scrolled_window_set_min_content_height(GTK_SCROLLED_WINDOW(scrolled), 150);   /* was 300 (1.24.4) */
         
         app->daemon_log_view = gtk_text_view_new();
         gtk_text_view_set_editable(GTK_TEXT_VIEW(app->daemon_log_view), FALSE);
@@ -6189,7 +6189,7 @@ static GtkWidget *create_log_page(AppData *app) {
     {
         GtkWidget *scrolled = gtk_scrolled_window_new(NULL, NULL);
         gtk_scrolled_window_set_policy(GTK_SCROLLED_WINDOW(scrolled), GTK_POLICY_AUTOMATIC, GTK_POLICY_ALWAYS);
-        gtk_scrolled_window_set_min_content_height(GTK_SCROLLED_WINDOW(scrolled), 300);
+        gtk_scrolled_window_set_min_content_height(GTK_SCROLLED_WINDOW(scrolled), 150);   /* was 300 (1.24.4) */
         
         app->kbd_daemon_log_view = gtk_text_view_new();
         gtk_text_view_set_editable(GTK_TEXT_VIEW(app->kbd_daemon_log_view), FALSE);
@@ -6683,137 +6683,83 @@ static void load_kbd_daemon_logs(AppData *app) {
 
 /* Create Page 5: About */
 static GtkWidget *create_about_page(void) {
-    GtkWidget *vbox = gtk_box_new(GTK_ORIENTATION_VERTICAL, 5);
-    gtk_container_set_border_width(GTK_CONTAINER(vbox), 30);
-    
-    /* Main title with fancy styling */
+    /* Compact layout (1.24.4): title and version in one line, the credits
+     * in two columns, contact in one line */
+    GtkWidget *vbox = gtk_box_new(GTK_ORIENTATION_VERTICAL, 6);
+    gtk_container_set_border_width(GTK_CONTAINER(vbox), 12);
+
     GtkWidget *title = gtk_label_new(NULL);
-    gtk_label_set_markup(GTK_LABEL(title), "<span size='xx-large' weight='bold' foreground='#2c3e50'>Dudes Control Center</span>");
+    {
+        char t[256];
+        snprintf(t, sizeof(t), "<span size='xx-large' weight='bold' foreground='#2c3e50'>Dudes Control Center</span>"
+                               "  <span size='large' foreground='#7f8c8d'>Version %s</span>", APP_VERSION);
+        gtk_label_set_markup(GTK_LABEL(title), t);
+    }
     gtk_widget_set_halign(title, GTK_ALIGN_CENTER);
     gtk_box_pack_start(GTK_BOX(vbox), title, FALSE, FALSE, 0);
-    
-    /* Version info */
-    GtkWidget *version = gtk_label_new(NULL);
-    {
-        char version_text[256];
-        snprintf(version_text, sizeof(version_text), "<span size='large' foreground='#7f8c8d'>Version %s</span>", APP_VERSION);
-        gtk_label_set_markup(GTK_LABEL(version), version_text);
-    }
-    gtk_widget_set_halign(version, GTK_ALIGN_CENTER);
-    gtk_box_pack_start(GTK_BOX(vbox), version, FALSE, FALSE, 5);
-    
-    /* Separator */
-    GtkWidget *sep1 = gtk_separator_new(GTK_ORIENTATION_HORIZONTAL);
-    gtk_box_pack_start(GTK_BOX(vbox), sep1, FALSE, FALSE, 8);
-    
-    /* AI-powered message */
+
     GtkWidget *ai_text = gtk_label_new(NULL);
-    gtk_label_set_markup(GTK_LABEL(ai_text), "<span size='large' weight='bold'>This application was completely coded by AI</span>");
+    gtk_label_set_markup(GTK_LABEL(ai_text), "<span weight='bold'>This application was completely coded by AI</span>");
     gtk_widget_set_halign(ai_text, GTK_ALIGN_CENTER);
-    gtk_box_pack_start(GTK_BOX(vbox), ai_text, FALSE, FALSE, 8);
-    
-    /* Separator */
-    GtkWidget *sep2 = gtk_separator_new(GTK_ORIENTATION_HORIZONTAL);
-    gtk_box_pack_start(GTK_BOX(vbox), sep2, FALSE, FALSE, 10);
-    
-    /* Thanks container with spacing */
-    GtkWidget *thanks_vbox = gtk_box_new(GTK_ORIENTATION_VERTICAL, 20);
-    gtk_widget_set_halign(thanks_vbox, GTK_ALIGN_CENTER);
-    gtk_box_pack_start(GTK_BOX(vbox), thanks_vbox, FALSE, FALSE, 15);
-    
-    /* Thank you to Bionic AI Agent */
-    GtkWidget *thanks1_vbox = gtk_box_new(GTK_ORIENTATION_VERTICAL, 5);
-    gtk_widget_set_halign(thanks1_vbox, GTK_ALIGN_CENTER);
-    GtkWidget *thanks1_text = gtk_label_new(NULL);
-    gtk_label_set_markup(GTK_LABEL(thanks1_text), "<span size='medium'>Special thanks to the creators of <b>Bionic AI Agent</b></span>");
-    gtk_box_pack_start(GTK_BOX(thanks1_vbox), thanks1_text, TRUE, FALSE, 0);
-    GtkWidget *thanks1_link = create_clickable_link("https://lmstudio.ai/");
-    gtk_box_pack_start(GTK_BOX(thanks1_vbox), thanks1_link, TRUE, FALSE, 0);
-    gtk_box_pack_start(GTK_BOX(thanks_vbox), thanks1_vbox, TRUE, FALSE, 0);
-    
-    /* Thank you to original fan-control creator */
-    GtkWidget *thanks2_vbox = gtk_box_new(GTK_ORIENTATION_VERTICAL, 5);
-    gtk_widget_set_halign(thanks2_vbox, GTK_ALIGN_CENTER);
-    GtkWidget *thanks2_text = gtk_label_new(NULL);
-    gtk_label_set_markup(GTK_LABEL(thanks2_text),
-        "<span size='medium'>Fan control code based on <b>fan-control</b> by steiiin, a fork of "
-        "<b>clevo-fan-control</b> by agramian (GPL-2.0)</span>");
-    gtk_box_pack_start(GTK_BOX(thanks2_vbox), thanks2_text, TRUE, FALSE, 0);
-    GtkWidget *thanks2_link = create_clickable_link("https://github.com/steiiin/fan-control");
-    gtk_box_pack_start(GTK_BOX(thanks2_vbox), thanks2_link, TRUE, FALSE, 0);
-    GtkWidget *thanks2b_link = create_clickable_link("https://github.com/agramian/clevo-fan-control");
-    gtk_box_pack_start(GTK_BOX(thanks2_vbox), thanks2b_link, TRUE, FALSE, 0);
-    gtk_box_pack_start(GTK_BOX(thanks_vbox), thanks2_vbox, TRUE, FALSE, 0);
+    gtk_box_pack_start(GTK_BOX(vbox), ai_text, FALSE, FALSE, 0);
 
-    /* Credit: the ite_829x keyboard driver is TUXEDO Computers' (tuxedo-drivers, GPL-2.0+) */
-    GtkWidget *thanks_tux_vbox = gtk_box_new(GTK_ORIENTATION_VERTICAL, 5);
-    gtk_widget_set_halign(thanks_tux_vbox, GTK_ALIGN_CENTER);
-    GtkWidget *thanks_tux_text = gtk_label_new(NULL);
-    gtk_label_set_markup(GTK_LABEL(thanks_tux_text),
-        "<span size='medium'>Keyboard backlight driver <b>ite_829x</b> by <b>TUXEDO Computers</b> "
-        "(tuxedo-drivers, GPL-2.0-or-later)</span>");
-    gtk_box_pack_start(GTK_BOX(thanks_tux_vbox), thanks_tux_text, TRUE, FALSE, 0);
-    GtkWidget *thanks_tux_link = create_clickable_link("https://github.com/tuxedocomputers/tuxedo-drivers");
-    gtk_box_pack_start(GTK_BOX(thanks_tux_vbox), thanks_tux_link, TRUE, FALSE, 0);
-    gtk_box_pack_start(GTK_BOX(thanks_vbox), thanks_tux_vbox, TRUE, FALSE, 0);
-    
-    /* Thank you to Linus Torvalds */
-    GtkWidget *thanks3_vbox = gtk_box_new(GTK_ORIENTATION_VERTICAL, 5);
-    gtk_widget_set_halign(thanks3_vbox, GTK_ALIGN_CENTER);
-    GtkWidget *thanks3_text = gtk_label_new(NULL);
-    gtk_label_set_markup(GTK_LABEL(thanks3_text), "<span size='medium'>Honoring <b>Linus Torvalds</b>, the visionary founder of Linux</span>");
-    gtk_box_pack_start(GTK_BOX(thanks3_vbox), thanks3_text, TRUE, FALSE, 0);
-    GtkWidget *thanks3_link = create_clickable_link("https://torvalds-family.blogspot.com/");
-    gtk_box_pack_start(GTK_BOX(thanks3_vbox), thanks3_link, TRUE, FALSE, 0);
-    gtk_box_pack_start(GTK_BOX(thanks_vbox), thanks3_vbox, TRUE, FALSE, 0);
-    
-    /* Thank you to Linux Community */
-    GtkWidget *thanks4 = gtk_label_new(NULL);
-    gtk_label_set_markup(GTK_LABEL(thanks4), "<span size='medium'>Appreciation for the <b>Great Linux Community</b></span>");
-    gtk_widget_set_halign(thanks4, GTK_ALIGN_CENTER);
-    gtk_box_pack_start(GTK_BOX(thanks_vbox), thanks4, TRUE, FALSE, 0);
-    
-    /* Thank you to Clevo */
-    GtkWidget *thanks5_vbox = gtk_box_new(GTK_ORIENTATION_VERTICAL, 5);
-    gtk_widget_set_halign(thanks5_vbox, GTK_ALIGN_CENTER);
-    GtkWidget *thanks5_text = gtk_label_new(NULL);
-    gtk_label_set_markup(GTK_LABEL(thanks5_text), "<span size='medium'>Thanks to <b>Clevo</b> for producing &amp; selling awesome Laptops</span>");
-    gtk_box_pack_start(GTK_BOX(thanks5_vbox), thanks5_text, TRUE, FALSE, 0);
-    GtkWidget *thanks5_link = create_clickable_link("https://www.clevo.com.tw/");
-    gtk_box_pack_start(GTK_BOX(thanks5_vbox), thanks5_link, TRUE, FALSE, 0);
-    gtk_box_pack_start(GTK_BOX(thanks_vbox), thanks5_vbox, TRUE, FALSE, 0);
+    gtk_box_pack_start(GTK_BOX(vbox), gtk_separator_new(GTK_ORIENTATION_HORIZONTAL), FALSE, FALSE, 4);
 
-    /* License */
+    /* Credits: text with its links, two per row */
+    struct { const char *markup; const char *links[2]; } credits[] = {
+        { "Special thanks to the creators of <b>Bionic AI Agent</b>", { "https://lmstudio.ai/", NULL } },
+        { "Fan control code based on <b>fan-control</b> by steiiin, a fork of "
+          "<b>clevo-fan-control</b> by agramian (GPL-2.0)",
+          { "https://github.com/steiiin/fan-control", "https://github.com/agramian/clevo-fan-control" } },
+        { "Keyboard backlight driver <b>ite_829x</b> by <b>TUXEDO Computers</b> (tuxedo-drivers, GPL-2.0-or-later)",
+          { "https://github.com/tuxedocomputers/tuxedo-drivers", NULL } },
+        { "Honoring <b>Linus Torvalds</b>, the visionary founder of Linux", { "https://torvalds-family.blogspot.com/", NULL } },
+        { "Thanks to <b>Clevo</b> for producing &amp; selling awesome Laptops", { "https://www.clevo.com.tw/", NULL } },
+        { "Appreciation for the <b>Great Linux Community</b>", { NULL, NULL } },
+    };
+    GtkWidget *grid = gtk_grid_new();
+    gtk_grid_set_column_homogeneous(GTK_GRID(grid), TRUE);
+    gtk_grid_set_column_spacing(GTK_GRID(grid), 24);
+    gtk_grid_set_row_spacing(GTK_GRID(grid), 10);
+    gtk_widget_set_halign(grid, GTK_ALIGN_CENTER);
+    for (size_t i = 0; i < sizeof credits / sizeof credits[0]; i++) {
+        GtkWidget *cell = gtk_box_new(GTK_ORIENTATION_VERTICAL, 2);
+        GtkWidget *text = gtk_label_new(NULL);
+        gtk_label_set_markup(GTK_LABEL(text), credits[i].markup);
+        gtk_label_set_line_wrap(GTK_LABEL(text), TRUE);
+        gtk_label_set_justify(GTK_LABEL(text), GTK_JUSTIFY_CENTER);
+        gtk_label_set_max_width_chars(GTK_LABEL(text), 55);
+        gtk_box_pack_start(GTK_BOX(cell), text, FALSE, FALSE, 0);
+        for (int l = 0; l < 2; l++)
+            if (credits[i].links[l]) {
+                GtkWidget *link = create_clickable_link(credits[i].links[l]);
+                gtk_widget_set_halign(link, GTK_ALIGN_CENTER);
+                gtk_box_pack_start(GTK_BOX(cell), link, FALSE, FALSE, 0);
+            }
+        gtk_grid_attach(GTK_GRID(grid), cell, (int)(i % 2), (int)(i / 2), 1, 1);
+    }
+    gtk_box_pack_start(GTK_BOX(vbox), grid, FALSE, FALSE, 4);
+
     GtkWidget *license_label = gtk_label_new(NULL);
     gtk_label_set_markup(GTK_LABEL(license_label),
         "<span size='small'>Licensed under the GNU General Public License version 2. "
         "The keyboard driver is GPL-2.0-or-later (TUXEDO Computers).</span>");
     gtk_widget_set_halign(license_label, GTK_ALIGN_CENTER);
-    gtk_box_pack_start(GTK_BOX(thanks_vbox), license_label, FALSE, FALSE, 10);
-    
-    /* Contact info section */
-    GtkWidget *contact_sep = gtk_separator_new(GTK_ORIENTATION_HORIZONTAL);
-    gtk_widget_set_halign(contact_sep, GTK_ALIGN_CENTER);
-    gtk_box_pack_start(GTK_BOX(thanks_vbox), contact_sep, FALSE, FALSE, 25);
-    
-    GtkWidget *contact_title = gtk_label_new(NULL);
-    gtk_label_set_markup(GTK_LABEL(contact_title), "<span size='large' weight='bold' foreground='#2c3e50'>Contact</span>");
-    gtk_widget_set_halign(contact_title, GTK_ALIGN_CENTER);
-    gtk_box_pack_start(GTK_BOX(thanks_vbox), contact_title, TRUE, FALSE, 10);
-    
-    GtkWidget *contact_name = gtk_label_new(NULL);
-    gtk_label_set_markup(GTK_LABEL(contact_name), "<span size='medium' weight='bold'>Dudemeister</span>");
-    gtk_widget_set_halign(contact_name, GTK_ALIGN_CENTER);
-    gtk_box_pack_start(GTK_BOX(thanks_vbox), contact_name, TRUE, FALSE, 5);
-    
-    GtkWidget *contact_github_text = gtk_label_new(NULL);
-    gtk_label_set_markup(GTK_LABEL(contact_github_text), "<span size='small'>GitHub:</span>");
-    gtk_widget_set_halign(contact_github_text, GTK_ALIGN_CENTER);
-    gtk_box_pack_start(GTK_BOX(thanks_vbox), contact_github_text, TRUE, FALSE, 2);
-    
-    GtkWidget *contact_github = create_clickable_link("https://github.com/dudewayne/Dudes-Control-Center");
-    gtk_box_pack_start(GTK_BOX(thanks_vbox), contact_github, TRUE, FALSE, 0);
-    
+    gtk_box_pack_start(GTK_BOX(vbox), license_label, FALSE, FALSE, 4);
+
+    gtk_box_pack_start(GTK_BOX(vbox), gtk_separator_new(GTK_ORIENTATION_HORIZONTAL), FALSE, FALSE, 4);
+
+    /* Contact in one line */
+    GtkWidget *contact = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 8);
+    gtk_widget_set_halign(contact, GTK_ALIGN_CENTER);
+    GtkWidget *contact_text = gtk_label_new(NULL);
+    gtk_label_set_markup(GTK_LABEL(contact_text),
+        "<span weight='bold' foreground='#2c3e50'>Contact:</span> <b>Dudemeister</b>  GitHub:");
+    gtk_box_pack_start(GTK_BOX(contact), contact_text, FALSE, FALSE, 0);
+    gtk_box_pack_start(GTK_BOX(contact), create_clickable_link("https://github.com/dudewayne/Dudes-Control-Center"),
+                       FALSE, FALSE, 0);
+    gtk_box_pack_start(GTK_BOX(vbox), contact, FALSE, FALSE, 0);
+
     return vbox;
 }
 
@@ -6845,6 +6791,15 @@ static GtkWidget *create_cpu_page(AppData *app) {
     gtk_container_set_border_width(GTK_CONTAINER(info_box), 10);
     gtk_container_add(GTK_CONTAINER(info_frame), info_box);
     gtk_box_pack_start(GTK_BOX(vbox), info_frame, FALSE, FALSE, 0);
+    /* Two columns (1.24.4): temperature, load, CPUs left; frequencies and
+     * power mode right - half the height of one long list */
+    GtkWidget *info_cols = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 20);
+    gtk_box_set_homogeneous(GTK_BOX(info_cols), TRUE);
+    GtkWidget *info_left = gtk_box_new(GTK_ORIENTATION_VERTICAL, 5);
+    GtkWidget *info_right = gtk_box_new(GTK_ORIENTATION_VERTICAL, 5);
+    gtk_box_pack_start(GTK_BOX(info_cols), info_left, TRUE, TRUE, 0);
+    gtk_box_pack_start(GTK_BOX(info_cols), info_right, TRUE, TRUE, 0);
+    gtk_box_pack_start(GTK_BOX(info_box), info_cols, FALSE, FALSE, 0);
 
     /* CPU Temperature */
     {
@@ -6856,7 +6811,7 @@ static GtkWidget *create_cpu_page(AppData *app) {
         app->cpu_page_temp_label = gtk_label_new("N/A");
         gtk_widget_set_halign(app->cpu_page_temp_label, GTK_ALIGN_START);
         gtk_box_pack_start(GTK_BOX(row), app->cpu_page_temp_label, TRUE, TRUE, 0);
-        gtk_box_pack_start(GTK_BOX(info_box), row, FALSE, FALSE, 0);
+        gtk_box_pack_start(GTK_BOX(info_left), row, FALSE, FALSE, 0);
     }
 
     /* CPU Load */
@@ -6869,7 +6824,7 @@ static GtkWidget *create_cpu_page(AppData *app) {
         app->cpu_page_load_label = gtk_label_new("N/A");
         gtk_widget_set_halign(app->cpu_page_load_label, GTK_ALIGN_START);
         gtk_box_pack_start(GTK_BOX(row), app->cpu_page_load_label, TRUE, TRUE, 0);
-        gtk_box_pack_start(GTK_BOX(info_box), row, FALSE, FALSE, 0);
+        gtk_box_pack_start(GTK_BOX(info_left), row, FALSE, FALSE, 0);
     }
 
     /* Number of CPUs */
@@ -6882,7 +6837,7 @@ static GtkWidget *create_cpu_page(AppData *app) {
         app->cpu_page_num_label = gtk_label_new("N/A");
         gtk_widget_set_halign(app->cpu_page_num_label, GTK_ALIGN_START);
         gtk_box_pack_start(GTK_BOX(row), app->cpu_page_num_label, TRUE, TRUE, 0);
-        gtk_box_pack_start(GTK_BOX(info_box), row, FALSE, FALSE, 0);
+        gtk_box_pack_start(GTK_BOX(info_left), row, FALSE, FALSE, 0);
     }
 
     /* Current Frequency */
@@ -6895,7 +6850,7 @@ static GtkWidget *create_cpu_page(AppData *app) {
         app->cpu_page_freq_label = gtk_label_new("N/A");
         gtk_widget_set_halign(app->cpu_page_freq_label, GTK_ALIGN_START);
         gtk_box_pack_start(GTK_BOX(row), app->cpu_page_freq_label, TRUE, TRUE, 0);
-        gtk_box_pack_start(GTK_BOX(info_box), row, FALSE, FALSE, 0);
+        gtk_box_pack_start(GTK_BOX(info_right), row, FALSE, FALSE, 0);
     }
 
     /* Min/Max Frequency */
@@ -6908,7 +6863,7 @@ static GtkWidget *create_cpu_page(AppData *app) {
         app->cpu_page_min_max_freq_label = gtk_label_new("N/A");
         gtk_widget_set_halign(app->cpu_page_min_max_freq_label, GTK_ALIGN_START);
         gtk_box_pack_start(GTK_BOX(row), app->cpu_page_min_max_freq_label, TRUE, TRUE, 0);
-        gtk_box_pack_start(GTK_BOX(info_box), row, FALSE, FALSE, 0);
+        gtk_box_pack_start(GTK_BOX(info_right), row, FALSE, FALSE, 0);
     }
 
     /* Active Governor */
@@ -6921,7 +6876,7 @@ static GtkWidget *create_cpu_page(AppData *app) {
         app->cpu_page_governor_label = gtk_label_new("N/A");
         gtk_widget_set_halign(app->cpu_page_governor_label, GTK_ALIGN_START);
         gtk_box_pack_start(GTK_BOX(row), app->cpu_page_governor_label, TRUE, TRUE, 0);
-        gtk_box_pack_start(GTK_BOX(info_box), row, FALSE, FALSE, 0);
+        gtk_box_pack_start(GTK_BOX(info_right), row, FALSE, FALSE, 0);
     }
 
     /* Section: Governor Profiles */
