@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 ## [1.29.1] - 2026-11-22
 
 ### Fixed
-- **About page with the logo**: the Dudes Control Center logo (from the high-resolution picture, with a transparent background so it also looks right on dark themes) sits in the middle under the application name and version. The credits are left and right of it, each column centered on the logo: Claude and the code credits on the left, Bionic AI Agent, Linux and Clevo on the right. Below the logo come "This application was completely coded by AI", the contact and the license.
+- **About page with the logo**: the Dudes Control Center logo (from the high-resolution picture, with a transparent background so it also looks right on dark themes) sits in the middle under the application name, with the version below the name. The credits are left and right of it, each column centered on the logo: Claude and the code credits on the left, Bionic AI Agent, Linux and Clevo on the right. Below the logo come "This application was completely coded by AI", the contact and the license.
 - New credit: coded with **Claude** (Claude Code) by **Anthropic**.
 - The logo is installed as `/usr/share/dudes-control-center/logo.png`.
 

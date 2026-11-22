@@ -7182,9 +7182,10 @@ static GtkWidget *create_about_page(void) {
     GtkWidget *title = gtk_label_new(NULL);
     {
         char t[256];
-        snprintf(t, sizeof(t), "<span size='xx-large' weight='bold'>Dudes Control Center</span>"
-                               "  <span size='large' foreground='#7f8c8d'>Version %s</span>", APP_VERSION);
+        snprintf(t, sizeof(t), "<span size='xx-large' weight='bold'>Dudes Control Center</span>\n"
+                               "<span size='large' foreground='#7f8c8d'>Version %s</span>", APP_VERSION);
         gtk_label_set_markup(GTK_LABEL(title), t);
+        gtk_label_set_justify(GTK_LABEL(title), GTK_JUSTIFY_CENTER);   /* version under the name */
     }
     gtk_widget_set_halign(title, GTK_ALIGN_CENTER);
     gtk_box_pack_start(GTK_BOX(vbox), title, FALSE, FALSE, 2);
