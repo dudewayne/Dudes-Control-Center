@@ -410,6 +410,8 @@ typedef struct {
     unsigned char kbd_led_rgb[120][3]; /* current color per LED (from GET_ZONES) */
     unsigned char kbd_led_has_color[120]; /* 1 if the LED belongs to a zone */
     GtkWidget *kbd_status_label;
+    GtkWidget *fan_daemon_status_label;   /* Fan Profiles tab */
+    GtkWidget *cpu_daemon_status_label;   /* CPU Profiles tab */
     guint kbd_refresh_timer_id;
     int kbd_active_profile_idx;
     int kbd_profiles_modified; /* Track unsaved changes */
@@ -474,6 +476,7 @@ static void disconnect_from_daemon(AppData *app);
 
 /* Forward declarations for CPU daemon connection */
 static void connect_to_cpu_daemon(AppData *app);
+static void update_daemon_status_labels(AppData *app);
 static void disconnect_from_cpu_daemon(AppData *app);
 static const char *send_cpu_command(AppData *app, const char *cmd);
 static void parse_cpu_status(AppData *app, const char *response);
@@ -932,7 +935,12 @@ static gboolean cpu_refresh_timer_callback(gpointer user_data) {
     AppData *app = (AppData *)user_data;
 
     if (!app->cpu_connected) {
-        return G_SOURCE_CONTINUE;
+        /* Reconnect after the CPU daemon was restarted or updated (the GUI
+         * used to stay disconnected until it was reopened) */
+        if (app->cpu_socket_fd >= 0) { close(app->cpu_socket_fd); app->cpu_socket_fd = -1; }
+        connect_to_cpu_daemon(app);
+        update_daemon_status_labels(app);
+        if (!app->cpu_connected) return G_SOURCE_CONTINUE;
     }
 
     const char *response = send_cpu_command(app, "STATUS");
@@ -3335,6 +3343,23 @@ static void on_window_destroy(GtkWidget *widget, gpointer user_data) {
 }
 
 /* Connect to daemon */
+/* "<name> daemon connected", or in red when it is not */
+static void set_daemon_status(GtkWidget *label, const char *name, int connected) {
+    if (!label || !GTK_IS_LABEL(label)) return;
+    gchar *m = connected
+        ? g_markup_printf_escaped("%s daemon connected", name)
+        : g_markup_printf_escaped("<span foreground='#d9534f' weight='bold'>%s daemon not connected</span>", name);
+    gtk_label_set_markup(GTK_LABEL(label), m);
+    g_free(m);
+}
+
+/* Status lines of the Fan, CPU and Keyboard tabs */
+static void update_daemon_status_labels(AppData *app) {
+    set_daemon_status(app->fan_daemon_status_label, "Fan", app->connected && app->socket_fd >= 0);
+    set_daemon_status(app->cpu_daemon_status_label, "CPU", app->cpu_connected && app->cpu_socket_fd >= 0);
+    set_daemon_status(app->kbd_status_label, "Keyboard", app->kbd_connected && app->kbd_socket_fd >= 0);
+}
+
 static void connect_to_daemon(AppData *app) {
     
     /* Check if socket file exists first */
@@ -3438,6 +3463,7 @@ static void connect_to_cpu_daemon(AppData *app) {
     }
 
     app->cpu_connected = 1;
+    update_daemon_status_labels(app);
     g_print("[GUI] Connected to CPU daemon successfully!\n");
 }
 
@@ -3457,18 +3483,14 @@ static void connect_to_keyboard_daemon(AppData *app) {
         g_print("[GUI] Keyboard daemon socket not found at %s. Keyboard tab will be unavailable.\n", KBD_SOCKET_PATH);
         app->kbd_socket_fd = -1;
         app->kbd_connected = 0;
-        if (app->kbd_status_label) {
-            gtk_label_set_text(GTK_LABEL(app->kbd_status_label), "Keyboard daemon not connected");
-        }
+        update_daemon_status_labels(app);
         return;
     }
 
     app->kbd_socket_fd = socket(AF_UNIX, SOCK_STREAM, 0);
     if (app->kbd_socket_fd < 0) {
         g_print("[GUI] Failed to create keyboard socket: %s\n", strerror(errno));
-        if (app->kbd_status_label) {
-            gtk_label_set_text(GTK_LABEL(app->kbd_status_label), "Keyboard daemon socket creation failed");
-        }
+        update_daemon_status_labels(app);
         return;
     }
 
@@ -3481,16 +3503,12 @@ static void connect_to_keyboard_daemon(AppData *app) {
         g_print("[GUI] Failed to connect to keyboard daemon: %s\n", strerror(errno));
         close(app->kbd_socket_fd);
         app->kbd_socket_fd = -1;
-        if (app->kbd_status_label) {
-            gtk_label_set_text(GTK_LABEL(app->kbd_status_label), "Keyboard daemon connection failed");
-        }
+        update_daemon_status_labels(app);
         return;
     }
 
     app->kbd_connected = 1;
-    if (app->kbd_status_label) {
-        gtk_label_set_text(GTK_LABEL(app->kbd_status_label), "Keyboard daemon connected");
-    }
+    update_daemon_status_labels(app);
     g_print("[GUI] Connected to keyboard daemon successfully!\n");
 
     /* The daemon restores the backlight itself (off, profile colors or
@@ -3674,11 +3692,7 @@ static void load_keyboard_profiles(AppData *app) {
         app->kbd_active_profile_idx = active_idx;
     }
 
-    /* Update status label */
-    if (app->kbd_connected) {
-        gtk_label_set_text(GTK_LABEL(app->kbd_status_label),
-                          "Keyboard daemon connected");
-    }
+    update_daemon_status_labels(app);
 
     g_print("[GUI] Loaded %d keyboard profiles (active idx=%d)\n", profile_count, active_idx);
 }
@@ -4935,6 +4949,18 @@ static GtkWidget *create_curve_editor_page(AppData *app) {
     gtk_label_set_markup(GTK_LABEL(title), "<span size='large' weight='bold'>Fan Profiles</span>");
     gtk_box_pack_start(GTK_BOX(vbox), title, FALSE, FALSE, 0);
 
+    /* Daemon status (like the Keyboard tab) */
+    {
+        GtkWidget *frame = gtk_frame_new("Fan Daemon Status");
+        gtk_container_set_border_width(GTK_CONTAINER(frame), 6);
+        app->fan_daemon_status_label = gtk_label_new("Fan daemon not connected");
+        gtk_label_set_xalign(GTK_LABEL(app->fan_daemon_status_label), 0.0);
+        gtk_widget_set_margin_start(app->fan_daemon_status_label, 6);
+        gtk_widget_set_margin_end(app->fan_daemon_status_label, 6);
+        gtk_container_add(GTK_CONTAINER(frame), app->fan_daemon_status_label);
+        gtk_box_pack_start(GTK_BOX(vbox), frame, FALSE, FALSE, 0);
+    }
+
     GtkWidget *info_label = gtk_label_new("Choose a profile to edit its curve. Activate makes it control the fans; "
                                           "\"(Active)\" marks the profile in use.");
     gtk_label_set_line_wrap(GTK_LABEL(info_label), TRUE);
@@ -6075,6 +6101,18 @@ static GtkWidget *create_cpu_page(AppData *app) {
     GtkWidget *vbox = gtk_box_new(GTK_ORIENTATION_VERTICAL, 15);
     gtk_container_set_border_width(GTK_CONTAINER(vbox), 20);
 
+    /* Daemon status (like the Keyboard tab) */
+    {
+        GtkWidget *frame = gtk_frame_new("CPU Daemon Status");
+        gtk_container_set_border_width(GTK_CONTAINER(frame), 6);
+        app->cpu_daemon_status_label = gtk_label_new("CPU daemon not connected");
+        gtk_label_set_xalign(GTK_LABEL(app->cpu_daemon_status_label), 0.0);
+        gtk_widget_set_margin_start(app->cpu_daemon_status_label, 6);
+        gtk_widget_set_margin_end(app->cpu_daemon_status_label, 6);
+        gtk_container_add(GTK_CONTAINER(frame), app->cpu_daemon_status_label);
+        gtk_box_pack_start(GTK_BOX(vbox), frame, FALSE, FALSE, 0);
+    }
+
     /* Section: CPU Info */
     GtkWidget *info_frame = gtk_frame_new("CPU Information");
     GtkWidget *info_box = gtk_box_new(GTK_ORIENTATION_VERTICAL, 5);
@@ -6370,7 +6408,7 @@ static GtkWidget *create_keyboard_page(AppData *app) {
     gtk_widget_set_hexpand(app->kbd_status_label, TRUE);
     gtk_box_pack_start(GTK_BOX(status_box), app->kbd_status_label, FALSE, FALSE, 0);
 
-    GtkWidget *status_frame = gtk_frame_new("Keyboard Status");
+    GtkWidget *status_frame = gtk_frame_new("Keyboard Daemon Status");
     gtk_container_set_border_width(GTK_CONTAINER(status_frame), 6);
     gtk_container_add(GTK_CONTAINER(status_frame), status_box);
     gtk_box_pack_start(GTK_BOX(vbox), status_frame, FALSE, FALSE, 0);
@@ -7195,6 +7233,7 @@ static gboolean on_window_delete_event(GtkWidget *widget, GdkEvent *event, gpoin
 /* Refresh timer callback - fetch STATUS and update UI every 2 seconds */
 static gboolean refresh_timer_callback(gpointer user_data) {
     AppData *app = (AppData *)user_data;
+    update_daemon_status_labels(app);
     char ts[32];
     get_timestamp(ts, sizeof(ts));
     

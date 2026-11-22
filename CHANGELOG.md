@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.21.1] - 2026-11-22
+
+### Fixed
+- **Daemon status in every tab**: the Fan Profiles and CPU Profiles tabs now show the connection to their daemon at the top, like the Keyboard tab ("Fan Daemon Status", "CPU Daemon Status", "Keyboard Daemon Status"). A disconnected daemon is shown in **red** ("... daemon not connected"); the lines update every 2 seconds.
+- **The GUI reconnects to the CPU daemon**: after the CPU daemon was restarted or updated, the CPU tab stayed disconnected until the GUI was reopened (the keyboard connection had the same problem until 1.18.6). The CPU refresh timer now reconnects.
+
 ## [1.21.0] - 2026-11-22
 
 ### Changed
