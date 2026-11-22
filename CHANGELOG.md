@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.19.3] - 2026-11-22
+
+### Fixed
+- **Correct attribution of the keyboard driver**: `drivers/ite_829x.c` was presented as written by this project ("Dudes Keyboard LED Control", also as `MODULE_AUTHOR`). It is the ITE 829x driver from **[tuxedo-drivers](https://github.com/tuxedocomputers/tuxedo-drivers)** by **TUXEDO Computers GmbH** (copyright 2019-2023, GPL-2.0-or-later), modified for this project. The source header carries TUXEDO's copyright again and says where it comes from, `MODULE_AUTHOR` is TUXEDO Computers GmbH (shown by `modinfo ite_829x`), and the description names tuxedo-drivers.
+- **License**: `drivers/LICENSE` states origin, copyright and GPL-2.0-or-later with the full GPL version 2 text; `drivers/README.md` explains the origin. The package installs the license with the driver source (`/usr/src/ite_829x-<version>/LICENSE`) and as `/usr/share/doc/dudes-control-center/copyright`.
+- **Credits**: README (components, hardware, thanks, license, references) and the GUI's About page credit TUXEDO Computers for the driver, with a link to tuxedo-drivers.
+- The package check verifies that the TUXEDO copyright and the GPL text are shipped with the driver.
+
 ## [1.19.2] - 2026-11-22
 
 ### Fixed

@@ -6146,6 +6146,18 @@ static GtkWidget *create_about_page(void) {
     GtkWidget *thanks2_link = create_clickable_link("https://github.com/steiiin/fan-control");
     gtk_box_pack_start(GTK_BOX(thanks2_vbox), thanks2_link, TRUE, FALSE, 0);
     gtk_box_pack_start(GTK_BOX(thanks_vbox), thanks2_vbox, TRUE, FALSE, 0);
+
+    /* Credit: the ite_829x keyboard driver is TUXEDO Computers' (tuxedo-drivers, GPL-2.0+) */
+    GtkWidget *thanks_tux_vbox = gtk_box_new(GTK_ORIENTATION_VERTICAL, 5);
+    gtk_widget_set_halign(thanks_tux_vbox, GTK_ALIGN_CENTER);
+    GtkWidget *thanks_tux_text = gtk_label_new(NULL);
+    gtk_label_set_markup(GTK_LABEL(thanks_tux_text),
+        "<span size='medium'>Keyboard backlight driver <b>ite_829x</b> by <b>TUXEDO Computers</b> "
+        "(tuxedo-drivers, GPL-2.0-or-later)</span>");
+    gtk_box_pack_start(GTK_BOX(thanks_tux_vbox), thanks_tux_text, TRUE, FALSE, 0);
+    GtkWidget *thanks_tux_link = create_clickable_link("https://github.com/tuxedocomputers/tuxedo-drivers");
+    gtk_box_pack_start(GTK_BOX(thanks_tux_vbox), thanks_tux_link, TRUE, FALSE, 0);
+    gtk_box_pack_start(GTK_BOX(thanks_vbox), thanks_tux_vbox, TRUE, FALSE, 0);
     
     /* Thank you to Linus Torvalds */
     GtkWidget *thanks3_vbox = gtk_box_new(GTK_ORIENTATION_VERTICAL, 5);

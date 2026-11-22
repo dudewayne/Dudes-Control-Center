@@ -33,6 +33,10 @@ for n in gui fan-cli cpu-cli; do
     check "[ \"\$(readlink '$R/usr/local/bin/dudes-control-center-$n')\" = dcc-$n ]" "old command dudes-control-center-$n links to dcc-$n"
 done
 
+# third-party driver: TUXEDO copyright and GPL text shipped with it
+check "grep -q 'TUXEDO Computers GmbH' '$R'/usr/src/ite_829x-*/ite_829x.c && grep -q 'GNU GENERAL PUBLIC LICENSE' '$R'/usr/src/ite_829x-*/LICENSE" "ite_829x source keeps the TUXEDO copyright and ships the GPL"
+check "grep -q 'TUXEDO Computers GmbH' '$R/usr/share/doc/dudes-control-center/copyright'" "copyright file credits TUXEDO for the driver"
+
 # maintainer scripts
 for s in preinst postinst prerm postrm; do
     check "[ -x '$TMP/ctrl/$s' ] && sh -n '$TMP/ctrl/$s'" "$s present and valid shell"

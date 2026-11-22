@@ -13,7 +13,7 @@ A control center for Clevo-based notebooks on Linux: fan control through the Emb
 | `dcc-fan-daemon` | Fan control via EC I/O ports: fan curves (profiles), manual speed, safety overrides. systemd service with watchdog. |
 | `dcc-cpu-daemon` | CPU power modes (governor + energy preference), per-core frequency profiles, a hard frequency limit. |
 | `dcc-kbd-daemon` | Keyboard backlight: whole-keyboard and per-key colors, brightness, keyboard profiles. |
-| `ite_829x` kernel module (DKMS) | Driver for the ITE 829x keyboard controller: one RGB LED class device per key (`rgb:kbd_backlight*`). |
+| `ite_829x` kernel module (DKMS) | Driver for the ITE 829x keyboard controller: one RGB LED class device per key (`rgb:kbd_backlight*`). Written by **TUXEDO Computers** as part of [tuxedo-drivers](https://github.com/tuxedocomputers/tuxedo-drivers) (GPL-2.0-or-later), modified for this project; see [drivers/README.md](drivers/README.md). |
 | `dcc-hard-limit-enforcer` | systemd timer (every 10 s) that re-applies the CPU hard limit independently of the CPU daemon. |
 | `dcc-gui` | GTK3 GUI for everything above, with system tray icon. |
 | `dcc-fan-cli`, `dcc-cpu-cli` | Command-line tools for the fan and CPU daemons. |
@@ -159,7 +159,7 @@ make deb-check           # check the built package
 
 ## Hardware
 
-Designed for Clevo-based notebooks with EC access at I/O ports 0x62/0x66 and an ITE 829x keyboard controller. The fan code is based on the open-source [fan-control](https://github.com/steiiin/fan-control) project.
+Designed for Clevo-based notebooks with EC access at I/O ports 0x62/0x66 and an ITE 829x keyboard controller. The fan code is based on the open-source [fan-control](https://github.com/steiiin/fan-control) project; the keyboard driver `ite_829x` comes from TUXEDO Computers' [tuxedo-drivers](https://github.com/tuxedocomputers/tuxedo-drivers).
 
 **Tested on:** Intel Core Ultra 9, NVIDIA RTX 5090 Mobile, standard Clevo EC layout, Linux Mint.
 
@@ -210,6 +210,7 @@ This application was **completely coded by AI** using [Bionic AI Agent](https://
 ### Special Thanks To:
 - **[LM Studio](https://lmstudio.ai/)** - For the Bionic AI Agent that created this entire application
 - **[steiiin](https://github.com/steiiin/fan-control)** - Original creator of the fan-control source code that inspired this project
+- **[TUXEDO Computers](https://github.com/tuxedocomputers/tuxedo-drivers)** - Authors of the `ite_829x` keyboard backlight driver (part of tuxedo-drivers), which this project uses in modified form
 - **Linus Torvalds** - Founder of Linux [Blog](https://torvalds-family.blogspot.com/)
 - **The Great Linux Community** - For continuous support and innovation
 - **[Clevo](https://www.clevo.com.tw/)** - For producing and selling awesome laptops
@@ -222,8 +223,11 @@ This application was **completely coded by AI** using [Bionic AI Agent](https://
 
 This project uses code inspired by [fan-control](https://github.com/steiiin/fan-control). Please refer to the original project for its license terms.
 
+The keyboard driver `drivers/ite_829x.c` is copyright 2019-2023 TUXEDO Computers GmbH and licensed under the **GNU GPL version 2 or later**; the modified version in this repository is distributed under the same license ([drivers/LICENSE](drivers/LICENSE)). The package installs the license with the driver source (`/usr/src/ite_829x-<version>/LICENSE`) and in `/usr/share/doc/dudes-control-center/copyright`.
+
 ## References
 
 - Original fan-control: https://github.com/steiiin/fan-control
+- tuxedo-drivers (origin of the ite_829x keyboard driver): https://github.com/tuxedocomputers/tuxedo-drivers
 - Tuxedo Control Center (design reference): https://github.com/tuxedocomputers/tuxedo-control-center
 - GTK Documentation: https://docs.gtk.org/gtk3/

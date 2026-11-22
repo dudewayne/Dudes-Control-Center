@@ -1,6 +1,12 @@
 // SPDX-License-Identifier: GPL-2.0+
 /*!
- * Dudes Keyboard LED Control - ITE 829x keyboard backlight driver
+ * Copyright (c) 2019-2023 TUXEDO Computers GmbH <tux@tuxedocomputers.com>
+ *
+ * ITE 829x keyboard backlight driver, originally written by TUXEDO Computers
+ * as part of tuxedo-drivers: https://github.com/tuxedocomputers/tuxedo-drivers
+ * (src/ite_829x/ite_829x.c). Modified for Dudes Control Center; the changes
+ * are in that project's git history. Distributed under the same license
+ * (GPL-2.0-or-later), see drivers/LICENSE.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -32,8 +38,8 @@
 #include <linux/dmi.h>
 #include <linux/led-class-multicolor.h>
 
-MODULE_DESCRIPTION("ITE 829x keyboard backlight driver for Clevo laptops");
-MODULE_AUTHOR("Dudes Keyboard LED Control Project");
+MODULE_DESCRIPTION("ITE 829x keyboard backlight driver (from TUXEDO Computers' tuxedo-drivers)");
+MODULE_AUTHOR("TUXEDO Computers GmbH <tux@tuxedocomputers.com>");
 MODULE_LICENSE("GPL");
 /* Set to the package version by "make deb" (Kbuild ccflags) */
 #ifndef ITE829X_VERSION
