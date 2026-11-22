@@ -32,6 +32,7 @@ DCC_GROUP = dudes-control-center
 # Targets
 CLI_TARGET = dcc-fan-cli
 CPU_CLI_TARGET = dcc-cpu-cli
+KBD_CLI_TARGET = dcc-kbd-cli
 DAEMON_TARGET = dcc-fan-daemon
 CPU_DAEMON_TARGET = dcc-cpu-daemon
 KBD_DAEMON_TARGET = dcc-kbd-daemon
@@ -50,7 +51,7 @@ DKMS_MODULE_VERSION = $(VERSION)
 
 .PHONY: all clean cli daemon cpu-daemon kbd-daemon gui install uninstall deb help test
 
-all: $(CLI_TARGET) $(CPU_CLI_TARGET) $(DAEMON_TARGET) $(CPU_DAEMON_TARGET) $(KBD_DAEMON_TARGET) $(GUI_TARGET)
+all: $(CLI_TARGET) $(CPU_CLI_TARGET) $(KBD_CLI_TARGET) $(DAEMON_TARGET) $(CPU_DAEMON_TARGET) $(KBD_DAEMON_TARGET) $(GUI_TARGET)
 
 $(CLI_TARGET): $(COMMON_SRC) src/dcc-fan-cli.c $(COMMON_HDR)
 	$(CC) $(CFLAGS) -o $@ $(COMMON_SRC) src/dcc-fan-cli.c $(LDFLAGS_COMMON)
@@ -71,6 +72,11 @@ cpu-cli: $(CPU_CLI_TARGET)
 $(CPU_CLI_TARGET): src/dcc-cpu-cli.c src/dcc-cpu-common.h
 	$(CC) $(CFLAGS) -o $@ src/dcc-cpu-cli.c $(LDFLAGS_COMMON)
 
+kbd-cli: $(KBD_CLI_TARGET)
+
+$(KBD_CLI_TARGET): src/dcc-kbd-cli.c
+	$(CC) $(CFLAGS) -o $@ src/dcc-kbd-cli.c $(LDFLAGS_COMMON)
+
 daemon: $(DAEMON_TARGET)
 
 cpu-daemon: $(CPU_DAEMON_TARGET)
@@ -83,7 +89,7 @@ kbd-daemon: $(KBD_DAEMON_TARGET)
 gui: $(GUI_TARGET)
 
 clean:
-	rm -f $(CLI_TARGET) $(CPU_CLI_TARGET) $(DAEMON_TARGET) $(CPU_DAEMON_TARGET) $(KBD_DAEMON_TARGET) $(GUI_TARGET)
+	rm -f $(CLI_TARGET) $(CPU_CLI_TARGET) $(KBD_CLI_TARGET) $(DAEMON_TARGET) $(CPU_DAEMON_TARGET) $(KBD_DAEMON_TARGET) $(GUI_TARGET)
 	rm -rf $(TEST_BUILD)
 	rm -f $(DEB_BUILD_DIR)/$(PACKAGE)_*.deb 2>/dev/null || true
 
@@ -100,6 +106,7 @@ deb: all
 	@mkdir -p $(DEB_BUILD_DIR)/$(PACKAGE)-$(VERSION)/DEBIAN
 	@cp $(CLI_TARGET) $(DEB_BUILD_DIR)/$(PACKAGE)-$(VERSION)/usr/local/bin/
 	@cp $(CPU_CLI_TARGET) $(DEB_BUILD_DIR)/$(PACKAGE)-$(VERSION)/usr/local/bin/
+	@cp $(KBD_CLI_TARGET) $(DEB_BUILD_DIR)/$(PACKAGE)-$(VERSION)/usr/local/bin/
 	@cp $(DAEMON_TARGET) $(DEB_BUILD_DIR)/$(PACKAGE)-$(VERSION)/usr/local/bin/
 	@cp $(CPU_DAEMON_TARGET) $(DEB_BUILD_DIR)/$(PACKAGE)-$(VERSION)/usr/local/bin/
 	@cp $(KBD_DAEMON_TARGET) $(DEB_BUILD_DIR)/$(PACKAGE)-$(VERSION)/usr/local/bin/
@@ -163,6 +170,7 @@ install: all
 	@echo "Installing applications..."
 	install -m 755 $(CLI_TARGET) /usr/local/bin/
 	install -m 755 $(CPU_CLI_TARGET) /usr/local/bin/
+	install -m 755 $(KBD_CLI_TARGET) /usr/local/bin/
 	install -m 755 $(DAEMON_TARGET) /usr/local/bin/
 	install -m 755 $(CPU_DAEMON_TARGET) /usr/local/bin/
 	install -m 755 $(KBD_DAEMON_TARGET) /usr/local/bin/
@@ -219,6 +227,7 @@ uninstall:
 	systemctl disable dcc-hard-limit-enforcer.timer 2>/dev/null || true
 	rm -f /usr/local/bin/$(CLI_TARGET)
 	rm -f /usr/local/bin/$(CPU_CLI_TARGET)
+	rm -f /usr/local/bin/$(KBD_CLI_TARGET)
 	rm -f /usr/local/bin/$(DAEMON_TARGET)
 	rm -f /usr/local/bin/$(CPU_DAEMON_TARGET)
 	rm -f /usr/local/bin/$(KBD_DAEMON_TARGET)
@@ -269,7 +278,7 @@ CPU_DAEMON_DEPS = src/dcc-cpu-daemon.c src/dcc-cpu-common.c src/dcc-cpu-common.h
 
 TEST_BINS = $(TEST_BUILD)/test_fan_responses $(TEST_BUILD)/test_fan_safety \
             $(TEST_BUILD)/test_secure_allow $(TEST_BUILD)/test_secure_deny \
-            $(TEST_BUILD)/cpud_test $(TEST_BUILD)/test_gui_save $(TEST_BUILD)/kbdd_test \
+            $(TEST_BUILD)/cpud_test $(TEST_BUILD)/test_gui_save $(TEST_BUILD)/kbdd_test $(TEST_BUILD)/kbdcli_test \
             $(TEST_BUILD)/test_paths
 
 test: $(TEST_BINS) test-locale
@@ -305,6 +314,10 @@ $(TEST_BUILD)/cpud_test: $(CPU_DAEMON_DEPS) | $(TEST_BUILD)
 	  -o $@ src/dcc-cpu-daemon.c src/dcc-cpu-common.c $(LOG_SRC) $(SECURE_SRC) $(CJSON_LIBS)
 
 # The real keyboard daemon against a fake /sys/class/leds ("leds")
+# The keyboard CLI against the test daemon's socket "kbd.sock"
+$(TEST_BUILD)/kbdcli_test: src/dcc-kbd-cli.c | $(TEST_BUILD)
+	$(CC) $(TEST_CFLAGS) -DKBD_SOCKET_PATH='"kbd.sock"' -o $@ src/dcc-kbd-cli.c
+
 $(TEST_BUILD)/kbdd_test: $(KBD_DAEMON_DEPS) | $(TEST_BUILD)
 	$(CC) $(TEST_CFLAGS) $(CJSON_CFLAGS) -DKBD_SOCKET_PATH='"kbd.sock"' -DKBD_LOG_DIR='"logs"' \
 	  -DKBD_LEDS_DIR='"leds"' -DKBD_STATE_DIR='"state"' -DMAIN_PROFILES_PATH='"cfg/profiles.json"' -DDCC_AUTH_GROUP='"$(TEST_GROUP)"' \

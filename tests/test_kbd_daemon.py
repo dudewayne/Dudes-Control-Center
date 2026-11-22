@@ -21,6 +21,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from fakesys import Checker, ask, connect, wr  # noqa: E402
 
 base, daemon = os.path.abspath(sys.argv[1]), os.path.abspath(sys.argv[2])
+cli = os.path.abspath(sys.argv[3]) if len(sys.argv) > 3 else None   # dcc-kbd-cli (1.32.0)
 os.chdir(base)
 NLEDS = 120
 check = Checker()
@@ -226,6 +227,39 @@ try:
     c = colors()
     check(c[6] == (0, 255, 0) and c[119] == (0, 0, 255) and c[50] == (255, 255, 255),
           "TURN_ON restores the per-key colors instead of plain white")
+
+    # dcc-kbd-cli against this daemon (1.32.0)
+    if cli:
+        def run(*args):
+            r = subprocess.run([cli, *args], capture_output=True, text=True, timeout=10)
+            return r.returncode, r.stdout + r.stderr
+        rc, out = run()
+        check(rc == 0 and "Backlight:      on" in out and "Active profile: Start" in out and "LEDs:           120" in out,
+              "CLI: status shows backlight, active profile and LED count")
+        rc, out = run("--brightness", "3")
+        check(rc == 0 and "Brightness 3 / 10" in out and bright(0) == 3, "CLI: --brightness sets the hardware brightness")
+        rc, out = run("--color", "orange")
+        check(rc == 0 and set(colors()) == {(255, 165, 0)}, "CLI: --color with a name colors the whole keyboard")
+        rc, out = run("--color", "#0080ff")
+        check(rc == 0 and set(colors()) == {(0, 128, 255)}, "CLI: --color #RRGGBB")
+        rc, out = run("--color", "300,0,0")
+        check(rc == 1 and "invalid color" in out, "CLI: invalid color rejected without talking to the daemon")
+        rc, out = run("--list-profiles")
+        check(rc == 0 and "* Start" in out and "  Empty" in out, "CLI: --list-profiles marks the active profile")
+        rc, out = run("--show-profile", "Start")
+        check(rc == 0 and "Base color: 255,255,255" in out and "Zones:" in out, "CLI: --show-profile shows base color and zones")
+        rc, out = run("--show-profile", "Nope")
+        check(rc == 1 and "Error" in out, "CLI: unknown profile -> error and exit code 1")
+        rc, out = run("--profile", "Start")
+        c = colors()
+        check(rc == 0 and c[6] == (0, 255, 0) and c[50] == (255, 255, 255), "CLI: --profile activates the saved colors")
+        rc, out = run("--off")
+        check(rc == 0 and set(colors()) == {(0, 0, 0)}, "CLI: --off")
+        rc, out = run("--on")
+        check(rc == 0 and colors()[6] == (0, 255, 0), "CLI: --on restores the colors")
+        rc, out = run("--bogus")
+        check(rc == 1 and "unknown option" in out, "CLI: unknown option rejected")
+        run("--brightness", "7")     # as before (the restart below expects 7)
     s.close()
     proc.send_signal(signal.SIGTERM)
     proc.wait(timeout=5)

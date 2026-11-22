@@ -1,6 +1,7 @@
 # Compiled binaries
 dcc-fan-cli
 dcc-cpu-cli
+dcc-kbd-cli
 dcc-fan-daemon
 dcc-cpu-daemon
 dcc-kbd-daemon

@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.32.0] - 2026-11-22
+
+### Added
+- **`dcc-kbd-cli`**: command-line tool for the keyboard backlight, like `dcc-fan-cli` and `dcc-cpu-cli`. Without options it shows the status (on/off, brightness, active profile, number of LEDs); `--on`, `--off`, `--brightness <level>`, `--color <color>` (whole keyboard in one color, not saved: `R,G,B`, `#RRGGBB` or white/red/green/blue/yellow/cyan/magenta/orange/purple), `--list-profiles` (active one marked), `--profile <name>` (activate) and `--show-profile <name>` (base color and zones). It talks to the keyboard daemon's socket, so members of the `dudes-control-center` group can use it without root; clear messages when the daemon is not running or the user lacks the group.
+- Tests: the CLI against the test keyboard daemon (status, brightness, colors, profiles, on/off, invalid input); `make deb-check` checks that it is installed.
+
 ## [1.31.0] - 2026-11-22
 
 ### Added

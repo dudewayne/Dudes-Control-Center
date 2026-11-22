@@ -13,7 +13,7 @@ dpkg-deb -x "$DEB" "$TMP/root"
 dpkg-deb -e "$DEB" "$TMP/ctrl"
 R="$TMP/root"
 
-for b in dcc-gui dcc-fan-cli dcc-cpu-cli dcc-fan-daemon dcc-cpu-daemon dcc-kbd-daemon dcc-hard-limit-enforce; do
+for b in dcc-gui dcc-fan-cli dcc-cpu-cli dcc-kbd-cli dcc-fan-daemon dcc-cpu-daemon dcc-kbd-daemon dcc-hard-limit-enforce; do
     check "[ -x '$R/usr/local/bin/$b' ] && [ ! -L '$R/usr/local/bin/$b' ]" "program $b installed"
 done
 for u in dcc-fan-daemon.service dcc-cpu-daemon.service dcc-kbd-daemon.service dcc-hard-limit-enforcer.service dcc-hard-limit-enforcer.timer; do

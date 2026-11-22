@@ -16,7 +16,7 @@ A control center for Clevo-based notebooks on Linux: fan control through the Emb
 | `ite_829x` kernel module (DKMS) | Driver for the ITE 829x keyboard controller: one RGB LED class device per key (`rgb:kbd_backlight*`). Written by **TUXEDO Computers** as part of [tuxedo-drivers](https://github.com/tuxedocomputers/tuxedo-drivers) (GPL-2.0-or-later), modified for this project; see [drivers/README.md](drivers/README.md). |
 | `dcc-hard-limit-enforcer` | systemd timer (every 10 s) that re-applies the CPU hard limit independently of the CPU daemon. |
 | `dcc-gui` | GTK3 GUI for everything above, with system tray icon. |
-| `dcc-fan-cli`, `dcc-cpu-cli` | Command-line tools for the fan and CPU daemons. |
+| `dcc-fan-cli`, `dcc-cpu-cli`, `dcc-kbd-cli` | Command-line tools for the fan, CPU and keyboard daemons. |
 
 Commands and services use the short prefix **`dcc-`** (since 1.19.0); folders with your data, the package and the access group keep the full name `dudes-control-center`.
 
@@ -92,9 +92,17 @@ dcc-cpu-cli --list-profiles
 dcc-cpu-cli --apply-profile 0
 dcc-cpu-cli --hard-limit 3.8 # GHz
 dcc-cpu-cli --hard-limit-get
+
+dcc-kbd-cli                  # keyboard backlight status
+dcc-kbd-cli --on | --off
+dcc-kbd-cli --brightness 5   # 0 to the maximum (usually 10)
+dcc-kbd-cli --color orange   # whole keyboard: R,G,B, #RRGGBB or a color name (not saved)
+dcc-kbd-cli --list-profiles
+dcc-kbd-cli --profile "Gaming"
+dcc-kbd-cli --show-profile "Gaming"
 ```
 
-`--help` shows all options. `--set` and `--auto` access the EC directly and need root.
+`--help` shows all options. `--set` and `--auto` access the EC directly and need root. `dcc-kbd-cli` talks to the keyboard daemon like the GUI does (members of the `dudes-control-center` group).
 
 ## Safety features
 
