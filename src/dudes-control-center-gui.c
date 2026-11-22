@@ -500,6 +500,7 @@ static void kbd_wizard_finish(AppData *app);
 static void kbd_save_led_mapping_csv(AppData *app);
 static void kbd_load_led_mapping_csv(AppData *app);
 static void kbd_refresh_key_colors(AppData *app);
+static void kbd_sync_power_switch(AppData *app);
 static gboolean cpu_refresh_timer_callback(gpointer user_data);
 static void load_cpu_governors(AppData *app);
 static void on_cpu_governor_changed(GtkWidget *widget, gpointer user_data);
@@ -3573,9 +3574,9 @@ static void connect_to_keyboard_daemon(AppData *app) {
     }
     g_print("[GUI] Connected to keyboard daemon successfully!\n");
 
-    /* Turn on keyboard backlight at startup */
-    send_keyboard_command(app, "TURN_ON");
-    g_print("[GUI] Sent TURN_ON at startup\n");
+    /* The daemon restores the backlight itself (off, profile colors or
+     * white); the GUI only shows that state instead of switching it on */
+    kbd_sync_power_switch(app);
     
     /* Load LED mapping from CSV */
     kbd_load_led_mapping_csv(app);
@@ -4118,6 +4119,7 @@ static void on_kbd_activate_profile_clicked(GtkWidget *widget, gpointer user_dat
     const char *response = send_keyboard_command(app, cmd);
     g_print("[GUI] LOAD_PROFILE response: %s\n", response ? response : "NULL");
     kbd_refresh_key_colors(app);
+    kbd_sync_power_switch(app);
 
     /* Reload the profile list to update the [*] marker */
     load_keyboard_profiles(app);
@@ -4147,7 +4149,7 @@ static gboolean on_kbd_off_switch_toggled(GtkSwitch *sw, gboolean new_state, gpo
         gtk_label_set_text(GTK_LABEL(app->kbd_profile_status_label), "Backlight turned OFF");
         g_print("[GUI] Keyboard backlight turned OFF (override active)\n");
     } else {
-        /* Turn backlight back on with default color */
+        /* Turn the backlight back on (the daemon restores the current colors) */
         app->kbd_off_active = 0;
         const char *response = send_keyboard_command(app, "TURN_ON");
         g_print("[GUI] TURN_ON response: %s\n", response ? response : "NULL");
@@ -4207,6 +4209,7 @@ static void on_led_wizard_save_finish_clicked(GtkWidget *widget, gpointer user_d
     
     /* Restore all LEDs */
     send_keyboard_command(app, "TURN_ON");
+    kbd_sync_power_switch(app);
     
     /* Save mapping to CSV */
     kbd_save_led_mapping_csv(app);
@@ -4231,6 +4234,7 @@ static void on_led_wizard_cancel_clicked(GtkWidget *widget, gpointer user_data) 
     
     /* Restore all LEDs */
     send_keyboard_command(app, "TURN_ON");
+    kbd_sync_power_switch(app);
     
     /* Update UI */
     gtk_widget_set_sensitive(app->kbd_led_wizard_btn, TRUE);
@@ -4275,6 +4279,7 @@ static void kbd_wizard_finish(AppData *app) {
     
     /* Restore all LEDs */
     send_keyboard_command(app, "TURN_ON");
+    kbd_sync_power_switch(app);
     
     /* Update UI */
     gtk_widget_set_sensitive(app->kbd_led_wizard_btn, TRUE);
@@ -4402,6 +4407,27 @@ static int kbd_led_is_selected(const AppData *app, int led) {
     for (int s = 0; s < app->kbd_num_selected_leds; s++)
         if (app->kbd_selected_led_indices[s] == led) return 1;
     return 0;
+}
+
+/* "IS_ON=0|1" from a keyboard STATUS response, -1 if missing */
+static int kbd_parse_is_on(const char *response) {
+    const char *p = response ? strstr(response, "IS_ON=") : NULL;
+    if (!p) return -1;
+    return atoi(p + 6) ? 1 : 0;
+}
+
+/* Show the daemon's real power state on the "Backlight Off" switch
+ * (without sending anything back) */
+static void kbd_sync_power_switch(AppData *app) {
+    if (!app->kbd_connected || !app->kbd_off_switch) return;
+    int is_on = kbd_parse_is_on(send_keyboard_command(app, "STATUS"));
+    if (is_on < 0) return;
+    app->kbd_off_active = !is_on;
+    g_signal_handlers_block_by_func(app->kbd_off_switch, G_CALLBACK(on_kbd_off_switch_toggled), app);
+    gtk_switch_set_active(GTK_SWITCH(app->kbd_off_switch), !is_on);
+    gtk_switch_set_state(GTK_SWITCH(app->kbd_off_switch), !is_on);
+    g_signal_handlers_unblock_by_func(app->kbd_off_switch, G_CALLBACK(on_kbd_off_switch_toggled), app);
+    g_print("[GUI] Keyboard backlight is %s\n", is_on ? "on" : "off");
 }
 
 /* Parse a GET_ZONES response ("ZONE i name=.. color=r,g,b keys=N k1 k2 ...")
@@ -4675,6 +4701,7 @@ static void on_preset_color_clicked(GtkWidget *widget, AppData *app) {
     g_free(msg);
 
     kbd_refresh_key_colors(app);
+    kbd_sync_power_switch(app);
 }
 
 /* Callback: clear the key selection */

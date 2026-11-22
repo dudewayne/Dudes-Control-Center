@@ -601,6 +601,10 @@ static int handle_command(const char *cmd, char *response, size_t resp_size) {
     if (strcmp(action, "LOAD_PROFILE") == 0) {
         LOG_INFO("[KBD_DAEMON] LOAD_PROFILE: '%s'", arg1);
         if (profile_apply(arg1) == 0) {
+            if (g_num_zones > 0) {           /* activating a profile with colors switches the light on */
+                kbd_led_set_power(1);
+                kbd_led_set_mode(KBD_LED_MODE_STATIC);
+            }
             snprintf(response, resp_size, "OK Profile loaded: %s\n", arg1);
             return 0;
         } else {
@@ -855,8 +859,20 @@ int main(int argc, char *argv[]) {
     LOG_INFO("[KBD_DAEMON] Loading saved profiles...");
     kbd_profiles_load_json();
     LOG_INFO("[KBD_DAEMON] Loaded %d keyboard profiles", g_num_profiles);
-    /* Show the active profile's colors again (they are lost at reboot) */
-    kbd_apply_active_profile();
+    /* Start in the state the user left: off if switched off, otherwise the
+     * active profile's colors (lost at reboot), otherwise white. The GUI no
+     * longer turns the backlight on when it starts (1.18.6). */
+    if (kbd_led_off_flag_set()) {
+        LOG_INFO("[KBD_DAEMON] Backlight was switched off - keeping it off");
+        turn_off_all_leds();
+        kbd_led_set_mode(KBD_LED_MODE_OFF);
+    } else if (kbd_apply_active_profile() == 0) {
+        kbd_led_set_power(1);
+        kbd_led_set_mode(KBD_LED_MODE_STATIC);
+    } else if (set_all_leds_color(255, 255, 255) == 0) {
+        kbd_led_set_power(1);
+        kbd_led_set_mode(KBD_LED_MODE_STATIC);
+    }
 
     /* Set up signal handlers */
     struct sigaction sa;

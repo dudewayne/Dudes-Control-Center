@@ -12,6 +12,7 @@
 #include <unistd.h>
 #include <time.h>
 #include <errno.h>
+#include <fcntl.h>
 
 #include "dudes-control-center-kbd-common.h"
 #include "dudes-control-center-log.h"
@@ -216,6 +217,20 @@ void kbd_led_set_mode(KbdLedMode mode) {
 
 void kbd_led_set_power(int is_on) {
     g_led_state.is_on = is_on;
+    if (is_on) {
+        if (unlink(KBD_OFF_FLAG_FILE) != 0 && errno != ENOENT)
+            LOG_WARN("[KBD] Cannot remove %s: %s", KBD_OFF_FLAG_FILE, strerror(errno));
+    } else {
+        mkdir(KBD_STATE_DIR, 0755);
+        int fd = open(KBD_OFF_FLAG_FILE, O_WRONLY | O_CREAT | O_TRUNC | O_NOFOLLOW | O_CLOEXEC, 0644);
+        if (fd >= 0) close(fd);
+        else LOG_WARN("[KBD] Cannot write %s: %s", KBD_OFF_FLAG_FILE, strerror(errno));
+    }
+}
+
+int kbd_led_off_flag_set(void) {
+    struct stat st;
+    return lstat(KBD_OFF_FLAG_FILE, &st) == 0 && S_ISREG(st.st_mode);
 }
 
 int kbd_led_set_brightness(uint8_t brightness) {

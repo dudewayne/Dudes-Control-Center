@@ -142,6 +142,37 @@ try:
     c = colors()
     check(c[6] == (0, 255, 0) and c[119] == (0, 0, 255) and c[50] == (255, 255, 255),
           "after a restart the active profile's per-key colors are restored")
+    check("IS_ON=1" in ask(s, "STATUS"), "STATUS reports the backlight as on after restoring a profile")
+
+    # the off state survives a restart (v1.18.6)
+    ask(s, "TURN_OFF")
+    check(os.path.exists("state/kbd_backlight_off"), "TURN_OFF stores the off state")
+    s.close()
+    proc.send_signal(signal.SIGTERM)
+    proc.wait(timeout=5)
+    proc, s = start()
+    time.sleep(0.3)
+    check(set(colors()) == {(0, 0, 0)} and "IS_ON=0" in ask(s, "STATUS"),
+          "switched off -> still off after a restart (not turned on again)")
+    ask(s, "SET_KEYS_COLOR::255,0,0::all")
+    check(not os.path.exists("state/kbd_backlight_off") and "IS_ON=1" in ask(s, "STATUS"),
+          "choosing a color switches the light on and clears the off state")
+    ask(s, "TURN_OFF")
+    ask(s, "LOAD_PROFILE::Start")
+    check(not os.path.exists("state/kbd_backlight_off") and colors()[6] == (0, 255, 0),
+          "activating a profile with colors switches the light on")
+    s.close()
+    proc.send_signal(signal.SIGTERM)
+    proc.wait(timeout=5)
+
+    # no colors and not switched off -> white at start (the GUI no longer sends TURN_ON)
+    d = json.load(open("cfg/profiles.json"))
+    d["keyboard_profiles"]["active_profile_index"] = [p["name"] for p in d["keyboard_profiles"]["profiles"]].index("Empty")
+    json.dump(d, open("cfg/profiles.json", "w"))
+    proc, s = start()
+    time.sleep(0.3)
+    check(set(colors()) == {(255, 255, 255)} and "IS_ON=1" in ask(s, "STATUS"),
+          "no profile colors -> the daemon starts white by itself")
     s.close()
     proc.send_signal(signal.SIGTERM)
     proc.wait(timeout=5)

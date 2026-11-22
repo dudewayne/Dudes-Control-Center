@@ -15,6 +15,11 @@
 #ifndef KBD_LEDS_DIR
 #define KBD_LEDS_DIR "/sys/class/leds"
 #endif
+/* Remembers "backlight switched off" across daemon restarts and reboots */
+#ifndef KBD_STATE_DIR
+#define KBD_STATE_DIR "/var/lib/dudes-control-center"
+#endif
+#define KBD_OFF_FLAG_FILE KBD_STATE_DIR "/kbd_backlight_off"
 #ifndef KBD_LOG_DIR
 #define KBD_LOG_DIR "/var/log/dudes-control-center"
 #endif
@@ -90,7 +95,8 @@ int turn_off_all_leds(void);
 int get_led_count(void);
 const KbdLedState* kbd_led_get_state(void);
 void kbd_led_set_mode(KbdLedMode mode);
-void kbd_led_set_power(int is_on);
+void kbd_led_set_power(int is_on);              /* also stores the off state on disk */
+int kbd_led_off_flag_set(void);                 /* 1 if the backlight was switched off */
 int kbd_led_set_brightness(uint8_t brightness);
 uint8_t kbd_led_get_brightness(void);
 

@@ -181,6 +181,9 @@ int main(int argc, char **argv) {
     CHECK(kb.kbd_led_rgb[1][0] == 255 && kb.kbd_led_rgb[1][1] == 0 && kb.kbd_led_rgb[119][0] == 255,
           "K: later zone wins, names with spaces parsed");
     CHECK(!kb.kbd_led_has_color[3], "K: LED in no zone has no color");
+    CHECK(kbd_parse_is_on("STATUS OK\nLED_COUNT=120\nIS_ON=0\n") == 0 &&
+          kbd_parse_is_on("STATUS OK\nIS_ON=1\n") == 1 && kbd_parse_is_on("ERROR x") == -1,
+          "K: backlight power state read from STATUS (v1.18.6)");
     kbd_parse_zone_colors(&kb, "ERROR Not connected to keyboard daemon");
     CHECK(!kb.kbd_led_has_color[0], "K: error response clears the colors");
 

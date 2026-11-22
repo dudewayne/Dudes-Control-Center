@@ -58,6 +58,7 @@ dudes-control-center-gui --debug    # more output in GUI.log
 1. Run the **LED Wizard** once: it lights each LED in turn and you click the matching key on the picture. The mapping is saved in `~/.config/dudes-control-center/keyboard_led_mapping.csv`. Keys with several LEDs (Space, Enter, ...) get all of them.
 2. Click keys on the picture to select them, then click a color: exactly those keys change, the others keep their color. With no keys selected, the color applies to the whole keyboard. **Clear selection** deselects all keys.
 3. **Save Profile** stores the colors in the keyboard profile; **Activate Profile** brings them back. The keyboard daemon restores the active profile when it starts.
+4. **Backlight Off** switches the keyboard off until you switch it on again, choose a color or activate a profile, also across reboots. Opening the GUI does not change the backlight.
 
 ### CPU power modes
 
@@ -109,6 +110,7 @@ dudes-control-center-cpu-cli --hard-limit-get
 | Keyboard LED mapping (LED wizard) | `~/.config/dudes-control-center/keyboard_led_mapping.csv` |
 | GUI settings (window position etc.) | `~/.config/dudes-control-center/config.json` |
 | Whose `profiles.json` the root daemons use | `/etc/dudes-control-center/user` |
+| Keyboard backlight switched off (kept across reboots) | `/var/lib/dudes-control-center/kbd_backlight_off` |
 
 The daemons run as root, so they look up the desktop user's `profiles.json` (first match wins):
 1. `DCC_PROFILES_PATH` (absolute path, e.g. in a systemd drop-in)
