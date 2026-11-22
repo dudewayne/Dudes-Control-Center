@@ -2,6 +2,18 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.28.0] - 2026-11-22
+
+### Added
+- **Keyboard layouts: German (DE), English (UK), Spanish (ES), Japanese (JP), Korean (KR)**: the Settings tab has a layout dropdown; the keyboard picture, the key names and the clickable key areas follow it. On the first start the layout is preselected from the system's keyboard layout (`/etc/default/keyboard`: de/at/ch, gb/uk/ie, es, jp, kr), otherwise German; the choice is stored in `config.json`.
+- Layouts are data now instead of a compiled-in German table: `/usr/share/dudes-control-center/layouts/<layout>/keys.csv` (key positions) and `keyboard_dark.svg` (picture, drawn with GTK's SVG loader; the package depends on `librsvg2-common`).
+- **LED mapping per layout** (`keyboard_led_mapping_<layout>.csv`): German keeps the checked built-in mapping; UK and Spanish get a mapping derived from the German one by key position, Japanese and Korean where their keys match the German ones (their extra keys need the LED Wizard). The Settings tab says what the mapping of the selected layout is based on. Zones and profiles are unaffected by the layout (they store LED numbers).
+- Tests for all five layouts, the CSV reader, the derived mappings and the conversion.
+
+### Changed
+- The existing German LED mapping (`keyboard_led_mapping.csv`) is converted once to the German layout file; the old file stays for older versions. Keys with several LEDs are one key with several LEDs now (the old table had one entry per LED).
+- `config.json` keeps all its settings when the window position is saved (it used to be rewritten with only the window position).
+
 ## [1.27.0] - 2026-11-22
 
 ### Added

@@ -35,6 +35,12 @@ for c in preinst postinst prerm postrm; do
     check "echo \"\$listing\" | grep -qE '^-rwxr-xr-x root/root .*\\./$c\$'" "maintainer script $c is root-owned with mode 755"
 done
 
+# Keyboard layouts (1.28.0): key positions and picture per layout, SVG loader dependency
+for c in de uk es jp kr; do
+    check "[ -s '$R/usr/share/dudes-control-center/layouts/$c/keys.csv' ] && grep -q '<svg' '$R/usr/share/dudes-control-center/layouts/$c/keyboard_dark.svg'" "layout $c: keys.csv and keyboard_dark.svg installed"
+done
+check "grep -q '^Depends:.*librsvg2-common' '$TMP/ctrl/control'" "package depends on the SVG loader (librsvg2-common)"
+
 # Settings tab (1.27.0): root helper, polkit action, unit conditions
 H="$R/usr/local/sbin/dcc-component"
 check "echo \"\$listing\" | grep -qE '^-rwxr-xr-x root/root .*usr/local/sbin/dcc-component\$'" "helper dcc-component is root-owned with mode 755"

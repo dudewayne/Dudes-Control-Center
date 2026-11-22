@@ -105,6 +105,9 @@ deb: all
 	@cp $(KBD_DAEMON_TARGET) $(DEB_BUILD_DIR)/$(PACKAGE)-$(VERSION)/usr/local/bin/
 	@cp $(GUI_TARGET) $(DEB_BUILD_DIR)/$(PACKAGE)-$(VERSION)/usr/local/bin/
 	@cp resources/keyboard_dark.png $(DEB_BUILD_DIR)/$(PACKAGE)-$(VERSION)/usr/share/doc/dudes-control-center/images/keyboard_dark.png 2>/dev/null || true
+	@# Keyboard layouts: key positions (keys.csv) and picture (SVG) per layout (1.28.0)
+	@mkdir -p $(DEB_BUILD_DIR)/$(PACKAGE)-$(VERSION)/usr/share/dudes-control-center
+	@cp -r resources/layouts $(DEB_BUILD_DIR)/$(PACKAGE)-$(VERSION)/usr/share/dudes-control-center/
 	@cp dudes-control-center.desktop $(DEB_BUILD_DIR)/$(PACKAGE)-$(VERSION)/usr/share/applications/
 	@cp DudesControlCenter.png $(DEB_BUILD_DIR)/$(PACKAGE)-$(VERSION)/usr/share/pixmaps/ 2>/dev/null || true
 	@cp DudesControlCenter.png $(DEB_BUILD_DIR)/$(PACKAGE)-$(VERSION)/usr/share/icons/hicolor/256x256/apps/dudes-control-center.png 2>/dev/null || true
@@ -136,7 +139,7 @@ deb: all
 	@echo 'Description: Dudes Control Center - Monitor and control notebook fan speed, CPU frequency, and keyboard backlight' >> $(DEB_BUILD_DIR)/$(PACKAGE)-$(VERSION)/DEBIAN/control
 	@echo 'Section: admin' >> $(DEB_BUILD_DIR)/$(PACKAGE)-$(VERSION)/DEBIAN/control
 	@echo 'Priority: optional' >> $(DEB_BUILD_DIR)/$(PACKAGE)-$(VERSION)/DEBIAN/control
-	@echo 'Depends: libgtk-3-0, libcjson1, dkms, pkexec | policykit-1' >> $(DEB_BUILD_DIR)/$(PACKAGE)-$(VERSION)/DEBIAN/control
+	@echo 'Depends: libgtk-3-0, librsvg2-common, libcjson1, dkms, pkexec | policykit-1' >> $(DEB_BUILD_DIR)/$(PACKAGE)-$(VERSION)/DEBIAN/control
 	@# Maintainer scripts from packaging/ (@VERSION@ and @GROUP@ filled in)
 	@for f in preinst postinst prerm postrm; do \
 		sed -e 's/@VERSION@/$(VERSION)/g' -e 's/@GROUP@/$(DCC_GROUP)/g' packaging/$$f > $(DEB_BUILD_DIR)/$(PACKAGE)-$(VERSION)/DEBIAN/$$f; \
@@ -177,6 +180,7 @@ install: all
 	install -m 755 scripts/dcc-hard-limit-enforce.sh /usr/local/bin/dcc-hard-limit-enforce
 	install -D -m 755 scripts/dcc-component.sh /usr/local/sbin/dcc-component
 	install -D -m 644 packaging/org.dudes-control-center.component.policy /usr/share/polkit-1/actions/org.dudes-control-center.component.policy
+	mkdir -p /usr/share/dudes-control-center && cp -r resources/layouts /usr/share/dudes-control-center/
 	systemctl daemon-reload
 	systemctl enable dcc-fan-daemon
 	systemctl enable dcc-cpu-daemon
@@ -277,7 +281,7 @@ $(TEST_BUILD)/kbdd_test: $(KBD_DAEMON_DEPS) | $(TEST_BUILD)
 $(TEST_BUILD)/test_gui_save: tests/test_gui_save.c src/dcc-gui.c $(COMMON_SRC) $(LOG_SRC) $(LOG_HDR) | $(TEST_BUILD)
 	$(CC) $(TEST_CFLAGS) -w $(GTK_CFLAGS) $(CJSON_CFLAGS) -DAPP_VERSION='"$(VERSION)"' \
 	  -DSOCKET_PATH='"fan.sock"' -DCPU_SOCKET_PATH='"cpu.sock"' -DKBD_SOCKET_PATH='"kbd.sock"' \
-	  -DDCC_COMPONENT_DIR='"components"' \
+	  -DDCC_COMPONENT_DIR='"components"' -DDCC_LAYOUT_DIR='"$(CURDIR)/resources/layouts"' \
 	  -o $@ tests/test_gui_save.c $(COMMON_SRC) $(LOG_SRC) $(GTK_LIBS) $(CJSON_LIBS) -lm
 
 # Check the built package: names, units, maintainer scripts (CI runs it after "make deb")

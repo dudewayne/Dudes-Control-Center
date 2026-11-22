@@ -51,7 +51,7 @@ dcc-gui --debug    # more output in GUI.log
 | **Fan Profiles** | One dropdown for all fan profiles (the one in use is marked "(Active)"): Create, Rename, Save, Delete, **Activate**, and the graphical temperature-to-fan-speed curve of the selected profile (add, edit, delete points; Save keeps them, unsaved changes are asked about before switching profiles or leaving the tab). Shows a warning with "Disable Manual Mode" while manual mode is on. |
 | **CPU Profiles** | Power mode (**Performance / Balanced / Power Save**), per-core min/max frequency profiles (Create, Rename, Save, Delete, Activate; unsaved changes are asked about before switching profiles, leaving the tab or closing), the CPU hard limit. |
 | **Keyboard Backlight** | Keyboard profiles, **brightness slider**, backlight off switch, preset and custom colors, the **zone editor** (keyboard picture + zone list) for per-key lighting, the LED wizard. |
-| **Settings** | Switch **fan control, CPU control or keyboard backlight** off when it does not work on your laptop or causes problems (and on again). Asks for the administrator password; applies system wide and stays after reboots and updates. The tabs and tray submenus of a switched-off part are hidden. Fan control switched off: fans at 100% until the next reboot, then the firmware controls them. |
+| **Settings** | Switch **fan control, CPU control or keyboard backlight** off when it does not work on your laptop or causes problems (and on again). Asks for the administrator password; applies system wide and stays after reboots and updates. The tabs and tray submenus of a switched-off part are hidden. Fan control switched off: fans at 100% until the next reboot, then the firmware controls them. **Keyboard layout**: German, English (UK), Spanish, Japanese or Korean picture and keys (preselected from the system's keyboard layout). |
 | **Logs** | Live GUI, CPU daemon, fan daemon and keyboard daemon logs (newest on top). |
 | **About** | Version, credits, links. |
 
@@ -59,7 +59,7 @@ dcc-gui --debug    # more output in GUI.log
 
 ### Keyboard profiles and zones
 
-1. Run the **LED Wizard** once: it lights each LED in turn and you click the matching key on the picture. The mapping is saved in `~/.config/dudes-control-center/keyboard_led_mapping.csv`. Keys with several LEDs (Space, Enter, ...) get all of them. "Skip" keeps an LED's current key, "No Key" marks an LED that lights no key; the label shows the key each LED has now. Until the wizard has run, a built-in mapping for this keyboard is used.
+1. Run the **LED Wizard** once: it lights each LED in turn and you click the matching key on the picture. The mapping is saved per keyboard layout in `~/.config/dudes-control-center/keyboard_led_mapping_<layout>.csv`. Keys with several LEDs (Space, Enter, ...) get all of them. "Skip" keeps an LED's current key, "No Key" marks an LED that lights no key; the label shows the key each LED has now. Until the wizard has run, a built-in mapping for this keyboard is used.
 2. A keyboard profile has a **base color** (every key that is in no zone) and any number of **zones** (a name, a color and its keys). Selecting a profile in the dropdown shows it on the keyboard and the picture; leaving the Keyboard tab brings the active profile back.
 3. **No zone selected**: a preset color or **Custom…** colors the whole keyboard (the base color; zones keep their colors). That is all a one-colored profile needs.
 4. **Zones** (list next to the picture): **Create** a zone, then click keys on the picture to add or remove them, or drag a rectangle over neighboring keys to add or remove all of them at once (a key belongs to one zone) and pick its color with a preset or **Custom…**. **Rename** and **Delete** work on the selected zone; **Whole Keyboard** stops editing a zone. With no zone selected, clicking a key selects its zone.
@@ -114,7 +114,8 @@ dcc-cpu-cli --hard-limit-get
 | What | Where |
 |---|---|
 | Fan, CPU and keyboard profiles, CPU hard limit | `~/.config/dudes-control-center/profiles.json` |
-| Keyboard LED mapping (LED wizard) | `~/.config/dudes-control-center/keyboard_led_mapping.csv` |
+| Keyboard LED mapping (LED wizard), per layout | `~/.config/dudes-control-center/keyboard_led_mapping_<layout>.csv` (de, uk, es, jp, kr) |
+| Keyboard layouts (key positions, pictures) | `/usr/share/dudes-control-center/layouts/<layout>/` |
 | GUI settings (window position etc.) | `~/.config/dudes-control-center/config.json` |
 | Whose `profiles.json` the root daemons use | `/etc/dudes-control-center/user` |
 | Keyboard backlight switched off (kept across reboots) | `/var/lib/dudes-control-center/kbd_backlight_off` |

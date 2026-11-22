@@ -45,6 +45,7 @@ int main(int argc, char **argv) {
 
     char logdir[1024]; snprintf(logdir, sizeof logdir, "%s/logs", home);
     log_init("GUI", LOG_LEVEL_INFO, logdir);
+    kbd_layout_load("de");   /* keyboard tests use the German layout (1.28.0) */
     gui_install_log_handlers();
 
     static AppData app;  /* zeroed */
@@ -219,13 +220,62 @@ int main(int argc, char **argv) {
         printf("SKIP  U: unsaved CPU profile changes (no display)\n");
     }
 
+    /* L: keyboard layouts from keys.csv (v1.28.0) */
+    {
+        const char *codes[] = { "de", "uk", "es", "jp", "kr" };
+        const size_t counts[] = { 103, 103, 103, 104, 102 };
+        int all = 1;
+        for (int i = 0; i < 5; i++) {
+            static KbdLayoutData L;
+            if (kbd_layout_parse(codes[i], &L) != 0 || L.n != counts[i]) {
+                printf("      layout %s: %zu keys\n", codes[i], L.n);
+                all = 0;
+            }
+        }
+        CHECK(all, "L: all five layouts load with their number of keys (DE/UK/ES 103, JP 104, KR 102)");
+        static KbdLayoutData L;
+        CHECK(kbd_layout_parse("xx", &L) == -1 && kbd_layout_parse("../de", &L) == -1, "L: unknown layout codes are refused");
+        CHECK(kbd_layout_load("uk") == 0 && kbd_layout_index_of(";") >= 0 && kbd_layout_index_of("Enter") >= 0,
+              "L: quoted CSV fields read (the UK key named ';')");
+        int q = kbd_legacy_to_current(42);     /* legacy "Q" */
+        CHECK(q >= 0 && !strcmp(kbd_key_names[q], "Q"), "L: German key -> UK key at the same position (Q)");
+        static AppData lm;
+        kbd_mapping_set_defaults(&lm);
+        int mapped = 0;
+        for (int l = 0; l < 120; l++) if (lm.kbd_wizard_mapping[l] >= 0) mapped++;
+        CHECK(mapped > 90, "L: UK built-in mapping derived from the German one (most LEDs have a key)");
+        /* mapping file per layout */
+        lm.kbd_wizard_mapping[5] = kbd_layout_index_of("Enter");
+        kbd_save_led_mapping_csv(&lm);
+        static AppData lr;
+        kbd_load_led_mapping_csv(&lr);
+        CHECK(!memcmp(lr.kbd_wizard_mapping, lm.kbd_wizard_mapping, sizeof lm.kbd_wizard_mapping),
+              "L: UK LED mapping saved to and read from its own file");
+        CHECK(kbd_layout_load("jp") == 0 && kbd_layout_index_of("Henkan") >= 0, "L: Japanese layout has Henkan");
+        kbd_mapping_set_defaults(&lm);
+        int a = kbd_layout_index_of("A"), led_a = -1;
+        for (int l = 0; l < 120; l++) if (lm.kbd_wizard_mapping[l] == a) led_a = l;
+        CHECK(a >= 0 && led_a >= 0, "L: Japanese layout gets a derived LED for the letter keys (A)");
+        /* German: an old mapping file (before 1.28.0) is converted once */
+        CHECK(kbd_layout_load("de") == 0, "L: back to German");
+        char old[1024], neu[1024];
+        snprintf(old, sizeof old, "%s/.config/dudes-control-center/keyboard_led_mapping.csv", home);
+        snprintf(neu, sizeof neu, "%s/.config/dudes-control-center/keyboard_led_mapping_de.csv", home);
+        unlink(neu);
+        g_file_set_contents(old, "led_id;position;led_index;numbering=name\n31;31;\n82;80;\n32;;\n35;35;\n34;34;\n", -1, NULL);
+        static AppData lo;
+        kbd_load_led_mapping_csv(&lo);
+        int sz = kbd_layout_index_of("\u00df"), lt = kbd_layout_index_of("<"), bs = kbd_layout_index_of("Backspace");
+        CHECK(lo.kbd_wizard_mapping[31] == sz && lo.kbd_wizard_mapping[82] == lt && lo.kbd_wizard_mapping[32] == -1 &&
+              lo.kbd_wizard_mapping[34] == bs && lo.kbd_wizard_mapping[35] == bs && access(neu, F_OK) == 0,
+              "L: old German mapping converted (both Backspace LEDs on the one Backspace key), new file written");
+    }
+
     /* K: keyboard key -> LED lookup (v1.17.3) */
-    CHECK(sizeof kbd_default_led_position / sizeof kbd_default_led_position[0] == 120 &&
-          sizeof kbd_key_names / sizeof kbd_key_names[0] == KBD_NUM_KEYS &&
-          sizeof kbd_key_positions / sizeof kbd_key_positions[0] == KBD_NUM_KEYS,
-          "K: key name, position and default LED tables have the same size");
+    CHECK(sizeof kbd_default_led_position / sizeof kbd_default_led_position[0] == 120 && kbd_num_keys == 103,
+          "K: default LED table for 120 LEDs, German layout has 103 keys");
     int ok_names = 1;
-    for (int i = 0; i < KBD_NUM_KEYS; i++)
+    for (int i = 0; i < (int)kbd_num_keys; i++)
         if (!kbd_key_names[i] || kbd_key_positions[i].w <= 0) ok_names = 0;
     CHECK(ok_names, "K: every key has a name and a non-empty position");
     static AppData kb;  /* zeroed */
@@ -233,15 +283,15 @@ int main(int argc, char **argv) {
     /* built-in mapping (1.22.0): LED -> key, several LEDs per key, unused LEDs */
     kbd_mapping_set_defaults(&kb);
     {
-        int ok = 1, used[KBD_NUM_KEYS] = {0};
+        int ok = 1, used[KBD_MAX_KEYS] = {0};
         for (int l = 0; l < 120; l++) {
             int p = kb.kbd_wizard_mapping[l];
-            if (p < -1 || p >= KBD_NUM_KEYS) ok = 0;
+            if (p < -1 || p >= (int)kbd_num_keys) ok = 0;
             if (p >= 0) used[p]++;
         }
         CHECK(ok, "K: built-in mapping only names existing keys");
         int pos_nde = -1, pos_ins = -1, pos_sz = -1, pos_lt = -1, pos_space = -1;
-        for (int i = 0; i < KBD_NUM_KEYS; i++) {
+        for (int i = 0; i < (int)kbd_num_keys; i++) {
             if (!strcmp(kbd_key_names[i], "Numpad ,")) pos_nde = i;
             if (!strcmp(kbd_key_names[i], "Numpad 0")) pos_ins = i;
             if (!strcmp(kbd_key_names[i], "ß") && pos_sz < 0) pos_sz = i;
@@ -278,7 +328,7 @@ int main(int argc, char **argv) {
     /* K: ISO Enter is L-shaped; its lower part does not cover '#' (v1.21.7) */
     {
         size_t enter = 0, hash = 0, npplus = 0;
-        for (size_t i = 0; i < KBD_NUM_KEYS; i++) {
+        for (size_t i = 0; i < (int)kbd_num_keys; i++) {
             if (!strcmp(kbd_key_names[i], "Enter") && !enter) enter = i;
             if (!strcmp(kbd_key_names[i], "#")) hash = i;
             if (!strcmp(kbd_key_names[i], "Numpad +") && !npplus) npplus = i;
@@ -294,26 +344,25 @@ int main(int argc, char **argv) {
         CHECK(npplus && lx == kbd_key_positions[npplus].x, "K: other tall keys (Numpad +) stay rectangles");
     }
 
-    /* K: entries of one key form a group; Numpad Enter stays a rectangle (v1.21.8) */
+    /* K: one entry per key since 1.28.0; Numpad Enter stays a rectangle */
     {
-        size_t ne[3], n = 0, en[2], m = 0;
-        for (size_t i = 0; i < KBD_NUM_KEYS; i++) {
+        size_t ne[3], n = 0, m = 0;
+        for (size_t i = 0; i < kbd_num_keys; i++) {
             if (!strcmp(kbd_key_names[i], "Numpad Enter") && n < 3) ne[n++] = i;
-            if (!strcmp(kbd_key_names[i], "Enter") && m < 2) en[m++] = i;
+            if (!strcmp(kbd_key_names[i], "Enter")) m++;
         }
-        CHECK(n == 3 && kbd_key_group_primary(ne[1]) == ne[0] && kbd_key_group_primary(ne[2]) == ne[0] &&
-              m == 2 && kbd_key_group_primary(en[1]) == en[0] && kbd_key_group_primary(en[0]) == en[0],
-              "K: the 3 Numpad Enter entries (and the 2 Enter entries) are one key");
+        CHECK(n == 1 && m == 1 && kbd_key_group_primary(ne[0]) == ne[0],
+              "K: Numpad Enter and Enter are one entry each");
         double lx, sy;
         kbd_key_shape(ne[0], &lx, &sy);
-        CHECK(lx == kbd_key_positions[ne[0]].x, "K: Numpad Enter is not L-shaped (its own lower entry is no neighbour)");
+        CHECK(lx == kbd_key_positions[ne[0]].x, "K: Numpad Enter is not L-shaped");
         static AppData g;  /* zeroed */
         memset(g.kbd_wizard_mapping, -1, sizeof g.kbd_wizard_mapping);
         g.kbd_wizard_mapping[10] = (int)ne[0];
-        g.kbd_wizard_mapping[11] = (int)ne[2];
+        g.kbd_wizard_mapping[11] = (int)ne[0];
         int leds[120];
         int k = kbd_leds_for_key(&g, ne[0], leds, 120);
-        CHECK(k == 2, "K: a key's LEDs include those mapped to any of its entries");
+        CHECK(k == 2, "K: a key with two LEDs gets both");
     }
 
     /* K: key colors from the daemon's GET_ZONES (v1.18.0) */
@@ -400,8 +449,8 @@ int main(int argc, char **argv) {
         g_string_free(g, TRUE);
         /* dragged rectangle (v1.25.0): keys whose center is inside */
         {
-            size_t ks[KBD_NUM_KEYS];
-            int nk = kbd_keys_in_rect(330, 220, 120, 150, ks, KBD_NUM_KEYS);   /* corners in any order */
+            size_t ks[KBD_MAX_KEYS];
+            int nk = kbd_keys_in_rect(330, 220, 120, 150, ks, KBD_MAX_KEYS);   /* corners in any order */
             int q = 0, w = 0, ee = 0, other = 0;
             for (int k = 0; k < nk; k++) {
                 const char *nm = kbd_key_names[ks[k]];
@@ -409,12 +458,12 @@ int main(int argc, char **argv) {
                 else if (!strcmp(nm, "E")) ee = 1; else other = 1;
             }
             CHECK(nk == 3 && q && w && ee && !other, "Z: rectangle over Q W E selects exactly those keys");
-            nk = kbd_keys_in_rect(900, 150, 1045, 290, ks, KBD_NUM_KEYS);
+            nk = kbd_keys_in_rect(900, 150, 1045, 290, ks, KBD_MAX_KEYS);
             int enters = 0;
             for (int k = 0; k < nk; k++) if (!strcmp(kbd_key_names[ks[k]], "Enter")) enters++;
             CHECK(enters == 1, "Z: a key with several entries (Enter) counts once");
-            CHECK(kbd_keys_in_rect(0, 0, 5, 5, ks, KBD_NUM_KEYS) == 0, "Z: rectangle without key centers selects nothing");
-            CHECK(kbd_keys_in_rect(0, 0, 2000, 1000, ks, KBD_NUM_KEYS) > 90, "Z: rectangle over the whole picture selects all keys");
+            CHECK(kbd_keys_in_rect(0, 0, 5, 5, ks, KBD_MAX_KEYS) == 0, "Z: rectangle without key centers selects nothing");
+            CHECK(kbd_keys_in_rect(0, 0, 2000, 1000, ks, KBD_MAX_KEYS) > 90, "Z: rectangle over the whole picture selects all keys");
         }
         kbd_parse_zone_colors(&kb, "ZONES_START COUNT=0\nBASE color=1,2,3\nZONES_END\n");
         CHECK(kb.kbd_led_has_color[77] && kb.kbd_led_rgb[77][2] == 3, "Z: GET_ZONES base color shown on the picture");

@@ -42,12 +42,12 @@ typedef struct {
     double x, y, w, h;
 } KeyPos;
 
-/* Keyboard image dimensions */
-#define KBD_IMAGE_WIDTH 1330
-#define KBD_IMAGE_HEIGHT 440
-
-/* Number of keys on the schematic (kbd_key_names / kbd_key_positions) */
-#define KBD_NUM_KEYS 113
+/* Keyboard layouts (1.28.0): key names and positions come from
+ * <layout dir>/<code>/keys.csv, the picture from keyboard_dark.svg there */
+#define KBD_MAX_KEYS 160
+#ifndef DCC_LAYOUT_DIR
+#define DCC_LAYOUT_DIR "/usr/share/dudes-control-center/layouts"
+#endif
 
 /* Keyboard profile being edited in the zone editor (1.24.0): a base color
  * for keys in no zone plus named zones, each with a color and its LEDs.
@@ -66,11 +66,11 @@ typedef struct {
     KbdZoneEdit zones[KBD_GUI_MAX_ZONES];
 } KbdProfileEdit;
 
-/* Default LED wizard mapping: key position per LED (-1 = the LED lights no
- * key), used until the LED wizard has saved
- * ~/.config/dudes-control-center/keyboard_led_mapping.csv. Same format as
- * the CSV, so keys with several LEDs (Space, Backspace, Shift...) are
- * covered. Taken from a checked wizard run on this keyboard (1.22.0); the
+/* Default LED wizard mapping: per LED an index into kbd_legacy_key_names
+ * (-1 = the LED lights no key), used until the LED wizard has saved a
+ * mapping for the layout. The key names are turned into keys of the
+ * current layout (German: by name; other layouts: by position). Keys with
+ * several LEDs (Space, Backspace, Shift...) are covered. Taken from a checked wizard run on this keyboard (1.22.0); the
  * old table (one LED per key) had the bottom row, the Numpad 0/, LEDs and
  * ß/<> wrong. LED IDs use the name numbering (rgb:kbd_backlight_N = N). */
 static const int kbd_default_led_position[120] = {
@@ -86,8 +86,11 @@ static const int kbd_default_led_position[120] = {
     103, 103, 104, 105, 106, 106, 107, 108, 109, 110, 111,  97
 };
 
-/* Key names from keyboard_keys_de.csv (one per position index) */
-static const char *kbd_key_names[KBD_NUM_KEYS] = {
+/* Key table of versions before 1.28.0 (German, compiled in; keys with
+ * several LEDs had several entries). Only used to read the built-in
+ * mapping above and to convert old keyboard_led_mapping.csv files. */
+#define KBD_LEGACY_NUM_KEYS 113
+static const char *const kbd_legacy_key_names[KBD_LEGACY_NUM_KEYS] = {
     "Esc", "F1", "F2", "F3", "F4", "F5", "F6", "F7",
     "F8", "F9", "F10", "F11", "F12", "Druck S-Abf", "Einfg Rollen↓", "Entf",
     "Pos1", "Ende", "Bild↑ Pause", "Bild↓ Untbr",
@@ -106,39 +109,160 @@ static const char *kbd_key_names[KBD_NUM_KEYS] = {
     "Arrow left", "Arrow down", "Arrow right", "Numpad 0", "Numpad ,", "Numpad Enter"
 };
 
-/* QWERTZ keyboard key positions - from keyboard_keys_de.csv */
-static const KeyPos kbd_key_positions[KBD_NUM_KEYS] = {
-    {24, 20, 58, 56 }, {88, 20, 58, 56 }, {151, 20, 58, 56 }, {215, 20, 58, 56 },
-    {278, 20, 58, 56 }, {342, 20, 58, 56 }, {405, 20, 58, 56 }, {469, 20, 58, 56 },
-    {533, 20, 58, 56 }, {596, 20, 58, 56 }, {660, 20, 58, 56 }, {723, 20, 58, 56 },
-    {787, 20, 58, 56 }, {851, 20, 58, 56 }, {914, 20, 58, 56 }, {978, 20, 58, 56 },
-    {1064, 20, 62, 56 }, {1132, 20, 62, 56 }, {1200, 20, 62, 56 }, {1268, 20, 62, 56 },
-    {24, 88, 62, 62 }, {92, 88, 62, 62 }, {160, 88, 62, 62 }, {228, 88, 62, 62 },
-    {296, 88, 62, 62 }, {364, 88, 62, 62 }, {432, 88, 62, 62 }, {500, 88, 62, 62 },
-    {568, 88, 62, 62 }, {636, 88, 62, 62 }, {704, 88, 62, 62 }, {772, 88, 62, 62 },
-    {772, 88, 62, 62 }, {840, 88, 62, 62 }, {908, 88, 130, 62 }, {908, 88, 130, 62 },
-    {1064, 88, 62, 62 }, {1132, 88, 62, 62 }, {1200, 88, 62, 62 }, {1268, 88, 62, 62 },
-    {24, 156, 96, 62 }, {24, 156, 96, 62 }, {126, 156, 62, 62 }, {194, 156, 62, 62 },
-    {262, 156, 62, 62 }, {330, 156, 62, 62 }, {398, 156, 62, 62 }, {466, 156, 62, 62 },
-    {534, 156, 62, 62 }, {602, 156, 62, 62 }, {670, 156, 62, 62 }, {738, 156, 62, 62 },
-    {806, 156, 62, 62 }, {874, 156, 62, 62 }, {942, 156, 96, 130 }, {942, 156, 96, 130 },
-    {1064, 156, 62, 62 }, {1132, 156, 62, 62 }, {1200, 156, 62, 62 }, {1268, 156, 62, 130 },
-    {1268, 156, 62, 130 }, {24, 224, 113, 62 }, {24, 224, 113, 62 },
-    {143, 224, 62, 62 }, {211, 224, 62, 62 }, {279, 224, 62, 62 }, {347, 224, 62, 62 },
-    {415, 224, 62, 62 }, {483, 224, 62, 62 }, {551, 224, 62, 62 }, {619, 224, 62, 62 },
-    {687, 224, 62, 62 }, {755, 224, 62, 62 }, {823, 224, 62, 62 }, {891, 224, 62, 62 },
-    {1064, 224, 62, 62 }, {1132, 224, 62, 62 }, {1200, 224, 62, 62 },
-    {24, 292, 79, 62 }, {24, 292, 79, 62 }, {109, 292, 62, 62 },
-    {177, 292, 62, 62 }, {245, 292, 62, 62 }, {313, 292, 62, 62 }, {381, 292, 62, 62 },
-    {449, 292, 62, 62 }, {517, 292, 62, 62 }, {585, 292, 62, 62 }, {653, 292, 62, 62 },
-    {721, 292, 62, 62 }, {789, 292, 62, 62 }, {857, 292, 127, 62 }, {857, 292, 127, 62 },
-    {996, 292, 62, 62 }, {1064, 292, 62, 62 }, {1132, 292, 62, 62 }, {1200, 292, 62, 62 },
-    {1268, 292, 62, 130 }, {1268, 292, 62, 130 },
-    {24, 360, 76, 62 }, {106, 360, 62, 62 }, {174, 360, 62, 62 }, {242, 360, 62, 62 },
-    {310, 360, 375, 62 }, {690, 360, 62, 62 }, {758, 360, 62, 62 }, {826, 360, 89, 62 },
-    {928, 360, 62, 62 }, {996, 360, 62, 62 }, {1064, 360, 62, 62 },
-    {1132, 360, 62, 62 }, {1200, 360, 62, 62 }, {1268, 360, 62, 62 }
+/* Keys of the current layout (loaded from keys.csv) */
+static size_t kbd_num_keys;
+static char kbd_key_name_buf[KBD_MAX_KEYS][48];
+static const char *kbd_key_names[KBD_MAX_KEYS];
+static KeyPos kbd_key_positions[KBD_MAX_KEYS];
+static char kbd_layout_code[8] = "de";
+
+typedef struct { const char *code, *label, *xkb; } KbdLayoutInfo;
+static const KbdLayoutInfo kbd_layouts[] = {
+    { "de", "German (DE)",   "de,at,ch" },
+    { "uk", "English (UK)",  "gb,uk,ie" },
+    { "es", "Spanish (ES)",  "es" },
+    { "jp", "Japanese (JP)", "jp" },
+    { "kr", "Korean (KR)",   "kr" },
 };
+#define KBD_NUM_LAYOUTS ((int)(sizeof kbd_layouts / sizeof kbd_layouts[0]))
+
+static int kbd_layout_known(const char *code) {
+    for (int i = 0; i < KBD_NUM_LAYOUTS; i++) if (code && !strcmp(kbd_layouts[i].code, code)) return 1;
+    return 0;
+}
+
+/* One line of keys.csv: ';' separated, "quoted" fields with "" for a quote */
+static int kbd_csv_split(const char *line, char fields[][96], int max) {
+    int n = 0;
+    const char *q = line;
+    while (n < max) {
+        size_t len = 0;
+        if (*q == '"') {
+            q++;
+            while (*q) {
+                if (*q == '"' && q[1] == '"') { if (len < 95) fields[n][len++] = '"'; q += 2; }
+                else if (*q == '"') { q++; break; }
+                else { if (len < 95) fields[n][len++] = *q; q++; }
+            }
+            while (*q && *q != ';') q++;
+        } else {
+            while (*q && *q != ';' && *q != '\r' && *q != '\n') { if (len < 95) fields[n][len++] = *q; q++; }
+        }
+        fields[n++][len] = '\0';
+        if (*q != ';') break;
+        q++;
+    }
+    return n;
+}
+
+typedef struct {
+    size_t n;
+    char names[KBD_MAX_KEYS][48];
+    KeyPos pos[KBD_MAX_KEYS];
+    double right;                      /* right edge of the keys */
+} KbdLayoutData;
+
+/* Read <layout dir>/<code>/keys.csv (columns found by their header names) */
+static int kbd_layout_parse(const char *code, KbdLayoutData *L) {
+    memset(L, 0, sizeof *L);
+    if (!kbd_layout_known(code)) return -1;
+    char path[512];
+    snprintf(path, sizeof path, "%s/%s/keys.csv", DCC_LAYOUT_DIR, code);
+    gchar *data = NULL;
+    if (!g_file_get_contents(path, &data, NULL, NULL)) {
+        g_print("[GUI] Keyboard layout '%s': cannot read %s\n", code, path);
+        return -1;
+    }
+    char *text = data;
+    if (!strncmp(text, "\xEF\xBB\xBF", 3)) text += 3;          /* UTF-8 BOM */
+    int ck = -1, cx = -1, cy = -1, cw = -1, ch = -1, header = 1;
+    static char f[24][96];
+    char *save = NULL;
+    for (char *line = strtok_r(text, "\n", &save); line; line = strtok_r(NULL, "\n", &save)) {
+        int nf = kbd_csv_split(line, f, 24);
+        if (header) {
+            for (int i = 0; i < nf; i++) {
+                if (!strcmp(f[i], "key")) ck = i;
+                else if (!strcmp(f[i], "x_px")) cx = i;
+                else if (!strcmp(f[i], "y_px")) cy = i;
+                else if (!strcmp(f[i], "width_px")) cw = i;
+                else if (!strcmp(f[i], "height_px")) ch = i;
+            }
+            header = 0;
+            if (ck < 0 || cx < 0 || cy < 0 || cw < 0 || ch < 0) break;
+            continue;
+        }
+        int need = MAX(MAX(ck, cx), MAX(MAX(cy, cw), ch));
+        if (nf <= need || !f[ck][0] || L->n >= KBD_MAX_KEYS) continue;
+        KeyPos k = { atof(f[cx]), atof(f[cy]), atof(f[cw]), atof(f[ch]) };
+        if (k.w <= 0 || k.h <= 0) continue;
+        snprintf(L->names[L->n], sizeof L->names[0], "%s", f[ck]);
+        L->pos[L->n++] = k;
+        if (k.x + k.w > L->right) L->right = k.x + k.w;
+    }
+    g_free(data);
+    if (L->n == 0) g_print("[GUI] Keyboard layout '%s': no keys in %s\n", code, path);
+    return L->n > 0 ? 0 : -1;
+}
+
+/* Make code the current layout; the old one stays if it cannot be read */
+static int kbd_layout_load(const char *code) {
+    static KbdLayoutData L;
+    if (kbd_layout_parse(code, &L) != 0) return -1;
+    kbd_num_keys = L.n;
+    for (size_t i = 0; i < L.n; i++) {
+        memcpy(kbd_key_name_buf[i], L.names[i], sizeof kbd_key_name_buf[i]);
+        kbd_key_names[i] = kbd_key_name_buf[i];
+        kbd_key_positions[i] = L.pos[i];
+    }
+    snprintf(kbd_layout_code, sizeof kbd_layout_code, "%s", code);
+    g_print("[GUI] Keyboard layout '%s': %zu keys\n", code, L.n);
+    return 0;
+}
+
+static int kbd_layout_index_of(const char *name) {
+    for (size_t i = 0; i < kbd_num_keys; i++) if (!strcmp(kbd_key_names[i], name)) return (int)i;
+    return -1;
+}
+
+/* Key of the current layout at a point (picture coordinates): the key
+ * containing it, otherwise the nearest key center in the same row */
+static int kbd_layout_key_at(double x, double y) {
+    int best = -1;
+    double bestd = 1e9;
+    for (size_t i = 0; i < kbd_num_keys; i++) {
+        const KeyPos *k = &kbd_key_positions[i];
+        if (x >= k->x && x < k->x + k->w && y >= k->y && y < k->y + k->h) return (int)i;
+        double dx = x - (k->x + k->w / 2.0), dy = y - (k->y + k->h / 2.0);
+        if (ABS(dy) > k->h / 2.0 || ABS(dx) > k->w) continue;
+        double d = dx * dx + dy * dy;
+        if (d < bestd) { bestd = d; best = (int)i; }
+    }
+    return best;
+}
+
+/* An old (German table) key -> key of the current layout: German by name,
+ * the others by position (the German key's center, scaled to the width of
+ * the other layout). -1 if there is none. */
+static int kbd_legacy_to_current(int legacy) {
+    if (legacy < 0 || legacy >= KBD_LEGACY_NUM_KEYS) return -1;
+    const char *name = kbd_legacy_key_names[legacy];
+    if (!strcmp(kbd_layout_code, "de")) return kbd_layout_index_of(name);
+    static KbdLayoutData de;
+    static int de_loaded = 0;
+    if (!de_loaded) de_loaded = kbd_layout_parse("de", &de) == 0 ? 1 : -1;
+    if (de_loaded != 1) return -1;
+    double right = 0;
+    for (size_t i = 0; i < kbd_num_keys; i++)
+        right = MAX(right, kbd_key_positions[i].x + kbd_key_positions[i].w);
+    for (size_t i = 0; i < de.n; i++) {
+        if (strcmp(de.names[i], name)) continue;
+        double cx = de.pos[i].x + de.pos[i].w / 2.0, cy = de.pos[i].y + de.pos[i].h / 2.0;
+        if (de.right > 0 && right > 0) cx = cx * right / de.right;
+        return kbd_layout_key_at(cx, cy);
+    }
+    return -1;
+}
 
 /* Socket paths are overridable at build time (used by the test suite) */
 /* Components switched off in the Settings tab (1.27.0): flag files
@@ -468,6 +592,8 @@ typedef struct {
     GtkWidget *settings_state[3];
     gulong settings_switch_sig[3];
     int settings_busy;                 /* a pkexec helper is running */
+    GtkWidget *settings_layout_combo;
+    GtkWidget *settings_layout_note;
     /* Zone editor (1.24.0) */
     KbdProfileEdit kbd_edit;           /* profile being edited (shown as a preview) */
     KbdProfileEdit kbd_saved;          /* the same profile as saved */
@@ -619,6 +745,13 @@ static int check_unsaved_changes(AppData *app); /* Returns 1 if changes applied,
 /* System tray functions */
 static GtkWidget* create_tray_menu(AppData *app);
 static GtkWidget *create_settings_page(AppData *app);
+static void on_settings_layout_changed(GtkComboBox *combo, gpointer user_data);
+static void settings_update_layout_note(AppData *app);
+static void kbd_mapping_path(char *buf, size_t size, const char *code);
+static void kbd_load_layout_picture(AppData *app);
+static void kbd_highlight_zone(AppData *app);
+static cJSON *config_read(void);
+static void kbd_layout_save_choice(void);
 static void settings_apply_visibility(AppData *app);
 static void on_tray_select_kbd_profile(GtkMenuItem *item, gpointer user_data);
 static const char *send_keyboard_command_once(AppData *app, const char *cmd);
@@ -4730,6 +4863,7 @@ AppData *app = (AppData *)user_data;
     
     /* Save mapping to CSV */
     kbd_save_led_mapping_csv(app);
+    settings_update_layout_note(app);
     
     /* Update UI */
     gtk_widget_set_sensitive(app->kbd_led_wizard_btn, TRUE);
@@ -4777,7 +4911,7 @@ static void kbd_wizard_step(AppData *app, const char *prev_key_name) {
     char buf[320];
     int led = app->kbd_wizard_current_led;
     int cur = app->kbd_wizard_mapping[led];
-    const char *now = (cur >= 0 && cur < KBD_NUM_KEYS) ? kbd_key_names[cur] : "no key";
+    const char *now = (cur >= 0 && (size_t)cur < kbd_num_keys) ? kbd_key_names[cur] : "no key";
 
     /* Previous assignment, current LED and the key it has now */
     if (prev_key_name && led > 0) {
@@ -4826,11 +4960,16 @@ static void kbd_wizard_finish(AppData *app) {
 }
 
 /* Save LED mapping to CSV file */
-static void kbd_save_led_mapping_csv(AppData *app) {
-    char csv_path[512];
+/* LED wizard mapping of a layout (1.28.0: one file per layout) */
+static void kbd_mapping_path(char *buf, size_t size, const char *code) {
     const char *home = getenv("HOME");
     if (!home) home = "/tmp";
-    snprintf(csv_path, sizeof(csv_path), "%s/.config/dudes-control-center/keyboard_led_mapping.csv", home);
+    snprintf(buf, size, "%s/.config/dudes-control-center/keyboard_led_mapping_%s.csv", home, code);
+}
+
+static void kbd_save_led_mapping_csv(AppData *app) {
+    char csv_path[512];
+    kbd_mapping_path(csv_path, sizeof csv_path, kbd_layout_code);
     
     FILE *f = fopen(csv_path, "w");
     if (!f) {
@@ -4839,7 +4978,7 @@ static void kbd_save_led_mapping_csv(AppData *app) {
     }
     
     /* Write header (semicolon delimiter) */
-    fprintf(f, "led_id;position;led_index;%s\n", KBD_CSV_NUMBERING_MARK);
+    fprintf(f, "led_id;position;led_index;%s;layout=%s\n", KBD_CSV_NUMBERING_MARK, kbd_layout_code);
     
     /* Track which positions have been written and count LEDs per position */
     int pos_led_count[120] = {0};
@@ -4847,7 +4986,7 @@ static void kbd_save_led_mapping_csv(AppData *app) {
     /* First pass: count LEDs per position */
     for (int led = 0; led < 120; led++) {
         int pos = app->kbd_wizard_mapping[led];
-        if (pos >= 0 && pos < 120) {
+        if (pos >= 0 && pos < 120 && (size_t)pos < kbd_num_keys) {
             pos_led_count[pos]++;
         }
     }
@@ -4856,7 +4995,7 @@ static void kbd_save_led_mapping_csv(AppData *app) {
     int pos_led_written[120] = {0};
     for (int led = 0; led < 120; led++) {
         int pos = app->kbd_wizard_mapping[led];
-        if (pos >= 0 && pos < 120) {
+        if (pos >= 0 && pos < 120 && (size_t)pos < kbd_num_keys) {
             char led_index_col[16] = "";
             if (pos_led_count[pos] > 1) {
                 snprintf(led_index_col, sizeof(led_index_col), "%d", pos_led_written[pos]);
@@ -4870,55 +5009,58 @@ static void kbd_save_led_mapping_csv(AppData *app) {
     }
     
     fclose(f);
+    g_print("[GUI] LED mapping saved for layout '%s': %s\n", kbd_layout_code, csv_path);
 }
 
-/* Load LED mapping from CSV file */
+/* led -> position from a mapping CSV; legacy: positions are indices into
+ * the old German table (converted). Returns 0 if the file was read. */
+static int kbd_read_mapping_file(AppData *app, const char *csv_path, int legacy) {
+    FILE *f = fopen(csv_path, "r");
+    if (!f) return -1;
+    char line[256];
+    if (fgets(line, sizeof(line), f) == NULL) {      /* header */
+        fclose(f);
+        return -1;
+    }
+    memset(app->kbd_wizard_mapping, -1, sizeof(app->kbd_wizard_mapping));
+    while (fgets(line, sizeof(line), f)) {
+        line[strcspn(line, "\n")] = 0;
+        char *sep = strchr(line, ';');
+        if (!sep || sep[1] == ';' || sep[1] == '\0') continue;    /* unmapped LED */
+        int led_id = atoi(line), position = atoi(sep + 1);
+        if (led_id < 0 || led_id >= 120 || position < 0) continue;
+        if (legacy) position = kbd_legacy_to_current(position);
+        if (position < 0 || (size_t)position >= kbd_num_keys) continue;
+        app->kbd_wizard_mapping[led_id] = position;
+    }
+    fclose(f);
+    return 0;
+}
+
+/* Load the LED mapping of the current layout: its wizard file; for German
+ * an old keyboard_led_mapping.csv (before 1.28.0) is converted once;
+ * otherwise the built-in mapping */
 static void kbd_load_led_mapping_csv(AppData *app) {
     /* A daemon reconnect calls this too: keep the wizard's unsaved changes */
     if (app->kbd_wizard_active) return;
     char csv_path[512];
-    const char *home = getenv("HOME");
-    if (!home) home = "/tmp";
-    snprintf(csv_path, sizeof(csv_path), "%s/.config/dudes-control-center/keyboard_led_mapping.csv", home);
-    
-    FILE *f = fopen(csv_path, "r");
-    if (!f) {
-        g_print("[GUI] No LED mapping CSV found at %s, using the built-in mapping\n", csv_path);
-        kbd_mapping_set_defaults(app);
+    kbd_mapping_path(csv_path, sizeof csv_path, kbd_layout_code);
+    if (kbd_read_mapping_file(app, csv_path, 0) == 0) {
+        g_print("[GUI] LED mapping loaded from %s\n", csv_path);
         return;
     }
-    
-    char line[256];
-    /* Skip header line */
-    if (fgets(line, sizeof(line), f) == NULL) {
-        fclose(f);
-        return;
+    if (!strcmp(kbd_layout_code, "de")) {
+        char old_path[512];
+        const char *home = getenv("HOME");
+        snprintf(old_path, sizeof old_path, "%s/.config/dudes-control-center/keyboard_led_mapping.csv", home ? home : "/tmp");
+        if (kbd_read_mapping_file(app, old_path, 1) == 0) {
+            g_print("[GUI] LED mapping converted from %s to the German layout file\n", old_path);
+            kbd_save_led_mapping_csv(app);       /* the old file stays for older versions */
+            return;
+        }
     }
-    
-    /* Initialize mapping */
-    memset(app->kbd_wizard_mapping, -1, sizeof(app->kbd_wizard_mapping));
-    
-    while (fgets(line, sizeof(line), f)) {
-        /* Remove newline */
-        line[strcspn(line, "\n")] = 0;
-        
-        /* Parse: led_id;position;led_index (semicolon delimiter) */
-        int led_id = -1;
-        int position = -1;
-        
-        char *token = strtok(line, ";");
-        if (token) led_id = atoi(token);
-        token = strtok(NULL, ";");
-        if (token) position = atoi(token);
-        
-        if (led_id < 0 || led_id >= 120) continue;
-        if (position < 0 || position >= 120) continue; /* Unmapped LED */
-        
-        app->kbd_wizard_mapping[led_id] = position;
-    }
-    
-    fclose(f);
-    g_print("[GUI] LED mapping loaded from %s\n", csv_path);
+    g_print("[GUI] No LED mapping for layout '%s' (%s), using the built-in mapping\n", kbd_layout_code, csv_path);
+    kbd_mapping_set_defaults(app);
 }
 
 /* LEDs that light a key position (a wide key can have several LEDs): from
@@ -4933,7 +5075,8 @@ static int kbd_leds_for_position(const AppData *app, int pos, int *out, int max)
 
 /* The built-in mapping, until a wizard CSV is loaded */
 static void kbd_mapping_set_defaults(AppData *app) {
-    memcpy(app->kbd_wizard_mapping, kbd_default_led_position, sizeof(app->kbd_wizard_mapping));
+    for (int led = 0; led < 120; led++)
+        app->kbd_wizard_mapping[led] = kbd_legacy_to_current(kbd_default_led_position[led]);
 }
 
 static int kbd_led_is_selected(const AppData *app, int led) {
@@ -4991,7 +5134,7 @@ static void kbd_key_shape(size_t i, double *lower_x, double *split_y) {
     *lower_x = k->x;
     *split_y = k->y + k->h;
     if (k->h < 100) return;                                  /* single row */
-    for (size_t j = 0; j < KBD_NUM_KEYS; j++) {
+    for (size_t j = 0; j < kbd_num_keys; j++) {
         const KeyPos *o = &kbd_key_positions[j];
         if (o->h >= 100 || o == k) continue;
         int in_lower_row = o->y > k->y + 10 && o->y < k->y + k->h;
@@ -5026,7 +5169,7 @@ static int kbd_leds_for_position(const AppData *app, int pos, int *out, int max)
 /* LEDs of all positions that belong to the key at primary position i */
 static int kbd_leds_for_key(const AppData *app, size_t i, int *out, int max) {
     int n = 0;
-    for (size_t p = i; p < KBD_NUM_KEYS && n < max; p++) {
+    for (size_t p = i; p < kbd_num_keys && n < max; p++) {
         if (p != i && kbd_key_group_primary(p) != i) continue;
         int leds[120];
         int m = kbd_leds_for_position(app, (int)p, leds, 120);
@@ -5100,6 +5243,53 @@ static void kbd_refresh_key_colors(AppData *app) {
     kbd_redraw_canvas(app);
 }
 
+/* Picture of the current layout (its SVG); German falls back to the old
+ * PNG if the SVG cannot be loaded (no SVG loader installed) */
+static void kbd_load_layout_picture(AppData *app) {
+    if (app->kbd_keyboard_image) {
+        cairo_surface_destroy(app->kbd_keyboard_image);
+        app->kbd_keyboard_image = NULL;
+    }
+    char path[512];
+    snprintf(path, sizeof path, "%s/%s/keyboard_dark.svg", DCC_LAYOUT_DIR, kbd_layout_code);
+    GError *err = NULL;
+    GdkPixbuf *pb = gdk_pixbuf_new_from_file(path, &err);
+    if (pb) {
+        int w = gdk_pixbuf_get_width(pb), h = gdk_pixbuf_get_height(pb);
+        cairo_surface_t *surf = cairo_image_surface_create(CAIRO_FORMAT_ARGB32, w, h);
+        cairo_t *cr = cairo_create(surf);
+        gdk_cairo_set_source_pixbuf(cr, pb, 0, 0);
+        cairo_paint(cr);
+        cairo_destroy(cr);
+        g_object_unref(pb);
+        app->kbd_keyboard_image = surf;
+    } else {
+        g_print("[GUI] WARNING: Could not load %s: %s\n", path, err ? err->message : "?");
+        if (err) g_error_free(err);
+        if (!strcmp(kbd_layout_code, "de")) {
+            cairo_surface_t *png = cairo_image_surface_create_from_png("/usr/share/doc/dudes-control-center/images/keyboard_dark.png");
+            if (cairo_surface_status(png) == CAIRO_STATUS_SUCCESS) app->kbd_keyboard_image = png;
+            else cairo_surface_destroy(png);
+        }
+    }
+    if (!app->kbd_keyboard_canvas) return;
+    if (!app->kbd_keyboard_image) {
+        gtk_widget_set_size_request(app->kbd_keyboard_canvas, -1, 200);   /* fallback height */
+        return;
+    }
+    /* new aspect ratio: height for the current width */
+    int width = gtk_widget_get_allocated_width(app->kbd_keyboard_canvas);
+    app->kbd_canvas_width_used = 0;
+    if (width > 1) {
+        double iw = cairo_image_surface_get_width(app->kbd_keyboard_image);
+        double ih = cairo_image_surface_get_height(app->kbd_keyboard_image);
+        app->kbd_canvas_width_used = width;
+        app->kbd_canvas_height_want = (int)(width * ih / iw + 0.5);
+        gtk_widget_set_size_request(app->kbd_keyboard_canvas, -1, app->kbd_canvas_height_want);
+    }
+    gtk_widget_queue_draw(app->kbd_keyboard_canvas);
+}
+
 /* The keyboard picture keeps its aspect ratio: the canvas asks for the
  * height that fits its width (the zone list next to it gets the same
  * height), instead of filling all free space with the picture centered in
@@ -5154,7 +5344,7 @@ static gboolean kbd_canvas_draw(GtkWidget *widget, cairo_t *cr, gpointer user_da
         cairo_restore(cr);
         
         /* Draw key overlays */
-        size_t num_keys = sizeof(kbd_key_positions) / sizeof(kbd_key_positions[0]);
+        size_t num_keys = kbd_num_keys;
         for (size_t i = 0; i < num_keys; i++) {
             if (kbd_key_group_primary(i) != i) continue;   /* drawn with its key */
             /* Check if one of this key's LEDs is selected */
@@ -5252,7 +5442,7 @@ static gboolean kbd_canvas_click(GtkWidget *widget, double click_x, double click
     double unscaled_y = (click_y - offset_y) / scale;
     
     /* Find which key was clicked */
-    size_t num_keys = sizeof(kbd_key_positions) / sizeof(kbd_key_positions[0]);
+    size_t num_keys = kbd_num_keys;
     for (size_t i = 0; i < num_keys; i++) {
         if (kbd_key_contains(i, unscaled_x, unscaled_y)) {
             
@@ -5261,7 +5451,7 @@ static gboolean kbd_canvas_click(GtkWidget *widget, double click_x, double click
                 /* Assign this key position to the current LED */
                 int current_led = app->kbd_wizard_current_led;
                 app->kbd_wizard_mapping[current_led] = (int)i;
-                const char *key_name = (i < KBD_NUM_KEYS) ? kbd_key_names[i] : "Unknown";
+                const char *key_name = (i < kbd_num_keys) ? kbd_key_names[i] : "Unknown";
 
                 /* Highlight the key just assigned to the current LED */
                 app->kbd_num_selected_leds = 1;
@@ -5285,7 +5475,7 @@ static gboolean kbd_canvas_click(GtkWidget *widget, double click_x, double click
              * removes it; with no zone selected it selects the key's zone */
             int key_leds[120];
             int n_leds = kbd_leds_for_key(app, kbd_key_group_primary(i), key_leds, 120);
-            const char *kname = i < KBD_NUM_KEYS ? kbd_key_names[i] : "?";
+            const char *kname = i < kbd_num_keys ? kbd_key_names[i] : "?";
             if (n_leds == 0) {
                 kbd_status(app, "Key '%s' has no LED in the mapping (run the LED wizard)", kname);
                 return TRUE;
@@ -5334,7 +5524,7 @@ static int kbd_canvas_to_image(GtkWidget *widget, AppData *app, double wx, doubl
 static int kbd_keys_in_rect(double ax, double ay, double bx, double by, size_t *out, int max) {
     double x0 = MIN(ax, bx), x1 = MAX(ax, bx), y0 = MIN(ay, by), y1 = MAX(ay, by);
     int n = 0;
-    for (size_t i = 0; i < KBD_NUM_KEYS && n < max; i++) {
+    for (size_t i = 0; i < kbd_num_keys && n < max; i++) {
         if (kbd_key_group_primary(i) != i) continue;
         const KeyPos *k = &kbd_key_positions[i];
         double cx = k->x + k->w / 2.0, cy = k->y + k->h / 2.0;
@@ -5352,8 +5542,8 @@ static void kbd_drag_select(GtkWidget *widget, AppData *app) {
     if (kbd_canvas_to_image(widget, app, app->kbd_drag_x0, app->kbd_drag_y0, &ax, &ay) != 0 ||
         kbd_canvas_to_image(widget, app, app->kbd_drag_x1, app->kbd_drag_y1, &bx, &by) != 0)
         return;
-    size_t keys[KBD_NUM_KEYS];
-    int nk = kbd_keys_in_rect(ax, ay, bx, by, keys, KBD_NUM_KEYS);
+    size_t keys[KBD_MAX_KEYS];
+    int nk = kbd_keys_in_rect(ax, ay, bx, by, keys, KBD_MAX_KEYS);
     int leds[120], n = 0;
     for (int k = 0; k < nk; k++) {
         int kl[120];
@@ -7532,14 +7722,7 @@ static GtkWidget *create_keyboard_page(AppData *app) {
     gtk_box_pack_start(GTK_BOX(zone_vbox), canvas_row, FALSE, FALSE, 0);   /* as high as the picture */
 
     /* Load keyboard image */
-    app->kbd_keyboard_image = cairo_image_surface_create_from_png("/usr/share/doc/dudes-control-center/images/keyboard_dark.png");
-    if (cairo_surface_status(app->kbd_keyboard_image) != CAIRO_STATUS_SUCCESS) {
-        g_print("[GUI] WARNING: Could not load keyboard image: %s\n", 
-                cairo_status_to_string(cairo_surface_status(app->kbd_keyboard_image)));
-        cairo_surface_destroy(app->kbd_keyboard_image);
-        app->kbd_keyboard_image = NULL;
-        gtk_widget_set_size_request(app->kbd_keyboard_canvas, -1, 200); /* fallback height */
-    }
+    kbd_load_layout_picture(app);
 
 
     gtk_container_add(GTK_CONTAINER(zone_frame), zone_vbox);
@@ -7761,6 +7944,50 @@ static gboolean on_settings_switch(GtkSwitch *sw, gboolean state, gpointer user_
     return TRUE;   /* the state is set when the helper is done */
 }
 
+/* What the LED mapping of the current layout is based on */
+static void settings_update_layout_note(AppData *app) {
+    if (!app->settings_layout_note) return;
+    char path[512];
+    kbd_mapping_path(path, sizeof path, kbd_layout_code);
+    const char *t;
+    if (access(path, F_OK) == 0)
+        t = "The picture shows this layout. LED mapping: saved by the LED Wizard for this layout.";
+    else if (!strcmp(kbd_layout_code, "de"))
+        t = "The picture shows this layout. LED mapping: built in, checked on a German keyboard.";
+    else if (!strcmp(kbd_layout_code, "uk") || !strcmp(kbd_layout_code, "es"))
+        t = "The picture shows this layout. LED mapping: derived from the German layout by key position "
+            "(not checked) - run the LED Wizard once (Keyboard Backlight tab) to make sure every key is right.";
+    else
+        t = "The picture shows this layout. LED mapping: derived from the German layout where the keys match; "
+            "keys this layout has in addition have no LED yet - run the LED Wizard once (Keyboard Backlight tab).";
+    gtk_label_set_text(GTK_LABEL(app->settings_layout_note), t);
+}
+
+/* Another layout: its keys, picture and LED mapping; zones and profiles
+ * keep their colors (they store LED numbers) */
+static void on_settings_layout_changed(GtkComboBox *combo, gpointer user_data) {
+    AppData *app = (AppData *)user_data;
+    const char *code = gtk_combo_box_get_active_id(combo);
+    if (!code || !strcmp(code, kbd_layout_code)) return;
+    if (app->kbd_wizard_active) {
+        show_status(app, "Finish or cancel the LED Wizard first");
+        gtk_combo_box_set_active_id(combo, kbd_layout_code);
+        return;
+    }
+    if (kbd_layout_load(code) != 0) {
+        show_status(app, "Could not load this keyboard layout");
+        gtk_combo_box_set_active_id(combo, kbd_layout_code);
+        return;
+    }
+    kbd_layout_save_choice();
+    kbd_load_led_mapping_csv(app);
+    kbd_load_layout_picture(app);
+    kbd_highlight_zone(app);
+    kbd_redraw_canvas(app);
+    settings_update_layout_note(app);
+    show_status(app, "Keyboard layout changed");
+}
+
 static GtkWidget *create_settings_page(AppData *app) {
     GtkWidget *vbox = gtk_box_new(GTK_ORIENTATION_VERTICAL, 10);
     gtk_container_set_border_width(GTK_CONTAINER(vbox), 12);
@@ -7811,6 +8038,30 @@ static GtkWidget *create_settings_page(AppData *app) {
     }
     gtk_container_add(GTK_CONTAINER(frame), grid);
     gtk_box_pack_start(GTK_BOX(vbox), frame, FALSE, FALSE, 0);
+
+    /* Keyboard layout (1.28.0) */
+    {
+        GtkWidget *lframe = gtk_frame_new("Keyboard Layout");
+        GtkWidget *lbox = gtk_box_new(GTK_ORIENTATION_VERTICAL, 6);
+        gtk_container_set_border_width(GTK_CONTAINER(lbox), 10);
+        GtkWidget *row = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 10);
+        gtk_box_pack_start(GTK_BOX(row), gtk_label_new("Layout:"), FALSE, FALSE, 0);
+        app->settings_layout_combo = gtk_combo_box_text_new();
+        for (int i = 0; i < KBD_NUM_LAYOUTS; i++)
+            gtk_combo_box_text_append(GTK_COMBO_BOX_TEXT(app->settings_layout_combo), kbd_layouts[i].code, kbd_layouts[i].label);
+        gtk_combo_box_set_active_id(GTK_COMBO_BOX(app->settings_layout_combo), kbd_layout_code);
+        g_signal_connect(app->settings_layout_combo, "changed", G_CALLBACK(on_settings_layout_changed), app);
+        gtk_box_pack_start(GTK_BOX(row), app->settings_layout_combo, FALSE, FALSE, 0);
+        gtk_box_pack_start(GTK_BOX(lbox), row, FALSE, FALSE, 0);
+        app->settings_layout_note = gtk_label_new("");
+        gtk_label_set_xalign(GTK_LABEL(app->settings_layout_note), 0.0);
+        gtk_label_set_line_wrap(GTK_LABEL(app->settings_layout_note), TRUE);
+        gtk_label_set_max_width_chars(GTK_LABEL(app->settings_layout_note), 110);
+        gtk_box_pack_start(GTK_BOX(lbox), app->settings_layout_note, FALSE, FALSE, 0);
+        gtk_container_add(GTK_CONTAINER(lframe), lbox);
+        gtk_box_pack_start(GTK_BOX(vbox), lframe, FALSE, FALSE, 0);
+        settings_update_layout_note(app);
+    }
 
     GtkWidget *note = gtk_label_new("Switching asks for the administrator password and takes effect right away. "
                                     "The setting applies to the whole system and stays after reboots and updates.");
@@ -8333,13 +8584,86 @@ static void on_tray_select_cpu_profile(GtkRadioMenuItem *radiomenuitem, gpointer
     if (profile_name) g_free(profile_name);
 }
 
+/* ~/.config/dudes-control-center/config.json as a JSON object (empty if missing) */
+static cJSON *config_read(void) {
+    char path[512];
+    snprintf(path, sizeof path, "%s/dudes-control-center/config.json", g_get_user_config_dir());
+    gchar *data = NULL;
+    cJSON *json = NULL;
+    if (g_file_get_contents(path, &data, NULL, NULL)) json = cJSON_Parse(data);
+    g_free(data);
+    if (!cJSON_IsObject(json)) {
+        cJSON_Delete(json);
+        json = cJSON_CreateObject();
+    }
+    return json;
+}
+
+static void config_write(cJSON *json) {
+    char path[512];
+    snprintf(path, sizeof path, "%s/dudes-control-center/config.json", g_get_user_config_dir());
+    char *text = cJSON_Print(json);
+    if (text) {
+        gchar *with_nl = g_strconcat(text, "\n", NULL);
+        if (!g_file_set_contents(path, with_nl, -1, NULL)) g_print("[GUI] WARNING: cannot write %s\n", path);
+        g_free(with_nl);
+        cJSON_free(text);
+    }
+}
+
+/* Keyboard layout at start: config.json, otherwise the system's keyboard
+ * layout (/etc/default/keyboard XKBLAYOUT), otherwise German */
+static void kbd_layout_init(void) {
+    char code[8] = "";
+    cJSON *json = config_read();
+    cJSON *v = cJSON_GetObjectItem(json, "keyboard_layout");
+    if (cJSON_IsString(v) && kbd_layout_known(v->valuestring)) snprintf(code, sizeof code, "%s", v->valuestring);
+    cJSON_Delete(json);
+    if (!code[0]) {
+        gchar *kb = NULL;
+        if (g_file_get_contents("/etc/default/keyboard", &kb, NULL, NULL)) {
+            const char *x = strstr(kb, "XKBLAYOUT=");
+            if (x) {
+                char first[16] = "";
+                x += 10;
+                if (*x == '"') x++;
+                size_t n = 0;
+                while (x[n] && x[n] != ',' && x[n] != '"' && x[n] != '\n' && n < sizeof first - 1) { first[n] = x[n]; n++; }
+                first[n] = '\0';
+                for (int i = 0; i < KBD_NUM_LAYOUTS && !code[0]; i++) {
+                    gchar **xk = g_strsplit(kbd_layouts[i].xkb, ",", -1);
+                    for (int j = 0; xk[j]; j++)
+                        if (!strcmp(xk[j], first)) snprintf(code, sizeof code, "%s", kbd_layouts[i].code);
+                    g_strfreev(xk);
+                }
+            }
+            g_free(kb);
+        }
+    }
+    if (!code[0]) snprintf(code, sizeof code, "de");
+    if (kbd_layout_load(code) != 0 && strcmp(code, "de") != 0) kbd_layout_load("de");
+}
+
+static void kbd_layout_save_choice(void) {
+    cJSON *json = config_read();
+    cJSON_DeleteItemFromObject(json, "keyboard_layout");
+    cJSON_AddStringToObject(json, "keyboard_layout", kbd_layout_code);
+    config_write(json);
+    cJSON_Delete(json);
+}
+
 /* Save window position to config.json */
 static void save_window_position(AppData *app) {
     const char *config_dir = g_get_user_config_dir();
     char config_path[512];
     snprintf(config_path, sizeof(config_path), "%s/dudes-control-center/config.json", config_dir);
     
-    cJSON *json = cJSON_CreateObject();
+    /* keep the other settings (keyboard_layout, 1.28.0) */
+    cJSON *json = config_read();
+    cJSON_DeleteItemFromObject(json, "window_x");
+    cJSON_DeleteItemFromObject(json, "window_y");
+    cJSON_DeleteItemFromObject(json, "window_width");
+    cJSON_DeleteItemFromObject(json, "window_height");
     cJSON_AddNumberToObject(json, "window_x", app->window_x);
     cJSON_AddNumberToObject(json, "window_y", app->window_y);
     cJSON_AddNumberToObject(json, "window_width", app->window_width);
@@ -8588,9 +8912,10 @@ int main(int argc, char *argv[]) {
     app.emergency_auto_seen = -1;   /* first STATUS only records the count */
     app.cpu_running_profile_idx = -1;
     app.kbd_sel_zone = -1;
-    kbd_mapping_set_defaults(&app);   /* until the wizard CSV is loaded */
     
     /* Create main window */
+    kbd_layout_init();   /* before the keyboard tab is built */
+    kbd_mapping_set_defaults(&app);   /* until the wizard CSV is loaded */
     GtkWidget *window = create_main_window(&app);
     
     if (!window) {
