@@ -4837,11 +4837,6 @@ static GtkWidget *create_status_page(AppData *app) {
     GtkWidget *vbox = gtk_box_new(GTK_ORIENTATION_VERTICAL, 15);
     gtk_container_set_border_width(GTK_CONTAINER(vbox), 20);
     
-    /* Title */
-    GtkWidget *title = gtk_label_new(NULL);
-    gtk_label_set_markup(GTK_LABEL(title), "<span size='large' weight='bold'>Fan Status &amp; Manual Control</span>");
-    gtk_box_pack_start(GTK_BOX(vbox), title, FALSE, FALSE, 0);
-    
     /* Temperature display */
     GtkWidget *temp_frame = gtk_frame_new("Temperatures");
     GtkWidget *temp_vbox = gtk_box_new(GTK_ORIENTATION_VERTICAL, 10);

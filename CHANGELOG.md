@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.21.5] - 2026-11-22
+
+### Fixed
+- Status tab: removed the "Fan Status & Manual Control" heading at the top (it had no function and only took space; no other tab has one).
+
 ## [1.21.4] - 2026-11-22
 
 ### Fixed
