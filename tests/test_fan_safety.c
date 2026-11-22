@@ -20,8 +20,9 @@ int mock_gpu_temp(void) { return m_gpu; }
 int mock_set_fan_duty(int pct) { if (m_fail_write) return -1; m_last_write = pct; m_writes++; return 0; }
 int mock_cpu_rpm(void) { return 3011; }
 int mock_gpu_rpm(void) { return 2930; }
-int mock_cpu_duty(void) { return 50; }
-int mock_gpu_duty(void) { return -1; }   /* EC did not answer */
+static int m_cpu_duty = 50, m_gpu_duty = -1;   /* -1: EC did not answer */
+int mock_cpu_duty(void) { return m_cpu_duty; }
+int mock_gpu_duty(void) { return m_gpu_duty; }
 
 static int fails = 0;
 #define CHECK(cond, msg) do { if (cond) printf("PASS  %s\n", msg); else { printf("FAIL  %s (duty=%d override=%d active=%d)\n", msg, current_fan_duty, override_reason, active_profile_idx); fails++; } } while (0)
@@ -148,9 +149,15 @@ int main(void) {
     CHECK(strcmp(nb, "WATCHDOG=1") == 0, "sd_notify WATCHDOG=1 delivered");
 
     /* STATUS reports the EC duty of each fan (v1.19.2) */
+    char want[64];
     cmd("STATUS\n");
-    CHECK(strstr(resp, "CPU_FAN_DUTY=50\n") && strstr(resp, "GPU_FAN_DUTY=-1\n") &&
-          strstr(resp, "CPU_FAN_RPM=3011\n"), "STATUS reports RPM and EC duty per fan (-1 = EC did not answer)");
+    snprintf(want, sizeof want, "GPU_FAN_DUTY=%d\n", current_fan_duty);
+    CHECK(strstr(resp, "CPU_FAN_DUTY=50\n") && strstr(resp, want) && strstr(resp, "CPU_FAN_RPM=3011\n"),
+          "STATUS: EC duty where the EC answers, the daemon's duty where it does not");
+    m_cpu_duty = 0;                     /* EC driven via command 0x99: register stays 0 while spinning */
+    cmd("STATUS\n");
+    snprintf(want, sizeof want, "CPU_FAN_DUTY=%d\n", current_fan_duty);
+    CHECK(strstr(resp, want) != NULL, "EC duty register reading 0 at 3011 RPM -> the daemon's duty is shown, not 0%");
 
     printf("\n%d failure(s)\n", fails);
     return fails != 0;

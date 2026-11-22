@@ -222,6 +222,11 @@ int get_cpu_fan_duty(void) { return fan_duty_pct(EC_REG_FAN1_DUTY); }
 int get_gpu_fan_duty(void) { return fan_duty_pct(EC_REG_FAN2_DUTY); }
 int get_fan_duty(void)     { return get_cpu_fan_duty(); }
 
+int fan_duty_plausible(int duty, int rpm) {
+    if (duty < 0 || duty > 100) return 0;
+    return !(duty == 0 && rpm >= 300);   /* 0% but clearly spinning: register not used */
+}
+
 void format_fan_text(char *buf, size_t size, const char *name, int rpm, int duty) {
     if (duty >= 0 && duty <= 100)
         snprintf(buf, size, "%s: %d RPM (%d%%)", name, rpm < 0 ? 0 : rpm, duty);

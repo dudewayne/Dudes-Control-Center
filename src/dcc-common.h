@@ -56,6 +56,9 @@ int get_gpu_fan_rpm(void);        /* Returns GPU fan RPM, or 0 on error */
 int set_fan_duty(int pct);        /* Set fan duty 0-100%, returns 0 on success, -1 on error */
 
 /* --- Utility functions --- */
+/* Is an EC duty reading believable? Some ECs (e.g. ones driven through
+ * command 0x99) leave 0xCE/0xCF at 0 while the fan spins: then it is not. */
+int fan_duty_plausible(int duty, int rpm);
 /* "CPU Fan: 3011 RPM (50%)" - RPM measured, percent = EC duty (duty < 0: unknown) */
 void format_fan_text(char *buf, size_t size, const char *name, int rpm, int duty);
 int clamp(int v, int lo, int hi);

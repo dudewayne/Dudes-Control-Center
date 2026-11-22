@@ -355,6 +355,19 @@ static int profile_has_curve(int idx) {
 }
 
 /* Parse command from client */
+/* Duty of one fan for STATUS: the EC's value where the EC keeps it, otherwise
+ * (EC driven through command 0x99, registers stay 0) what the daemon set. */
+static int status_fan_duty(int ec_duty, int rpm, const char *fan) {
+    static int warned = 0;
+    if (fan_duty_plausible(ec_duty, rpm)) return ec_duty;
+    if (!warned) {
+        LOG_INFO("EC duty register of the %s fan reads %d at %d RPM - this EC does not report the duty; "
+                 "STATUS shows the duty set by the daemon", fan, ec_duty, rpm);
+        warned = 1;
+    }
+    return current_fan_duty;
+}
+
 static int handle_command(const char *cmd, char *response, size_t resp_size) {
     char cmd_copy[MAX_CMD_LEN];
     strncpy(cmd_copy, cmd, sizeof(cmd_copy) - 1);
@@ -397,7 +410,8 @@ static int handle_command(const char *cmd, char *response, size_t resp_size) {
             "FAILSAFE=%d\n"
             "EMERGENCY_AUTO=%d\n",
             cpu_temp, gpu_temp, cpu_fan_rpm, gpu_fan_rpm, fan_duty,
-            get_cpu_fan_duty(), get_gpu_fan_duty(), auto_mode_enabled,
+            status_fan_duty(get_cpu_fan_duty(), cpu_fan_rpm, "CPU"),
+            status_fan_duty(get_gpu_fan_duty(), gpu_fan_rpm, "GPU"), auto_mode_enabled,
             override_reason != OVERRIDE_NONE ? 1 : 0, emergency_auto_count);
         return 0;
     }

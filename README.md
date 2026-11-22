@@ -174,7 +174,7 @@ Designed for Clevo-based notebooks with EC access at I/O ports 0x62/0x66 and an 
 | Fan1 RPM | 0xD0/0xD1 | CPU fan RPM (high/low byte) |
 | Fan2 RPM | 0xD2/0xD3 | GPU fan RPM (high/low byte) |
 
-Fan percentage: the duty set in the EC for each fan (`0xCE`/`0xCF`, 0-255) converted to 0-100%. The RPM shown next to it is the measured speed (`2156220 / raw`). The percentage is not derived from the RPM, because the maximum RPM differs between fans and changes with dust and age.
+Fan percentage: the fan duty, from the EC's duty registers (`0xCE`/`0xCF`, 0-255) where the EC keeps them; ECs that take the speed through command `0x99` leave them at 0, and then the duty set by the fan daemon is shown. The RPM next to it is the measured speed (`2156220 / raw`). The percentage is not derived from the RPM, because the maximum RPM differs between fans and changes with dust and age.
 
 ### Default fan curve
 

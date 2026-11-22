@@ -50,6 +50,8 @@ int main(void) {
     CHECK(strcmp(ft, "CPU Fan: 3011 RPM (50%)") == 0, "fan text shows RPM and EC duty");
     format_fan_text(ft, sizeof ft, "GPU Fan", 2930, -1);
     CHECK(strcmp(ft, "GPU Fan: 2930 RPM") == 0, "unknown duty -> RPM only, no made-up percentage");
+    CHECK(!fan_duty_plausible(0, 3500) && fan_duty_plausible(0, 0) && fan_duty_plausible(54, 3500) &&
+          !fan_duty_plausible(-1, 0), "EC duty 0 while spinning is not believed");
     format_fan_text(ft, sizeof ft, "CPU Fan", 0, 0);
     CHECK(strcmp(ft, "CPU Fan: 0 RPM (0%)") == 0, "fans off: 0 RPM (0%)");
 

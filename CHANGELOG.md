@@ -5,10 +5,10 @@ All notable changes to this project will be documented in this file.
 ## [1.19.2] - 2026-11-22
 
 ### Fixed
-- **Fan percentage comes from the EC duty instead of an RPM formula**: the GUI and CLI computed the fan percentage from the RPM with fixed maximums measured on one laptop (6022 RPM CPU fan, 5859 RPM GPU fan). That only fits those fans (other models, dust and age change the maximum), RPM is not proportional to the duty, and the GUI rounded differently from the CLI. The percentage is now the duty set in the EC for each fan (registers `0xCE`/`0xCF`), exact on every model, shown next to the measured RPM: `CPU Fan: 3011 RPM (50%)`. If the EC does not answer, only the RPM is shown.
-- The fan daemon's `STATUS` reports `CPU_FAN_DUTY` and `GPU_FAN_DUTY` (read from the EC; differs from `FAN_DUTY` if the EC or BIOS changed a fan). The CLI shows both fans the same way.
-- Removed the fixed maximum RPM values and the GUI's duplicate formula; one shared function formats the fan text.
-- Tests for the fan text and the new `STATUS` fields (8 suites, 176 checks).
+- **Fan percentage no longer computed from the RPM**: the GUI and CLI calculated it with fixed maximums measured on one laptop (6022 RPM CPU fan, 5859 RPM GPU fan). That only fits those fans (other models, dust and age change the maximum), RPM is not proportional to the duty, and the GUI rounded differently from the CLI. The percentage is now the fan duty, shown next to the measured RPM: `CPU Fan: 3500 RPM (54%)`.
+- **Where the duty comes from**: the EC's duty registers (`0xCE`/`0xCF`) where the EC keeps them up to date. Some ECs - including the test laptop, which takes fan speeds through EC command `0x99` - leave these registers at 0 while the fans spin; a 0 at 300 RPM or more is therefore not believed, and the fan daemon reports the duty it set instead (logged once). The CLI, which reads the EC directly, shows only the RPM in that case.
+- The fan daemon's `STATUS` reports `CPU_FAN_DUTY` and `GPU_FAN_DUTY`; the GUI and CLI format both fans the same way. The fixed maximum RPM values and the GUI's duplicate formula are removed.
+- Tests for the fan text, the plausibility check and the new `STATUS` fields (8 suites, 178 checks).
 
 ## [1.19.1] - 2026-11-22
 
