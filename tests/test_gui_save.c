@@ -173,6 +173,52 @@ int main(int argc, char **argv) {
     CHECK(!strcmp(cpu_balanced_mode(NULL), "schedutil") && !strcmp(cpu_balanced_mode("ERROR x"), "schedutil"),
           "C: no answer -> left to the daemon");
 
+    /* U: unsaved CPU profile changes are found by comparing the widgets with
+     * the snapshot taken when the profile was loaded (v1.23.0). Needs GTK
+     * widgets, so only with a display. */
+    if (gtk_init_check(NULL, NULL)) {
+        static AppData u;   /* zeroed */
+        GtkListStore *profiles = gtk_list_store_new(1, G_TYPE_STRING);
+        GtkListStore *modes = gtk_list_store_new(2, G_TYPE_STRING, G_TYPE_STRING);
+        GtkTreeIter it;
+        gtk_list_store_insert_with_values(profiles, &it, -1, 0, "A", -1);
+        gtk_list_store_insert_with_values(profiles, &it, -1, 0, "B", -1);
+        gtk_list_store_insert_with_values(modes, &it, -1, 0, "Balanced", 1, "powersave:balance_performance", -1);
+        gtk_list_store_insert_with_values(modes, &it, -1, 0, "Performance", 1, "performance", -1);
+        u.cpu_custom_profile_combo = gtk_combo_box_new_with_model(GTK_TREE_MODEL(profiles));
+        u.cpu_profile_combo = gtk_combo_box_new_with_model(GTK_TREE_MODEL(modes));
+        u.cpu_profile_store = modes;
+        u.cpu_apply_all_cores_checkbox = gtk_check_button_new();
+        gtk_combo_box_set_active(GTK_COMBO_BOX(u.cpu_custom_profile_combo), 1);
+        gtk_combo_box_set_active(GTK_COMBO_BOX(u.cpu_profile_combo), 0);
+        u.cpu_core_count = 2;
+        for (int i = 0; i < 2; i++) {
+            u.cpu_core_min_adjustments[i] = GTK_ADJUSTMENT(gtk_adjustment_new(800, 800, 3600, 100, 100, 0));
+            u.cpu_core_max_adjustments[i] = GTK_ADJUSTMENT(gtk_adjustment_new(3600, 800, 3600, 100, 100, 0));
+        }
+        CHECK(!cpu_profile_has_unsaved_changes(&u), "U: no snapshot yet -> nothing unsaved");
+        cpu_take_snapshot(&u);
+        CHECK(u.cpu_snap_valid && u.cpu_snap_profile == 1 && !cpu_profile_has_unsaved_changes(&u),
+              "U: just loaded -> nothing unsaved");
+        CHECK(cpu_check_unsaved_changes(&u) == 1, "U: no changes -> no dialog, go on");
+        gtk_adjustment_set_value(u.cpu_core_max_adjustments[1], 2400);
+        CHECK(cpu_profile_has_unsaved_changes(&u), "U: spinner changed -> unsaved");
+        gtk_adjustment_set_value(u.cpu_core_max_adjustments[1], 3600);
+        CHECK(!cpu_profile_has_unsaved_changes(&u), "U: spinner changed back -> nothing unsaved");
+        gtk_combo_box_set_active(GTK_COMBO_BOX(u.cpu_profile_combo), 1);
+        CHECK(cpu_profile_has_unsaved_changes(&u), "U: power mode changed -> unsaved");
+        gtk_combo_box_set_active(GTK_COMBO_BOX(u.cpu_profile_combo), 0);
+        gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(u.cpu_apply_all_cores_checkbox), TRUE);
+        CHECK(cpu_profile_has_unsaved_changes(&u), "U: 'Apply values to all cores' changed -> unsaved");
+        gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(u.cpu_apply_all_cores_checkbox), FALSE);
+        cpu_take_snapshot(&u);
+        u.cpu_core_count = 0;
+        cpu_take_snapshot(&u);
+        CHECK(!u.cpu_snap_valid && !cpu_profile_has_unsaved_changes(&u), "U: no core grid -> nothing to compare");
+    } else {
+        printf("SKIP  U: unsaved CPU profile changes (no display)\n");
+    }
+
     /* K: keyboard key -> LED lookup (v1.17.3) */
     CHECK(sizeof kbd_default_led_position / sizeof kbd_default_led_position[0] == 120 &&
           sizeof kbd_key_names / sizeof kbd_key_names[0] == KBD_NUM_KEYS &&

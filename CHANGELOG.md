@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.23.0] - 2026-11-22
+
+### Added
+- **CPU Profiles: unsaved-changes dialog**, like the fan curve editor: after changing the core spinners, "Apply values to all cores" or the power mode of a CPU profile, the GUI asks **Cancel / Discard Changes / Save Changes** before switching to another CPU profile, Create, Activate, leaving the CPU tab, closing the window or quitting from the tray. Discard puts the stored values back (and the stored power mode, if the change was already applied to the running profile); Cancel stays where you are.
+- Changes are found by comparing the values on screen with the profile as loaded or saved, so values the GUI sets itself never count as changes, and changing a value back is not "unsaved".
+- Quitting from the tray now also asks about unsaved fan curve changes (closing the window already did).
+- Tests for the change detection (run with a display; skipped and listed as SKIP without one).
+
 ## [1.22.2] - 2026-11-22
 
 ### Fixed

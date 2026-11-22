@@ -391,6 +391,14 @@ typedef struct {
     int cpu_active_custom_profile_idx;   /* profile selected in the CPU tab */
     int cpu_running_profile_idx;         /* profile the daemon marks active ([*]), -1 = none */
     int cpu_freq_profiles_modified; /* Track unsaved changes */
+    /* Values of the shown CPU profile as loaded/saved; the unsaved-changes
+     * dialog compares the widgets with them (1.23.0) */
+    int cpu_snap_valid;
+    int cpu_snap_profile;              /* profile index the values belong to */
+    int cpu_snap_mode_row;             /* power mode combo row */
+    int cpu_snap_all_cores;
+    int cpu_snap_cores;
+    double cpu_snap_min[MAX_CPUS], cpu_snap_max[MAX_CPUS];
 
     /* Hard limit configuration UI */
     GtkWidget *cpu_hard_limit_spinner;
@@ -535,6 +543,9 @@ static void on_cpu_apply_all_cores_toggled(GtkCheckButton *checkbox, gpointer us
 static void build_cpu_core_freq_grid(AppData *app, int num_cores);
 static void update_cpu_core_freq_spinners(AppData *app, int profile_idx);
 static void mark_cpu_freq_profiles_modified(AppData *app);
+static void cpu_take_snapshot(AppData *app);
+static int cpu_profile_has_unsaved_changes(const AppData *app);
+static int cpu_check_unsaved_changes(AppData *app); /* 1 saved/none, 0 discarded, -1 cancelled */
 static void on_cpu_hard_limit_apply_clicked(GtkWidget *widget, gpointer user_data);
 
 /* Forward declarations for profile and curve management */
@@ -1326,6 +1337,7 @@ static void load_cpu_custom_profiles_select(AppData *app, int select_idx) {
         }
     }
 
+    if (active_idx >= 0) cpu_take_snapshot(app);   /* the values as stored */
     g_print("[GUI] Loaded %d custom frequency profiles (active idx=%d)\n", profile_count, active_idx);
 
 }
@@ -1335,6 +1347,20 @@ static void on_cpu_custom_profile_changed(GtkWidget *widget, gpointer user_data)
     AppData *app = (AppData *)user_data;
     int active = gtk_combo_box_get_active(GTK_COMBO_BOX(widget));
     if (active < 0) return;
+
+    /* Unsaved changes in the profile shown so far (the widgets still show it) */
+    if (app->cpu_snap_valid && app->cpu_snap_profile != active && cpu_profile_has_unsaved_changes(app)) {
+        int left = app->cpu_snap_profile;
+        int r = cpu_check_unsaved_changes(app);
+        g_signal_handler_block(widget, app->cpu_custom_profile_combo_signal_id);
+        if (r < 0) {
+            gtk_combo_box_set_active(GTK_COMBO_BOX(widget), left);   /* stay */
+            g_signal_handler_unblock(widget, app->cpu_custom_profile_combo_signal_id);
+            return;
+        }
+        gtk_combo_box_set_active(GTK_COMBO_BOX(widget), active);     /* Save reselected the old one */
+        g_signal_handler_unblock(widget, app->cpu_custom_profile_combo_signal_id);
+    }
 
     app->cpu_active_custom_profile_idx = active;
     g_print("[GUI] Selected custom profile index %d\n", active);
@@ -1386,6 +1412,7 @@ static void on_cpu_custom_profile_changed(GtkWidget *widget, gpointer user_data)
         g_print("[GUI] Core count not yet available, skipping grid build\n");
     }
 
+    cpu_take_snapshot(app);   /* the values as stored */
     gtk_label_set_text(GTK_LABEL(app->cpu_freq_profile_status_label), "Profile selected - click Activate to use it");
 }
 
@@ -1436,6 +1463,7 @@ static const char *cpu_balanced_mode(const char *reply) {
 static void on_cpu_create_freq_profile_clicked(GtkWidget *widget, gpointer user_data) {
     (void)widget;
     AppData *app = (AppData *)user_data;
+    if (cpu_check_unsaved_changes(app) < 0) return;
     g_print("[GUI] Create frequency profile clicked\n");
 
     /* Show dialog to enter profile name */
@@ -1801,6 +1829,114 @@ static gboolean cpu_save_freq_profile_idle(gpointer user_data) {
     return G_SOURCE_REMOVE;
 }
 
+/* Capture the shown profile values (widgets) for SAVE_CUSTOM_PROFILE */
+static CpuSaveContext *cpu_save_ctx_from_ui(AppData *app, int idx) {
+    CpuSaveContext *ctx = g_new0(CpuSaveContext, 1);
+    ctx->app = app;
+    ctx->profile_idx = idx;
+    ctx->num_cores = app->cpu_core_count;
+    ctx->apply_all_cores = gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(app->cpu_apply_all_cores_checkbox)) ? 1 : 0;
+
+    GtkTreeIter gov_iter;
+    if (gtk_combo_box_get_active_iter(GTK_COMBO_BOX(app->cpu_profile_combo), &gov_iter)) {
+        gchar *gov_name = NULL;
+        gtk_tree_model_get(GTK_TREE_MODEL(app->cpu_profile_store), &gov_iter, 1, &gov_name, -1);
+        snprintf(ctx->governor, sizeof(ctx->governor), "%s", gov_name ? gov_name : "");
+        g_free(gov_name);
+    }
+    for (int i = 0; i < ctx->num_cores && i < MAX_CPUS; i++) {
+        ctx->core_min_mhz[i] = gtk_adjustment_get_value(app->cpu_core_min_adjustments[i]);
+        ctx->core_max_mhz[i] = gtk_adjustment_get_value(app->cpu_core_max_adjustments[i]);
+    }
+    return ctx;
+}
+
+/* --- Unsaved CPU profile changes (1.23.0) ---
+ * A snapshot of the shown profile is taken whenever it is loaded or saved;
+ * "unsaved" means the widgets differ from it. Values the GUI sets itself
+ * (loading, syncing core 0 to all cores) are part of the snapshot, so only
+ * the user's edits count. */
+static void cpu_take_snapshot(AppData *app) {
+    app->cpu_snap_valid = 0;
+    int idx = app->cpu_custom_profile_combo
+            ? gtk_combo_box_get_active(GTK_COMBO_BOX(app->cpu_custom_profile_combo)) : -1;
+    int n = app->cpu_core_count < MAX_CPUS ? app->cpu_core_count : MAX_CPUS;
+    if (idx < 0 || n <= 0) return;
+    for (int i = 0; i < n; i++)
+        if (!app->cpu_core_min_adjustments[i] || !app->cpu_core_max_adjustments[i]) return;
+    app->cpu_snap_profile = idx;
+    app->cpu_snap_mode_row = gtk_combo_box_get_active(GTK_COMBO_BOX(app->cpu_profile_combo));
+    app->cpu_snap_all_cores = gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(app->cpu_apply_all_cores_checkbox)) ? 1 : 0;
+    app->cpu_snap_cores = n;
+    for (int i = 0; i < n; i++) {
+        app->cpu_snap_min[i] = gtk_adjustment_get_value(app->cpu_core_min_adjustments[i]);
+        app->cpu_snap_max[i] = gtk_adjustment_get_value(app->cpu_core_max_adjustments[i]);
+    }
+    app->cpu_snap_valid = 1;
+}
+
+static int cpu_profile_has_unsaved_changes(const AppData *app) {
+    if (!app->cpu_snap_valid || app->cpu_core_count != app->cpu_snap_cores) return 0;
+    if (gtk_combo_box_get_active(GTK_COMBO_BOX(app->cpu_profile_combo)) != app->cpu_snap_mode_row) return 1;
+    if ((gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(app->cpu_apply_all_cores_checkbox)) ? 1 : 0)
+        != app->cpu_snap_all_cores) return 1;
+    for (int i = 0; i < app->cpu_snap_cores; i++) {
+        if (!app->cpu_core_min_adjustments[i] || !app->cpu_core_max_adjustments[i]) return 0;
+        if (gtk_adjustment_get_value(app->cpu_core_min_adjustments[i]) != app->cpu_snap_min[i] ||
+            gtk_adjustment_get_value(app->cpu_core_max_adjustments[i]) != app->cpu_snap_max[i]) return 1;
+    }
+    return 0;
+}
+
+/* Like the fan curve editor: Cancel / Discard Changes / Save Changes.
+ * Returns 1 when there was nothing to save or it was saved, 0 when the
+ * changes were discarded (widgets back to the stored values), -1 when the
+ * user cancelled (the caller stops). */
+static int cpu_check_unsaved_changes(AppData *app) {
+    if (!cpu_profile_has_unsaved_changes(app)) return 1;
+
+    GtkWidget *dialog = gtk_message_dialog_new(GTK_WINDOW(app->window), GTK_DIALOG_MODAL,
+                                               GTK_MESSAGE_WARNING, GTK_BUTTONS_NONE, NULL);
+    gtk_message_dialog_set_markup(GTK_MESSAGE_DIALOG(dialog),
+        "<b>Warning:</b> You have unsaved changes to the CPU profile.\n\nWhat would you like to do?");
+    gtk_dialog_add_button(GTK_DIALOG(dialog), "_Cancel", -102);
+    gtk_dialog_add_button(GTK_DIALOG(dialog), "_Discard Changes", -100);
+    gtk_dialog_add_button(GTK_DIALOG(dialog), "_Save Changes", -101);
+    gtk_widget_show_all(dialog);
+    gint response = gtk_dialog_run(GTK_DIALOG(dialog));
+    gtk_widget_destroy(dialog);
+
+    int idx = app->cpu_snap_profile;
+    if (response == -101) {
+        g_print("[GUI] Unsaved CPU profile changes: saving profile %d\n", idx);
+        cpu_save_freq_profile_idle(cpu_save_ctx_from_ui(app, idx));   /* now, not deferred */
+        return 1;
+    }
+    if (response == -100) {
+        g_print("[GUI] Unsaved CPU profile changes: discarded (profile %d)\n", idx);
+        /* A power mode change on the running profile was applied right
+         * away: put the stored mode back */
+        int row = gtk_combo_box_get_active(GTK_COMBO_BOX(app->cpu_profile_combo));
+        if (row != app->cpu_snap_mode_row && idx == app->cpu_running_profile_idx) {
+            GtkTreeIter it;
+            if (gtk_tree_model_iter_nth_child(GTK_TREE_MODEL(app->cpu_profile_store), &it, NULL,
+                                              app->cpu_snap_mode_row)) {
+                gchar *mode = NULL;
+                gtk_tree_model_get(GTK_TREE_MODEL(app->cpu_profile_store), &it, 0, &mode, -1);
+                if (mode) {
+                    char cmd[256];
+                    snprintf(cmd, sizeof(cmd), "SET_POWER_MODE|%s", mode);
+                    send_cpu_command(app, cmd);
+                    g_free(mode);
+                }
+            }
+        }
+        load_cpu_custom_profiles_select(app, idx);   /* widgets back to the stored values */
+        return 0;
+    }
+    return -1;
+}
+
 static void on_cpu_save_freq_profile_clicked(GtkWidget *widget, gpointer user_data) {
     (void)widget;
     AppData *app = (AppData *)user_data;
@@ -1820,30 +1956,7 @@ static void on_cpu_save_freq_profile_clicked(GtkWidget *widget, gpointer user_da
         return;
     }
 
-    /* Capture all current UI state into a context struct */
-    CpuSaveContext *ctx = g_new0(CpuSaveContext, 1);
-    ctx->app = app;
-    ctx->profile_idx = idx;
-    ctx->num_cores = num_cores;
-    ctx->apply_all_cores = gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(app->cpu_apply_all_cores_checkbox)) ? 1 : 0;
-
-    /* Read governor */
-    {
-        GtkTreeIter gov_iter;
-        if (gtk_combo_box_get_active_iter(GTK_COMBO_BOX(app->cpu_profile_combo), &gov_iter)) {
-            gchar *gov_name = NULL;
-            gtk_tree_model_get(GTK_TREE_MODEL(app->cpu_profile_store), &gov_iter, 1, &gov_name, -1);
-            strncpy(ctx->governor, gov_name ? gov_name : "", sizeof(ctx->governor) - 1);
-            ctx->governor[sizeof(ctx->governor) - 1] = '\0';
-            g_free(gov_name);
-        }
-    }
-
-    /* Read spinner values */
-    for (int i = 0; i < num_cores && i < MAX_CPUS; i++) {
-        ctx->core_min_mhz[i] = gtk_adjustment_get_value(app->cpu_core_min_adjustments[i]);
-        ctx->core_max_mhz[i] = gtk_adjustment_get_value(app->cpu_core_max_adjustments[i]);
-    }
+    CpuSaveContext *ctx = cpu_save_ctx_from_ui(app, idx);
 
     /* Immediately disable the save button to clear its pressed visual state,
      * then re-enable it after the save completes in the idle callback. */
@@ -1891,6 +2004,7 @@ static void on_cpu_activate_freq_profile_clicked(GtkWidget *widget, gpointer use
     (void)widget;
     AppData *app = (AppData *)user_data;
     g_print("[GUI] Activate frequency profile clicked\n");
+    if (cpu_check_unsaved_changes(app) < 0) return;
 
     int idx = gtk_combo_box_get_active(GTK_COMBO_BOX(app->cpu_custom_profile_combo));
     if (idx < 0) {
@@ -5604,6 +5718,15 @@ static void on_notebook_page_switched(GtkNotebook *notebook, GtkWidget *page, gi
         }
     }
     
+    /* Leaving the CPU tab with unsaved profile changes (1.23.0) */
+    if (current_page == PAGE_CPU && page_num != PAGE_CPU && cpu_profile_has_unsaved_changes(app)) {
+        if (cpu_check_unsaved_changes(app) < 0) {
+            gtk_notebook_set_current_page(GTK_NOTEBOOK(notebook), current_page);
+            g_signal_stop_emission_by_name(G_OBJECT(notebook), "switch-page");
+            return;
+        }
+    }
+
     /* Clear status messages when switching tabs */
     if (current_page != page_num) {
         show_status(app, "");
@@ -7315,6 +7438,15 @@ static void on_tray_show_app(GtkMenuItem *menuitem, gpointer user_data) {
 static void on_tray_exit(GtkMenuItem *menuitem, gpointer user_data) {
     (void)menuitem;
     AppData *app = (AppData *)user_data;
+
+    /* Unsaved fan curve or CPU profile changes: ask before quitting */
+    if (app->curve_points_modified) {
+        int r = check_unsaved_changes(app);
+        if (r < 0) return;
+        if (r == 1) on_apply_clicked(NULL, app);
+        app->curve_points_modified = 0;
+    }
+    if (cpu_check_unsaved_changes(app) < 0) return;
     
     /* Save window position before exiting if window is visible */
     if (gtk_widget_get_visible(app->window)) {
@@ -7538,6 +7670,7 @@ static gboolean on_window_delete_event(GtkWidget *widget, GdkEvent *event, gpoin
             return TRUE;
         }
     }
+    if (cpu_check_unsaved_changes(app) < 0) return TRUE;   /* CPU profile (1.23.0) */
     
     /* Save current window position before hiding */
     gtk_window_get_position(GTK_WINDOW(widget), &app->window_x, &app->window_y);

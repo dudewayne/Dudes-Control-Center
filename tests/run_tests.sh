@@ -29,10 +29,10 @@ run() {
     mkdir -p "$dir"
     echo "=== $name"
     if (cd "$dir" && "$@") > "$dir/stdout.txt" 2> "$dir/stderr.txt"; then
-        grep -E "^(PASS|FAIL)" "$dir/stdout.txt" | sed 's/^/    /'
+        grep -E "^(PASS|FAIL|SKIP)" "$dir/stdout.txt" | sed 's/^/    /'
         PASSED=$((PASSED + 1))
     else
-        grep -E "^(PASS|FAIL)" "$dir/stdout.txt" | sed 's/^/    /'
+        grep -E "^(PASS|FAIL|SKIP)" "$dir/stdout.txt" | sed 's/^/    /'
         echo "    --- $name FAILED; last lines of stdout/stderr:"
         tail -n 15 "$dir/stdout.txt" | sed 's/^/    | /'
         tail -n 30 "$dir/stderr.txt" | sed 's/^/    ! /'
