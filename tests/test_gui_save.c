@@ -140,6 +140,13 @@ int main(int argc, char **argv) {
     g_object_unref(st);
     g_object_unref(st2);
 
+    /* M: manual fan speed steps (v1.18.3: down to 0%) */
+    CHECK(manual_speed_step(10, -10) == 0, "M: 10% minus -> 0% (fans off allowed)");
+    CHECK(manual_speed_step(0, -10) == 0, "M: 0% minus stays at 0%");
+    CHECK(manual_speed_step(0, +10) == 10, "M: 0% plus -> 10%");
+    CHECK(manual_speed_step(95, +10) == 100 && manual_speed_step(100, +10) == 100, "M: plus caps at 100%");
+    CHECK(manual_speed_step(37, -10) == 30, "M: odd value rounds down to the 10% step");
+
     /* K: keyboard key -> LED lookup (v1.17.3) */
     CHECK(sizeof kbd_position_to_led_id / sizeof kbd_position_to_led_id[0] == KBD_NUM_KEYS &&
           sizeof kbd_key_names / sizeof kbd_key_names[0] == KBD_NUM_KEYS &&

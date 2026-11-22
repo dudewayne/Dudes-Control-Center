@@ -2138,7 +2138,7 @@ static gboolean on_manual_mode_switched(GtkSwitch *switch_widget, gboolean new_s
         if (app->manual_current_speed > 100) app->manual_current_speed = 100;
         g_print("%s [GUI] DEBUG: Rounded manual_current_speed = %d\n", ts, app->manual_current_speed);
         char speed_text[16];
-        snprintf(speed_text, sizeof(speed_text), "%d", app->manual_current_speed);
+        snprintf(speed_text, sizeof(speed_text), "%d%%", app->manual_current_speed);
         gtk_label_set_text(GTK_LABEL(app->manual_speed_label), speed_text);
         /* Explicitly set the switch state to ensure visual update */
         g_print("%s [GUI] Blocking signal handler and setting switch to TRUE\n", ts);
@@ -2182,47 +2182,46 @@ static gboolean on_manual_mode_switched(GtkSwitch *switch_widget, gboolean new_s
     return TRUE; /* Accept the state change */
 }
 
+/* Next manual fan speed for the +/- buttons: 10% steps from 0% (fans
+ * stopped) to 100%. The fan daemon's fail-safes still switch the fans to
+ * 100% at 95 degC or when a temperature sensor fails, also at 0%. */
+static int manual_speed_step(int current_pct, int delta) {
+    int next = current_pct + delta;
+    if (delta < 0 && current_pct % 10 != 0) next = (current_pct / 10) * 10;  /* 37 -> 30 */
+    if (next < 0) next = 0;
+    if (next > 100) next = 100;
+    return next;
+}
+
+static void apply_manual_speed(AppData *app, int pct) {
+    if (pct == app->manual_current_speed) return;
+    app->manual_current_speed = pct; /* Update state immediately */
+
+    char speed_text[16];
+    snprintf(speed_text, sizeof(speed_text), "%d%%", pct);
+    gtk_label_set_text(GTK_LABEL(app->manual_speed_label), speed_text);
+
+    char cmd[64];
+    snprintf(cmd, sizeof(cmd), "SET_MANUAL %d", pct);
+    const char *response = send_command(app, cmd);
+    if (pct == 0 && response && strncmp(response, "OK", 2) == 0)
+        show_status(app, "Fans stopped (0%) - they switch to 100% automatically at 95°C or on a sensor error");
+    else
+        show_status(app, response);
+}
+
 /* Callback: Manual speed + button clicked */
 static void on_manual_speed_plus_clicked(GtkWidget *button, gpointer user_data) {
     (void)button;
     AppData *app = (AppData *)user_data;
-    int current_pct = app->manual_current_speed;
-    if (current_pct < 100) { /* Allow reaching 100% even from 91-99% */
-        current_pct += 10;
-        if (current_pct > 100) current_pct = 100; /* Cap at 100% */
-        app->manual_current_speed = current_pct; /* Update state immediately */
-        
-        /* Update the label display immediately */
-        char speed_text[16];
-        snprintf(speed_text, sizeof(speed_text), "%d%%", current_pct);
-        gtk_label_set_text(GTK_LABEL(app->manual_speed_label), speed_text);
-        
-        char cmd[64];
-        snprintf(cmd, sizeof(cmd), "SET_MANUAL %d", current_pct);
-        const char *response = send_command(app, cmd);
-        show_status(app, response);
-    }
+    apply_manual_speed(app, manual_speed_step(app->manual_current_speed, +10));
 }
 
-/* Callback: Manual speed - button clicked */
+/* Callback: Manual speed - button clicked (down to 0% = fans off) */
 static void on_manual_speed_minus_clicked(GtkWidget *button, gpointer user_data) {
     (void)button;
     AppData *app = (AppData *)user_data;
-    int current_pct = app->manual_current_speed;
-    if (current_pct > 10) { /* Leave room for -10% */
-        current_pct -= 10;
-        app->manual_current_speed = current_pct; /* Update state immediately */
-        
-        /* Update the label display immediately */
-        char speed_text[16];
-        snprintf(speed_text, sizeof(speed_text), "%d%%", current_pct);
-        gtk_label_set_text(GTK_LABEL(app->manual_speed_label), speed_text);
-        
-        char cmd[64];
-        snprintf(cmd, sizeof(cmd), "SET_MANUAL %d", current_pct);
-        const char *response = send_command(app, cmd);
-        show_status(app, response);
-    }
+    apply_manual_speed(app, manual_speed_step(app->manual_current_speed, -10));
 }
 
 /* Callback: Apply curve changes - save reordered curve points to daemon */

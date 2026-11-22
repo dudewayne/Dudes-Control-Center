@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.18.3] - 2026-11-22
+
+### Fixed
+- **Manual fan mode can go down to 0% (fans off)**: the GUI's minus button stopped at 10%, although the fan daemon and the CLI already accept 0%. The fail-safes still apply at 0%: the fans switch to 100% at 95°C or when a temperature sensor fails, and back to the manual value when it clears. The status line says so when the fans are stopped.
+- Manual mode: the speed shown when switching it on now has a `%` sign like the +/- buttons; an odd speed (e.g. 37%) steps down to the next 10%.
+- CLI help: `--set` accepts 0,10,...,100.
+- Tests for the manual speed steps (8 suites, 149 checks).
+
 ## [1.18.2] - 2026-11-22
 
 ### Fixed

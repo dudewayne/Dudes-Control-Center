@@ -4,7 +4,7 @@
  * 
  * Usage:
  *   ./dudes-control-center-fan-cli              - Show CPU/GPU temps and fan status (default)
- *   ./dudes-control-center-fan-cli --set 10     - Set fan speed to 10% (in 10% steps: 10,20,...,100)
+ *   ./dudes-control-center-fan-cli --set 10     - Set fan speed to 10% (in 10% steps: 0,10,...,100; 0 = fans off)
  *   ./dudes-control-center-fan-cli --auto       - Enable automatic fan control based on temperature
  */
 
@@ -192,7 +192,7 @@ static void print_usage(void) {
     printf("\n");
     printf("Options:\n");
     printf("  (none)         Show CPU/GPU temperatures and fan status (default)\n");
-    printf("  --set <pct>    Set fan speed to specified percentage (10,20,...,100)\n");
+    printf("  --set <pct>    Set fan speed to specified percentage (0,10,...,100; 0 = fans off)\n");
     printf("  --auto         Enable automatic fan control based on temperature\n");
     printf("  --log-level <LEVEL>  Set daemon log level (ERROR, WARN, INFO, DEBUG)\n");
     printf("  --log-level-get      Show current daemon log level\n");
