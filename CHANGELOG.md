@@ -1,6 +1,14 @@
 # Changelog - Dudes Control Center
 
-All notable changes to this project will be documented in this file.
+All notable changes to this project are documented in this file. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses [Semantic Versioning](https://semver.org/): a **Feature** raises the minor version (1.31.0 → 1.32.0), a **Fix** the patch version (1.32.0 → 1.32.1). Feature versions, and fixes that matter for every installation, are published as [GitHub releases](https://github.com/dudewayne/Dudes-Control-Center/releases) with the tested `.deb`. Versions with a git tag (all from 1.15.0 on, some earlier ones) link to the changes since the previous tag.
+
+Programs and services were named `dudes-control-center-*` before 1.19.0 (for example `dudes-control-center-fan-daemon`, now `dcc-fan-daemon`); older entries use the old names.
+
+## [Unreleased]
+
+### Documentation
+- **README**: a no-warranty disclaimer at the top; the AI credits say the application was initially coded with Bionic AI Agent and that code review, hardening, bug fixing and the final polish were done by Claude (Anthropic); screenshots of all tabs (`docs/screenshots/`); a requirements box, a contents line, a quick start, a Settings section and a screenshot at the top; `gettext` added to the build dependencies; a note on the tray icon under GNOME; shorter safety and license sections that point to COPYRIGHT.md.
+- **COPYRIGHT.md**: the line about the fan curves is gone. The project's own work needs no entry in the third-party list.
 
 ## [1.32.1] - 2026-11-22
 
@@ -262,6 +270,9 @@ All notable changes to this project will be documented in this file.
 ### Documentation
 - `LICENSE` contains only the GPL version 2 text, so GitHub recognizes the license; the copyright statement and the third-party origins are in `COPYRIGHT.md`.
 
+
+### Documentation
+- **`LICENSE` holds only the GPL version 2 text**; the license statement and the origins of the third-party code moved to `COPYRIGHT.md`.
 ## [1.19.4] - 2026-11-22
 
 ### Fixed
@@ -351,6 +362,9 @@ All notable changes to this project will be documented in this file.
 ### Documentation (since 1.18.5)
 - README rewritten for the current state: all components (CPU and keyboard daemons, `ite_829x` DKMS module, hard-limit enforcer), installation from the release `.deb`, the GUI tabs, per-key lighting and the LED wizard, CPU power modes, manual fan mode down to 0% and the emergency handover, configuration and which user's `profiles.json` the daemons use, log files, building and testing, troubleshooting. Removed outdated parts (version 1.0 badge, GTK4, 10% minimum, old log names, running daemons by hand).
 
+
+### Documentation
+- **README rewritten** for the current state of the project (components, installation, GUI tabs, safety features, configuration, troubleshooting).
 ## [1.18.5] - 2026-11-22
 
 ### Fixed
@@ -546,6 +560,20 @@ All notable changes to this project will be documented in this file.
 ### Fixed
 - **Real-time sync of core 0 frequency values to all cores**: When "Apply values to all CPU cores" is enabled, typing a value in core 0's min or max frequency field now automatically updates all other core fields in real-time. Switched from `changed` signal to `input` signal on GtkSpinButton to ensure GTK validates the text before syncing.
 
+## [1.9.1] - 2026-11-20
+
+### Fixed
+- **Redundant `is_active` marker removed from fan profiles**: the active fan profile is stored once as `active_profile_index`; the per-profile marker could disagree with it.
+
+## [1.9.0] - 2026-11-20
+
+### Added
+- **Batch `SAVE_CUSTOM_PROFILE` command**: the CPU daemon saves all per-core frequencies of a profile in one command instead of one command per core, which makes saving a profile much faster.
+
+### Fixed
+- **Active profile not persisted**: activating a fan or CPU profile now stores it as the active profile, so it is used again after a restart.
+- **Save button stuck**: the Save button no longer stays pressed while a profile is being saved.
+
 ## [1.8.9] - 2026-11-20
 
 ### Fixed
@@ -642,6 +670,12 @@ All notable changes to this project will be documented in this file.
 - **Apply to All Cores checkbox**: Copies first core's min/max values to all cores for quick uniform configuration.
 - **Profile creation dialog**: Modal dialog with duplicate-name detection and confirmation message box.
 - **Profile deletion with confirmation**: Yes/No dialog before deleting a frequency profile.
+
+## [1.5.1] - 2026-11-17
+
+### Fixed
+- **CPU daemon log lines**: commands are logged with their non-empty arguments only (no duplicate or trailing empty ones).
+- **Logs tab reorganized**: the log sections stacked on top of each other became sub-tabs (GUI Log, Fan Daemon Log, CPU Daemon Log), which saves vertical space and leaves room for more daemon logs.
 
 ## [1.5.0] - 2026-11-17
 
@@ -829,3 +863,79 @@ All notable changes to this project will be documented in this file.
 - Systemd service for daemon auto-start
 - Unix socket IPC between GUI and daemon
 - Watchdog timer and fail-safe mode in daemon
+
+[Unreleased]: https://github.com/dudewayne/Dudes-Control-Center/compare/v1.32.1...HEAD
+[1.32.1]: https://github.com/dudewayne/Dudes-Control-Center/compare/v1.32.0...v1.32.1
+[1.32.0]: https://github.com/dudewayne/Dudes-Control-Center/compare/v1.31.0...v1.32.0
+[1.31.0]: https://github.com/dudewayne/Dudes-Control-Center/compare/v1.30.0...v1.31.0
+[1.30.0]: https://github.com/dudewayne/Dudes-Control-Center/compare/v1.29.1...v1.30.0
+[1.29.1]: https://github.com/dudewayne/Dudes-Control-Center/compare/v1.29.0...v1.29.1
+[1.29.0]: https://github.com/dudewayne/Dudes-Control-Center/compare/v1.28.0...v1.29.0
+[1.28.0]: https://github.com/dudewayne/Dudes-Control-Center/compare/v1.27.0...v1.28.0
+[1.27.0]: https://github.com/dudewayne/Dudes-Control-Center/compare/v1.26.0...v1.27.0
+[1.26.0]: https://github.com/dudewayne/Dudes-Control-Center/compare/v1.25.0...v1.26.0
+[1.25.0]: https://github.com/dudewayne/Dudes-Control-Center/compare/v1.24.4...v1.25.0
+[1.24.4]: https://github.com/dudewayne/Dudes-Control-Center/compare/v1.24.3...v1.24.4
+[1.24.3]: https://github.com/dudewayne/Dudes-Control-Center/compare/v1.24.2...v1.24.3
+[1.24.2]: https://github.com/dudewayne/Dudes-Control-Center/compare/v1.24.1...v1.24.2
+[1.24.1]: https://github.com/dudewayne/Dudes-Control-Center/compare/v1.24.0...v1.24.1
+[1.24.0]: https://github.com/dudewayne/Dudes-Control-Center/compare/v1.23.0...v1.24.0
+[1.23.0]: https://github.com/dudewayne/Dudes-Control-Center/compare/v1.22.2...v1.23.0
+[1.22.2]: https://github.com/dudewayne/Dudes-Control-Center/compare/v1.22.1...v1.22.2
+[1.22.1]: https://github.com/dudewayne/Dudes-Control-Center/compare/v1.22.0...v1.22.1
+[1.22.0]: https://github.com/dudewayne/Dudes-Control-Center/compare/v1.21.9...v1.22.0
+[1.21.9]: https://github.com/dudewayne/Dudes-Control-Center/compare/v1.21.8...v1.21.9
+[1.21.8]: https://github.com/dudewayne/Dudes-Control-Center/compare/v1.21.7...v1.21.8
+[1.21.7]: https://github.com/dudewayne/Dudes-Control-Center/compare/v1.21.6...v1.21.7
+[1.21.6]: https://github.com/dudewayne/Dudes-Control-Center/compare/v1.21.5...v1.21.6
+[1.21.5]: https://github.com/dudewayne/Dudes-Control-Center/compare/v1.21.4...v1.21.5
+[1.21.4]: https://github.com/dudewayne/Dudes-Control-Center/compare/v1.21.3...v1.21.4
+[1.21.3]: https://github.com/dudewayne/Dudes-Control-Center/compare/v1.21.2...v1.21.3
+[1.21.2]: https://github.com/dudewayne/Dudes-Control-Center/compare/v1.21.1...v1.21.2
+[1.21.1]: https://github.com/dudewayne/Dudes-Control-Center/compare/v1.21.0...v1.21.1
+[1.21.0]: https://github.com/dudewayne/Dudes-Control-Center/compare/v1.20.4...v1.21.0
+[1.20.4]: https://github.com/dudewayne/Dudes-Control-Center/compare/v1.20.3...v1.20.4
+[1.20.3]: https://github.com/dudewayne/Dudes-Control-Center/compare/v1.20.2...v1.20.3
+[1.20.2]: https://github.com/dudewayne/Dudes-Control-Center/compare/v1.20.1...v1.20.2
+[1.20.1]: https://github.com/dudewayne/Dudes-Control-Center/compare/v1.20.0...v1.20.1
+[1.20.0]: https://github.com/dudewayne/Dudes-Control-Center/compare/v1.19.4...v1.20.0
+[1.19.4]: https://github.com/dudewayne/Dudes-Control-Center/compare/v1.19.3...v1.19.4
+[1.19.3]: https://github.com/dudewayne/Dudes-Control-Center/compare/v1.19.2...v1.19.3
+[1.19.2]: https://github.com/dudewayne/Dudes-Control-Center/compare/v1.19.1...v1.19.2
+[1.19.1]: https://github.com/dudewayne/Dudes-Control-Center/compare/v1.19.0...v1.19.1
+[1.19.0]: https://github.com/dudewayne/Dudes-Control-Center/compare/v1.18.8...v1.19.0
+[1.18.8]: https://github.com/dudewayne/Dudes-Control-Center/compare/v1.18.7...v1.18.8
+[1.18.7]: https://github.com/dudewayne/Dudes-Control-Center/compare/v1.18.6...v1.18.7
+[1.18.6]: https://github.com/dudewayne/Dudes-Control-Center/compare/v1.18.5...v1.18.6
+[1.18.5]: https://github.com/dudewayne/Dudes-Control-Center/compare/v1.18.4...v1.18.5
+[1.18.4]: https://github.com/dudewayne/Dudes-Control-Center/compare/v1.18.3...v1.18.4
+[1.18.3]: https://github.com/dudewayne/Dudes-Control-Center/compare/v1.18.2...v1.18.3
+[1.18.2]: https://github.com/dudewayne/Dudes-Control-Center/compare/v1.18.1...v1.18.2
+[1.18.1]: https://github.com/dudewayne/Dudes-Control-Center/compare/v1.18.0...v1.18.1
+[1.18.0]: https://github.com/dudewayne/Dudes-Control-Center/compare/v1.17.3...v1.18.0
+[1.17.3]: https://github.com/dudewayne/Dudes-Control-Center/compare/v1.17.2...v1.17.3
+[1.17.2]: https://github.com/dudewayne/Dudes-Control-Center/compare/v1.17.1...v1.17.2
+[1.17.1]: https://github.com/dudewayne/Dudes-Control-Center/compare/v1.17.0...v1.17.1
+[1.17.0]: https://github.com/dudewayne/Dudes-Control-Center/compare/v1.16.4...v1.17.0
+[1.16.4]: https://github.com/dudewayne/Dudes-Control-Center/compare/v1.16.3...v1.16.4
+[1.16.3]: https://github.com/dudewayne/Dudes-Control-Center/compare/v1.16.2...v1.16.3
+[1.16.2]: https://github.com/dudewayne/Dudes-Control-Center/compare/v1.16.1...v1.16.2
+[1.16.1]: https://github.com/dudewayne/Dudes-Control-Center/compare/v1.16.0...v1.16.1
+[1.16.0]: https://github.com/dudewayne/Dudes-Control-Center/compare/v1.15.0...v1.16.0
+[1.15.0]: https://github.com/dudewayne/Dudes-Control-Center/compare/v1.13.0...v1.15.0
+[1.13.0]: https://github.com/dudewayne/Dudes-Control-Center/compare/v1.12.0...v1.13.0
+[1.12.0]: https://github.com/dudewayne/Dudes-Control-Center/compare/v1.11.0...v1.12.0
+[1.11.0]: https://github.com/dudewayne/Dudes-Control-Center/compare/v1.10.0...v1.11.0
+[1.10.0]: https://github.com/dudewayne/Dudes-Control-Center/compare/v1.9.0...v1.10.0
+[1.9.0]: https://github.com/dudewayne/Dudes-Control-Center/compare/v1.8.0...v1.9.0
+[1.8.0]: https://github.com/dudewayne/Dudes-Control-Center/compare/v1.7.0...v1.8.0
+[1.7.0]: https://github.com/dudewayne/Dudes-Control-Center/compare/v1.6.7...v1.7.0
+[1.6.7]: https://github.com/dudewayne/Dudes-Control-Center/compare/v1.6.6...v1.6.7
+[1.6.6]: https://github.com/dudewayne/Dudes-Control-Center/compare/v1.6.5...v1.6.6
+[1.6.5]: https://github.com/dudewayne/Dudes-Control-Center/compare/v1.6.4...v1.6.5
+[1.6.4]: https://github.com/dudewayne/Dudes-Control-Center/compare/v1.6.3...v1.6.4
+[1.6.3]: https://github.com/dudewayne/Dudes-Control-Center/compare/v1.6.2...v1.6.3
+[1.6.2]: https://github.com/dudewayne/Dudes-Control-Center/compare/v1.6.1...v1.6.2
+[1.6.1]: https://github.com/dudewayne/Dudes-Control-Center/compare/v1.6.0...v1.6.1
+[1.6.0]: https://github.com/dudewayne/Dudes-Control-Center/compare/v1.5.1...v1.6.0
+[1.5.1]: https://github.com/dudewayne/Dudes-Control-Center/releases/tag/v1.5.1
