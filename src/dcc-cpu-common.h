@@ -195,6 +195,10 @@ CpuGovernor cpu_governor_resolve_enum(CpuGovernor gov, const char *context);  /*
 /* Power modes = governor + energy performance preference (EPP).
  * With intel_pstate in active mode "Balanced" is powersave + balance_performance. */
 int cpu_epp_available(const char *epp);                   /* 1 if listed in energy_performance_available_preferences */
+/* The power mode the CPU actually runs, read from cpu0's governor and EPP:
+ * "Performance", "Balanced", "Power Save", or the governor name if it matches
+ * none of them. gov/epp (optional) receive the raw values. */
+const char *cpu_current_mode(char *gov, size_t gov_size, char *epp, size_t epp_size);
 const char* cpu_default_epp_for(const char *requested_governor);  /* EPP that matches a governor's intent, or NULL */
 int cpu_apply_governor_and_epp(const char *requested_governor, const char *epp, const char *context);
 void cpu_parse_mode(const char *arg, char *gov, size_t gov_size, char *epp, size_t epp_size);  /* "gov[:epp]" */

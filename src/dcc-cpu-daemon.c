@@ -173,8 +173,17 @@ static void handle_command(const char *cmd, char *response, size_t resp_size) {
         CpuSystemStatus status;
         get_cpu_system_status(&status);
 
-        const CpuProfile *active = cpu_profile_get_active();
-        const char *active_name = active ? active->name : "None";
+        /* The mode the CPU really runs (read from sysfs). It used to be the
+         * daemon's internal default mode, which stayed "Balanced" whatever
+         * profile or mode was applied. */
+        char cur_gov[64], cur_epp[64];
+        const char *active_name = cpu_current_mode(cur_gov, sizeof cur_gov, cur_epp, sizeof cur_epp);
+        char mode_buf[160];
+        if (strcmp(active_name, "Other") == 0 || strcmp(active_name, "Unknown") == 0)
+            snprintf(mode_buf, sizeof mode_buf, "%s", cur_gov[0] ? cur_gov : "unknown");
+        else
+            snprintf(mode_buf, sizeof mode_buf, "%s", active_name);
+        active_name = mode_buf;
 
         /* Get min/max freq from first core (all cores share the same range) */
         char freq_min_buf[32], freq_max_buf[32];
@@ -190,6 +199,8 @@ static void handle_command(const char *cmd, char *response, size_t resp_size) {
             "MIN_FREQ=%s\n"
             "MAX_FREQ=%s\n"
             "ACTIVE_GOVERNOR=%s\n"
+            "GOVERNOR=%s\n"
+            "EPP=%s\n"
             "AUTO_MODE=%d\n",
             status.num_cpus,
             status.on_ac_power,
@@ -198,6 +209,8 @@ static void handle_command(const char *cmd, char *response, size_t resp_size) {
             freq_min_buf,
             freq_max_buf,
             active_name,
+            cur_gov,
+            cur_epp,
             g_cpu_state.auto_mode_enabled);
 
         /* Add CPU details */

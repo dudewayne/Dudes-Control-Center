@@ -97,6 +97,18 @@ try:
     check("OK" in r and gov_epp(5) == ("performance", "power"),
           "Performance sets the governor and leaves EPP to it")
 
+    # STATUS shows the mode the CPU really runs (v1.20.3: was always "Balanced")
+    st = ask(a, "STATUS")
+    check("ACTIVE_GOVERNOR=Performance\n" in st and "GOVERNOR=performance\n" in st,
+          "STATUS: Performance after switching to Performance")
+    ask(a, "APPLY_GOVERNOR|Power Save")
+    st = ask(a, "STATUS")
+    check("ACTIVE_GOVERNOR=Power Save\n" in st and "EPP=power\n" in st, "STATUS: Power Save (powersave + power)")
+    ask(a, "APPLY_GOVERNOR|Balanced")
+    st = ask(a, "STATUS")
+    check("ACTIVE_GOVERNOR=Balanced\n" in st and "EPP=balance_performance\n" in st, "STATUS: Balanced")
+    ask(a, "APPLY_GOVERNOR|Performance")
+
     # several clients at once
     b = connect("cpu.sock")
     check("PONG" in ask(b, "PING") and "PONG" in ask(a, "PING"), "two clients are served at the same time")

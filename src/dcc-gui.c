@@ -825,7 +825,8 @@ static void parse_cpu_status(AppData *app, const char *response) {
     int cpu_temp = 0;
     float cpu_load = 0.0f;
     int num_cpus = 0;
-char active_governor[64] = "N/A";
+    char active_governor[64] = "N/A";
+    char cur_gov[64] = "", cur_epp[64] = "";   /* raw values (daemons since 1.20.3) */
     char freq_values[256] = "N/A";
     char min_max_freq[128] = "N/A";
     
@@ -848,6 +849,10 @@ char active_governor[64] = "N/A";
             num_cpus = atoi(line + 9);
         } else if (strncmp(line, "ACTIVE_GOVERNOR=", 16) == 0) {
             strncpy(active_governor, line + 16, sizeof(active_governor) - 1);
+        } else if (strncmp(line, "GOVERNOR=", 9) == 0) {
+            snprintf(cur_gov, sizeof cur_gov, "%s", line + 9);
+        } else if (strncmp(line, "EPP=", 4) == 0) {
+            snprintf(cur_epp, sizeof cur_epp, "%s", line + 4);
         } else if (strncmp(line, "MIN_FREQ=", 9) == 0) {
             strncpy(min_max_freq, line + 9, sizeof(min_max_freq) - 1);
         } else if (strncmp(line, "MAX_FREQ=", 9) == 0) {
@@ -886,7 +891,14 @@ char active_governor[64] = "N/A";
     gtk_label_set_text(GTK_LABEL(app->cpu_page_temp_label), temp_text);
     gtk_label_set_text(GTK_LABEL(app->cpu_page_load_label), load_text);
     gtk_label_set_text(GTK_LABEL(app->cpu_page_num_label), num_text);
-    gtk_label_set_text(GTK_LABEL(app->cpu_page_governor_label), active_governor);
+    /* "Balanced (powersave, balance_performance)" */
+    gchar *mode_text = cur_gov[0]
+        ? (cur_epp[0] && strcmp(cur_gov, "performance") != 0
+               ? g_strdup_printf("%s (%s, %s)", active_governor, cur_gov, cur_epp)
+               : g_strdup_printf("%s (%s)", active_governor, cur_gov))
+        : g_strdup(active_governor);
+    gtk_label_set_text(GTK_LABEL(app->cpu_page_governor_label), mode_text);
+    g_free(mode_text);
     gtk_label_set_text(GTK_LABEL(app->cpu_page_freq_label), freq_values);
     gtk_label_set_text(GTK_LABEL(app->cpu_page_min_max_freq_label), min_max_freq);
 
@@ -6344,7 +6356,7 @@ static GtkWidget *create_cpu_page(AppData *app) {
     /* Active Governor */
     {
         GtkWidget *row = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 10);
-        GtkWidget *label = gtk_label_new("Active Governor:");
+        GtkWidget *label = gtk_label_new("Active Power Mode:");
         gtk_widget_set_halign(label, GTK_ALIGN_END);
         gtk_label_set_width_chars(GTK_LABEL(label), 20);
         gtk_box_pack_start(GTK_BOX(row), label, FALSE, FALSE, 0);

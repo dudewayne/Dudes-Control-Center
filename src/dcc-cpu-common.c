@@ -271,6 +271,23 @@ CpuGovernor cpu_governor_resolve_enum(CpuGovernor gov, const char *context) {
 }
 
 /* --- Power modes: governor + EPP ---------------------------------------- */
+const char *cpu_current_mode(char *gov_out, size_t gov_size, char *epp_out, size_t epp_size) {
+    char gov[64] = "", epp[64] = "";
+    if (sysfs_read_string(0, "cpufreq/scaling_governor", gov, sizeof gov) != 0) gov[0] = '\0';
+    if (sysfs_read_string(0, "cpufreq/energy_performance_preference", epp, sizeof epp) != 0) epp[0] = '\0';
+    if (gov_out && gov_size) snprintf(gov_out, gov_size, "%s", gov);
+    if (epp_out && epp_size) snprintf(epp_out, epp_size, "%s", epp);
+
+    if (strcmp(gov, "performance") == 0) return "Performance";
+    if (strcmp(gov, "schedutil") == 0 || strcmp(gov, "ondemand") == 0 || strcmp(gov, "conservative") == 0)
+        return "Balanced";
+    if (strcmp(gov, "powersave") == 0) {
+        if (strncmp(epp, "balance_performance", 19) == 0 || strcmp(epp, "performance") == 0) return "Balanced";
+        return "Power Save";      /* power, balance_power, default or no EPP */
+    }
+    return gov[0] ? "Other" : "Unknown";
+}
+
 int cpu_epp_available(const char *epp) {
     if (!epp || !*epp) return 0;
     char buf[256];

@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.20.3] - 2026-11-22
+
+### Fixed
+- **CPU tab shows the power mode the CPU really runs**: "Active Governor" always said "Balanced", because the CPU daemon reported its internal default mode (set at startup) instead of what was applied by a profile or the power mode list. It now reads cpu0's governor and energy preference from the system and shows the matching mode with the raw values, e.g. `Performance (performance)` or `Balanced (powersave, balance_performance)`. The label is now "Active Power Mode".
+- The CPU daemon's `STATUS` reports the real mode in `ACTIVE_GOVERNOR` and adds `GOVERNOR` and `EPP`; `dcc-cpu-cli` shows the real mode too.
+- Tests for the reported mode after switching modes (8 suites, 192 checks).
+
 ## [1.20.2] - 2026-11-22
 
 ### Fixed
