@@ -515,6 +515,7 @@ static void on_cpu_governor_changed(GtkWidget *widget, gpointer user_data);
 /* Forward declarations for CPU custom frequency profile management */
 static gboolean populate_cpu_core_grid_idle(gpointer data);
 static void load_cpu_custom_profiles(AppData *app);
+static void load_cpu_custom_profiles_select(AppData *app, int select_idx);
 static void on_cpu_custom_profile_changed(GtkWidget *widget, gpointer user_data);
 static void on_cpu_create_freq_profile_clicked(GtkWidget *widget, gpointer user_data);
 static void on_cpu_delete_freq_profile_clicked(GtkWidget *widget, gpointer user_data);
@@ -1140,7 +1141,15 @@ static void on_cpu_governor_changed(GtkWidget *widget, gpointer user_data) {
  * ============================================================ */
 
 /* Load custom frequency profiles from daemon into combo box */
+/* Reload the profile list and select the active profile */
 static void load_cpu_custom_profiles(AppData *app) {
+    load_cpu_custom_profiles_select(app, -1);
+}
+
+/* Reload the profile list and select select_idx (e.g. the profile just
+ * saved or renamed); -1 or an invalid index selects the active profile.
+ * Before 1.20.2 a reload always jumped to the active profile. */
+static void load_cpu_custom_profiles_select(AppData *app, int select_idx) {
     if (!app->cpu_connected) {
         g_print("[GUI] CPU not connected, skipping custom profile load\n");
         return;
@@ -1162,6 +1171,7 @@ static void load_cpu_custom_profiles(AppData *app) {
     int profile_count = 0;
     int active_idx = -1;
     int active_all_cores = 1;  /* Default: apply to all cores */
+    int sel_all_cores = 1;
     while (line != NULL) {
         /* Skip empty lines */
         if (strlen(line) == 0) {
@@ -1191,13 +1201,18 @@ static void load_cpu_custom_profiles(AppData *app) {
             active_idx = profile_count;
             active_all_cores = line_all_cores;
         }
+        if (profile_count == select_idx) sel_all_cores = line_all_cores;
         profile_count++;
 
         line = strtok(NULL, "\n");
     }
     g_free(resp_copy);
 
-    /* Select the active profile */
+    /* Select the requested profile, otherwise the active one */
+    if (select_idx >= 0 && select_idx < profile_count) {
+        active_idx = select_idx;          /* below: "the profile to show" */
+        active_all_cores = sel_all_cores;
+    }
     if (active_idx >= 0) {
         g_signal_handler_block(app->cpu_custom_profile_combo, app->cpu_custom_profile_combo_signal_id);
         gtk_combo_box_set_active(GTK_COMBO_BOX(app->cpu_custom_profile_combo), active_idx);
@@ -1605,8 +1620,8 @@ static void on_cpu_rename_freq_profile_clicked(GtkWidget *widget, gpointer user_
             const char *response = send_cpu_command(app, cmd);
             g_print("[GUI] RENAME_CUSTOM_PROFILE response: %s\n", response ? response : "NULL");
 
-            /* Reload the profile list */
-            load_cpu_custom_profiles(app);
+            /* Reload the profile list, staying on the renamed profile */
+            load_cpu_custom_profiles_select(app, idx);
 
             /* Keep selection on the renamed profile */
             g_signal_handler_block(app->cpu_custom_profile_combo, app->cpu_custom_profile_combo_signal_id);
@@ -1676,11 +1691,8 @@ static gboolean cpu_save_freq_profile_idle(gpointer user_data) {
     gui_save_profiles_to_disk(app);
     LOG_INFO("Profiles saved to disk");
 
-    /* Reload profile list */
-    load_cpu_custom_profiles(app);
-    g_signal_handler_block(app->cpu_custom_profile_combo, app->cpu_custom_profile_combo_signal_id);
-    gtk_combo_box_set_active(GTK_COMBO_BOX(app->cpu_custom_profile_combo), idx);
-    g_signal_handler_unblock(app->cpu_custom_profile_combo, app->cpu_custom_profile_combo_signal_id);
+    /* Reload profile list, staying on the profile just saved */
+    load_cpu_custom_profiles_select(app, idx);
     LOG_INFO("Profile list reloaded");
 
     char status_msg[128];
@@ -5545,8 +5557,10 @@ static void on_notebook_page_switched(GtkNotebook *notebook, GtkWidget *page, gi
         g_print("%s [GUI] Switching to CPU Profiles tab\n", ts);
 
 
-        /* Load CPU custom profiles and select the active one */
-        load_cpu_custom_profiles(app);
+        /* Reload CPU custom profiles; keep the profile the user had selected
+         * (the active one on the first visit) */
+        load_cpu_custom_profiles_select(app,
+            gtk_combo_box_get_active(GTK_COMBO_BOX(app->cpu_custom_profile_combo)));
 
         /* Update tray menu so CPU profiles appear in the context menu.
          * The tray menu is created at startup when cpu_custom_profile_store is empty.

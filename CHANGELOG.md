@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.20.2] - 2026-11-22
+
+### Fixed
+- **CPU tab no longer jumps to the active profile after saving**: reloading the profile list always selected the active profile (`[*]`) and loaded its values into the core grid; after saving, only the dropdown was switched back, so the tab showed (or briefly showed) another profile, and the dropdown and the core values could disagree. The list reload now takes the profile to stay on: saving and renaming keep the edited profile, switching back to the CPU tab keeps the profile you had selected (the active one on the first visit).
+
 ## [1.20.1] - 2026-11-22
 
 ### Fixed
