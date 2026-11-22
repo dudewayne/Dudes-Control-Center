@@ -2,6 +2,16 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.17.3] - 2026-11-22
+
+### Fixed
+- **Keyboard tab: clicking a key now selects the right LEDs**: the canvas always used a built-in key-to-LED table, even after the LED wizard had saved your own mapping (`keyboard_led_mapping.csv`). For 29 keys the table pointed at a different LED than the wizard mapping, and keys lit by several LEDs (Space, Enter, Backspace, ...) selected only one. Clicks and highlights now use the wizard mapping when it exists (all LEDs of a key; clicking again deselects them) and the built-in table only without one.
+- **Key tables were inconsistent**: the built-in LED table had 122 values for 120 slots (the compiler dropped two), while there are only 113 key names and positions; the last 7 "keys" were empty entries. All three tables now have exactly 113 entries (`KBD_NUM_KEYS`).
+- **Rename keyboard profile**: the "name already exists" error dialog was passed to `gtk_dialog_run` with the wrong type.
+- **`ite_829x` reports its version**: the module had no `MODULE_VERSION`, so `modinfo` and the install output showed none. "make deb" now builds it with the package version.
+- **CI**: `actions/upload-artifact` v5 -> v6 (v5 still targets the deprecated Node.js 20).
+- Tests cover the keyboard key/LED lookup (110 checks).
+
 ## [1.17.2] - 2026-11-22
 
 ### Fixed

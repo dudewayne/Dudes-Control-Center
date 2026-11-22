@@ -35,6 +35,11 @@
 MODULE_DESCRIPTION("ITE 829x keyboard backlight driver for Clevo laptops");
 MODULE_AUTHOR("Dudes Keyboard LED Control Project");
 MODULE_LICENSE("GPL");
+/* Set to the package version by "make deb" (Kbuild ccflags) */
+#ifndef ITE829X_VERSION
+#define ITE829X_VERSION "dev"
+#endif
+MODULE_VERSION(ITE829X_VERSION);
 
 #define KEYBOARD_ROWS       6
 #define KEYBOARD_COLUMNS    20

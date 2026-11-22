@@ -140,6 +140,31 @@ int main(int argc, char **argv) {
     g_object_unref(st);
     g_object_unref(st2);
 
+    /* K: keyboard key -> LED lookup (v1.17.3) */
+    CHECK(sizeof kbd_position_to_led_id / sizeof kbd_position_to_led_id[0] == KBD_NUM_KEYS &&
+          sizeof kbd_key_names / sizeof kbd_key_names[0] == KBD_NUM_KEYS &&
+          sizeof kbd_key_positions / sizeof kbd_key_positions[0] == KBD_NUM_KEYS,
+          "K: key name, position and default LED tables have the same size");
+    int ok_names = 1;
+    for (int i = 0; i < KBD_NUM_KEYS; i++)
+        if (!kbd_key_names[i] || kbd_key_positions[i].w <= 0) ok_names = 0;
+    CHECK(ok_names, "K: every key has a name and a non-empty position");
+    static AppData kb;  /* zeroed */
+    int leds[120], n;
+    memset(kb.kbd_wizard_mapping, -1, sizeof kb.kbd_wizard_mapping);
+    n = kbd_leds_for_position(&kb, 0, leds, 120);
+    CHECK(n == 1 && leds[0] == kbd_position_to_led_id[0], "K: no wizard mapping -> default table");
+    kb.kbd_wizard_mapping[4] = 103;   /* Space: several LEDs */
+    kb.kbd_wizard_mapping[17] = 103;
+    kb.kbd_wizard_mapping[59] = 103;
+    kb.kbd_wizard_mapping[31] = 34;
+    n = kbd_leds_for_position(&kb, 103, leds, 120);
+    CHECK(n == 3 && leds[0] == 4 && leds[1] == 17 && leds[2] == 59, "K: wizard mapping -> all LEDs of a wide key");
+    n = kbd_leds_for_position(&kb, 34, leds, 120);
+    CHECK(n == 1 && leds[0] == 31, "K: wizard mapping overrides the default table");
+    n = kbd_leds_for_position(&kb, 0, leds, 120);
+    CHECK(n == 0, "K: key without a wizard LED gets none (not a stale default)");
+
     printf("\n%d failure(s)\n", fails);
     return fails != 0;
 }

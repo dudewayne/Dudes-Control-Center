@@ -44,25 +44,26 @@ typedef struct {
 #define KBD_IMAGE_WIDTH 1330
 #define KBD_IMAGE_HEIGHT 440
 
-/* Mapping from visual position index (in key_positions[]) to LED ID */
-static const int kbd_position_to_led_id[120] = {
+/* Number of keys on the schematic (kbd_key_names / kbd_key_positions) */
+#define KBD_NUM_KEYS 113
+
+/* Default LED ID per key position, used until the LED wizard has created
+ * ~/.config/dudes-control-center/keyboard_led_mapping.csv. The wizard
+ * mapping takes precedence (it also knows keys driven by several LEDs). */
+static const int kbd_position_to_led_id[KBD_NUM_KEYS] = {
     41, 77, 14, 66, 1, 56, 109, 46, 96, 33, 7, 61, 114,
-    50, 102, 39, 90, 27, 79, 16,
-    3, 58, 111, 47, 98, 35, 86, 23, 74, 11, 118, 89, 54, 44,
-    31, 94, 83, 20, 71, 8,
-    52, 115, 104, 42, 92, 29, 81, 18, 69, 5, 112, 49, 100, 37,
-    88, 19, 76, 13, 65, 113, 0,
-    45, 108, 95, 32, 84, 21, 72, 9, 62, 116, 105, 43, 93, 82,
-    70, 6, 60,
+    50, 102, 39, 90, 27, 79, 16, 3, 58, 111, 47, 98, 35,
+    86, 23, 74, 11, 118, 89, 54, 44, 31, 94, 83, 20, 71,
+    8, 52, 115, 104, 42, 92, 29, 81, 18, 69, 5, 112, 49,
+    100, 37, 88, 19, 76, 13, 65, 113, 0, 45, 108, 95, 32,
+    84, 21, 72, 9, 62, 116, 105, 43, 93, 82, 70, 6, 60,
     101, 22, 89, 26, 78, 15, 67, 2, 57, 110, 97, 34, 85,
-    73, 87, 10, 63, 117, 53, 55, 106,
-    80, 48, 36, 24, 59, 119, 40, 68, 17, 75,
-    12, 38, 107, 91, 25, 30, 103, 99, 119,
-    51, 64, 4, 103
+    73, 87, 10, 63, 117, 53, 55, 106, 80, 48, 36, 24, 59,
+    119, 40, 68, 17, 75, 12, 38, 107, 91
 };
 
-/* Key names from keyboard_keys_de.csv (one per position index, 120 entries) */
-static const char *kbd_key_names[120] = {
+/* Key names from keyboard_keys_de.csv (one per position index) */
+static const char *kbd_key_names[KBD_NUM_KEYS] = {
     "Esc", "F1", "F2", "F3", "F4", "F5", "F6", "F7",
     "F8", "F9", "F10", "F11", "F12", "Druck S-Abf", "Einfg Rollen↓", "Entf",
     "Pos1", "Ende", "Bild↑ Pause", "Bild↓ Untbr",
@@ -82,7 +83,7 @@ static const char *kbd_key_names[120] = {
 };
 
 /* QWERTZ keyboard key positions - from keyboard_keys_de.csv */
-static const KeyPos kbd_key_positions[120] = {
+static const KeyPos kbd_key_positions[KBD_NUM_KEYS] = {
     {24, 20, 58, 56 }, {88, 20, 58, 56 }, {151, 20, 58, 56 }, {215, 20, 58, 56 },
     {278, 20, 58, 56 }, {342, 20, 58, 56 }, {405, 20, 58, 56 }, {469, 20, 58, 56 },
     {533, 20, 58, 56 }, {596, 20, 58, 56 }, {660, 20, 58, 56 }, {723, 20, 58, 56 },
@@ -4000,7 +4001,7 @@ static void on_kbd_rename_profile_clicked(GtkWidget *widget, gpointer user_data)
                                                                  GTK_BUTTONS_OK,
                                                                  "A keyboard profile with the name '%s' already exists.",
                                                                  new_name);
-                gtk_dialog_run(GTK_MESSAGE_DIALOG(error_dialog));
+                gtk_dialog_run(GTK_DIALOG(error_dialog));
                 gtk_widget_destroy(error_dialog);
                 gtk_widget_destroy(dialog);
                 g_free(old_name);
@@ -4378,6 +4379,27 @@ static void kbd_load_led_mapping_csv(AppData *app) {
     g_print("[GUI] LED mapping loaded from %s\n", csv_path);
 }
 
+/* LEDs that light a key position: from the LED wizard mapping when one is
+ * loaded (a wide key can have several LEDs), otherwise the default table.
+ * Returns the number of LEDs written to out (at most max). */
+static int kbd_leds_for_position(const AppData *app, int pos, int *out, int max) {
+    int n = 0, have_mapping = 0;
+    for (int led = 0; led < 120; led++) {
+        if (app->kbd_wizard_mapping[led] < 0) continue;
+        have_mapping = 1;
+        if (app->kbd_wizard_mapping[led] == pos && n < max) out[n++] = led;
+    }
+    if (!have_mapping && pos >= 0 && pos < KBD_NUM_KEYS && max > 0)
+        out[n++] = kbd_position_to_led_id[pos];
+    return n;
+}
+
+static int kbd_led_is_selected(const AppData *app, int led) {
+    for (int s = 0; s < app->kbd_num_selected_leds; s++)
+        if (app->kbd_selected_led_indices[s] == led) return 1;
+    return 0;
+}
+
 /* Draw callback for keyboard canvas */
 static gboolean kbd_canvas_draw(GtkWidget *widget, cairo_t *cr, gpointer user_data) {
     (void)widget;
@@ -4412,16 +4434,13 @@ static gboolean kbd_canvas_draw(GtkWidget *widget, cairo_t *cr, gpointer user_da
         for (size_t i = 0; i < num_keys; i++) {
             const KeyPos *key = &kbd_key_positions[i];
             
-            /* Check if this LED is selected */
-            int led_id = kbd_position_to_led_id[i];
+            /* Check if one of this key's LEDs is selected */
+            int key_leds[120];
+            int n_leds = kbd_leds_for_position(app, (int)i, key_leds, 120);
             int is_selected = 0;
-            for (int s = 0; s < app->kbd_num_selected_leds; s++) {
-                if (app->kbd_selected_led_indices[s] == led_id) {
-                    is_selected = 1;
-                    break;
-                }
-            }
-            
+            for (int k = 0; k < n_leds && !is_selected; k++)
+                is_selected = kbd_led_is_selected(app, key_leds[k]);
+
             /* Also check if this position has a mapping from CSV (loaded wizard data) - only when wizard is not active */
             int has_mapping = 0;
             if (!app->kbd_wizard_active) {
@@ -4504,18 +4523,16 @@ static gboolean kbd_canvas_button_press(GtkWidget *widget, GdkEventButton *event
         if (unscaled_x >= key->x && unscaled_x <= key->x + key->w &&
             unscaled_y >= key->y && unscaled_y <= key->y + key->h) {
             
-            int led_id = kbd_position_to_led_id[i];
-            
             /* Handle wizard mode */
             if (app->kbd_wizard_active) {
                 /* Assign this key position to the current LED */
                 int current_led = app->kbd_wizard_current_led;
                 app->kbd_wizard_mapping[current_led] = (int)i;
-                const char *key_name = (i < 120) ? kbd_key_names[i] : "Unknown";
-                
-                /* Highlight using the actual LED ID (not the wizard step index) */
+                const char *key_name = (i < KBD_NUM_KEYS) ? kbd_key_names[i] : "Unknown";
+
+                /* Highlight the key just assigned to the current LED */
                 app->kbd_num_selected_leds = 1;
-                app->kbd_selected_led_indices[0] = led_id;
+                app->kbd_selected_led_indices[0] = current_led;
                 kbd_redraw_canvas(app);
                 while (gtk_events_pending()) {
                     gtk_main_iteration();
@@ -4531,23 +4548,33 @@ static gboolean kbd_canvas_button_press(GtkWidget *widget, GdkEventButton *event
                 return TRUE;
             }
             
-            /* Normal mode: toggle selection */
-            int found = 0;
-            for (int s = 0; s < app->kbd_num_selected_leds; s++) {
-                if (app->kbd_selected_led_indices[s] == led_id) {
-                    /* Remove from selection */
-                    app->kbd_selected_led_indices[s] = app->kbd_selected_led_indices[app->kbd_num_selected_leds - 1];
-                    app->kbd_num_selected_leds--;
-                    found = 1;
-                    break;
+            /* Normal mode: toggle all LEDs of the key (deselect if all are selected) */
+            int key_leds[120];
+            int n_leds = kbd_leds_for_position(app, (int)i, key_leds, 120);
+            if (n_leds == 0) {
+                g_print("[GUI] Key '%s' has no LED in the mapping (run the LED wizard)\n",
+                        i < KBD_NUM_KEYS ? kbd_key_names[i] : "?");
+                return TRUE;
+            }
+            int all_selected = 1;
+            for (int k = 0; k < n_leds && all_selected; k++)
+                all_selected = kbd_led_is_selected(app, key_leds[k]);
+            for (int k = 0; k < n_leds; k++) {
+                int sel = kbd_led_is_selected(app, key_leds[k]);
+                if (all_selected && sel) {
+                    for (int s = 0; s < app->kbd_num_selected_leds; s++) {
+                        if (app->kbd_selected_led_indices[s] == key_leds[k]) {
+                            app->kbd_selected_led_indices[s] =
+                                app->kbd_selected_led_indices[app->kbd_num_selected_leds - 1];
+                            app->kbd_num_selected_leds--;
+                            break;
+                        }
+                    }
+                } else if (!all_selected && !sel && app->kbd_num_selected_leds < 120) {
+                    app->kbd_selected_led_indices[app->kbd_num_selected_leds++] = key_leds[k];
                 }
             }
-            
-            if (!found && app->kbd_num_selected_leds < 120) {
-                /* Add to selection */
-                app->kbd_selected_led_indices[app->kbd_num_selected_leds++] = led_id;
-            }
-            
+
             /* Redraw canvas */
             kbd_redraw_canvas(app);
             return TRUE;
