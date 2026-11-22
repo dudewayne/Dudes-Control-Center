@@ -24,9 +24,9 @@ Third-party code
   Copyright (c) 2019-2023 TUXEDO Computers GmbH, from tuxedo-drivers
   (https://github.com/tuxedocomputers/tuxedo-drivers), licensed GPL-2.0-or-later
   and used here under GPL-2.0. See drivers/LICENSE.
-* clevo-fan-control states that its fan profiles are based on the fan table of
-  Tuxedo Control Center (GPL-3.0). The origin of this project's default fan
-  curve (src/dcc-fan-daemon.c, src/dcc-fan-cli.c) is not documented.
+* The fan curves, the default curve (src/dcc-fan-daemon.c, src/dcc-fan-cli.c)
+  and the curve editor are this project's own work (Dudemeister), not taken
+  from clevo-fan-control's Tuxedo Control Center based fan profiles.
 
 -------------------------------------------------------------------------------
 

@@ -6,7 +6,7 @@ All notable changes to this project will be documented in this file.
 
 ### Fixed
 - **The project has a license: GNU GPL version 2 (GPL-2.0-only)**. The fan control code (Embedded Controller access) was imported from [fan-control](https://github.com/steiiin/fan-control) by steiiin, which has no license file but is a fork of [clevo-fan-control](https://github.com/agramian/clevo-fan-control) by agramian, licensed GPL-2.0 (itself based on Clevo Fan Control Indicator by AqD and fanctrl.c by Jonas Diemer). Code derived from it must stay GPL-2.0, so the whole project is now GPL-2.0. The README previously only said to "refer to the original project for its license terms".
-  - `LICENSE` at the top of the repository: license statement, third-party origins (fan code chain, TUXEDO keyboard driver, an undocumented origin of the default fan curve) and the full GPL version 2 text.
+  - `LICENSE` at the top of the repository: license statement, third-party origins (fan code chain, TUXEDO keyboard driver; the fan curves and the curve editor are the project's own work) and the full GPL version 2 text.
   - `SPDX-License-Identifier: GPL-2.0-only` in all source files, scripts, tests and maintainer scripts; `src/dcc-common.c` names the origin of the EC code. The TUXEDO driver keeps its GPL-2.0-or-later header.
   - The package installs a machine-readable `/usr/share/doc/dudes-control-center/copyright` (project GPL-2.0-only with the fan code origin, driver GPL-2.0+ by TUXEDO Computers) and `LICENSE`.
 - **Credits**: README and the About page credit the whole fan code chain (steiiin, agramian, AqD, Jonas Diemer) instead of only fan-control, and the About page states the license.
