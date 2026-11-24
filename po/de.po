@@ -279,6 +279,24 @@ msgstr "Der Name darf | ; oder :: nicht enthalten"
 msgid "A zone with this name already exists."
 msgstr "Eine Zone mit diesem Namen existiert bereits."
 
+msgid "Keyboard daemon not connected"
+msgstr "Tastatur-Daemon nicht verbunden"
+
+msgid "Select or create a profile first"
+msgstr "Zuerst ein Profil auswählen oder erstellen"
+
+#, c-format
+msgid "Effect %s"
+msgstr "Effekt %s"
+
+#, c-format
+msgid "%s: zone '%s' - click Save to keep it"
+msgstr "%s: Zone '%s' – Speichern behält das"
+
+#, c-format
+msgid "%s: whole keyboard - click Save to keep it"
+msgstr "%s: ganze Tastatur – Speichern behält das"
+
 #, c-format
 msgid "Coloring zone '%s' (%d LEDs): click keys on the picture or drag over an area to add or remove them."
 msgstr "Zone '%s' wird eingefärbt (%d LEDs): Tasten im Bild anklicken oder einen Bereich aufziehen, um sie hinzuzufügen oder zu entfernen."
@@ -397,20 +415,6 @@ msgstr "Zone löschen"
 #, c-format
 msgid "Zone deleted: %s - click Save to keep it"
 msgstr "Zone gelöscht: %s – Speichern behält das"
-
-msgid "Keyboard daemon not connected"
-msgstr "Tastatur-Daemon nicht verbunden"
-
-msgid "Select or create a profile first"
-msgstr "Zuerst ein Profil auswählen oder erstellen"
-
-#, c-format
-msgid "%s: zone '%s' - click Save to keep it"
-msgstr "%s: Zone '%s' – Speichern behält das"
-
-#, c-format
-msgid "%s: whole keyboard - click Save to keep it"
-msgstr "%s: ganze Tastatur – Speichern behält das"
 
 msgid "Backlight turned OFF"
 msgstr "Hintergrundbeleuchtung AUS"
@@ -764,6 +768,30 @@ msgstr "Eigene …"
 
 msgid "Choose any color"
 msgstr "Beliebige Farbe wählen"
+
+msgid "Effect:"
+msgstr "Effekt:"
+
+msgid "Static"
+msgstr "Statisch"
+
+msgid "Breathing"
+msgstr "Atmen"
+
+msgid "Rainbow"
+msgstr "Regenbogen"
+
+msgid "Wave"
+msgstr "Welle"
+
+msgid "Animated effect of the selected zone, or of the base color when no zone is selected. Breathing fades the color in and out; Rainbow and Wave use all colors. Runs in the keyboard daemon, also when this window is closed."
+msgstr "Animierter Effekt der ausgewählten Zone, oder der Grundfarbe, wenn keine Zone ausgewählt ist. Atmen blendet die Farbe ein und aus; Regenbogen und Welle nutzen alle Farben. Läuft im Tastatur-Daemon, auch wenn dieses Fenster geschlossen ist."
+
+msgid "Speed: slow (left) to fast (right)"
+msgstr "Geschwindigkeit: langsam (links) bis schnell (rechts)"
+
+msgid "Direction of the wave"
+msgstr "Richtung der Welle"
 
 msgid "Whole Keyboard"
 msgstr "Ganze Tastatur"

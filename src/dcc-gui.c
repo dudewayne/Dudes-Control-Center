@@ -85,10 +85,12 @@ typedef struct {
     unsigned char rgb[3];
     int leds[120];
     int n;
+    char fx[24];                       /* effect (1.35.0), "" = static */
 } KbdZoneEdit;
 typedef struct {
     int has_base;
     unsigned char base[3];
+    char base_fx[24];                  /* effect of the base color (1.35.0) */
     int num_zones;
     KbdZoneEdit zones[KBD_GUI_MAX_ZONES];
 } KbdProfileEdit;
@@ -744,6 +746,8 @@ typedef struct {
     GtkWidget *kbd_zone_rename_btn;
     GtkWidget *kbd_zone_delete_btn;
     GtkWidget *kbd_mode_label;
+    GtkWidget *kbd_fx_combo, *kbd_fx_speed, *kbd_fx_dir;   /* effect of zone / base (1.35.0) */
+    int kbd_fx_syncing;
     gulong kbd_profile_combo_signal_id;
     gulong kbd_zone_sel_signal_id;
 
@@ -4273,8 +4277,17 @@ static int kbd_edit_parse(KbdProfileEdit *e, const char *resp) {
         memcpy(buf, line, len);
         buf[len] = '\0';
         unsigned r, g, b;
+        char fxv[24] = "";
+        const char *eff = strstr(buf, " effect=");
+        if (eff) {
+            size_t fl = strcspn(eff + 8, " ");
+            if (fl >= sizeof fxv) fl = sizeof fxv - 1;
+            memcpy(fxv, eff + 8, fl);
+            fxv[fl] = '\0';
+        }
         if (sscanf(buf, "BASE color=%u,%u,%u", &r, &g, &b) == 3) {
             e->has_base = 1;
+            snprintf(e->base_fx, sizeof e->base_fx, "%s", fxv);
             e->base[0] = r > 255 ? 255 : r;
             e->base[1] = g > 255 ? 255 : g;
             e->base[2] = b > 255 ? 255 : b;
@@ -4292,6 +4305,7 @@ static int kbd_edit_parse(KbdProfileEdit *e, const char *resp) {
                 z->rgb[0] = r > 255 ? 255 : r;
                 z->rgb[1] = g > 255 ? 255 : g;
                 z->rgb[2] = b > 255 ? 255 : b;
+                snprintf(z->fx, sizeof z->fx, "%s", fxv);
                 const char *q = k + 6 + used;
                 for (int i = 0; i < n; i++) {
                     int led = -1, adv = 0;
@@ -4326,10 +4340,11 @@ static void kbd_edit_colors(const KbdProfileEdit *e, unsigned char rgb[120][3], 
 
 static int kbd_edit_equal(const KbdProfileEdit *a, const KbdProfileEdit *b) {
     if (a->has_base != b->has_base || a->num_zones != b->num_zones) return 0;
-    if (a->has_base && memcmp(a->base, b->base, 3) != 0) return 0;
+    if (a->has_base && (memcmp(a->base, b->base, 3) != 0 || strcmp(a->base_fx, b->base_fx) != 0)) return 0;
     for (int z = 0; z < a->num_zones; z++) {
         const KbdZoneEdit *x = &a->zones[z], *y = &b->zones[z];
         if (strcmp(x->name, y->name) != 0 || memcmp(x->rgb, y->rgb, 3) != 0 || x->n != y->n ||
+            strcmp(x->fx, y->fx) != 0 ||
             memcmp(x->leds, y->leds, sizeof(int) * (size_t)x->n) != 0)
             return 0;
     }
@@ -4338,13 +4353,17 @@ static int kbd_edit_equal(const KbdProfileEdit *a, const KbdProfileEdit *b) {
 
 /* "base::zones" for PREVIEW (base "r,g,b" or "-", zones "name|r,g,b|l,l;...") */
 static void kbd_edit_encode(const KbdProfileEdit *e, GString *out) {
-    if (e->has_base) g_string_append_printf(out, "%u,%u,%u", e->base[0], e->base[1], e->base[2]);
-    else g_string_append(out, "-");
+    if (e->has_base) {
+        g_string_append_printf(out, "%u,%u,%u", e->base[0], e->base[1], e->base[2]);
+        if (e->base_fx[0]) g_string_append_printf(out, "@%s", e->base_fx);
+    } else {
+        g_string_append(out, "-");
+    }
     g_string_append(out, "::");
     for (int z = 0; z < e->num_zones; z++) {
         const KbdZoneEdit *zone = &e->zones[z];
-        g_string_append_printf(out, "%s%s|%u,%u,%u|", z ? ";" : "", zone->name,
-                               zone->rgb[0], zone->rgb[1], zone->rgb[2]);
+        g_string_append_printf(out, "%s%s|%u,%u,%u%s%s|", z ? ";" : "", zone->name,
+                               zone->rgb[0], zone->rgb[1], zone->rgb[2], zone->fx[0] ? "@" : "", zone->fx);
         for (int k = 0; k < zone->n; k++) g_string_append_printf(out, k ? ",%d" : "%d", zone->leds[k]);
     }
 }
@@ -4488,6 +4507,82 @@ static void kbd_highlight_zone(AppData *app) {
     for (int k = 0; k < z->n && k < 120; k++) app->kbd_selected_led_indices[app->kbd_num_selected_leds++] = z->leds[k];
 }
 
+/* --- Effects (1.35.0): Effect, Speed and Direction for the selected zone,
+ * or the base color with no zone selected; drawn by the keyboard daemon --- */
+static const char *const kbd_fx_types[] = { "static", "breathing", "rainbow", "wave" };
+static const char *const kbd_fx_dirs[] = { "right", "left", "down", "up" };
+
+/* "wave:5:left" -> type index, speed, direction index */
+static void kbd_fx_split(const char *fx, int *type, int *speed, int *dir) {
+    *type = 0; *speed = 5; *dir = 0;
+    if (!fx || !*fx) return;
+    char buf[24];
+    snprintf(buf, sizeof buf, "%s", fx);
+    char *save = NULL, *t = strtok_r(buf, ":", &save), *sp = strtok_r(NULL, ":", &save), *d = strtok_r(NULL, ":", &save);
+    for (int i = 0; t && i < 4; i++) if (!strcmp(t, kbd_fx_types[i])) *type = i;
+    if (sp) { int v = atoi(sp); if (v >= 1 && v <= 10) *speed = v; }
+    for (int i = 0; d && i < 4; i++) if (!strcmp(d, kbd_fx_dirs[i])) *dir = i;
+}
+
+static void kbd_fx_join(int type, int speed, int dir, char *out, size_t size) {
+    if (type <= 0 || type > 3) out[0] = '\0';
+    else if (type == 3) snprintf(out, size, "wave:%d:%s", speed, kbd_fx_dirs[dir < 0 || dir > 3 ? 0 : dir]);
+    else snprintf(out, size, "%s:%d", kbd_fx_types[type], speed);
+}
+
+static char *kbd_fx_target(AppData *app) {
+    KbdProfileEdit *e = &app->kbd_edit;
+    int zi = app->kbd_sel_zone;
+    return (zi >= 0 && zi < e->num_zones) ? e->zones[zi].fx : e->base_fx;
+}
+
+static void kbd_fx_sync_controls(AppData *app) {
+    if (!app->kbd_fx_combo) return;
+    int type, speed, dir;
+    kbd_fx_split(kbd_fx_target(app), &type, &speed, &dir);
+    app->kbd_fx_syncing = 1;
+    gtk_combo_box_set_active(GTK_COMBO_BOX(app->kbd_fx_combo), type);
+    gtk_range_set_value(GTK_RANGE(app->kbd_fx_speed), speed);
+    gtk_combo_box_set_active(GTK_COMBO_BOX(app->kbd_fx_dir), dir);
+    app->kbd_fx_syncing = 0;
+    gtk_widget_set_sensitive(app->kbd_fx_speed, type != 0);
+    gtk_widget_set_sensitive(app->kbd_fx_dir, type == 3);
+}
+
+static void on_kbd_fx_changed(GtkWidget *w, gpointer user_data) {
+    (void)w;
+    AppData *app = (AppData *)user_data;
+    if (app->kbd_fx_syncing) return;
+    int type = gtk_combo_box_get_active(GTK_COMBO_BOX(app->kbd_fx_combo));
+    int speed = (int)gtk_range_get_value(GTK_RANGE(app->kbd_fx_speed));
+    int dir = gtk_combo_box_get_active(GTK_COMBO_BOX(app->kbd_fx_dir));
+    gtk_widget_set_sensitive(app->kbd_fx_speed, type > 0);
+    gtk_widget_set_sensitive(app->kbd_fx_dir, type == 3);
+    if (!kbd_ensure_connected(app)) { kbd_status(app, _("Keyboard daemon not connected")); return; }
+    if (!app->kbd_edit_loaded) {
+        kbd_status(app, _("Select or create a profile first"));
+        kbd_fx_sync_controls(app);
+        return;
+    }
+    KbdProfileEdit *e = &app->kbd_edit;
+    int zi = app->kbd_sel_zone;
+    int zone = zi >= 0 && zi < e->num_zones;
+    if (!zone && !e->has_base) {
+        /* an effect for the whole keyboard needs a base color to start from */
+        e->has_base = 1;
+        e->base[0] = e->base[1] = e->base[2] = 255;
+    }
+    kbd_fx_join(type, speed, dir, kbd_fx_target(app), sizeof e->base_fx);
+    kbd_edit_changed(app, 1, 1);
+    kbd_sync_power_switch(app);
+    const char *what = gtk_combo_box_text_get_active_text(GTK_COMBO_BOX_TEXT(app->kbd_fx_combo));
+    gchar *label = g_strdup_printf(_("Effect %s"), what ? what : "");
+    if (zone) kbd_status(app, _("%s: zone '%s' - click Save to keep it"), label, e->zones[zi].name);
+    else kbd_status(app, _("%s: whole keyboard - click Save to keep it"), label);
+    g_free(label);
+    g_free((gchar *)what);
+}
+
 static void kbd_update_mode_label(AppData *app) {
     if (!app->kbd_mode_label) return;
     int zi = app->kbd_sel_zone;
@@ -4500,6 +4595,7 @@ static void kbd_update_mode_label(AppData *app) {
                      "Select a zone in the list to color its keys."));
     gtk_label_set_text(GTK_LABEL(app->kbd_mode_label), t);
     g_free(t);
+    kbd_fx_sync_controls(app);
 }
 
 /* Zone list = kbd_edit's zones; selects kbd_sel_zone */
@@ -8581,6 +8677,39 @@ static GtkWidget *create_keyboard_page(AppData *app) {
         gtk_widget_set_tooltip_text(custom_btn, _("Choose any color"));
         g_signal_connect(custom_btn, "clicked", G_CALLBACK(on_kbd_custom_color_clicked), app);
         gtk_box_pack_start(GTK_BOX(preset_hbox), custom_btn, FALSE, FALSE, 0);
+
+        /* Effect, Speed, Direction (1.35.0) */
+        GtkWidget *sep = gtk_separator_new(GTK_ORIENTATION_VERTICAL);
+        gtk_box_pack_start(GTK_BOX(preset_hbox), sep, FALSE, FALSE, 4);
+        gtk_box_pack_start(GTK_BOX(preset_hbox), gtk_label_new(_("Effect:")), FALSE, FALSE, 0);
+        app->kbd_fx_combo = gtk_combo_box_text_new();
+        const char *fx_labels[] = { N_("Static"), N_("Breathing"), N_("Rainbow"), N_("Wave") };
+        for (int i = 0; i < 4; i++)
+            gtk_combo_box_text_append_text(GTK_COMBO_BOX_TEXT(app->kbd_fx_combo), _(fx_labels[i]));
+        gtk_combo_box_set_active(GTK_COMBO_BOX(app->kbd_fx_combo), 0);
+        gtk_widget_set_tooltip_text(app->kbd_fx_combo,
+            _("Animated effect of the selected zone, or of the base color when no zone is selected. "
+              "Breathing fades the color in and out; Rainbow and Wave use all colors. "
+              "Runs in the keyboard daemon, also when this window is closed."));
+        gtk_box_pack_start(GTK_BOX(preset_hbox), app->kbd_fx_combo, FALSE, FALSE, 0);
+        app->kbd_fx_speed = gtk_scale_new_with_range(GTK_ORIENTATION_HORIZONTAL, 1, 10, 1);
+        gtk_scale_set_draw_value(GTK_SCALE(app->kbd_fx_speed), FALSE);
+        gtk_range_set_value(GTK_RANGE(app->kbd_fx_speed), 5);
+        gtk_widget_set_size_request(app->kbd_fx_speed, 110, -1);
+        gtk_widget_set_tooltip_text(app->kbd_fx_speed, _("Speed: slow (left) to fast (right)"));
+        gtk_widget_set_sensitive(app->kbd_fx_speed, FALSE);
+        gtk_box_pack_start(GTK_BOX(preset_hbox), app->kbd_fx_speed, FALSE, FALSE, 0);
+        app->kbd_fx_dir = gtk_combo_box_text_new();
+        const char *dir_labels[] = { "\u2192", "\u2190", "\u2193", "\u2191" };   /* → ← ↓ ↑ */
+        for (int i = 0; i < 4; i++) gtk_combo_box_text_append_text(GTK_COMBO_BOX_TEXT(app->kbd_fx_dir), dir_labels[i]);
+        gtk_combo_box_set_active(GTK_COMBO_BOX(app->kbd_fx_dir), 0);
+        gtk_widget_set_tooltip_text(app->kbd_fx_dir, _("Direction of the wave"));
+        gtk_widget_set_sensitive(app->kbd_fx_dir, FALSE);
+        gtk_box_pack_start(GTK_BOX(preset_hbox), app->kbd_fx_dir, FALSE, FALSE, 0);
+        g_signal_connect(app->kbd_fx_combo, "changed", G_CALLBACK(on_kbd_fx_changed), app);
+        g_signal_connect(app->kbd_fx_speed, "value-changed", G_CALLBACK(on_kbd_fx_changed), app);
+        g_signal_connect(app->kbd_fx_dir, "changed", G_CALLBACK(on_kbd_fx_changed), app);
+
         GtkWidget *whole_btn = gtk_button_new_with_label(_("Whole Keyboard"));
         gtk_widget_set_tooltip_text(whole_btn, _("Stop editing a zone: colors go to the whole keyboard (base color)"));
         g_signal_connect(whole_btn, "clicked", G_CALLBACK(on_kbd_whole_keyboard_clicked), app);

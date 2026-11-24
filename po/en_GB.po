@@ -57,6 +57,9 @@ msgstr "Preset Colours"
 msgid "Choose any color"
 msgstr "Choose any colour"
 
+msgid "Animated effect of the selected zone, or of the base color when no zone is selected. Breathing fades the color in and out; Rainbow and Wave use all colors. Runs in the keyboard daemon, also when this window is closed."
+msgstr "Animated effect of the selected zone, or of the base colour when no zone is selected. Breathing fades the colour in and out; Rainbow and Wave use all colours. Runs in the keyboard daemon, also when this window is closed."
+
 msgid "Stop editing a zone: colors go to the whole keyboard (base color)"
 msgstr "Stop editing a zone: colours go to the whole keyboard (base colour)"
 

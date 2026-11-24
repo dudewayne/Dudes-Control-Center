@@ -550,6 +550,35 @@ int main(int argc, char **argv) {
               "S: flag removed -> on again; invalid component numbers are 'on'");
     }
 
+    /* E: effects in the zone editor model (v1.35.0) */
+    {
+        static KbdProfileEdit e, f;
+        CHECK(kbd_edit_parse(&e, "PROFILE_START COUNT=1 name=Fx\n"
+                                 "BASE color=1,2,3 effect=wave:4:up\n"
+                                 "ZONE 0 name=W A S D color=255,0,0 effect=breathing:2 keys=2 10 11\n"
+                                 "PROFILE_END\n") == 0 &&
+              !strcmp(e.base_fx, "wave:4:up") && !strcmp(e.zones[0].fx, "breathing:2") &&
+              !strcmp(e.zones[0].name, "W A S D") && e.zones[0].n == 2 && e.zones[0].leds[1] == 11,
+              "E: GET_PROFILE with effects read: base and zone effect, name and keys unchanged");
+        GString *g = g_string_new(NULL);
+        kbd_edit_encode(&e, g);
+        CHECK(!strcmp(g->str, "1,2,3@wave:4:up::W A S D|255,0,0@breathing:2|10,11"), "E: PREVIEW encoding with effects");
+        g_string_free(g, TRUE);
+        f = e;
+        snprintf(f.zones[0].fx, sizeof f.zones[0].fx, "breathing:3");
+        CHECK(kbd_edit_equal(&e, &e) && !kbd_edit_equal(&e, &f), "E: a changed effect counts as an unsaved change");
+        int t, sp, d;
+        char out[24];
+        kbd_fx_split("wave:7:left", &t, &sp, &d);
+        kbd_fx_join(t, sp, d, out, sizeof out);
+        CHECK(t == 3 && sp == 7 && d == 1 && !strcmp(out, "wave:7:left"), "E: effect text split and joined");
+        kbd_fx_join(0, 9, 2, out, sizeof out);
+        kbd_fx_split("", &t, &sp, &d);
+        CHECK(out[0] == '\0' && t == 0 && sp == 5, "E: Static is stored as no effect, defaults for empty text");
+        kbd_fx_join(2, 10, 0, out, sizeof out);
+        CHECK(!strcmp(out, "rainbow:10"), "E: Rainbow has no direction");
+    }
+
     /* Z: zone editor model (v1.24.0) */
     {
         static KbdProfileEdit e, f;

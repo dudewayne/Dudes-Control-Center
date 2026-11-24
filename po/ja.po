@@ -279,6 +279,24 @@ msgstr "名前に | ; :: は使えません"
 msgid "A zone with this name already exists."
 msgstr "この名前のゾーンは既に存在します。"
 
+msgid "Keyboard daemon not connected"
+msgstr "キーボードデーモン未接続"
+
+msgid "Select or create a profile first"
+msgstr "先にプロファイルを選択または作成してください"
+
+#, c-format
+msgid "Effect %s"
+msgstr "エフェクト %s"
+
+#, c-format
+msgid "%s: zone '%s' - click Save to keep it"
+msgstr "%s: ゾーン「%s」 - 残すには「保存」"
+
+#, c-format
+msgid "%s: whole keyboard - click Save to keep it"
+msgstr "%s: キーボード全体 - 残すには「保存」"
+
 #, c-format
 msgid "Coloring zone '%s' (%d LEDs): click keys on the picture or drag over an area to add or remove them."
 msgstr "ゾーン「%s」を着色中 (%d 個の LED): 画像のキーをクリックするか範囲をドラッグして追加・削除します。"
@@ -401,20 +419,6 @@ msgstr "ゾーンを削除"
 #, c-format
 msgid "Zone deleted: %s - click Save to keep it"
 msgstr "ゾーンを削除しました: %s - 反映するには「保存」"
-
-msgid "Keyboard daemon not connected"
-msgstr "キーボードデーモン未接続"
-
-msgid "Select or create a profile first"
-msgstr "先にプロファイルを選択または作成してください"
-
-#, c-format
-msgid "%s: zone '%s' - click Save to keep it"
-msgstr "%s: ゾーン「%s」 - 残すには「保存」"
-
-#, c-format
-msgid "%s: whole keyboard - click Save to keep it"
-msgstr "%s: キーボード全体 - 残すには「保存」"
 
 msgid "Backlight turned OFF"
 msgstr "バックライト オフ"
@@ -778,6 +782,30 @@ msgstr "カスタム…"
 
 msgid "Choose any color"
 msgstr "任意の色を選択"
+
+msgid "Effect:"
+msgstr "エフェクト:"
+
+msgid "Static"
+msgstr "固定"
+
+msgid "Breathing"
+msgstr "ブリージング"
+
+msgid "Rainbow"
+msgstr "レインボー"
+
+msgid "Wave"
+msgstr "ウェーブ"
+
+msgid "Animated effect of the selected zone, or of the base color when no zone is selected. Breathing fades the color in and out; Rainbow and Wave use all colors. Runs in the keyboard daemon, also when this window is closed."
+msgstr "選択したゾーン、またはゾーンを選択していない場合はベースカラーのアニメーション効果です。ブリージングは色をフェードイン・アウトし、レインボーとウェーブはすべての色を使います。このウィンドウを閉じてもキーボードデーモンで動作します。"
+
+msgid "Speed: slow (left) to fast (right)"
+msgstr "速度: 遅い (左) から速い (右)"
+
+msgid "Direction of the wave"
+msgstr "ウェーブの方向"
 
 msgid "Whole Keyboard"
 msgstr "キーボード全体"

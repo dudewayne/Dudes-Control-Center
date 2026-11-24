@@ -279,6 +279,24 @@ msgstr "이름에 | ; :: 은(는) 사용할 수 없습니다"
 msgid "A zone with this name already exists."
 msgstr "이 이름의 영역이 이미 있습니다."
 
+msgid "Keyboard daemon not connected"
+msgstr "키보드 데몬 연결 안 됨"
+
+msgid "Select or create a profile first"
+msgstr "먼저 프로필을 선택하거나 만드세요"
+
+#, c-format
+msgid "Effect %s"
+msgstr "효과 %s"
+
+#, c-format
+msgid "%s: zone '%s' - click Save to keep it"
+msgstr "%s: 영역 '%s' - 유지하려면 저장"
+
+#, c-format
+msgid "%s: whole keyboard - click Save to keep it"
+msgstr "%s: 키보드 전체 - 유지하려면 저장"
+
 #, c-format
 msgid "Coloring zone '%s' (%d LEDs): click keys on the picture or drag over an area to add or remove them."
 msgstr "영역 '%s' 색상 지정 중 (LED %d개): 그림에서 키를 클릭하거나 영역을 드래그하여 추가하거나 제거합니다."
@@ -401,20 +419,6 @@ msgstr "영역 삭제"
 #, c-format
 msgid "Zone deleted: %s - click Save to keep it"
 msgstr "영역을 삭제했습니다: %s - 반영하려면 저장"
-
-msgid "Keyboard daemon not connected"
-msgstr "키보드 데몬 연결 안 됨"
-
-msgid "Select or create a profile first"
-msgstr "먼저 프로필을 선택하거나 만드세요"
-
-#, c-format
-msgid "%s: zone '%s' - click Save to keep it"
-msgstr "%s: 영역 '%s' - 유지하려면 저장"
-
-#, c-format
-msgid "%s: whole keyboard - click Save to keep it"
-msgstr "%s: 키보드 전체 - 유지하려면 저장"
 
 msgid "Backlight turned OFF"
 msgstr "백라이트 꺼짐"
@@ -781,6 +785,30 @@ msgstr "사용자 지정…"
 
 msgid "Choose any color"
 msgstr "원하는 색상 선택"
+
+msgid "Effect:"
+msgstr "효과:"
+
+msgid "Static"
+msgstr "고정"
+
+msgid "Breathing"
+msgstr "숨쉬기"
+
+msgid "Rainbow"
+msgstr "무지개"
+
+msgid "Wave"
+msgstr "웨이브"
+
+msgid "Animated effect of the selected zone, or of the base color when no zone is selected. Breathing fades the color in and out; Rainbow and Wave use all colors. Runs in the keyboard daemon, also when this window is closed."
+msgstr "선택한 영역의 애니메이션 효과이며, 영역을 선택하지 않으면 기본 색상에 적용됩니다. 숨쉬기는 색을 서서히 밝혔다 어둡게 하고, 무지개와 웨이브는 모든 색을 사용합니다. 이 창을 닫아도 키보드 데몬에서 계속 실행됩니다."
+
+msgid "Speed: slow (left) to fast (right)"
+msgstr "속도: 느림 (왼쪽) ~ 빠름 (오른쪽)"
+
+msgid "Direction of the wave"
+msgstr "웨이브 방향"
 
 msgid "Whole Keyboard"
 msgstr "키보드 전체"
