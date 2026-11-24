@@ -41,6 +41,24 @@ The active profile returns with
 .B \-\-profile
 or after a restart of the daemon.
 .TP
+.BI \-\-effect " effect"
+Give the whole keyboard (every zone and the base color) an animated effect
+without changing any profile:
+.BR static ,
+.BR breathing [: speed ],
+.BR rainbow [: speed ]
+or
+.BR wave [: speed [: direction ]],
+with
+.I speed
+from 1 (slow) to 10 (fast, default 5) and
+.I direction
+.BR right " (default), " left ", " down " or " up .
+Breathing fades the colors in and out; Rainbow cycles all keys through the
+colors; Wave runs a rainbow across the keyboard.
+The active profile returns with
+.BR \-\-profile .
+.TP
 .B \-\-list\-profiles
 List the keyboard profiles; the active one is marked with
 .BR * .
@@ -63,6 +81,9 @@ Half brightness.
 .TP
 .B dcc-kbd-cli \-\-color 0,128,255
 Whole keyboard light blue.
+.TP
+.B dcc-kbd-cli \-\-effect wave:7:left
+A fast rainbow wave from right to left.
 .TP
 .B dcc-kbd-cli \-\-profile """Gaming"""
 Activate the profile Gaming.

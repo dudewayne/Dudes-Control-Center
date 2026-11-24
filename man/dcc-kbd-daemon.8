@@ -20,6 +20,15 @@ kernel module provides.
 A keyboard profile has a base color for all keys and any number of named
 zones, each with its own color and set of keys.
 A profile without a base color and without zones leaves the keyboard dark.
+.PP
+The base color and each zone can have an animated effect: Breathing (the
+color fades in and out), Rainbow (all its keys cycle through the colors) or
+Wave (a rainbow runs across the keyboard to the right, left, down or up),
+each with a speed from 1 to 10.
+The daemon draws them up to 20 times per second and writes only keys whose
+color changed; a full-keyboard frame is limited by the keyboard controller
+(one USB request per key).
+Effects pause while the backlight or its brightness is off.
 Profiles are stored in the
 .B keyboard_profiles
 section of the desktop user's

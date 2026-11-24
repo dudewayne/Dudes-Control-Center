@@ -66,7 +66,7 @@ dcc-gui --debug    # more output in GUI.log
 | **Status** | CPU/GPU temperature, each fan's RPM and duty (from the EC), auto/manual fan mode. Manual mode: +/- in 10% steps from **0% (fans off)** to 100%. Per-core CPU frequencies and **Active Profiles** (fan profile, CPU profile, power mode, keyboard profile) side by side. |
 | **Fan Profiles** | One dropdown for all fan profiles (the one in use is marked "(Active)"): Create, Rename, Save, Delete, **Activate**, and the graphical temperature-to-fan-speed curve of the selected profile (add, edit, delete points; Save keeps them, unsaved changes are asked about before switching profiles or leaving the tab). Shows a warning with "Disable Manual Mode" while manual mode is on. |
 | **CPU Profiles** | Power mode (**Performance / Balanced / Power Save**), per-core min/max frequency profiles (Create, Rename, Save, Delete, Activate; unsaved changes are asked about before switching profiles, leaving the tab or closing), the CPU hard limit. |
-| **Keyboard Backlight** | Keyboard profiles, **brightness slider**, backlight off switch, preset and custom colors, the **zone editor** (keyboard picture + zone list) for per-key lighting, the LED wizard. |
+| **Keyboard Backlight** | Keyboard profiles, **brightness slider**, backlight off switch, preset and custom colors, **effects** (Breathing, Rainbow, Wave), the **zone editor** (keyboard picture + zone list) for per-key lighting, the LED wizard. |
 | **Settings** | Components on/off, language, appearance, keyboard layout (see [Settings](#settings)). |
 | **Logs** | Live GUI, CPU daemon, fan daemon and keyboard daemon logs (newest on top). |
 | **Help** | This README, the changelog and the license, formatted, with clickable links and a search field. |
@@ -80,9 +80,10 @@ dcc-gui --debug    # more output in GUI.log
 2. A keyboard profile has a **base color** (every key that is in no zone) and any number of **zones** (a name, a color and its keys). Selecting a profile in the dropdown shows it on the keyboard and the picture; leaving the Keyboard tab brings the active profile back.
 3. **No zone selected**: a preset color or **Custom…** colors the whole keyboard (the base color; zones keep their colors). That is all a one-colored profile needs.
 4. **Zones** (list next to the picture): **Create** a zone, then click keys on the picture to add or remove them, or drag a rectangle over neighboring keys to add or remove all of them at once (a key belongs to one zone) and pick its color with a preset or **Custom…**. **Rename** and **Delete** work on the selected zone; **Whole Keyboard** stops editing a zone. With no zone selected, clicking a key selects its zone.
-5. **Save** (profile or zone list) stores the profile being edited; **Activate** makes it the profile in use. The keyboard daemon restores the active profile when it starts. Unsaved changes are asked about before switching profiles, leaving the tab or closing.
-6. **Backlight Off** switches the keyboard off until you switch it on again, choose a color or activate a profile, also across reboots. Opening the GUI does not change the backlight.
-7. **Brightness** (0-10) is the keyboard's hardware brightness and works on top of the colors. It is the same setting as the keyboard slider of the desktop (e.g. Linux Mint's battery/power applet), so either one can be used; the level is kept across reboots.
+5. **Effect** (next to the preset colors): **Static**, **Breathing** (the color fades in and out), **Rainbow** (all keys cycle through the colors together) or **Wave** (a rainbow runs across the keyboard; the arrow sets its direction), with a **Speed** slider. Like a color, an effect belongs to the selected zone, or to the base color when no zone is selected, so e.g. the base can run a rainbow while WASD stays red. The keyboard daemon draws the effects (up to 20 frames per second, also with the GUI closed) and pauses them while the backlight is off; the picture shows the zones' set colors.
+6. **Save** (profile or zone list) stores the profile being edited; **Activate** makes it the profile in use. The keyboard daemon restores the active profile when it starts. Unsaved changes are asked about before switching profiles, leaving the tab or closing.
+7. **Backlight Off** switches the keyboard off until you switch it on again, choose a color or activate a profile, also across reboots. Opening the GUI does not change the backlight.
+8. **Brightness** (0-10) is the keyboard's hardware brightness and works on top of the colors. It is the same setting as the keyboard slider of the desktop (e.g. Linux Mint's battery/power applet), so either one can be used; the level is kept across reboots.
 
 ### Settings
 
@@ -136,6 +137,7 @@ dcc-kbd-cli                  # keyboard backlight status
 dcc-kbd-cli --on | --off
 dcc-kbd-cli --brightness 5   # 0 to the maximum (usually 10)
 dcc-kbd-cli --color orange   # whole keyboard: R,G,B, #RRGGBB or a color name (not saved)
+dcc-kbd-cli --effect wave:7:left   # static, breathing, rainbow or wave[:speed 1-10[:direction]] (not saved)
 dcc-kbd-cli --list-profiles
 dcc-kbd-cli --profile "Gaming"
 dcc-kbd-cli --show-profile "Gaming"
