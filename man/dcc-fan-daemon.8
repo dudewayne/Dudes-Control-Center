@@ -53,7 +53,8 @@ An emergency ends manual mode; control returns to the fan curve.
 Stay in the foreground (the service uses this).
 .TP
 .BR \-\-debug ", " \-d
-Log every control step.
+Log every control step (temperatures, target and fan duty every 5 seconds);
+by default only changes of mode, profile or safety state are logged.
 The log level can also be changed at run time with
 .BR "dcc-fan-cli \-\-log\-level" .
 .TP

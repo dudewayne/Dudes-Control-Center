@@ -150,6 +150,22 @@ try:
     check(data["cpu_freq_profiles"]["cpu_hard_limit_hz"] == 4800000000, "new hard limit persisted")
     check("keyboard_profiles" in data, "keyboard section preserved by the daemon's save")
 
+    # log level (v1.34.3): queries only at DEBUG, changes at INFO
+    check(ask(a, "GET_LOG_LEVEL").startswith("LOG_LEVEL=INFO"), "GET_LOG_LEVEL: INFO by default")
+    ask(a, "GET_HARD_LIMIT")
+    check(ask(a, "SET_LOG_LEVEL|DEBUG").startswith("OK Log level set to DEBUG"), "SET_LOG_LEVEL|DEBUG accepted")
+    ask(a, "GET_CPU_INFO")
+    check(ask(a, "SET_LOG_LEVEL|info").startswith("OK Log level set to INFO"), "SET_LOG_LEVEL accepts lower case")
+    check(ask(a, "SET_LOG_LEVEL|LOUD").startswith("ERROR"), "SET_LOG_LEVEL rejects unknown levels")
+    ask(a, "GET_AVAILABLE_GOVERNORS")
+    time.sleep(0.3)
+    lv = open("logs/CPU_DAEMON.log").read()
+    check("Received command: STATUS" not in lv and "Received command: GET_HARD_LIMIT" not in lv,
+          "queries (STATUS, GET_*) not logged at INFO")
+    check("Received command: GET_CPU_INFO" in lv and "Received command: GET_AVAILABLE_GOVERNORS" not in lv,
+          "queries logged while the level is DEBUG only")
+    check("Received command: SET_HARD_LIMIT" in lv, "commands that change something still logged at INFO")
+
     # signals
     proc.send_signal(signal.SIGHUP)
     time.sleep(1.5)

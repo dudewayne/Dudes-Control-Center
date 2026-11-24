@@ -186,6 +186,18 @@ static int run_set_hard_limit(int fd, double ghz) {
     return EXIT_SUCCESS;
 }
 
+/* Daemon log level (1.34.3): SET_LOG_LEVEL|<level>, GET_LOG_LEVEL */
+static int run_log_level(int fd, const char *level) {
+    char cmd[64];
+    char response[CPU_BUFFER_SIZE];
+    if (level) snprintf(cmd, sizeof(cmd), "SET_LOG_LEVEL|%.20s", level);
+    else snprintf(cmd, sizeof(cmd), "GET_LOG_LEVEL");
+    const char *resp = send_command(fd, cmd, response, sizeof(response));
+    if (!resp) return EXIT_FAILURE;
+    printf("%s", resp);
+    return strncmp(resp, "ERROR", 5) == 0 ? EXIT_FAILURE : EXIT_SUCCESS;
+}
+
 static int run_get_hard_limit(int fd) {
     char response[CPU_BUFFER_SIZE];
     const char *resp = send_command(fd, "GET_HARD_LIMIT", response, sizeof(response));
@@ -214,6 +226,8 @@ static void print_usage(void) {
     printf("  --governor <name>    Set governor (performance, schedutil, powersave, etc.)\n");
     printf("  --hard-limit <GHz>   Set hard frequency limit in GHz (e.g. 3.8)\n");
     printf("  --hard-limit-get     Show current hard frequency limit\n");
+    printf("  --log-level <LEVEL>  Set the daemon log level (ERROR, WARN, INFO, DEBUG)\n");
+    printf("  --log-level-get      Show the daemon log level\n");
     printf("  --help               Show this help message\n");
     printf("\n");
     printf("Examples:\n");
@@ -223,6 +237,7 @@ static void print_usage(void) {
     printf("  %s --governor perf     # Set performance governor\n", PROGRAM_NAME);
     printf("  %s --hard-limit 3.8    # Set hard limit to 3.8 GHz\n", PROGRAM_NAME);
     printf("  %s --hard-limit-get    # Show current hard limit\n", PROGRAM_NAME);
+    printf("  %s --log-level DEBUG   # Log every command, also STATUS\n", PROGRAM_NAME);
 }
 
 int main(int argc, char *argv[]) {
@@ -296,6 +311,23 @@ int main(int argc, char *argv[]) {
                 return EXIT_FAILURE;
             }
             int result = run_set_hard_limit(fd, ghz);
+            close(fd);
+            return result;
+        }
+
+        if (strcmp(argv[i], "--log-level") == 0) {
+            if (i + 1 >= argc) {
+                fprintf(stderr, "Error: --log-level requires a level argument (ERROR, WARN, INFO, DEBUG)\n");
+                close(fd);
+                return EXIT_FAILURE;
+            }
+            int result = run_log_level(fd, argv[++i]);
+            close(fd);
+            return result;
+        }
+
+        if (strcmp(argv[i], "--log-level-get") == 0) {
+            int result = run_log_level(fd, NULL);
             close(fd);
             return result;
         }

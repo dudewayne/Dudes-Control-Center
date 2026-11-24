@@ -108,15 +108,19 @@ int main(int argc, char **argv) {
     cJSON_Delete(j);
 
     /* F: log routing */
-    g_print("[12:00:00.000] [GUI] Hello from g_print\n");
-    for (int i = 0; i < 5; i++) g_print("[GUI] periodic status line\n");
+    gui_event("[12:00:00.000] [GUI] Hello from gui_event\n");
+    for (int i = 0; i < 5; i++) gui_event("[GUI] periodic status line\n");
+    g_print("[GUI] trace line from g_print\n");             /* DEBUG since 1.34.3 */
+    g_print("[GUI] Failed to do something\n");              /* raised to ERROR */
     g_printerr("[GUI] Something on stderr\n");
     g_warning("a GTK-style warning");
     log_cleanup();
     char lp[1100]; snprintf(lp, sizeof lp, "%s/GUI.log", logdir);
     gchar *lg = NULL; g_file_get_contents(lp, &lg, NULL, NULL);
     int periodic = 0; for (char *q = lg; (q = strstr(q, "periodic status line")); q++) periodic++;
-    CHECK(lg && strstr(lg, "[INFO ] [GUI] Hello from g_print"), "F: g_print goes to GUI.log without the duplicate timestamp");
+    CHECK(lg && strstr(lg, "[INFO ] [GUI] Hello from gui_event"), "F: events go to GUI.log without the duplicate timestamp");
+    CHECK(lg && !strstr(lg, "trace line from g_print"), "F: g_print traces are DEBUG, not in the log at INFO (v1.34.3)");
+    CHECK(lg && strstr(lg, "[ERROR] [GUI] Failed to do something"), "F: g_print with 'Failed' is still logged as an error");
     CHECK(periodic == 1, "F: repeated message logged once per minute");
     CHECK(lg && strstr(lg, "[WARN ] [GUI] Something on stderr"), "F: g_printerr logged as WARN");
     CHECK(lg && strstr(lg, "a GTK-style warning"), "F: GLib/GTK warnings logged");

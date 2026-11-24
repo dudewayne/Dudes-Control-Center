@@ -43,6 +43,18 @@ have work to do, however low the limit is (see
 .B \-\-hard\-limit\-get
 Show the hard frequency limit.
 .TP
+.BI \-\-log\-level " level"
+Set the daemon's log level:
+.BR ERROR ", " WARN ", " INFO " or " DEBUG .
+At
+.B DEBUG
+the daemon also logs every query, such as the GUI's STATUS request every
+5 seconds.
+The level is kept until the daemon restarts.
+.TP
+.B \-\-log\-level\-get
+Show the daemon's log level.
+.TP
 .B \-\-help
 Show a short help.
 .SH EXIT STATUS

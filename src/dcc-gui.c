@@ -32,6 +32,9 @@
 #define _(s) gettext(s)
 #define N_(s) (s)
 
+/* GUI.log at INFO: events; plain g_print() goes to DEBUG (1.34.3) */
+static void gui_event(const char *fmt, ...) G_GNUC_PRINTF(1, 2);
+
 typedef struct { const char *code, *label; } UiLanguage;
 static const UiLanguage ui_languages[] = {
     { "system", N_("System default") },
@@ -195,7 +198,7 @@ static int kbd_layout_parse(const char *code, KbdLayoutData *L) {
     snprintf(path, sizeof path, "%s/%s/keys.csv", DCC_LAYOUT_DIR, code);
     gchar *data = NULL;
     if (!g_file_get_contents(path, &data, NULL, NULL)) {
-        g_print("[GUI] Keyboard layout '%s': cannot read %s\n", code, path);
+        gui_event("[GUI] Keyboard layout '%s': cannot read %s\n", code, path);
         return -1;
     }
     char *text = data;
@@ -228,7 +231,7 @@ static int kbd_layout_parse(const char *code, KbdLayoutData *L) {
         if (k.x + k.w > L->right) L->right = k.x + k.w;
     }
     g_free(data);
-    if (L->n == 0) g_print("[GUI] Keyboard layout '%s': no keys in %s\n", code, path);
+    if (L->n == 0) gui_event("[GUI] Keyboard layout '%s': no keys in %s\n", code, path);
     return L->n > 0 ? 0 : -1;
 }
 
@@ -246,7 +249,7 @@ static int kbd_layout_load(const char *code) {
         kbd_key_positions[i] = L.pos[i];
     }
     snprintf(kbd_layout_code, sizeof kbd_layout_code, "%s", code);
-    g_print("[GUI] Keyboard layout '%s': %zu keys\n", code, L.n);
+    gui_event("[GUI] Keyboard layout '%s': %zu keys\n", code, L.n);
     return 0;
 }
 
@@ -490,9 +493,24 @@ static void gui_log_text(LogLevel default_level, const char *text) {
     g_free(copy);
 }
 
+/* g_print() is the GUI's old step-by-step trace (refresh timer, every
+ * daemon reply, widget updates): DEBUG since 1.34.3, so GUI.log keeps days
+ * of real events instead of a few hours. Events (connections, profile and
+ * settings changes, results) use gui_event(), logged at INFO. Messages with
+ * ERROR/Failed/WARN in them are raised to ERROR/WARN either way. */
 static void gui_print_handler(const gchar *text) {
+    gui_log_text(LOG_LEVEL_DEBUG, text);
+    if (isatty(STDOUT_FILENO)) { fputs(text, stdout); fflush(stdout); }
+}
+
+static void gui_event(const char *fmt, ...) {
+    va_list ap;
+    va_start(ap, fmt);
+    gchar *text = g_strdup_vprintf(fmt, ap);
+    va_end(ap);
     gui_log_text(LOG_LEVEL_INFO, text);
     if (isatty(STDOUT_FILENO)) { fputs(text, stdout); fflush(stdout); }
+    g_free(text);
 }
 
 static void gui_printerr_handler(const gchar *text) {
@@ -1320,7 +1338,7 @@ static gboolean cpu_refresh_timer_callback(gpointer user_data) {
         connect_to_cpu_daemon(app);
         update_daemon_status_labels(app);
         if (!app->cpu_connected) return G_SOURCE_CONTINUE;
-        g_print("[GUI] Reconnected to the CPU daemon\n");
+        gui_event("[GUI] Reconnected to the CPU daemon\n");
         cpu_load_initial_data(app);
         load_cpu_custom_profiles_select(app,
             gtk_combo_box_get_active(GTK_COMBO_BOX(app->cpu_custom_profile_combo)));
@@ -1514,11 +1532,11 @@ static void on_cpu_governor_changed(GtkWidget *widget, gpointer user_data) {
             snprintf(command, sizeof(command), "SET_POWER_MODE|%s", governor_name);
             const char *response = send_cpu_command(app, command);
             int ok = response && strncmp(response, "OK", 2) == 0;
-            g_print("[GUI] Power mode '%s' for the active profile: %s\n", governor_name, response ? response : "NULL");
+            gui_event("[GUI] Power mode '%s' for the active profile: %s\n", governor_name, response ? response : "NULL");
             show_status(app, ok ? _("Power mode applied - click Save to keep it in the profile")
                                 : _("Failed to apply the power mode"));
         } else {
-            g_print("[GUI] Power mode '%s' selected for an inactive profile (saved with Save, applied with Activate)\n",
+            gui_event("[GUI] Power mode '%s' selected for an inactive profile (saved with Save, applied with Activate)\n",
                     governor_name);
             show_status(app, _("Power mode changed - click Save to store it in the profile, Activate to apply it"));
         }
@@ -1535,7 +1553,7 @@ static void on_cpu_governor_changed(GtkWidget *widget, gpointer user_data) {
     const char *response = send_cpu_command(app, command);
     if (response && strncmp(response, "OK", 2) == 0) {
         show_status(app, _("Governor applied successfully"));
-        g_print("[GUI] Governor '%s' applied successfully\n", governor_name);
+        gui_event("[GUI] Governor '%s' applied successfully\n", governor_name);
     } else {
         show_status(app, _("Failed to apply governor"));
         g_print("[GUI] Failed to apply governor: %s\n", response);
@@ -1857,7 +1875,7 @@ static void on_cpu_create_freq_profile_clicked(GtkWidget *widget, gpointer user_
                      cpu_balanced_mode(send_cpu_command(app, "GET_AVAILABLE_GOVERNORS")),
                      HARD_MAX_FREQ_HZ_DEFAULT);
             const char *response = send_cpu_command(app, cmd);
-            g_print("[GUI] CREATE_CUSTOM_PROFILE response: %s\n", response ? response : "NULL");
+            gui_event("[GUI] CREATE_CUSTOM_PROFILE response: %s\n", response ? response : "NULL");
 
             /* Reload the profile list */
             load_cpu_custom_profiles(app);
@@ -1974,7 +1992,7 @@ static void on_cpu_delete_freq_profile_clicked(GtkWidget *widget, gpointer user_
         char cmd[64];
         snprintf(cmd, sizeof(cmd), "DELETE_CUSTOM_PROFILE|%d", idx);
         const char *response = send_cpu_command(app, cmd);
-        g_print("[GUI] DELETE_CUSTOM_PROFILE response: %s\n", response ? response : "NULL");
+        gui_event("[GUI] DELETE_CUSTOM_PROFILE response: %s\n", response ? response : "NULL");
 
         /* Reload the profile list */
         load_cpu_custom_profiles(app);
@@ -2066,7 +2084,7 @@ static void on_cpu_rename_freq_profile_clicked(GtkWidget *widget, gpointer user_
             char cmd[256];
             snprintf(cmd, sizeof(cmd), "RENAME_CUSTOM_PROFILE|%d|%s", idx, new_name);
             const char *response = send_cpu_command(app, cmd);
-            g_print("[GUI] RENAME_CUSTOM_PROFILE response: %s\n", response ? response : "NULL");
+            gui_event("[GUI] RENAME_CUSTOM_PROFILE response: %s\n", response ? response : "NULL");
 
             /* Reload the profile list, staying on the renamed profile */
             load_cpu_custom_profiles_select(app, idx);
@@ -2234,12 +2252,12 @@ static int cpu_check_unsaved_changes(AppData *app) {
 
     int idx = app->cpu_snap_profile;
     if (response == -101) {
-        g_print("[GUI] Unsaved CPU profile changes: saving profile %d\n", idx);
+        gui_event("[GUI] Unsaved CPU profile changes: saving profile %d\n", idx);
         cpu_save_freq_profile_idle(cpu_save_ctx_from_ui(app, idx));   /* now, not deferred */
         return 1;
     }
     if (response == -100) {
-        g_print("[GUI] Unsaved CPU profile changes: discarded (profile %d)\n", idx);
+        gui_event("[GUI] Unsaved CPU profile changes: discarded (profile %d)\n", idx);
         /* A power mode change on the running profile was applied right
          * away: put the stored mode back */
         int row = gtk_combo_box_get_active(GTK_COMBO_BOX(app->cpu_profile_combo));
@@ -2310,7 +2328,7 @@ static gboolean activate_profile_idle_callback(gpointer user_data) {
     char cmd[256];
     snprintf(cmd, sizeof(cmd), "APPLY_CUSTOM_PROFILE|%d", idx);
     const char *response = send_cpu_command(app, cmd);
-    g_print("[GUI] APPLY_CUSTOM_PROFILE response: %s\n", response ? response : "NULL");
+    gui_event("[GUI] APPLY_CUSTOM_PROFILE response: %s\n", response ? response : "NULL");
 
     /* Reload profile list so the [*] marker updates to the newly active profile */
     load_cpu_custom_profiles(app);
@@ -2361,7 +2379,7 @@ static void on_cpu_hard_limit_apply_clicked(GtkWidget *widget, gpointer user_dat
     char cmd[256];
     snprintf(cmd, sizeof(cmd), "SET_HARD_LIMIT|%" G_GUINT64_FORMAT, hz);
     const char *response = send_cpu_command(app, cmd);
-    g_print("[GUI] SET_HARD_LIMIT response: %s\n", response ? response : "NULL");
+    gui_event("[GUI] SET_HARD_LIMIT response: %s\n", response ? response : "NULL");
 
     if (response && strncmp(response, "OK", 2) == 0) {
         char status_msg[256];
@@ -2709,7 +2727,7 @@ static gboolean on_manual_mode_switched(GtkSwitch *switch_widget, gboolean new_s
         update_profile_tab_for_manual_mode(app, 1);
         
         get_timestamp(ts, sizeof(ts));
-        g_print("%s [GUI] Manual mode ENABLED, app->in_manual_mode=%d, app->auto_mode_enabled=%d\n", ts, app->in_manual_mode, app->auto_mode_enabled);
+        gui_event("%s [GUI] Manual mode ENABLED, app->in_manual_mode=%d, app->auto_mode_enabled=%d\n", ts, app->in_manual_mode, app->auto_mode_enabled);
     } else {
         /* Disable manual mode - enable auto mode */
         response = send_command(app, "SET_AUTO 1");
@@ -2729,7 +2747,7 @@ static gboolean on_manual_mode_switched(GtkSwitch *switch_widget, gboolean new_s
         update_profile_tab_for_manual_mode(app, 0);
         
         get_timestamp(ts, sizeof(ts));
-        g_print("%s [GUI] Manual mode DISABLED (auto mode enabled)\n", ts);
+        gui_event("%s [GUI] Manual mode DISABLED (auto mode enabled)\n", ts);
     }
     
     show_status(app, response);
@@ -3937,7 +3955,7 @@ static void connect_to_daemon(AppData *app) {
     }
     
     app->connected = 1;
-    g_print("[GUI] Connected to daemon successfully!\n");
+    gui_event("[GUI] Connected to daemon successfully!\n");
 }
 
 /* Disconnect from daemon */
@@ -3959,7 +3977,7 @@ static void connect_to_cpu_daemon(AppData *app) {
     /* Check if socket file exists first */
     struct stat st;
     if (stat(CPU_SOCKET_PATH, &st) != 0) {
-        g_print("[GUI] CPU daemon socket not found at %s. CPU tab will be unavailable.\n", CPU_SOCKET_PATH);
+        gui_event("[GUI] CPU daemon socket not found at %s. CPU tab will be unavailable.\n", CPU_SOCKET_PATH);
         app->cpu_socket_fd = -1;
         app->cpu_connected = 0;
         return;
@@ -3985,7 +4003,7 @@ static void connect_to_cpu_daemon(AppData *app) {
 
     app->cpu_connected = 1;
     update_daemon_status_labels(app);
-    g_print("[GUI] Connected to CPU daemon successfully!\n");
+    gui_event("[GUI] Connected to CPU daemon successfully!\n");
 }
 
 /* Disconnect from CPU daemon */
@@ -4007,7 +4025,7 @@ static void connect_to_keyboard_daemon(AppData *app) {
     }
     struct stat st;
     if (stat(KBD_SOCKET_PATH, &st) != 0) {
-        g_print("[GUI] Keyboard daemon socket not found at %s. Keyboard tab will be unavailable.\n", KBD_SOCKET_PATH);
+        gui_event("[GUI] Keyboard daemon socket not found at %s. Keyboard tab will be unavailable.\n", KBD_SOCKET_PATH);
         app->kbd_socket_fd = -1;
         app->kbd_connected = 0;
         update_daemon_status_labels(app);
@@ -4036,7 +4054,7 @@ static void connect_to_keyboard_daemon(AppData *app) {
 
     app->kbd_connected = 1;
     update_daemon_status_labels(app);
-    g_print("[GUI] Connected to keyboard daemon successfully!\n");
+    gui_event("[GUI] Connected to keyboard daemon successfully!\n");
 
     /* The daemon restores the backlight itself (off, profile colors or
      * white); the GUI only shows that state instead of switching it on */
@@ -4145,7 +4163,7 @@ static const char *send_keyboard_command(AppData *app, const char *cmd) {
     if (!kbd_ensure_connected(app)) return send_keyboard_command_once(app, cmd);
     const char *r = send_keyboard_command_once(app, cmd);
     if (!app->kbd_connected) {          /* the send/receive found a dead connection */
-        g_print("[GUI] Keyboard daemon connection lost - reconnecting\n");
+        gui_event("[GUI] Keyboard daemon connection lost - reconnecting\n");
         if (kbd_ensure_connected(app)) r = send_keyboard_command_once(app, cmd);
     }
     return r;
@@ -4427,7 +4445,7 @@ static void kbd_status(AppData *app, const char *fmt, ...) {
     gchar *msg = g_strdup_vprintf(fmt, ap);
     va_end(ap);
     if (app->kbd_profile_status_label) gtk_label_set_text(GTK_LABEL(app->kbd_profile_status_label), msg);
-    g_print("[GUI] Keyboard: %s\n", msg);
+    gui_event("[GUI] Keyboard: %s\n", msg);
     g_free(msg);
 }
 
@@ -4537,7 +4555,7 @@ static int kbd_load_edit_profile(AppData *app, const char *name) {
     snprintf(cmd, sizeof cmd, "GET_PROFILE::%s", name);
     const char *r = send_keyboard_command(app, cmd);
     if (kbd_edit_parse(&app->kbd_edit, r) != 0) {
-        g_print("[GUI] Could not read keyboard profile '%s': %s\n", name, r ? r : "NULL");
+        gui_event("[GUI] Could not read keyboard profile '%s': %s\n", name, r ? r : "NULL");
         return -1;
     }
     app->kbd_saved = app->kbd_edit;
@@ -4904,14 +4922,14 @@ static gboolean on_kbd_off_switch_toggled(GtkSwitch *sw, gboolean new_state, gpo
         const char *response = send_keyboard_command(app, "TURN_OFF");
         g_print("[GUI] TURN_OFF response: %s\n", response ? response : "NULL");
         gtk_label_set_text(GTK_LABEL(app->kbd_profile_status_label), _("Backlight turned OFF"));
-        g_print("[GUI] Keyboard backlight turned OFF (override active)\n");
+        gui_event("[GUI] Keyboard backlight turned OFF (override active)\n");
     } else {
         /* Turn the backlight back on (the daemon restores the current colors) */
         app->kbd_off_active = 0;
         const char *response = send_keyboard_command(app, "TURN_ON");
         g_print("[GUI] TURN_ON response: %s\n", response ? response : "NULL");
         gtk_label_set_text(GTK_LABEL(app->kbd_profile_status_label), _("Backlight turned ON"));
-        g_print("[GUI] Keyboard backlight turned ON\n");
+        gui_event("[GUI] Keyboard backlight turned ON\n");
     }
 
     return FALSE; /* Let GTK update the switch visual state */
@@ -5138,7 +5156,7 @@ static void kbd_save_led_mapping_csv(AppData *app) {
     }
     
     fclose(f);
-    g_print("[GUI] LED mapping saved for layout '%s': %s\n", kbd_layout_code, csv_path);
+    gui_event("[GUI] LED mapping saved for layout '%s': %s\n", kbd_layout_code, csv_path);
 }
 
 /* led -> position from a mapping CSV; legacy: positions are indices into
@@ -5175,7 +5193,7 @@ static void kbd_load_led_mapping_csv(AppData *app) {
     char csv_path[512];
     kbd_mapping_path(csv_path, sizeof csv_path, kbd_layout_code);
     if (kbd_read_mapping_file(app, csv_path, 0) == 0) {
-        g_print("[GUI] LED mapping loaded from %s\n", csv_path);
+        gui_event("[GUI] LED mapping loaded from %s\n", csv_path);
         return;
     }
     if (!strcmp(kbd_layout_code, "de")) {
@@ -5183,12 +5201,12 @@ static void kbd_load_led_mapping_csv(AppData *app) {
         const char *home = getenv("HOME");
         snprintf(old_path, sizeof old_path, "%s/.config/dudes-control-center/keyboard_led_mapping.csv", home ? home : "/tmp");
         if (kbd_read_mapping_file(app, old_path, 1) == 0) {
-            g_print("[GUI] LED mapping converted from %s to the German layout file\n", old_path);
+            gui_event("[GUI] LED mapping converted from %s to the German layout file\n", old_path);
             kbd_save_led_mapping_csv(app);       /* the old file stays for older versions */
             return;
         }
     }
-    g_print("[GUI] No LED mapping for layout '%s' (%s), using the built-in mapping\n", kbd_layout_code, csv_path);
+    gui_event("[GUI] No LED mapping for layout '%s' (%s), using the built-in mapping\n", kbd_layout_code, csv_path);
     kbd_mapping_set_defaults(app);
 }
 
@@ -5847,7 +5865,7 @@ static void parse_status(AppData *app, const char *response) {
         app->auto_mode_enabled = 1;
         if (app->manual_speed_label) gtk_label_set_text(GTK_LABEL(app->manual_speed_label), "--");
         if (ended_by_emergency) {
-            g_print("[GUI] Fan daemon switched to auto mode after an emergency temperature\n");
+            gui_event("[GUI] Fan daemon switched to auto mode after an emergency temperature\n");
             /* xgettext:no-c-format */
             show_status(app, _("Manual fan mode ended: the CPU/GPU reached 95\302\260C - fans at 100% until it cools down, then the fan curve (auto mode)"));
         }
@@ -5859,7 +5877,7 @@ static void parse_status(AppData *app, const char *response) {
     
     /* If manual mode state changed, update the profile tab UI */
     if (was_in_manual_mode != app->in_manual_mode) {
-        g_print("[GUI] Manual mode state changed: %s -> %s\n", 
+        gui_event("[GUI] Manual mode state changed: %s -> %s\n", 
                 was_in_manual_mode ? "ENABLED" : "DISABLED",
                 app->in_manual_mode ? "ENABLED" : "DISABLED");
         update_profile_tab_for_manual_mode(app, app->in_manual_mode);
@@ -6475,7 +6493,7 @@ static void on_disable_manual_mode_clicked(GtkWidget *widget, gpointer user_data
         
         /* Reactivate the profile that was active before manual mode */
         if (app->profile_before_manual >= 0) {
-            g_print("%s [GUI] Re-activating profile %d\n", ts, app->profile_before_manual);
+            gui_event("%s [GUI] Re-activating profile %d\n", ts, app->profile_before_manual);
             char cmd[64];
             snprintf(cmd, sizeof(cmd), "SET_ACTIVE_PROFILE %d", app->profile_before_manual);
             response = send_command(app, cmd);
@@ -8368,7 +8386,7 @@ static gboolean kbd_brightness_send(gpointer user_data) {
     char cmd[48];
     snprintf(cmd, sizeof cmd, "SET_BRIGHTNESS %d", level);
     const char *r = send_keyboard_command(app, cmd);
-    g_print("[GUI] %s -> %s\n", cmd, r ? r : "NULL");
+    gui_event("[GUI] %s -> %s\n", cmd, r ? r : "NULL");
     return G_SOURCE_REMOVE;
 }
 
@@ -8814,7 +8832,7 @@ static void settings_helper_done(GObject *source, GAsyncResult *res, gpointer us
     const char *name = dcc_component_names[job->comp];
     app->settings_busy = 0;
     if (status == 0) {
-        g_print("[GUI] Settings: %s control %s\n", name, job->enable ? "switched on" : "switched off");
+        gui_event("[GUI] Settings: %s control %s\n", name, job->enable ? "switched on" : "switched off");
         show_status(app, job->enable ? _("Component switched on") : _("Component switched off"));
         if (!job->enable) {                          /* stop talking to that daemon */
             if (job->comp == COMP_FAN) disconnect_from_daemon(app);
@@ -8865,7 +8883,7 @@ static gboolean on_settings_switch(GtkSwitch *sw, gboolean state, gpointer user_
     GSubprocess *proc = g_subprocess_new(G_SUBPROCESS_FLAGS_NONE, &err, "pkexec", DCC_COMPONENT_HELPER,
                                          state ? "enable" : "disable", dcc_component_names[comp], NULL);
     if (!proc) {
-        g_print("[GUI] Settings: cannot run pkexec: %s\n", err ? err->message : "?");
+        gui_event("[GUI] Settings: cannot run pkexec: %s\n", err ? err->message : "?");
         show_status(app, _("Could not run pkexec"));
         if (err) g_error_free(err);
         settings_sync_switches(app);
@@ -8910,7 +8928,7 @@ static void on_settings_language_changed(GtkComboBox *combo, gpointer user_data)
     cJSON_AddStringToObject(json, "language", code);
     config_write(json);
     cJSON_Delete(json);
-    g_print("[GUI] Language set to '%s' (after a restart)\n", code);
+    gui_event("[GUI] Language set to '%s' (after a restart)\n", code);
     settings_update_language_note(app);
 }
 
@@ -8933,7 +8951,7 @@ static void on_settings_restart_clicked(GtkWidget *widget, gpointer user_data) {
         app->window_height = gtk_widget_get_allocated_height(app->window);
         save_window_position(app);
     }
-    g_print("[GUI] Restarting for the new language\n");
+    gui_event("[GUI] Restarting for the new language\n");
     disconnect_from_daemon(app);
     disconnect_from_cpu_daemon(app);
     if (app->kbd_socket_fd >= 0) { close(app->kbd_socket_fd); app->kbd_socket_fd = -1; }
@@ -9547,7 +9565,7 @@ static void on_tray_select_profile(GtkRadioMenuItem *radiomenuitem, gpointer use
     }
     
     int selected_idx = *(int*)idx_ptr;
-    g_print("[GUI] Tray profile selected: index %d (%s)\n", selected_idx, app->profile_names[selected_idx]);
+    gui_event("[GUI] Tray profile selected: index %d (%s)\n", selected_idx, app->profile_names[selected_idx]);
     
     if (selected_idx >= 0 && selected_idx < app->num_profiles && selected_idx != app->active_profile_idx) {
         g_print("[GUI] Activating profile %d: %s\n", selected_idx, app->profile_names[selected_idx]);
@@ -9555,7 +9573,7 @@ static void on_tray_select_profile(GtkRadioMenuItem *radiomenuitem, gpointer use
         snprintf(cmd, sizeof(cmd), "SET_ACTIVE_PROFILE %d", selected_idx);
         const char *response = send_command(app, cmd);
         if (response && strstr(response, "OK")) {
-            g_print("[GUI] Profile activated successfully\n");
+            gui_event("[GUI] Profile activated successfully\n");
             show_status(app, g_strdup_printf(_("Profile '%s' activated"), app->profile_names[selected_idx]));
             
             /* Update active profile index */
@@ -9593,7 +9611,7 @@ static void on_tray_select_kbd_profile(GtkMenuItem *item, gpointer user_data) {
     snprintf(cmd, sizeof cmd, "LOAD_PROFILE::%s", pname);
     const char *r = send_keyboard_command(app, cmd);
     int ok = r && strncmp(r, "OK", 2) == 0;
-    g_print("[GUI] Tray keyboard profile '%s': %s\n", pname, r ? r : "NULL");
+    gui_event("[GUI] Tray keyboard profile '%s': %s\n", pname, r ? r : "NULL");
     if (on_kbd_tab) {
         load_keyboard_profiles_select(app, pname);
         if (ok && kbd_load_edit_profile(app, pname) == 0) kbd_edit_changed(app, 0, 0);
@@ -9636,7 +9654,7 @@ static void on_tray_select_cpu_profile(GtkRadioMenuItem *radiomenuitem, gpointer
         }
     }
     
-    g_print("[GUI] Tray CPU profile selected: index %d (%s)\n", selected_idx, profile_name ? profile_name : "(null)");
+    gui_event("[GUI] Tray CPU profile selected: index %d (%s)\n", selected_idx, profile_name ? profile_name : "(null)");
     
     if (selected_idx >= 0 && selected_idx != app->cpu_active_custom_profile_idx) {
         g_print("[GUI] Activating CPU profile %d\n", selected_idx);
@@ -9644,7 +9662,7 @@ static void on_tray_select_cpu_profile(GtkRadioMenuItem *radiomenuitem, gpointer
         snprintf(cmd, sizeof(cmd), "APPLY_CUSTOM_PROFILE|%d", selected_idx);
         const char *response = send_cpu_command(app, cmd);
         if (response && strncmp(response, "OK", 2) == 0) {
-            g_print("[GUI] CPU profile activated successfully\n");
+            gui_event("[GUI] CPU profile activated successfully\n");
             show_status(app, g_strdup_printf(_("CPU profile '%s' activated"), profile_name ? profile_name : _("Unknown")));
             
             /* Update active index */
@@ -9793,7 +9811,7 @@ static void appearance_apply_theme(int mode) {
         g_object_get(gs, "gtk-theme-name", &cur, NULL);
         if (theme && (!cur || strcmp(cur, theme) != 0)) {
             g_object_set(gs, "gtk-theme-name", theme, NULL);
-            g_print("[GUI] Appearance system: desktop theme %s\n", theme);
+            gui_event("[GUI] Appearance system: desktop theme %s\n", theme);
         }
         g_free(cur);
         g_free(theme);
@@ -9804,7 +9822,7 @@ static void appearance_apply_theme(int mode) {
     for (int i = 0; i < n; i++)
         if (theme_installed(cand[i])) {
             g_object_set(gs, "gtk-theme-name", cand[i], NULL);
-            g_print("[GUI] Appearance %s: theme %s instead of %s\n", appearance_names[mode], cand[i], theme ? theme : "?");
+            gui_event("[GUI] Appearance %s: theme %s instead of %s\n", appearance_names[mode], cand[i], theme ? theme : "?");
             break;
         }
     g_object_set(gs, "gtk-application-prefer-dark-theme", mode == APPEARANCE_DARK, NULL);
@@ -9861,7 +9879,7 @@ static void on_desktop_theme_changed(GSettings *gs, const gchar *key, gpointer u
     (void)gs;
     AppData *app = (AppData *)user_data;
     gchar *t = appearance_desktop_theme();
-    g_print("[GUI] Desktop theme changed (%s): %s\n", key, t ? t : "?");
+    gui_event("[GUI] Desktop theme changed (%s): %s\n", key, t ? t : "?");
     g_free(t);
     appearance_apply_theme(app->appearance);
     g_idle_add(appearance_refresh_idle, app);
@@ -9884,7 +9902,7 @@ static void appearance_init(AppData *app) {
         g_signal_connect(desk, sig, G_CALLBACK(on_desktop_theme_changed), app);
         g_free(sig);
     }
-    g_print("[GUI] Appearance: %s, window is %s\n", appearance_names[app->appearance], app->is_dark ? "dark" : "light");
+    gui_event("[GUI] Appearance: %s, window is %s\n", appearance_names[app->appearance], app->is_dark ? "dark" : "light");
 }
 
 static void appearance_save_choice(int mode) {
@@ -10311,7 +10329,7 @@ int main(int argc, char *argv[]) {
         return 1;
     }
     
-    g_print("[GUI] Main window created successfully\n");
+    gui_event("[GUI] Main window created successfully\n");
     
     /* Load saved window position */
     load_window_position(&app);
@@ -10353,10 +10371,10 @@ int main(int argc, char *argv[]) {
     /* Create system tray icon */
     create_system_tray(&app);
     
-    g_print("[GUI] System tray icon created\n");
+    gui_event("[GUI] System tray icon created\n");
     
     /* Start minimized - hide window initially, show only when user clicks tray icon */
-    g_print("[GUI] Starting minimized to system tray\n");
+    gui_event("[GUI] Starting minimized to system tray\n");
     gtk_widget_hide(window);
     
     g_print("[GUI] Window hidden, ready for tray activation\n");

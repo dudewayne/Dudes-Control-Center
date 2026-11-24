@@ -11,6 +11,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <strings.h>
 #include <signal.h>
 #include <unistd.h>
 #include <sys/socket.h>
@@ -150,22 +151,53 @@ static void parse_command(const char *cmd, char *action, char *arg1, char *arg2,
     }
 }
 
+/* Commands that only read state (1.34.3: logged at DEBUG, not INFO) */
+static int cpu_command_is_query(const char *action) {
+    return strcmp(action, "STATUS") == 0 || strcmp(action, "PING") == 0 ||
+           strncmp(action, "GET_", 4) == 0 || strncmp(action, "LIST_", 5) == 0;
+}
+
 /* --- Handle client commands --- */
 static void handle_command(const char *cmd, char *response, size_t resp_size) {
     char action[32], arg1[256], arg2[256], arg3[64], arg4[ARG4_LEN];
 
     parse_command(cmd, action, arg1, arg2, arg3, arg4);
 
-    if (arg1[0] != '\0' && arg2[0] != '\0' && arg3[0] != '\0' && arg4[0] != '\0') {
-        LOG_INFO("[DAEMON] Received command: %s args=[%s] [%s] [%s] [%s]", action, arg1, arg2, arg3, arg4);
-    } else if (arg1[0] != '\0' && arg2[0] != '\0' && arg3[0] != '\0') {
-        LOG_INFO("[DAEMON] Received command: %s args=[%s] [%s] [%s]", action, arg1, arg2, arg3);
-    } else if (arg1[0] != '\0' && arg2[0] != '\0') {
-        LOG_INFO("[DAEMON] Received command: %s args=[%s] [%s]", action, arg1, arg2);
-    } else if (arg1[0] != '\0') {
-        LOG_INFO("[DAEMON] Received command: %s args=[%s]", action, arg1);
-    } else {
-        LOG_INFO("[DAEMON] Received command: %s args=", action);
+    /* Read-only commands (the GUI asks for STATUS every 5 s) are logged only
+     * at DEBUG; commands that change something stay at INFO (1.34.3) */
+    LogLevel lvl = cpu_command_is_query(action) ? LOG_LEVEL_DEBUG : LOG_LEVEL_INFO;
+    if (log_should_output(lvl)) {
+        if (arg1[0] != '\0' && arg2[0] != '\0' && arg3[0] != '\0' && arg4[0] != '\0')
+            log_write(lvl, "[DAEMON] Received command: %s args=[%s] [%s] [%s] [%s]", action, arg1, arg2, arg3, arg4);
+        else if (arg1[0] != '\0' && arg2[0] != '\0' && arg3[0] != '\0')
+            log_write(lvl, "[DAEMON] Received command: %s args=[%s] [%s] [%s]", action, arg1, arg2, arg3);
+        else if (arg1[0] != '\0' && arg2[0] != '\0')
+            log_write(lvl, "[DAEMON] Received command: %s args=[%s] [%s]", action, arg1, arg2);
+        else if (arg1[0] != '\0')
+            log_write(lvl, "[DAEMON] Received command: %s args=[%s]", action, arg1);
+        else
+            log_write(lvl, "[DAEMON] Received command: %s args=", action);
+    }
+
+    /* --- SET_LOG_LEVEL|<ERROR|WARN|INFO|DEBUG>, GET_LOG_LEVEL (1.34.3) --- */
+    if (strcmp(action, "SET_LOG_LEVEL") == 0) {
+        static const struct { const char *name; LogLevel level; } levels[] = {
+            { "ERROR", LOG_LEVEL_ERROR }, { "WARN", LOG_LEVEL_WARN },
+            { "INFO", LOG_LEVEL_INFO }, { "DEBUG", LOG_LEVEL_DEBUG } };
+        for (size_t i = 0; i < sizeof levels / sizeof levels[0]; i++) {
+            if (strcasecmp(arg1, levels[i].name) == 0) {
+                log_set_level(levels[i].level);
+                LOG_INFO("[DAEMON] Log level set to %s", levels[i].name);
+                snprintf(response, resp_size, "OK Log level set to %s\n", levels[i].name);
+                return;
+            }
+        }
+        snprintf(response, resp_size, "ERROR Invalid log level: %s (use ERROR, WARN, INFO, DEBUG)\n", arg1);
+        return;
+    }
+    if (strcmp(action, "GET_LOG_LEVEL") == 0) {
+        snprintf(response, resp_size, "LOG_LEVEL=%s\n", log_level_to_string(log_get_level()));
+        return;
     }
 
     /* --- STATUS --- */

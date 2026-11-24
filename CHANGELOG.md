@@ -6,6 +6,21 @@ Programs and services were named `dudes-control-center-*` before 1.19.0 (for exa
 
 ## [Unreleased]
 
+## [1.34.3] - 2026-11-24
+
+### Changed
+- **Quieter logs**: routine messages are written only at DEBUG level, so the logs keep days of real events instead of a few hours. Measured before: the fan daemon wrote a line every 5 s (about 2.3 MB a day), the CPU daemon logged the GUI's STATUS request every 5 s (about 1.5 MB a day), and the GUI log filled its 1 MB in about 4 hours with the window open (per-core values, curve points, refresh timer, every daemon reply). The volume was never a risk for an SSD (a few MB a day; each log is capped at 6 MB), but it pushed useful messages out of the rotation.
+  - Fan daemon: the per-step "Auto mode: CPU=… target=…" line and routine fan speed adjustments are DEBUG; mode, profile and safety changes stay at INFO.
+  - CPU daemon: queries (STATUS, PING, GET_…, LIST_…) are logged at DEBUG; commands that change something stay at INFO.
+  - GUI: its old step-by-step trace output is DEBUG; events (daemon connections, profile, keyboard and settings changes, results of actions) are logged at INFO, and messages with errors or warnings keep their level.
+
+### Added
+- **`dcc-cpu-cli --log-level <ERROR|WARN|INFO|DEBUG>`** and **`--log-level-get`**, like `dcc-fan-cli` (daemon commands `SET_LOG_LEVEL|<level>` and `GET_LOG_LEVEL`).
+- Tests: CPU daemon log level and which commands are logged at which level; GUI trace output at DEBUG, events at INFO, errors still logged.
+
+### Documentation
+- README *Logs*: what is logged at which level and how to turn on the details. Man pages `dcc-cpu-cli(1)`, `dcc-fan-daemon(8)` and `dcc-gui(1)` updated.
+
 ## [1.34.2] - 2026-11-24
 
 ### Changed
@@ -891,7 +906,8 @@ Programs and services were named `dudes-control-center-*` before 1.19.0 (for exa
 - Unix socket IPC between GUI and daemon
 - Watchdog timer and fail-safe mode in daemon
 
-[Unreleased]: https://github.com/dudewayne/Dudes-Control-Center/compare/v1.34.2...HEAD
+[Unreleased]: https://github.com/dudewayne/Dudes-Control-Center/compare/v1.34.3...HEAD
+[1.34.3]: https://github.com/dudewayne/Dudes-Control-Center/compare/v1.34.2...v1.34.3
 [1.34.2]: https://github.com/dudewayne/Dudes-Control-Center/compare/v1.34.1...v1.34.2
 [1.34.1]: https://github.com/dudewayne/Dudes-Control-Center/compare/v1.34.0...v1.34.1
 [1.34.0]: https://github.com/dudewayne/Dudes-Control-Center/compare/v1.33.0...v1.34.0

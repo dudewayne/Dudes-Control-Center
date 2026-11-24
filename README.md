@@ -130,6 +130,7 @@ dcc-cpu-cli --list-profiles
 dcc-cpu-cli --apply-profile 0
 dcc-cpu-cli --hard-limit 3.8 # GHz
 dcc-cpu-cli --hard-limit-get
+dcc-cpu-cli --log-level DEBUG
 
 dcc-kbd-cli                  # keyboard backlight status
 dcc-kbd-cli --on | --off
@@ -181,6 +182,8 @@ Each daemon logs the chosen path once: `[CONFIG] Using ...`.
 | CPU daemon | `/var/log/dudes-control-center/CPU_DAEMON.log` |
 | Keyboard daemon | `/var/log/dudes-control-center/KBD_BACKLIGHT_DAEMON.log` |
 | Hard-limit enforcer (errors only) | `/var/log/dudes-control-center/HARD_LIMIT_ENFORCER.log` |
+
+The logs record events at the normal level (INFO): starts, connections, profile and settings changes, errors and warnings. Routine messages, such as every 5-second fan control step, the GUI's status queries and each daemon reply, are written only at DEBUG level. Each log rotates at 1 MB and keeps 5 old files. For troubleshooting, turn on the details: `dcc-fan-cli --log-level DEBUG`, `dcc-cpu-cli --log-level DEBUG` (both until the daemon restarts; `--log-level INFO` switches back) and `dcc-gui --debug`.
 
 ### Sockets and access
 

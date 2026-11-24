@@ -1065,7 +1065,8 @@ static void fan_control_step(void) {
     int current = clamp(current_fan_duty, 0, 100);
     int diff = target_duty - current;
 
-    LOG_INFO("Auto mode: CPU=%d°C GPU=%d°C avg=%d°C target=%d%% current=%d%% diff=%d",
+    /* every control step (5 s): debug only (1.34.3) */
+    LOG_DEBUG("Auto mode: CPU=%d°C GPU=%d°C avg=%d°C target=%d%% current=%d%% diff=%d",
              cpu_temp, gpu_temp, avg_temp, target_duty, current, diff);
 
     /* Adaptive ramp control to prevent oscillation */
@@ -1085,7 +1086,7 @@ static void fan_control_step(void) {
 
     new_duty = clamp(new_duty, 0, 100);
     if (apply_fan_duty(new_duty) == 0) {
-        LOG_INFO("Setting fan duty to %d%% (target=%d%%, diff=%d)", new_duty, target_duty, diff);
+        LOG_DEBUG("Setting fan duty to %d%% (target=%d%%, diff=%d)", new_duty, target_duty, diff);   /* routine curve step (1.34.3) */
     }
 }
 
