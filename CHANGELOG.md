@@ -10,7 +10,12 @@ Programs and services were named `dudes-control-center-*` before 1.19.0 (for exa
 
 ### Changed
 - **New About logos for dark and light mode**: the About tab shows `logo_dark.png` or `logo_light.png` to match the window's appearance and swaps them when the appearance or the desktop theme changes. Their solid backgrounds (near-black and white) were made transparent with soft edges, so the logo sits directly on the window in any theme's gray. They replace the single `logo.png`; an older `logo.png` and the application icon remain fallbacks.
-- Tests: both logos load with transparent corners, and switching to light mode replaces the logo; `make deb-check` checks that both are installed.
+- **Application icon from the new logo** (menu, window, tray): cut from the new dark-mode logo with a transparent background, installed in 256, 128, 64 and 48 px (`/usr/share/icons/hicolor`) so menus and panels get sharp small versions.
+
+### Fixed
+- The window icon is taken from the icon theme; it was loaded from a relative path (`DudesControlCenter.png`) that only existed when the GUI was started in the source folder.
+
+- Tests: both logos load with transparent corners, and switching to light mode replaces the logo; `make deb-check` checks that both logos and the four icon sizes are installed.
 
 ## [1.34.3] - 2026-11-24
 

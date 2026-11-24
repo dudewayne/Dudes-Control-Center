@@ -8704,11 +8704,18 @@ static GtkWidget *create_main_window(AppData *app) {
     app->window = gtk_window_new(GTK_WINDOW_TOPLEVEL);
     gtk_window_set_title(GTK_WINDOW(app->window), _("Dudes Control Center"));
     
-    /* Set application icon */
-    GdkPixbuf *pixbuf = gdk_pixbuf_new_from_file("DudesControlCenter.png", NULL);
-    if (pixbuf) {
-        gtk_window_set_icon(GTK_WINDOW(app->window), pixbuf);
-        g_object_unref(pixbuf);
+    /* Window icon from the icon theme (hicolor, all sizes), like the menu entry;
+     * the old relative "DudesControlCenter.png" only worked from the source
+     * folder (1.34.4) */
+    if (gtk_icon_theme_has_icon(gtk_icon_theme_get_default(), "dudes-control-center")) {
+        gtk_window_set_icon_name(GTK_WINDOW(app->window), "dudes-control-center");
+    } else {
+        GdkPixbuf *pixbuf = gdk_pixbuf_new_from_file("/usr/share/icons/hicolor/256x256/apps/dudes-control-center.png", NULL);
+        if (!pixbuf) pixbuf = gdk_pixbuf_new_from_file("DudesControlCenter.png", NULL);
+        if (pixbuf) {
+            gtk_window_set_icon(GTK_WINDOW(app->window), pixbuf);
+            g_object_unref(pixbuf);
+        }
     }
     
     /* Handle window close button - minimize to tray instead of closing */

@@ -44,6 +44,12 @@ check "grep -q '^Depends:.*librsvg2-common' '$TMP/ctrl/control'" "package depend
 for m in dark light; do
     check "[ -s '$R/usr/share/dudes-control-center/logo_$m.png' ]" "About page logo for $m mode installed"
 done
+# Application icon in four sizes (1.34.4); PNG width/height are bytes 16-23
+pngsize() { od -An -tu1 -j16 -N8 "$1" | awk '{ printf "%d %d", $1*16777216+$2*65536+$3*256+$4, $5*16777216+$6*65536+$7*256+$8 }'; }
+for n in 256 128 64 48; do
+    f="$R/usr/share/icons/hicolor/${n}x${n}/apps/dudes-control-center.png"
+    check "[ -s '$f' ] && [ \"\$(pngsize '$f')\" = '$n $n' ]" "application icon ${n}x${n} installed with the right size"
+done
 
 # Help tab (1.34.0): README, Changelog and License uncompressed in the doc folder
 for f in README.md CHANGELOG.md LICENSE; do

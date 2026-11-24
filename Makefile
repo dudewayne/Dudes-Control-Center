@@ -127,6 +127,9 @@ deb: all
 	@cp dudes-control-center.desktop $(DEB_BUILD_DIR)/$(PACKAGE)-$(VERSION)/usr/share/applications/
 	@cp DudesControlCenter.png $(DEB_BUILD_DIR)/$(PACKAGE)-$(VERSION)/usr/share/pixmaps/ 2>/dev/null || true
 	@cp DudesControlCenter.png $(DEB_BUILD_DIR)/$(PACKAGE)-$(VERSION)/usr/share/icons/hicolor/256x256/apps/dudes-control-center.png 2>/dev/null || true
+	@# Smaller icon sizes for menus and panels (1.34.4)
+	@for n in 128 64 48; do mkdir -p $(DEB_BUILD_DIR)/$(PACKAGE)-$(VERSION)/usr/share/icons/hicolor/$${n}x$${n}/apps && \
+	  cp resources/icons/dudes-control-center_$$n.png $(DEB_BUILD_DIR)/$(PACKAGE)-$(VERSION)/usr/share/icons/hicolor/$${n}x$${n}/apps/dudes-control-center.png; done
 	@cp dcc-fan-daemon.service $(DEB_BUILD_DIR)/$(PACKAGE)-$(VERSION)/etc/systemd/system/
 	@cp dcc-cpu-daemon.service $(DEB_BUILD_DIR)/$(PACKAGE)-$(VERSION)/etc/systemd/system/
 	@cp dcc-kbd-daemon.service $(DEB_BUILD_DIR)/$(PACKAGE)-$(VERSION)/etc/systemd/system/
@@ -225,6 +228,9 @@ install: all
 	systemctl restart dcc-kbd-daemon || systemctl start dcc-kbd-daemon
 	@echo "Installing desktop launcher..."
 	install -m 644 dudes-control-center.desktop /usr/share/applications/
+	install -D -m 644 DudesControlCenter.png /usr/share/icons/hicolor/256x256/apps/dudes-control-center.png
+	for n in 128 64 48; do install -D -m 644 resources/icons/dudes-control-center_$$n.png /usr/share/icons/hicolor/$${n}x$${n}/apps/dudes-control-center.png; done
+	gtk-update-icon-cache -q /usr/share/icons/hicolor 2>/dev/null || true
 	update-desktop-database >/dev/null 2>&1 || true
 	@echo "Installation complete!"
 
