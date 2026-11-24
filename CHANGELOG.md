@@ -17,6 +17,9 @@ Programs and services were named `dudes-control-center-*` before 1.19.0 (for exa
 ### Changed
 - **Faster keyboard updates (`ite_829x`)**: every color write sent the unchanged keyboard brightness as a second USB message. The driver now sends it only when it changes, which doubles the rate: all 120 keys 19.5 frames per second (before 9.7), a 20-key zone 116 (before 58), measured on the X58xWNx. The daemon writes only keys whose color changed.
 
+### Fixed
+- `dcc-fan-cli` without root printed "port 0x62X" in its error message; the stray "X" is gone.
+
 ### Documentation
 - README screenshots of all tabs renewed (effect controls, new logo, Help tab in the tab bar), and a screenshot of the Help tab added.
 - README: the fan status (`dcc-fan-cli` without options) needs root like `--set` and `--auto`; CI also runs `make man-check` and `make deb-check`; effects in the components table, the quick start and the keyboard daemon's commands (`SET_EFFECT`); `make man-check` in the build steps; the package's man pages and Help tab files in the install list.

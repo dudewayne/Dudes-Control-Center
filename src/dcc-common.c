@@ -38,11 +38,11 @@ static int ec_io_wait(const uint32_t port, const uint32_t flag, const char value
 
 int ec_init(void) {
     if (ioperm(EC_DATA, 1, 1) != 0) {
-        fprintf(stderr, "Error: Cannot set I/O permission for port 0x%XX\n", EC_DATA);
+        fprintf(stderr, "Error: Cannot set I/O permission for port 0x%X\n", EC_DATA);
         return -1;
     }
     if (ioperm(EC_SC, 1, 1) != 0) {
-        fprintf(stderr, "Error: Cannot set I/O permission for port 0x%XX\n", EC_SC);
+        fprintf(stderr, "Error: Cannot set I/O permission for port 0x%X\n", EC_SC);
         return -1;
     }
     return 0;
