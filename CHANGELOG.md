@@ -19,6 +19,7 @@ Programs and services were named `dudes-control-center-*` before 1.19.0 (for exa
 
 ### Documentation
 - README screenshots of all tabs renewed (effect controls, new logo, Help tab in the tab bar), and a screenshot of the Help tab added.
+- README: the fan status (`dcc-fan-cli` without options) needs root like `--set` and `--auto`; CI also runs `make man-check` and `make deb-check`; effects in the components table, the quick start and the keyboard daemon's commands (`SET_EFFECT`); `make man-check` in the build steps; the package's man pages and Help tab files in the install list.
 
 ## [1.34.4] - 2026-11-24
 

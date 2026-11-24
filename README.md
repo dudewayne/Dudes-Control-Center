@@ -21,7 +21,7 @@ A control center for Clevo-based notebooks on Linux: fan control through the Emb
 |---|---|
 | `dcc-fan-daemon` | Fan control via EC I/O ports: fan curves (profiles), manual speed, safety overrides. systemd service with watchdog. |
 | `dcc-cpu-daemon` | CPU power modes (governor + energy preference), per-core frequency profiles, a hard frequency limit. |
-| `dcc-kbd-daemon` | Keyboard backlight: whole-keyboard and per-key colors, brightness, keyboard profiles. |
+| `dcc-kbd-daemon` | Keyboard backlight: whole-keyboard and per-key colors, effects (Breathing, Rainbow, Wave), brightness, keyboard profiles. |
 | `ite_829x` kernel module (DKMS) | Driver for the ITE 829x keyboard controller: one RGB LED class device per key (`rgb:kbd_backlight*`). Written by **TUXEDO Computers** as part of [tuxedo-drivers](https://github.com/tuxedocomputers/tuxedo-drivers) (GPL-2.0-or-later), modified for this project; see [drivers/README.md](drivers/README.md). |
 | `dcc-hard-limit-enforcer` | systemd timer (every 10 s) that re-applies the CPU hard limit independently of the CPU daemon. |
 | `dcc-gui` | GTK3 GUI for everything above, with system tray icon. |
@@ -39,6 +39,7 @@ sudo dpkg -i dudes-control-center_<version>_amd64.deb
 
 The package:
 - installs the daemons, GUI, CLIs and systemd units, and starts the services
+- installs the man pages (`man dudes-control-center`) and, for the GUI's Help tab, the README, changelog and license in `/usr/share/doc/dudes-control-center/`
 - builds and loads the `ite_829x` keyboard module with DKMS (signed with your MOK key if Secure Boot is set up)
 - creates the group `dudes-control-center` and adds your user to it (only its members and root may control the daemons)
 - writes your user name to `/etc/dudes-control-center/user`, so the root daemons use your `~/.config/dudes-control-center/profiles.json` (see [Configuration](#configuration))
@@ -50,7 +51,7 @@ Upgrades from versions before 1.19.0 (old `dudes-control-center-*` names) are ha
 ## Quick start
 
 1. Open **Dudes Control Center** from the application menu (or run `dcc-gui`); it starts in the system tray, a left click on the tray icon shows the window.
-2. **Keyboard Backlight** tab: run the **LED Wizard** once so per-key colors hit the right keys (a built-in mapping is used until then), then pick a color or build zones.
+2. **Keyboard Backlight** tab: run the **LED Wizard** once so per-key colors hit the right keys (a built-in mapping is used until then), then pick a color, build zones or choose an effect.
 3. **Fan Profiles** and **CPU Profiles** tabs: choose a profile and press **Activate**; the curve and the frequencies can be edited and saved.
 4. **Settings** tab: language, keyboard layout, dark/light appearance, and switches for parts that do not work on your laptop.
 
@@ -121,7 +122,7 @@ Click a picture for the full size.
 ## Command line
 
 ```bash
-dcc-fan-cli                  # temperatures and fan status
+sudo dcc-fan-cli             # temperatures and fan status
 sudo dcc-fan-cli --set 40    # fan speed 0,10,...,100 (0 = fans off)
 sudo dcc-fan-cli --auto      # automatic, temperature-based
 dcc-fan-cli --log-level DEBUG
@@ -143,7 +144,7 @@ dcc-kbd-cli --profile "Gaming"
 dcc-kbd-cli --show-profile "Gaming"
 ```
 
-`--help` shows all options; every program has a man page (`man dcc-kbd-cli`, ...), and `man dudes-control-center` gives an overview of all parts. `--set` and `--auto` access the EC directly and need root. `dcc-kbd-cli` talks to the keyboard daemon like the GUI does (members of the `dudes-control-center` group).
+`--help` shows all options; every program has a man page (`man dcc-kbd-cli`, ...), and `man dudes-control-center` gives an overview of all parts. The fan status, `--set` and `--auto` access the EC directly and need root. `dcc-kbd-cli` talks to the keyboard daemon like the GUI does (members of the `dudes-control-center` group).
 
 ## Safety features
 
@@ -194,7 +195,7 @@ The logs record events at the normal level (INFO): starts, connections, profile 
   ```bash
   sudo usermod -aG dudes-control-center <user>
   ```
-- Text protocol, one command per line, several clients at once. Examples: fan daemon `STATUS`, `LIST_PROFILES`, `SET_MANUAL <pct>`, `SET_AUTO <0|1>`; CPU daemon `STATUS`, `LIST_GOVERNORS`, `APPLY_CUSTOM_PROFILE|<n>`, `GET_HARD_LIMIT`; keyboard daemon `STATUS`, `SET_KEYS_COLOR::<R,G,B>::<led,led,...|all>`, `GET_ZONES`, `LOAD_PROFILE::<name>`.
+- Text protocol, one command per line, several clients at once. Examples: fan daemon `STATUS`, `LIST_PROFILES`, `SET_MANUAL <pct>`, `SET_AUTO <0|1>`; CPU daemon `STATUS`, `LIST_GOVERNORS`, `APPLY_CUSTOM_PROFILE|<n>`, `GET_HARD_LIMIT`; keyboard daemon `STATUS`, `SET_KEYS_COLOR::<R,G,B>::<led,led,...|all>`, `SET_EFFECT::<effect>`, `GET_ZONES`, `LOAD_PROFILE::<name>`.
 
 ## Building from source
 
@@ -203,10 +204,11 @@ sudo apt install build-essential pkg-config libgtk-3-dev libcjson-dev python3 ge
 make -j$(nproc)          # all applications
 make deb -j$(nproc)      # Debian package in build-deb/
 make test -j$(nproc)     # test suite
+make man-check           # man pages render without warnings (needs groff)
 make deb-check           # check the built package
 ```
 
-`make test` builds the tests with AddressSanitizer and UBSan and runs them without root or hardware: the daemons run against a fake sysfs (CPU frequencies, 120 keyboard LEDs) in temporary directories, so it is safe on a machine with the daemons installed. GitHub Actions runs `make all`, `make test` and `make deb` on every push and pull request. Details: [tests/README.md](tests/README.md).
+`make test` builds the tests with AddressSanitizer and UBSan and runs them without root or hardware: the daemons run against a fake sysfs (CPU frequencies, 120 keyboard LEDs) in temporary directories, so it is safe on a machine with the daemons installed. GitHub Actions runs `make all`, `make test`, `make man-check`, `make deb` and `make deb-check` on every push and pull request. Details: [tests/README.md](tests/README.md).
 
 `sudo make install` installs the programs and systemd units without a package (no DKMS module, no `/etc/dudes-control-center/user`; the daemons then use the first member of the group). The `.deb` is the recommended way.
 
