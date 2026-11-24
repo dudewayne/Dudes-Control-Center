@@ -115,8 +115,8 @@ Click a picture for the full size.
 | [![CPU Profiles tab](docs/screenshots/cpu-profiles.png)](docs/screenshots/cpu-profiles.png) | [![Keyboard Backlight tab](docs/screenshots/keyboard-backlight.png)](docs/screenshots/keyboard-backlight.png) |
 | **Settings** | **Logs** |
 | [![Settings tab](docs/screenshots/settings.png)](docs/screenshots/settings.png) | [![Logs tab](docs/screenshots/logs.png)](docs/screenshots/logs.png) |
-| **About** | |
-| [![About tab](docs/screenshots/about.png)](docs/screenshots/about.png) | |
+| **Help** | **About** |
+| [![Help tab](docs/screenshots/help.png)](docs/screenshots/help.png) | [![About tab](docs/screenshots/about.png)](docs/screenshots/about.png) |
 
 ## Command line
 

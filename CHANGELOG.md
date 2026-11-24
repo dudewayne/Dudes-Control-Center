@@ -15,7 +15,10 @@ Programs and services were named `dudes-control-center-*` before 1.19.0 (for exa
 - Tests: effects drawn on the fake LEDs (Rainbow changes over time, Wave per column, Breathing only in its zone, nothing while switched off), saved and loaded with a profile, invalid effects rejected, the CLI option; the GUI's effect parsing, encoding and unsaved-change detection.
 
 ### Changed
-- **Faster keyboard updates (`ite_829x`)**: every color write sent the unchanged keyboard brightness as a second USB message. The driver now sends it only when it changes, which should about double the rate of full-keyboard updates (measured before: 9.7 frames per second for all 120 keys, 58 for a 20-key zone). The daemon writes only keys whose color changed.
+- **Faster keyboard updates (`ite_829x`)**: every color write sent the unchanged keyboard brightness as a second USB message. The driver now sends it only when it changes, which doubles the rate: all 120 keys 19.5 frames per second (before 9.7), a 20-key zone 116 (before 58), measured on the X58xWNx. The daemon writes only keys whose color changed.
+
+### Documentation
+- README screenshots of all tabs renewed (effect controls, new logo, Help tab in the tab bar), and a screenshot of the Help tab added.
 
 ## [1.34.4] - 2026-11-24
 
