@@ -663,6 +663,28 @@ int main(int argc, char **argv) {
         g_free(url);   /* owned by the caller (the widget), freed exactly once */
     }
 
+    /* A: About logo follows the appearance (v1.34.4), transparent background */
+    if (gtk_init_check(NULL, NULL)) {
+        GdkPixbuf *d = about_logo_load(1), *l = about_logo_load(0);
+        CHECK(d && l && gdk_pixbuf_get_width(d) == 230 && gdk_pixbuf_get_has_alpha(d) && gdk_pixbuf_get_has_alpha(l),
+              "A: dark and light About logos load at 230 px with alpha");
+        if (d && l) {
+            const guchar *pd = gdk_pixbuf_get_pixels(d), *pl = gdk_pixbuf_get_pixels(l);
+            CHECK(pd[3] == 0 && pl[3] == 0, "A: logo corners are transparent (no square on the window)");
+        }
+        about_logo_dark = 1;
+        GtkWidget *about = create_about_page();
+        g_object_ref_sink(about);
+        GdkPixbuf *shown = gtk_image_get_pixbuf(GTK_IMAGE(about_logo_image));
+        about_logo_set(0);
+        GdkPixbuf *shown2 = gtk_image_get_pixbuf(GTK_IMAGE(about_logo_image));
+        CHECK(shown && shown2 && shown2 != shown, "A: switching to light mode replaces the About logo");
+        g_object_unref(about);
+        about_logo_image = NULL;
+        if (d) g_object_unref(d);
+        if (l) g_object_unref(l);
+    }
+
     /* H: Help tab (v1.34.0): Markdown shown with text tags */
     if (gtk_init_check(NULL, NULL)) {
         GtkTextBuffer *b = gtk_text_buffer_new(NULL);

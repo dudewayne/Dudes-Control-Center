@@ -41,7 +41,9 @@ for c in de uk es jp kr; do
 done
 check "grep -q '^Depends:.*librsvg2-common' '$TMP/ctrl/control'" "package depends on the SVG loader (librsvg2-common)"
 
-check "[ -s '$R/usr/share/dudes-control-center/logo.png' ]" "About page logo installed"
+for m in dark light; do
+    check "[ -s '$R/usr/share/dudes-control-center/logo_$m.png' ]" "About page logo for $m mode installed"
+done
 
 # Help tab (1.34.0): README, Changelog and License uncompressed in the doc folder
 for f in README.md CHANGELOG.md LICENSE; do

@@ -6,6 +6,12 @@ Programs and services were named `dudes-control-center-*` before 1.19.0 (for exa
 
 ## [Unreleased]
 
+## [1.34.4] - 2026-11-24
+
+### Changed
+- **New About logos for dark and light mode**: the About tab shows `logo_dark.png` or `logo_light.png` to match the window's appearance and swaps them when the appearance or the desktop theme changes. Their solid backgrounds (near-black and white) were made transparent with soft edges, so the logo sits directly on the window in any theme's gray. They replace the single `logo.png`; an older `logo.png` and the application icon remain fallbacks.
+- Tests: both logos load with transparent corners, and switching to light mode replaces the logo; `make deb-check` checks that both are installed.
+
 ## [1.34.3] - 2026-11-24
 
 ### Changed
@@ -906,7 +912,8 @@ Programs and services were named `dudes-control-center-*` before 1.19.0 (for exa
 - Unix socket IPC between GUI and daemon
 - Watchdog timer and fail-safe mode in daemon
 
-[Unreleased]: https://github.com/dudewayne/Dudes-Control-Center/compare/v1.34.3...HEAD
+[Unreleased]: https://github.com/dudewayne/Dudes-Control-Center/compare/v1.34.4...HEAD
+[1.34.4]: https://github.com/dudewayne/Dudes-Control-Center/compare/v1.34.3...v1.34.4
 [1.34.3]: https://github.com/dudewayne/Dudes-Control-Center/compare/v1.34.2...v1.34.3
 [1.34.2]: https://github.com/dudewayne/Dudes-Control-Center/compare/v1.34.1...v1.34.2
 [1.34.1]: https://github.com/dudewayne/Dudes-Control-Center/compare/v1.34.0...v1.34.1

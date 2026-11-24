@@ -7971,9 +7971,34 @@ static GtkWidget *create_help_page(void) {
     return box;
 }
 
-#ifndef DCC_LOGO_PATH
-#define DCC_LOGO_PATH "/usr/share/dudes-control-center/logo.png"
+#ifndef DCC_LOGO_DIR
+#define DCC_LOGO_DIR "/usr/share/dudes-control-center"
 #endif
+
+/* About logo (1.34.4): logo_dark.png / logo_light.png for the window's
+ * appearance, swapped when it changes (appearance_refresh) */
+static GtkWidget *about_logo_image;
+static int about_logo_dark = -1;
+
+static GdkPixbuf *about_logo_load(int dark) {
+    gchar *paths[3] = {
+        g_build_filename(DCC_LOGO_DIR, dark ? "logo_dark.png" : "logo_light.png", NULL),
+        g_build_filename(DCC_LOGO_DIR, "logo.png", NULL),                /* before 1.34.4 */
+        g_strdup("/usr/share/pixmaps/DudesControlCenter.png") };
+    GdkPixbuf *pb = NULL;
+    for (int i = 0; i < 3 && !pb; i++) pb = gdk_pixbuf_new_from_file_at_scale(paths[i], 230, 230, TRUE, NULL);
+    for (int i = 0; i < 3; i++) g_free(paths[i]);
+    return pb;
+}
+
+static void about_logo_set(int dark) {
+    if (dark == about_logo_dark && about_logo_image && gtk_image_get_pixbuf(GTK_IMAGE(about_logo_image))) return;
+    about_logo_dark = dark;
+    if (!about_logo_image) return;
+    GdkPixbuf *pb = about_logo_load(dark);
+    gtk_image_set_from_pixbuf(GTK_IMAGE(about_logo_image), pb);
+    if (pb) g_object_unref(pb);
+}
 
 static GtkWidget *create_about_page(void) {
     /* Layout (1.29.1): name and version on top, the logo below it in the
@@ -8011,16 +8036,9 @@ static GtkWidget *create_about_page(void) {
     gtk_box_pack_start(GTK_BOX(top), left, TRUE, TRUE, 0);
 
     /* Middle: the logo */
-    GtkWidget *logo = NULL;
-    const char *logo_paths[] = { DCC_LOGO_PATH, "/usr/share/pixmaps/DudesControlCenter.png" };
-    for (int i = 0; i < 2 && !logo; i++) {
-        GdkPixbuf *pb = gdk_pixbuf_new_from_file_at_scale(logo_paths[i], 230, 230, TRUE, NULL);
-        if (pb) {
-            logo = gtk_image_new_from_pixbuf(pb);
-            g_object_unref(pb);
-        }
-    }
-    if (!logo) logo = gtk_label_new("");
+    GtkWidget *logo = gtk_image_new();
+    about_logo_image = logo;
+    about_logo_set(about_logo_dark > 0);
     gtk_widget_set_valign(logo, GTK_ALIGN_START);
     gtk_box_pack_start(GTK_BOX(top), logo, TRUE, TRUE, 0);
 
@@ -9858,6 +9876,7 @@ static void appearance_refresh(AppData *app) {
         g_print("[GUI] Appearance: window is %s\n", dark ? "dark" : "light");
         kbd_load_layout_picture(app);
         if (app->curve_graph) gtk_widget_queue_draw(app->curve_graph);
+        about_logo_set(dark);
     }
     settings_update_appearance_note(app);
 }
@@ -9895,6 +9914,7 @@ static void appearance_init(AppData *app) {
     cJSON_Delete(json);
     appearance_apply_theme(app->appearance);
     app->is_dark = appearance_detect_dark(NULL);
+    about_logo_set(app->is_dark);   /* before the About page is built */
     const char *key = NULL;
     GSettings *desk = appearance_desktop_settings(&key);
     if (desk && key) {
