@@ -189,13 +189,14 @@ static int handle_command(const char *cmd, char *response, size_t resp_size) {
             "MODE=%d\n"
             "IS_ON=%d\n"
             "BRIGHTNESS=%d\n"
-            "BRIGHTNESS_MAX=%d\n",
+            "BRIGHTNESS_MAX=%d\n"
+            "EFFECTS=%d\n",
             led_count,
             state->global_r,
             state->global_g,
             state->global_b,
             state->mode,
-            state->is_on, kbd_hw_brightness_get(), kbd_hw_brightness_max());
+            state->is_on, kbd_hw_brightness_get(), kbd_hw_brightness_max(), kbd_fx_running());
         return 0;
     }
 
@@ -706,6 +707,24 @@ static int handle_command(const char *cmd, char *response, size_t resp_size) {
         return 0;
     }
 
+    /* Command: SET_EFFECT::<effect> (1.35.0) - every zone and the base color
+     * get this effect ("static", "breathing:5", "rainbow:5", "wave:5:right");
+     * live only, like SET_KEYS_COLOR; SAVE_PROFILE stores it */
+    if (strcmp(action, "SET_EFFECT") == 0) {
+        KbdEffect fx;
+        if (kbd_fx_parse(arg1, &fx) != 0) {
+            snprintf(response, resp_size, "ERROR Invalid effect: %s (static, breathing:N, rainbow:N, wave:N:right|left|down|up; N = 1-10)\n", arg1);
+            return -1;
+        }
+        kbd_led_set_power(1);
+        kbd_led_set_mode(KBD_LED_MODE_STATIC);
+        kbd_fx_set_all(&fx);
+        char t[32];
+        kbd_fx_format(&fx, t, sizeof t);
+        snprintf(response, resp_size, "OK Effect %s\n", t);
+        return 0;
+    }
+
     /* Command: RESTORE_ACTIVE - live colors back to the active profile */
     if (strcmp(action, "RESTORE_ACTIVE") == 0) {
         kbd_restore_active(0);
@@ -971,6 +990,19 @@ int main(int argc, char *argv[]) {
         struct timeval timeout;
         timeout.tv_sec = pending_unterminated ? 0 : 1;
         timeout.tv_usec = pending_unterminated ? 50000 : 0;
+        /* Effects (1.35.0): wake up for the next frame. A frame that took
+         * longer than the frame time just makes the next one start at once;
+         * clients are still served between frames. */
+        static double next_frame = 0;
+        int animating = kbd_fx_running() && kbd_hw_brightness_cached() != 0;
+        if (animating) {
+            double wait = next_frame - mono_now();
+            if (wait < 0) wait = 0;
+            if (wait < timeout.tv_sec + timeout.tv_usec / 1e6) {
+                timeout.tv_sec = (time_t)wait;
+                timeout.tv_usec = (suseconds_t)((wait - (double)timeout.tv_sec) * 1e6);
+            }
+        }
 
         int activity = select(max_fd + 1, &read_fds, NULL, NULL, &timeout);
         if (g_got_sighup) {
@@ -995,6 +1027,11 @@ int main(int argc, char *argv[]) {
 
         double now = mono_now();
         for (int i = 0; i < KBD_MAX_CLIENTS; i++) client_flush_unterminated(&g_clients[i], now);
+
+        if (animating && kbd_fx_running() && now >= next_frame) {
+            kbd_fx_frame();
+            next_frame = now + KBD_FX_FRAME_SEC;
+        }
 
         /* Notice brightness changes made outside the daemon (desktop slider) */
         static double last_poll = 0;

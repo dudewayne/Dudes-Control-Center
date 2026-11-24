@@ -228,6 +228,49 @@ try:
     check(c[6] == (0, 255, 0) and c[119] == (0, 0, 255) and c[50] == (255, 255, 255),
           "TURN_ON restores the per-key colors instead of plain white")
 
+    # animated effects (1.35.0): drawn by the daemon's main loop
+    r = ask(s, "PREVIEW::0,0,0@rainbow:10::")
+    c1 = colors(); time.sleep(0.4); c2 = colors()
+    check(r.startswith("OK") and len(set(c1)) == 1 and c1 != c2,
+          "Rainbow: all keys one color, changing over time")
+    check("BASE color=0,0,0 effect=rainbow:10" in ask(s, "GET_ZONES"), "GET_ZONES shows the base effect")
+    check("EFFECTS=1" in ask(s, "STATUS"), "STATUS reports a running effect")
+    ask(s, "PREVIEW::0,0,0@wave:10:right::")
+    time.sleep(0.15)
+    c = colors()
+    check(c[0] == c[20] == c[100] and c[0] != c[10], "Wave: one color per column, different across the keyboard")
+    ask(s, "PREVIEW::0,0,50::Z|255,0,0@breathing:10|5")
+    seen = set()
+    for _ in range(12):
+        seen.add(colors()[5]); time.sleep(0.05)
+    base_ok = colors()[6] == (0, 0, 50)
+    check(len(seen) > 2 and all(g == 0 and b == 0 for _, g, b in seen) and base_ok,
+          f"Breathing fades only its zone's color ({sorted(seen)[:3]}...)")
+    check(ask(s, "PREVIEW::0,0,0@nope::").startswith("ERROR") and
+          ask(s, "PREVIEW::-::Z|1,2,3@wave:11|0").startswith("ERROR"), "invalid effect or speed rejected")
+    ask(s, "CREATE_PROFILE::Fx")
+    ask(s, "PREVIEW::1,2,3@wave:4:up::Z|9,9,9@breathing:2|0,1")
+    ask(s, "SAVE_PROFILE::Fx")
+    g = ask(s, "GET_PROFILE::Fx")
+    pj = [p for p in json.load(open("cfg/profiles.json"))["keyboard_profiles"]["profiles"] if p["name"] == "Fx"][0]
+    check("BASE color=1,2,3 effect=wave:4:up" in g and "color=9,9,9 effect=breathing:2 keys=2" in g and
+          pj["base"].get("effect") == "wave:4:up" and pj["zones"][0].get("effect") == "breathing:2",
+          "effects saved with the profile and read back")
+    ask(s, "LOAD_PROFILE::Start")
+    check("effect=" not in ask(s, "GET_ZONES") and "EFFECTS=0" in ask(s, "STATUS"),
+          "loading a static profile stops the effects")
+    ask(s, "LOAD_PROFILE::Fx")
+    check("effect=wave:4:up" in ask(s, "GET_ZONES"), "LOAD_PROFILE brings the saved effects back")
+    ask(s, "TURN_OFF")
+    time.sleep(0.15)
+    check(set(colors()) == {(0, 0, 0)} and "EFFECTS=0" in ask(s, "STATUS"), "no effect frames while the light is off")
+    ask(s, "TURN_ON")
+    r = ask(s, "SET_EFFECT::rainbow:3")
+    check(r.startswith("OK Effect rainbow:3") and "effect=rainbow:3" in ask(s, "GET_ZONES") and
+          ask(s, "SET_EFFECT::sparkle").startswith("ERROR"), "SET_EFFECT sets every zone and the base color")
+    ask(s, "DELETE_PROFILE::Fx")
+    ask(s, "LOAD_PROFILE::Start")
+
     # dcc-kbd-cli against this daemon (1.32.0)
     if cli:
         def run(*args):
@@ -244,6 +287,16 @@ try:
         check(rc == 0 and set(colors()) == {(0, 128, 255)}, "CLI: --color #RRGGBB")
         rc, out = run("--color", "300,0,0")
         check(rc == 1 and "invalid color" in out, "CLI: invalid color rejected without talking to the daemon")
+        rc, out = run("--effect", "wave:7:left")
+        check(rc == 0 and "effect wave:7:left" in out and "effect=wave:7:left" in ask(s, "GET_ZONES"),
+              "CLI: --effect sets an effect for the whole keyboard (v1.35.0)")
+        rc, out = run()
+        check("Effects:        running" in out, "CLI: status shows a running effect")
+        rc, out = run("--effect", "sparkle")
+        check(rc == 1, "CLI: unknown effect -> exit code 1")
+        rc, out = run("--effect", "wave::x")
+        check(rc == 1 and "invalid effect" in out, "CLI: malformed effect rejected without talking to the daemon")
+        ask(s, "LOAD_PROFILE::Start")
         rc, out = run("--list-profiles")
         check(rc == 0 and "* Start" in out and "  Empty" in out, "CLI: --list-profiles marks the active profile")
         rc, out = run("--show-profile", "Start")

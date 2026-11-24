@@ -52,6 +52,26 @@ typedef enum {
     KBD_LED_MODE_WAVE = 4
 } KbdLedMode;
 
+/* --- Animated effects (1.35.0) ---
+ * One effect per zone and for the base color, stored with the profile.
+ * Text form: "static", "breathing:<speed>", "rainbow:<speed>",
+ * "wave:<speed>:<right|left|down|up>"; speed 1 (slow) .. 10 (fast).
+ * Breathing fades the region's color; Rainbow cycles all its keys through
+ * the colors together; Wave runs a rainbow across the keyboard (LED n sits
+ * at row n / 20, column n % 20 of the controller's matrix, Esc = 0). */
+typedef enum { KBD_FX_STATIC = 0, KBD_FX_BREATHING, KBD_FX_RAINBOW, KBD_FX_WAVE, KBD_FX_COUNT } KbdFxType;
+typedef enum { KBD_FX_DIR_RIGHT = 0, KBD_FX_DIR_LEFT, KBD_FX_DIR_DOWN, KBD_FX_DIR_UP, KBD_FX_DIR_COUNT } KbdFxDir;
+typedef struct {
+    uint8_t type;       /* KbdFxType */
+    uint8_t speed;      /* 1..10 (0 = default) */
+    uint8_t dir;        /* KbdFxDir, Wave only */
+} KbdEffect;
+#define KBD_FX_SPEED_DEFAULT 5
+#define KBD_FX_SPEED_MAX 10
+#define KBD_MATRIX_COLUMNS 20
+#define KBD_MATRIX_ROWS 6
+#define KBD_FX_FRAME_SEC 0.05   /* aim for 20 frames per second */
+
 /* --- LED device structure --- */
 typedef struct {
     char name[KBD_LED_NAME_MAX];
@@ -77,6 +97,7 @@ typedef struct {
     int key_indices[KBD_MAX_KEYS_PER_ZONE]; /* LED indices in this zone */
     int num_keys;
     int is_preset;                      /* 1 if preset zone (don't save), 0 if user-created */
+    KbdEffect fx;                       /* animated effect (1.35.0), static = 0 */
 } KbdLedZone;
 
 /* --- Profile structure --- */
@@ -86,6 +107,7 @@ typedef struct {
     int num_zones;
     int has_base;                       /* base color for keys in no zone (1.24.0) */
     uint8_t base_r, base_g, base_b;
+    KbdEffect base_fx;                  /* effect of the base color (1.35.0) */
 } KbdLedProfile;
 
 /* --- Function prototypes for LED access --- */
@@ -108,6 +130,7 @@ int kbd_hw_brightness_max(void);
 int kbd_hw_brightness_get(void);            /* -1 if unreadable */
 int kbd_hw_brightness_set(int level);       /* also remembered for the next start */
 int kbd_hw_brightness_poll(void);           /* 1 if changed by someone else (remembered) */
+int kbd_hw_brightness_cached(void);         /* last known level (-1 unknown), no USB read */
 void kbd_hw_brightness_restore(void);       /* at start: last level, or the maximum */
 
 /* --- Utility functions --- */
@@ -161,6 +184,16 @@ int kbd_preview_set(const char *base, char *zones);   /* replace the live colors
 int kbd_profile_describe(const char *name, char *buffer, size_t buf_size);
 int kbd_restore_active(int light_on);     /* live colors = active profile */
 void kbd_set_active_profile_index(int idx); /* Set active keyboard profile index */
+
+/* --- Effects (1.35.0) --- */
+const char *kbd_fx_type_name(int type);
+const char *kbd_fx_dir_name(int dir);
+int kbd_fx_parse(const char *text, KbdEffect *fx);           /* 0 or -1 */
+void kbd_fx_format(const KbdEffect *fx, char *out, size_t size);
+void kbd_base_fx_set(const KbdEffect *fx);                    /* NULL = static */
+int kbd_fx_set_all(const KbdEffect *fx);   /* live: every zone and the base color */
+int kbd_fx_running(void);                  /* an effect is shown right now */
+void kbd_fx_frame(void);                   /* draw one frame (changed keys only) */
 
 /* Exposed global counters for logging */
 extern int g_num_zones;

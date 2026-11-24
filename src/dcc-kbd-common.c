@@ -9,6 +9,7 @@
 #include <stdarg.h>
 #include <stdlib.h>
 #include <string.h>
+#include <strings.h>
 #include <dirent.h>
 #include <sys/stat.h>
 #include <unistd.h>
@@ -34,6 +35,10 @@ int g_num_profiles = 0;
 /* Base color of the live state: keys that are in no zone (1.24.0) */
 static int g_base_set = 0;
 static uint8_t g_base_r, g_base_g, g_base_b;
+static KbdEffect g_base_fx;            /* effect of the base color (1.35.0) */
+/* Color last written to each LED, so effect frames send only changed keys */
+static uint8_t g_written[KBD_MAX_LEDS][3];
+static uint8_t g_written_ok[KBD_MAX_LEDS];
 static int g_active_profile_index = 0;
 /* old (directory order) LED index -> new (name order) index, from scan_leds() */
 static int g_led_old_to_new[KBD_MAX_LEDS];
@@ -159,9 +164,8 @@ static int scan_leds(KbdLedDevice *devices, int max_devices) {
     return count;
 }
 
-int set_led_color(const char *led_path, uint8_t r, uint8_t g, uint8_t b, int max_brightness) {
-    (void)max_brightness;   /* multi_intensity takes the raw 0-255 channel values */
-FILE *f = fopen(led_path, "w");
+static int led_write_raw(const char *led_path, uint8_t r, uint8_t g, uint8_t b) {
+    FILE *f = fopen(led_path, "w");
     if (!f) {
         LOG_ERROR("[KBD] Cannot open LED %s for writing: %s", led_path, strerror(errno));
         return -1;
@@ -177,6 +181,27 @@ FILE *f = fopen(led_path, "w");
     return (written > 0) ? 0 : -1;
 }
 
+/* Write by path (other code): the cache no longer knows the LED's color */
+int set_led_color(const char *led_path, uint8_t r, uint8_t g, uint8_t b, int max_brightness) {
+    (void)max_brightness;   /* multi_intensity takes the raw 0-255 channel values */
+    memset(g_written_ok, 0, sizeof g_written_ok);
+    return led_write_raw(led_path, r, g, b);
+}
+
+/* Write LED i; with !force only if its color changed since the last write */
+static int led_write_idx(int i, uint8_t r, uint8_t g, uint8_t b, int force) {
+    if (i < 0 || i >= g_led_state.num_leds || i >= KBD_MAX_LEDS) return -1;
+    if (!force && g_written_ok[i] && g_written[i][0] == r && g_written[i][1] == g && g_written[i][2] == b)
+        return 0;
+    if (led_write_raw(g_led_state.leds[i].path, r, g, b) != 0) {
+        g_written_ok[i] = 0;
+        return -1;
+    }
+    g_written[i][0] = r; g_written[i][1] = g; g_written[i][2] = b;
+    g_written_ok[i] = 1;
+    return 0;
+}
+
 int set_all_leds_color(uint8_t r, uint8_t g, uint8_t b) {
     g_led_state.global_r = r;
     g_led_state.global_g = g;
@@ -184,7 +209,7 @@ int set_all_leds_color(uint8_t r, uint8_t g, uint8_t b) {
 
     int success_count = 0;
     for (int i = 0; i < g_led_state.num_leds; i++) {
-        if (set_led_color(g_led_state.leds[i].path, r, g, b, g_led_state.leds[i].max_brightness) == 0) {
+        if (led_write_idx(i, r, g, b, 1) == 0) {
             g_led_state.leds[i].r = r;
             g_led_state.leds[i].g = g;
             g_led_state.leds[i].b = b;
@@ -209,7 +234,7 @@ int set_all_leds_with_brightness(uint8_t r, uint8_t g, uint8_t b) {
 
     int success_count = 0;
     for (int i = 0; i < g_led_state.num_leds; i++) {
-        if (set_led_color(g_led_state.leds[i].path, scaled_r, scaled_g, scaled_b, g_led_state.leds[i].max_brightness) == 0) {
+        if (led_write_idx(i, scaled_r, scaled_g, scaled_b, 1) == 0) {
             g_led_state.leds[i].r = scaled_r;
             g_led_state.leds[i].g = scaled_g;
             g_led_state.leds[i].b = scaled_b;
@@ -335,6 +360,10 @@ int kbd_hw_brightness_set(int level) {
     brightness_remember(level);
     LOG_INFO("[KBD] Keyboard brightness %d/%d", level, max);
     return 0;
+}
+
+int kbd_hw_brightness_cached(void) {
+    return g_hw_brightness_last;
 }
 
 int kbd_hw_brightness_poll(void) {
@@ -526,16 +555,28 @@ static void zbuf_add(char *buffer, size_t buf_size, size_t *offset, const char *
     if (*offset > buf_size - 1) *offset = buf_size - 1;
 }
 
+/* " effect=wave:5:right" for GET_ZONES / GET_PROFILE, empty when static */
+static void fx_token(const KbdEffect *fx, char *out, size_t size) {
+    if (fx->type == KBD_FX_STATIC) { out[0] = '\0'; return; }
+    char t[32];
+    kbd_fx_format(fx, t, sizeof t);
+    snprintf(out, size, " effect=%s", t);
+}
+
 int zone_list(char *buffer, size_t buf_size) {
     if (buf_size < 64) return -1;
     size_t offset = 0;
     zbuf_add(buffer, buf_size, &offset, "ZONES_START COUNT=%d\n", g_num_zones);
-    if (g_base_set)
-        zbuf_add(buffer, buf_size, &offset, "BASE color=%u,%u,%u\n", g_base_r, g_base_g, g_base_b);
+    char fxt[48];
+    if (g_base_set) {
+        fx_token(&g_base_fx, fxt, sizeof fxt);
+        zbuf_add(buffer, buf_size, &offset, "BASE color=%u,%u,%u%s\n", g_base_r, g_base_g, g_base_b, fxt);
+    }
 
     for (int i = 0; i < g_num_zones && offset + 256 < buf_size; i++) {
-        zbuf_add(buffer, buf_size, &offset, "ZONE %d name=%s color=%u,%u,%u keys=%d",
-                 i, g_zones[i].name, g_zones[i].r, g_zones[i].g, g_zones[i].b, g_zones[i].num_keys);
+        fx_token(&g_zones[i].fx, fxt, sizeof fxt);
+        zbuf_add(buffer, buf_size, &offset, "ZONE %d name=%s color=%u,%u,%u%s keys=%d",
+                 i, g_zones[i].name, g_zones[i].r, g_zones[i].g, g_zones[i].b, fxt, g_zones[i].num_keys);
         for (int k = 0; k < g_zones[i].num_keys && offset + 16 < buf_size; k++)
             zbuf_add(buffer, buf_size, &offset, " %d", g_zones[i].key_indices[k]);
         zbuf_add(buffer, buf_size, &offset, "\n");
@@ -549,6 +590,7 @@ void zone_clear_all(void) {
     g_num_zones = 0;
     memset(g_zones, 0, sizeof(g_zones));
     g_base_set = 0;
+    memset(&g_base_fx, 0, sizeof g_base_fx);
     LOG_INFO("[KBD] Cleared all zones - ready for new profile");
 }
 
@@ -750,47 +792,180 @@ static void apply_brightness_scale(uint8_t *r, uint8_t *g, uint8_t *b, uint8_t b
     }
 }
 
+/* ---------------------------------------------------------------------------
+ * Effects (1.35.0)
+ * ------------------------------------------------------------------------- */
+static const char *const fx_type_names[KBD_FX_COUNT] = { "static", "breathing", "rainbow", "wave" };
+static const char *const fx_dir_names[KBD_FX_DIR_COUNT] = { "right", "left", "down", "up" };
+
+const char *kbd_fx_type_name(int type) {
+    return type >= 0 && type < KBD_FX_COUNT ? fx_type_names[type] : "static";
+}
+
+const char *kbd_fx_dir_name(int dir) {
+    return dir >= 0 && dir < KBD_FX_DIR_COUNT ? fx_dir_names[dir] : "right";
+}
+
+/* "wave:5:left" -> fx; missing parts take defaults. -1 on unknown names. */
+int kbd_fx_parse(const char *text, KbdEffect *fx) {
+    KbdEffect f = { KBD_FX_STATIC, KBD_FX_SPEED_DEFAULT, KBD_FX_DIR_RIGHT };
+    if (!text || !*text) { *fx = f; return 0; }
+    char buf[64];
+    snprintf(buf, sizeof buf, "%s", text);
+    char *save = NULL, *part = strtok_r(buf, ":", &save);
+    int t = -1;
+    for (int i = 0; part && i < KBD_FX_COUNT; i++) if (strcasecmp(part, fx_type_names[i]) == 0) t = i;
+    if (t < 0) return -1;
+    f.type = (uint8_t)t;
+    if ((part = strtok_r(NULL, ":", &save)) != NULL) {
+        char *end = NULL;
+        long v = strtol(part, &end, 10);
+        if (end == part || *end || v < 1 || v > KBD_FX_SPEED_MAX) return -1;
+        f.speed = (uint8_t)v;
+    }
+    if ((part = strtok_r(NULL, ":", &save)) != NULL) {
+        int d = -1;
+        for (int i = 0; i < KBD_FX_DIR_COUNT; i++) if (strcasecmp(part, fx_dir_names[i]) == 0) d = i;
+        if (d < 0) return -1;
+        f.dir = (uint8_t)d;
+    }
+    *fx = f;
+    return 0;
+}
+
+void kbd_fx_format(const KbdEffect *fx, char *out, size_t size) {
+    int sp = fx->speed ? fx->speed : KBD_FX_SPEED_DEFAULT;
+    if (fx->type == KBD_FX_WAVE)
+        snprintf(out, size, "wave:%d:%s", sp, kbd_fx_dir_name(fx->dir));
+    else if (fx->type == KBD_FX_STATIC || fx->type >= KBD_FX_COUNT)
+        snprintf(out, size, "static");
+    else
+        snprintf(out, size, "%s:%d", kbd_fx_type_name(fx->type), sp);
+}
+
+void kbd_base_fx_set(const KbdEffect *fx) {
+    if (fx) g_base_fx = *fx;
+    else memset(&g_base_fx, 0, sizeof g_base_fx);
+}
+
+static double fx_now(void) {
+    struct timespec ts;
+    clock_gettime(CLOCK_MONOTONIC, &ts);
+    return (double)ts.tv_sec + ts.tv_nsec / 1e9;
+}
+
+static double fx_frac(double x) { return x - (double)(long long)x + (x < 0 && x != (double)(long long)x ? 1.0 : 0.0); }
+
+/* hue 0..1 at full saturation and value */
+static void fx_hue(double h, uint8_t rgb[3]) {
+    h = fx_frac(h) * 6.0;
+    int seg = (int)h;
+    double f = h - seg;
+    uint8_t up = (uint8_t)(f * 255.0 + 0.5), down = (uint8_t)((1.0 - f) * 255.0 + 0.5);
+    switch (seg) {
+    case 0:  rgb[0] = 255;  rgb[1] = up;   rgb[2] = 0;    break;
+    case 1:  rgb[0] = down; rgb[1] = 255;  rgb[2] = 0;    break;
+    case 2:  rgb[0] = 0;    rgb[1] = 255;  rgb[2] = up;   break;
+    case 3:  rgb[0] = 0;    rgb[1] = down; rgb[2] = 255;  break;
+    case 4:  rgb[0] = up;   rgb[1] = 0;    rgb[2] = 255;  break;
+    default: rgb[0] = 255;  rgb[1] = 0;    rgb[2] = down; break;
+    }
+}
+
+/* Color of LED i in a region with this color and effect at time t */
+static void fx_color(const KbdEffect *fx, const uint8_t col[3], int i, double t, uint8_t out[3]) {
+    double sp = fx->speed ? fx->speed : KBD_FX_SPEED_DEFAULT;
+    switch (fx->type) {
+    case KBD_FX_BREATHING: {
+        /* one breath takes 12 s at speed 1, 1.2 s at speed 10 */
+        double p = fx_frac(t * sp / 12.0);
+        double tri = p < 0.5 ? p * 2.0 : (1.0 - p) * 2.0;
+        double lvl = tri * tri * (3.0 - 2.0 * tri);          /* smooth in and out */
+        lvl = 0.06 + 0.94 * lvl;
+        for (int c = 0; c < 3; c++) out[c] = (uint8_t)(col[c] * lvl + 0.5);
+        break;
+    }
+    case KBD_FX_RAINBOW:
+        /* all keys together: once round the colors in 30 s (speed 1) .. 3 s (10) */
+        fx_hue(t * sp / 30.0, out);
+        break;
+    case KBD_FX_WAVE: {
+        /* one rainbow across the keyboard, moving in the chosen direction */
+        int row = i / KBD_MATRIX_COLUMNS, colm = i % KBD_MATRIX_COLUMNS;
+        double pos = (fx->dir == KBD_FX_DIR_DOWN || fx->dir == KBD_FX_DIR_UP)
+                     ? (double)row / KBD_MATRIX_ROWS : (double)colm / KBD_MATRIX_COLUMNS;
+        double shift = t * sp / 15.0;
+        int toward_end = fx->dir == KBD_FX_DIR_RIGHT || fx->dir == KBD_FX_DIR_DOWN;
+        fx_hue(toward_end ? pos - shift : pos + shift, out);
+        break;
+    }
+    default:
+        memcpy(out, col, 3);
+    }
+}
+
+/* Live colors of every LED at time t: base color, then the zones (a later
+ * zone wins), effects applied, scaled by the software brightness */
+static void kbd_compose(uint8_t out[KBD_MAX_LEDS][3], double t) {
+    int n = g_led_state.num_leds < KBD_MAX_LEDS ? g_led_state.num_leds : KBD_MAX_LEDS;
+    memset(out, 0, sizeof(uint8_t) * 3 * KBD_MAX_LEDS);
+    if (g_base_set) {
+        uint8_t base[3] = { g_base_r, g_base_g, g_base_b };
+        for (int i = 0; i < n; i++) fx_color(&g_base_fx, base, i, t, out[i]);
+    }
+    for (int z = 0; z < g_num_zones; z++) {
+        const KbdLedZone *zone = &g_zones[z];
+        uint8_t zc[3] = { zone->r, zone->g, zone->b };
+        for (int k = 0; k < zone->num_keys; k++) {
+            int led = zone->key_indices[k];
+            if (led >= 0 && led < n) fx_color(&zone->fx, zc, led, t, out[led]);
+        }
+    }
+    for (int i = 0; i < n; i++) apply_brightness_scale(&out[i][0], &out[i][1], &out[i][2], g_led_state.brightness);
+}
+
+int kbd_fx_running(void) {
+    if (!g_led_state.is_on || g_led_state.num_leds == 0) return 0;
+    if (g_base_set && g_base_fx.type != KBD_FX_STATIC) return 1;
+    for (int z = 0; z < g_num_zones; z++)
+        if (g_zones[z].fx.type != KBD_FX_STATIC && g_zones[z].num_keys > 0) return 1;
+    return 0;
+}
+
+void kbd_fx_frame(void) {
+    static uint8_t colors[KBD_MAX_LEDS][3];
+    kbd_compose(colors, fx_now());
+    for (int i = 0; i < g_led_state.num_leds && i < KBD_MAX_LEDS; i++)
+        led_write_idx(i, colors[i][0], colors[i][1], colors[i][2], 0);
+}
+
+/* Every zone and the base color get this effect (dcc-kbd-cli --effect);
+ * without any color the whole keyboard becomes white first */
+int kbd_fx_set_all(const KbdEffect *fx) {
+    if (!g_base_set && g_num_zones == 0) kbd_base_set(1, 255, 255, 255);
+    g_base_fx = *fx;
+    for (int z = 0; z < g_num_zones; z++) g_zones[z].fx = *fx;
+    char t[32];
+    kbd_fx_format(fx, t, sizeof t);
+    LOG_INFO("[KBD] Effect for the whole keyboard: %s", t);
+    return apply_zones();
+}
+
 int apply_zones_with_brightness(void) {
     if (g_num_zones == 0 && !g_base_set) {
         LOG_ERROR("[KBD] No zones to apply");
         return -1;
     }
 
-    uint8_t led_colors[KBD_MAX_LEDS][3] = {{0}};
-    if (g_base_set)
-        for (int i = 0; i < g_led_state.num_leds && i < KBD_MAX_LEDS; i++) {
-            led_colors[i][0] = g_base_r;
-            led_colors[i][1] = g_base_g;
-            led_colors[i][2] = g_base_b;
-        }
-
-    for (int z = 0; z < g_num_zones; z++) {
-        KbdLedZone *zone = &g_zones[z];
-
-        for (int k = 0; k < zone->num_keys; k++) {
-            int led_idx = zone->key_indices[k];
-            if (led_idx >= 0 && led_idx < g_led_state.num_leds) {
-                led_colors[led_idx][0] = zone->r;
-                led_colors[led_idx][1] = zone->g;
-                led_colors[led_idx][2] = zone->b;
-            }
-        }
-    }
+    static uint8_t led_colors[KBD_MAX_LEDS][3];
+    kbd_compose(led_colors, fx_now());
 
     int success_count = 0;
-    for (int i = 0; i < g_led_state.num_leds; i++) {
-        uint8_t r = led_colors[i][0];
-        uint8_t g = led_colors[i][1];
-        uint8_t b = led_colors[i][2];
+    for (int i = 0; i < g_led_state.num_leds && i < KBD_MAX_LEDS; i++)
+        if (led_write_idx(i, led_colors[i][0], led_colors[i][1], led_colors[i][2], 1) == 0) success_count++;
 
-        apply_brightness_scale(&r, &g, &b, g_led_state.brightness);
-
-        if (set_led_color(g_led_state.leds[i].path, r, g, b, g_led_state.leds[i].max_brightness) == 0) {
-            success_count++;
-        }
-    }
-
-    LOG_INFO("[KBD] Applied %d zones to %d LEDs (brightness: %d/255)", g_num_zones, success_count, g_led_state.brightness);
+    LOG_INFO("[KBD] Applied %d zones to %d LEDs (brightness: %d/255)%s", g_num_zones, success_count,
+             g_led_state.brightness, kbd_fx_running() ? ", with effects" : "");
     return (success_count > 0) ? 0 : -1;
 }
 
@@ -823,6 +998,11 @@ static cJSON* kbd_profile_to_json(const KbdLedProfile *p) {
             cJSON_AddItemToArray(keys_array, cJSON_CreateNumber(p->zones[i].key_indices[k]));
         }
         cJSON_AddItemToObject(zone_obj, "keys", keys_array);
+        if (p->zones[i].fx.type != KBD_FX_STATIC) {
+            char fx[32];
+            kbd_fx_format(&p->zones[i].fx, fx, sizeof fx);
+            cJSON_AddStringToObject(zone_obj, "effect", fx);
+        }
         cJSON_AddItemToArray(zones_array, zone_obj);
     }
     cJSON_AddItemToObject(profile_obj, "zones", zones_array);
@@ -831,6 +1011,11 @@ static cJSON* kbd_profile_to_json(const KbdLedProfile *p) {
         cJSON_AddNumberToObject(base, "r", p->base_r);
         cJSON_AddNumberToObject(base, "g", p->base_g);
         cJSON_AddNumberToObject(base, "b", p->base_b);
+        if (p->base_fx.type != KBD_FX_STATIC) {
+            char fx[32];
+            kbd_fx_format(&p->base_fx, fx, sizeof fx);
+            cJSON_AddStringToObject(base, "effect", fx);
+        }
         cJSON_AddItemToObject(profile_obj, "base", base);
     }
 
@@ -1013,6 +1198,11 @@ int kbd_profiles_load_json(void) {
                         }
                         p.zones[z].num_keys = keys_count;
                     }
+                    cJSON *zfx = cJSON_GetObjectItem(zone_obj, "effect");
+                    if (cJSON_IsString(zfx) && kbd_fx_parse(zfx->valuestring, &p.zones[z].fx) != 0) {
+                        LOG_WARN("[KBD] Profile '%s': unknown effect '%s' in zone '%s'",
+                                 p.name, zfx->valuestring, p.zones[z].name);
+                    }
                 }
                 p.num_zones = nz;
             }
@@ -1025,6 +1215,9 @@ int kbd_profiles_load_json(void) {
                 p.base_r = (uint8_t)clamp_u8(cJSON_IsNumber(br) ? br->valueint : 0);
                 p.base_g = (uint8_t)clamp_u8(cJSON_IsNumber(bg) ? bg->valueint : 0);
                 p.base_b = (uint8_t)clamp_u8(cJSON_IsNumber(bb) ? bb->valueint : 0);
+                cJSON *bfx = cJSON_GetObjectItem(base, "effect");
+                if (cJSON_IsString(bfx) && kbd_fx_parse(bfx->valuestring, &p.base_fx) != 0)
+                    LOG_WARN("[KBD] Profile '%s': unknown base effect '%s'", p.name, bfx->valuestring);
             } else {
                 /* Before 1.24.0 "whole keyboard" was a zone named "Base" that
                  * held every LED not in another zone: that is the base color */
@@ -1072,6 +1265,7 @@ int kbd_profile_save_json(const char *name) {
             g_profiles[i].base_r = g_base_r;
             g_profiles[i].base_g = g_base_g;
             g_profiles[i].base_b = g_base_b;
+            g_profiles[i].base_fx = g_base_fx;
             LOG_INFO("[KBD] Updated profile '%s' with %d zones%s", name, g_num_zones,
                      g_base_set ? " and a base color" : "");
             return kbd_profiles_save_json();
@@ -1094,6 +1288,7 @@ int kbd_profile_save_json(const char *name) {
     p->base_r = g_base_r;
     p->base_g = g_base_g;
     p->base_b = g_base_b;
+    p->base_fx = g_base_fx;
     g_num_profiles++;
 
     LOG_INFO("[KBD] Added profile '%s' with %d zones", name, g_num_zones);
@@ -1116,6 +1311,7 @@ int kbd_profile_load_json(const char *name) {
                 g_num_zones++;
             }
             kbd_base_set(g_profiles[i].has_base, g_profiles[i].base_r, g_profiles[i].base_g, g_profiles[i].base_b);
+            kbd_base_fx_set(&g_profiles[i].base_fx);
             g_active_profile_index = i;
             LOG_INFO("[KBD] Loaded profile '%s' with %d zones", name, g_profiles[i].num_zones);
             return 0;
@@ -1266,19 +1462,34 @@ int kbd_show_colors(void) {
     return set_all_leds_color(0, 0, 0);
 }
 
+/* "r,g,b" or "r,g,b@effect" (1.35.0) */
+static int parse_color_fx(const char *text, uint8_t *r, uint8_t *g, uint8_t *b, KbdEffect *fx) {
+    char buf[96];
+    snprintf(buf, sizeof buf, "%s", text);
+    char *at = strchr(buf, '@');
+    memset(fx, 0, sizeof *fx);
+    if (at) {
+        *at = '\0';
+        if (kbd_fx_parse(at + 1, fx) != 0) return -1;
+    }
+    return parse_rgb(buf, r, g, b);
+}
+
 /* Replace the live colors (the GUI's profile being edited).
- * base:  "r,g,b" or "-" (no base color)
- * zones: "name|r,g,b|led,led,...;name|r,g,b|...", may be empty.
+ * base:  "r,g,b" or "-" (no base color); "r,g,b@wave:5:right" with an effect
+ * zones: "name|r,g,b|led,led,...;name|r,g,b@effect|...", may be empty.
  * Zone names must not contain '|' or ';'. Returns -1 on a format error
  * (the live colors are then unchanged). */
 int kbd_preview_set(const char *base, char *zones) {
     static KbdLedZone nz[KBD_MAX_ZONES_PER_PROFILE];
     int n = 0, has_base = 0;
     uint8_t br = 0, bg = 0, bb = 0;
+    KbdEffect bfx;
+    memset(&bfx, 0, sizeof bfx);
     memset(nz, 0, sizeof nz);
 
     if (base && *base && strcmp(base, "-") != 0) {
-        if (parse_rgb(base, &br, &bg, &bb) != 0) return -1;
+        if (parse_color_fx(base, &br, &bg, &bb, &bfx) != 0) return -1;
         has_base = 1;
     }
     char *save = NULL;
@@ -1291,7 +1502,7 @@ int kbd_preview_set(const char *base, char *zones) {
         *bar2 = '\0';
         KbdLedZone *zone = &nz[n];
         snprintf(zone->name, sizeof zone->name, "%s", z);
-        if (parse_rgb(bar1 + 1, &zone->r, &zone->g, &zone->b) != 0) return -1;
+        if (parse_color_fx(bar1 + 1, &zone->r, &zone->g, &zone->b, &zone->fx) != 0) return -1;
         char *ksave = NULL;
         for (char *k = strtok_r(bar2 + 1, ",", &ksave); k; k = strtok_r(NULL, ",", &ksave)) {
             char *end = NULL;
@@ -1306,6 +1517,7 @@ int kbd_preview_set(const char *base, char *zones) {
     memcpy(g_zones, nz, sizeof(KbdLedZone) * (size_t)n);
     g_num_zones = n;
     kbd_base_set(has_base, br, bg, bb);
+    kbd_base_fx_set(has_base ? &bfx : NULL);
     LOG_INFO("[KBD] Preview: %d zone(s)%s", n, has_base ? " + base color" : "");
     return 0;
 }
@@ -1319,12 +1531,16 @@ int kbd_profile_describe(const char *name, char *buffer, size_t buf_size) {
         if (strcmp(p->name, name) != 0) continue;
         size_t off = 0;
         zbuf_add(buffer, buf_size, &off, "PROFILE_START COUNT=%d name=%s\n", p->num_zones, p->name);
-        if (p->has_base)
-            zbuf_add(buffer, buf_size, &off, "BASE color=%u,%u,%u\n", p->base_r, p->base_g, p->base_b);
+        char fxt[48];
+        if (p->has_base) {
+            fx_token(&p->base_fx, fxt, sizeof fxt);
+            zbuf_add(buffer, buf_size, &off, "BASE color=%u,%u,%u%s\n", p->base_r, p->base_g, p->base_b, fxt);
+        }
         for (int z = 0; z < p->num_zones && off + 256 < buf_size; z++) {
             const KbdLedZone *zone = &p->zones[z];
-            zbuf_add(buffer, buf_size, &off, "ZONE %d name=%s color=%u,%u,%u keys=%d",
-                     z, zone->name, zone->r, zone->g, zone->b, zone->num_keys);
+            fx_token(&zone->fx, fxt, sizeof fxt);
+            zbuf_add(buffer, buf_size, &off, "ZONE %d name=%s color=%u,%u,%u%s keys=%d",
+                     z, zone->name, zone->r, zone->g, zone->b, fxt, zone->num_keys);
             for (int k = 0; k < zone->num_keys && off + 16 < buf_size; k++)
                 zbuf_add(buffer, buf_size, &off, " %d", zone->key_indices[k]);
             zbuf_add(buffer, buf_size, &off, "\n");

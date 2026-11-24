@@ -218,15 +218,22 @@ static void leds_set_brightness_mc(struct led_classdev *led_cdev, enum led_brigh
 		 led_cdev_mc->subled_info[0].channel, brightness, ti_data.brightness, led_cdev_mc->subled_info[0].intensity,
 		 led_cdev_mc->subled_info[1].intensity, led_cdev_mc->subled_info[2].intensity);
 
-	ti_data.brightness = brightness;
+	/* Dudes Control Center 1.35.0: the keyboard has one brightness for all
+	 * keys, but every color write (multi_intensity) comes through here with
+	 * the unchanged brightness. Sending it again each time doubled the USB
+	 * messages per key (two per write), halving the rate for animations.
+	 * Send it only when it changes; probe and resume send it themselves. */
+	if (brightness != ti_data.brightness) {
+		ti_data.brightness = brightness;
 
-	for (i = 0; i < KEYBOARD_ROWS; ++i) {
-		for (j = 0; j < KEYBOARD_COLUMNS; ++j) {
-			clevo_mcled_cdevs[i][j].led_cdev.brightness = brightness;
+		for (i = 0; i < KEYBOARD_ROWS; ++i) {
+			for (j = 0; j < KEYBOARD_COLUMNS; ++j) {
+				clevo_mcled_cdevs[i][j].led_cdev.brightness = brightness;
+			}
 		}
-	}
 
-	keyb_send_data(kbdev, 0x09, brightness, 0x02, 0x00, 0x00);
+		keyb_send_data(kbdev, 0x09, brightness, 0x02, 0x00, 0x00);
+	}
 
 	keyb_send_data(kbdev, 0x01, led_cdev_mc->subled_info[0].channel,
 		       led_cdev_mc->subled_info[0].intensity,

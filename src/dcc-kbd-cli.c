@@ -10,6 +10,7 @@
  *   dcc-kbd-cli --on | --off           backlight on / off
  *   dcc-kbd-cli --brightness <0-max>   hardware brightness
  *   dcc-kbd-cli --color <color>        whole keyboard in one color (not saved)
+ *   dcc-kbd-cli --effect <effect>      whole keyboard effect (not saved, 1.35.0)
  *   dcc-kbd-cli --list-profiles        keyboard profiles, the active one marked
  *   dcc-kbd-cli --profile <name>       activate a profile
  *   dcc-kbd-cli --show-profile <name>  base color and zones of a profile
@@ -43,6 +44,9 @@ static void print_usage(void) {
     printf("  --color <color>       Whole keyboard in one color, not saved in a profile:\n");
     printf("                        R,G,B (0-255), #RRGGBB or white, red, green, blue,\n");
     printf("                        yellow, cyan, magenta, orange, purple\n");
+    printf("  --effect <effect>     Effect for the whole keyboard, not saved in a profile:\n");
+    printf("                        static, breathing[:speed], rainbow[:speed],\n");
+    printf("                        wave[:speed[:right|left|down|up]]; speed 1-10 (default 5)\n");
     printf("  --list-profiles       List the keyboard profiles (* = active)\n");
     printf("  --profile <name>      Activate a keyboard profile\n");
     printf("  --show-profile <name> Show the base color and zones of a profile\n");
@@ -52,6 +56,7 @@ static void print_usage(void) {
     printf("  %s --brightness 5          # Half brightness\n", PROGRAM_NAME);
     printf("  %s --color orange          # Whole keyboard orange\n", PROGRAM_NAME);
     printf("  %s --color 0,128,255       # Whole keyboard in this color\n", PROGRAM_NAME);
+    printf("  %s --effect wave:7:left    # Rainbow wave from right to left\n", PROGRAM_NAME);
     printf("  %s --profile \"Gaming\"      # Activate the profile Gaming\n", PROGRAM_NAME);
 }
 
@@ -177,8 +182,9 @@ static int active_profile(int fd, char *out, size_t size) {
 static int cmd_status(int fd) {
     static char reply[REPLY_MAX];
     if (ask(fd, "STATUS", reply, sizeof reply) != 0) return EXIT_FAILURE;
-    char on[8] = "", leds[16] = "", br[16] = "", brmax[16] = "", prof[128] = "";
+    char on[8] = "", leds[16] = "", br[16] = "", brmax[16] = "", prof[128] = "", fx[8] = "";
     field(reply, "IS_ON=", on, sizeof on);
+    field(reply, "EFFECTS=", fx, sizeof fx);
     field(reply, "LED_COUNT=", leds, sizeof leds);
     field(reply, "BRIGHTNESS=", br, sizeof br);
     field(reply, "BRIGHTNESS_MAX=", brmax, sizeof brmax);
@@ -188,6 +194,7 @@ static int cmd_status(int fd) {
     else printf("Brightness:     unknown\n");
     printf("Active profile: %s\n", active_profile(fd, prof, sizeof prof) == 0 ? prof : "none");
     printf("LEDs:           %s\n", leds[0] ? leds : "?");
+    if (fx[0]) printf("Effects:        %s\n", !strcmp(fx, "1") ? "running" : "none");
     return EXIT_SUCCESS;
 }
 
@@ -221,8 +228,11 @@ static int cmd_show_profile(int fd, const char *name) {
     int base = 0, zones = 0;
     for (char *line = strtok(reply, "\n"); line; line = strtok(NULL, "\n")) {
         unsigned r, g, b;
+        char fx[48] = "";
+        const char *ef = strstr(line, " effect=");
+        if (ef) snprintf(fx, sizeof fx, ", effect %.*s", (int)strcspn(ef + 8, " "), ef + 8);
         if (sscanf(line, "BASE color=%u,%u,%u", &r, &g, &b) == 3) {
-            printf("Base color: %u,%u,%u (#%02X%02X%02X) - keys in no zone\n", r, g, b, r, g, b);
+            printf("Base color: %u,%u,%u (#%02X%02X%02X)%s - keys in no zone\n", r, g, b, r, g, b, fx);
             base = 1;
         } else if (!strncmp(line, "ZONE ", 5)) {
             const char *nm = strstr(line, " name="), *c = nm ? strstr(nm, " color=") : NULL;
@@ -230,8 +240,8 @@ static int cmd_show_profile(int fd, const char *name) {
             int n = 0;
             if (nm && c && k && sscanf(c + 7, "%u,%u,%u", &r, &g, &b) == 3 && sscanf(k + 6, "%d", &n) == 1) {
                 if (!zones) printf("Zones:\n");
-                printf("  %.*s: %u,%u,%u (#%02X%02X%02X), %d LED%s\n", (int)(c - (nm + 6)), nm + 6,
-                       r, g, b, r, g, b, n, n == 1 ? "" : "s");
+                printf("  %.*s: %u,%u,%u (#%02X%02X%02X)%s, %d LED%s\n", (int)(c - (nm + 6)), nm + 6,
+                       r, g, b, r, g, b, fx, n, n == 1 ? "" : "s");
                 zones++;
             }
         }
@@ -249,7 +259,7 @@ int main(int argc, char **argv) {
     /* check the arguments before connecting */
     const char *opt = argc > 1 ? argv[1] : NULL;
     const char *val = argc > 2 ? argv[2] : NULL;
-    int needs_val = opt && (!strcmp(opt, "--brightness") || !strcmp(opt, "--color") ||
+    int needs_val = opt && (!strcmp(opt, "--brightness") || !strcmp(opt, "--color") || !strcmp(opt, "--effect") ||
                             !strcmp(opt, "--profile") || !strcmp(opt, "--show-profile"));
     int known = !opt || needs_val || !strcmp(opt, "--on") || !strcmp(opt, "--off") || !strcmp(opt, "--list-profiles");
     if (!known) {
@@ -269,6 +279,15 @@ int main(int argc, char **argv) {
     if (opt && !strcmp(opt, "--color") && parse_color(val, color, sizeof color) != 0) {
         fprintf(stderr, "Error: invalid color '%s' - use R,G,B (0-255), #RRGGBB or a color name (see --help)\n", val);
         return EXIT_FAILURE;
+    }
+    if (opt && !strcmp(opt, "--effect")) {
+        /* the daemon checks the names; here only that it stays one argument */
+        int ok = val[0] && !strstr(val, "::") && strlen(val) < 40;
+        for (const char *q = val; *q && ok; q++) ok = isalnum((unsigned char)*q) || *q == ':';
+        if (!ok) {
+            fprintf(stderr, "Error: invalid effect '%s' (see --help)\n", val);
+            return EXIT_FAILURE;
+        }
     }
     char *end = NULL;
     long level = 0;
@@ -315,6 +334,15 @@ int main(int argc, char **argv) {
              ? (printf("Whole keyboard set to %s (not saved; activating a profile brings its colors back)\n", color),
                 EXIT_SUCCESS)
              : EXIT_FAILURE;
+    } else if (!strcmp(opt, "--effect")) {
+        snprintf(cmd, sizeof cmd, "SET_EFFECT::%s", val);
+        if (ask(fd, cmd, reply, sizeof reply) == 0) {
+            const char *name = strncmp(reply, "OK Effect ", 10) == 0 ? reply + 10 : val;
+            printf("Whole keyboard: effect %.*s (not saved; activating a profile brings its colors back)\n",
+                   (int)strcspn(name, "\n"), name);
+        } else {
+            rc = EXIT_FAILURE;
+        }
     } else if (!strcmp(opt, "--list-profiles")) {
         rc = cmd_list_profiles(fd);
     } else if (!strcmp(opt, "--profile")) {
