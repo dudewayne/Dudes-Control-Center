@@ -374,7 +374,13 @@ static int driver_resume_callb(struct device *dev)
 				       clevo_mcled_cdevs[i][j].subled_info[2].intensity);
 		}
 	}
-	send_mode(kbdev, ti_data.mode);
+	/* Dudes Control Center 1.34.1: the per-key colors above are the state to
+	 * restore. Color modes (and the reserved letters mode) already stored
+	 * their colors per key; sending them again painted the whole keyboard in
+	 * the mode color (white by default) after every standby. Only the
+	 * firmware's random color effect is not stored per key. */
+	if (ti_data.mode == MODE_MAP_LENGTH + 1)
+		send_mode(kbdev, ti_data.mode);
 	return 0;
 }
 

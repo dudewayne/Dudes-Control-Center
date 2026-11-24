@@ -6,6 +6,11 @@ Programs and services were named `dudes-control-center-*` before 1.19.0 (for exa
 
 ## [Unreleased]
 
+## [1.34.1] - 2026-11-24
+
+### Fixed
+- **Keyboard white after standby**: on resume the `ite_829x` driver restored every key's color and then sent its built-in color mode again (the one the keyboard's color key cycles through, white by default), which painted all keys white and overwrote the stored colors, so the daemon and the GUI saw white too. The driver now only restores the stored per-key colors and brightness; it re-sends its mode only for the firmware's random color effect, which is not stored per key. Colors chosen with the keyboard's color key are stored per key as well and come back too. The package update rebuilds and reloads the module and restarts the keyboard daemon, which lights the active profile again.
+
 ## [1.34.0] - 2026-11-22
 
 ### Added
@@ -878,7 +883,8 @@ Programs and services were named `dudes-control-center-*` before 1.19.0 (for exa
 - Unix socket IPC between GUI and daemon
 - Watchdog timer and fail-safe mode in daemon
 
-[Unreleased]: https://github.com/dudewayne/Dudes-Control-Center/compare/v1.34.0...HEAD
+[Unreleased]: https://github.com/dudewayne/Dudes-Control-Center/compare/v1.34.1...HEAD
+[1.34.1]: https://github.com/dudewayne/Dudes-Control-Center/compare/v1.34.0...v1.34.1
 [1.34.0]: https://github.com/dudewayne/Dudes-Control-Center/compare/v1.33.0...v1.34.0
 [1.33.0]: https://github.com/dudewayne/Dudes-Control-Center/compare/v1.32.1...v1.33.0
 [1.32.1]: https://github.com/dudewayne/Dudes-Control-Center/compare/v1.32.0...v1.32.1
