@@ -31,6 +31,9 @@ msgstr "日本語 (JP)"
 msgid "Korean (KR)"
 msgstr "韓国語 (KR)"
 
+msgid "A maximum frequency is a ceiling, not a target: the CPU picks its own speed below it. Many CPUs do not go below a certain speed once they have work to do, however low the maximum is (an Intel Core Ultra 9 275HX keeps about 2.2 GHz on its P-cores and 1.5 GHz on its E-cores). Maximums below that change little; higher ones are kept exactly."
+msgstr "最大周波数は目標ではなく上限です。CPU はその範囲内で自分で速度を選びます。多くの CPU は処理があると、最大値をどれだけ低くしても一定の速度より下がりません(Intel Core Ultra 9 275HX では P コアで約 2.2 GHz、E コアで約 1.5 GHz)。それより低い最大値はほとんど効果がなく、高い値は正確に守られます。"
+
 msgid "<b>Warning:</b> You have unsaved changes to the curve points.\n\nWhat would you like to do?"
 msgstr "<b>警告:</b> カーブポイントに未保存の変更があります。\n\nどうしますか?"
 

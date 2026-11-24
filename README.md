@@ -250,6 +250,8 @@ sudo systemctl restart dcc-fan-daemon
 
 **The desktop's keyboard slider only switches on and off** (after upgrading from a version before 1.20.0): the desktop's power daemon (e.g. Cinnamon's `csd-power`) remembers the old 0-255 range until the next login. Log out and in once.
 
+**A low maximum frequency seems to be ignored**: a maximum (per-core profile or hard limit) is a ceiling; the CPU picks its own speed below it. Many CPUs do not go below a certain speed once they have work to do, however low the maximum is. Measured on the Core Ultra 9 275HX: about 2.2 GHz on the P-cores and 1.5 GHz on the E-cores, also at 1% load; maximums above that are kept exactly. The firmware of the X58xWNx also holds the CPU at a sustained 46 W (after short bursts up to 130 W) and ignores lower power limits set through the kernel (`/sys/class/powercap`), so the power use cannot be lowered further from Linux.
+
 **Zero or wrong temperatures, fans do not react**: your model may use a different EC layout or commands, or the BIOS may lock fan control.
 
 **Test the connection to a daemon:**

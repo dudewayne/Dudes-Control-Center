@@ -6,6 +6,14 @@ Programs and services were named `dudes-control-center-*` before 1.19.0 (for exa
 
 ## [Unreleased]
 
+## [1.34.2] - 2026-11-24
+
+### Changed
+- **CPU tab: note on low maximum frequencies.** A maximum is a ceiling, not a target, and many CPUs do not go below a certain speed once they have work to do, however low the maximum is. Measured on the Core Ultra 9 275HX: about 2.2 GHz on the P-cores and 1.5 GHz on the E-cores (also at 1% load), while maximums above that were kept exactly; the kernel had the lower maximum set on every core. The note is shown below *Apply values to all cores* in the per-core frequency profiles and as the tooltip of the hard limit; translated into all UI languages.
+
+### Documentation
+- README troubleshooting: *A low maximum frequency seems to be ignored*, including the X58xWNx firmware's sustained 46 W CPU power limit, which lower limits set through `/sys/class/powercap` (MSR and MMIO) do not change. The man pages `dcc-cpu-cli(1)` and `dcc-cpu-daemon(8)` explain the floor too.
+
 ## [1.34.1] - 2026-11-24
 
 ### Fixed
@@ -883,7 +891,8 @@ Programs and services were named `dudes-control-center-*` before 1.19.0 (for exa
 - Unix socket IPC between GUI and daemon
 - Watchdog timer and fail-safe mode in daemon
 
-[Unreleased]: https://github.com/dudewayne/Dudes-Control-Center/compare/v1.34.1...HEAD
+[Unreleased]: https://github.com/dudewayne/Dudes-Control-Center/compare/v1.34.2...HEAD
+[1.34.2]: https://github.com/dudewayne/Dudes-Control-Center/compare/v1.34.1...v1.34.2
 [1.34.1]: https://github.com/dudewayne/Dudes-Control-Center/compare/v1.34.0...v1.34.1
 [1.34.0]: https://github.com/dudewayne/Dudes-Control-Center/compare/v1.33.0...v1.34.0
 [1.33.0]: https://github.com/dudewayne/Dudes-Control-Center/compare/v1.32.1...v1.33.0

@@ -759,6 +759,12 @@ static void on_create_profile_clicked(GtkWidget *widget, gpointer user_data);
 static void on_delete_profile_clicked(GtkWidget *widget, gpointer user_data);
 static void on_rename_profile_clicked(GtkWidget *widget, gpointer user_data);
 
+/* CPU tab note on frequency maximums the CPU does not go below (1.34.2) */
+#define CPU_MAX_FLOOR_NOTE N_("A maximum frequency is a ceiling, not a target: the CPU picks its own speed below it. " \
+    "Many CPUs do not go below a certain speed once they have work to do, however low the maximum is " \
+    "(an Intel Core Ultra 9 275HX keeps about 2.2 GHz on its P-cores and 1.5 GHz on its E-cores). " \
+    "Maximums below that change little; higher ones are kept exactly.")
+
 /* Forward declarations for page creation */
 /* Notebook pages (keep in sync with create_main_window) */
 enum { PAGE_STATUS = 0, PAGE_FAN = 1, PAGE_CPU = 2, PAGE_KEYBOARD = 3, PAGE_SETTINGS = 4, PAGE_LOGS = 5, PAGE_HELP = 6,
@@ -8225,6 +8231,21 @@ static GtkWidget *create_cpu_page(AppData *app) {
             app->cpu_apply_all_cores_signal_id = g_signal_connect(app->cpu_apply_all_cores_checkbox, "toggled", G_CALLBACK(on_cpu_apply_all_cores_toggled), app);
         }
 
+        /* Note on low maximums (1.34.2): measured on a Core Ultra 9 275HX, the
+         * CPU kept 2.2 GHz (P-cores) / 1.5 GHz (E-cores) with work to do
+         * however low scaling_max_freq was; higher maximums held exactly. */
+        {
+            GtkWidget *note = gtk_label_new(NULL);
+            gchar *m = g_markup_printf_escaped("<small>%s</small>", _(CPU_MAX_FLOOR_NOTE));
+            gtk_label_set_markup(GTK_LABEL(note), m);
+            g_free(m);
+            gtk_label_set_line_wrap(GTK_LABEL(note), TRUE);
+            gtk_label_set_xalign(GTK_LABEL(note), 0.0f);
+            gtk_label_set_max_width_chars(GTK_LABEL(note), 110);
+            gtk_style_context_add_class(gtk_widget_get_style_context(note), "dim-label");
+            gtk_box_pack_start(GTK_BOX(freq_box), note, FALSE, FALSE, 0);
+        }
+
         /* Scrollable area for per-core min/max spinners */
         {
             GtkWidget *scroll = gtk_scrolled_window_new(NULL, NULL);
@@ -8308,6 +8329,7 @@ static GtkWidget *create_cpu_page(AppData *app) {
             app->cpu_hard_limit_adjustment = gtk_adjustment_new(3.6, 0.5, 8.0, 0.1, 0.5, 0);
             app->cpu_hard_limit_spinner = gtk_spin_button_new(app->cpu_hard_limit_adjustment, 0.1, 1);
             gtk_widget_set_halign(app->cpu_hard_limit_spinner, GTK_ALIGN_START);
+            gtk_widget_set_tooltip_text(app->cpu_hard_limit_spinner, _(CPU_MAX_FLOOR_NOTE));
             gtk_box_pack_start(GTK_BOX(row), app->cpu_hard_limit_spinner, FALSE, FALSE, 0);
 
             app->cpu_hard_limit_apply_btn = gtk_button_new_with_label(_("Apply"));

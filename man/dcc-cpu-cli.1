@@ -36,6 +36,9 @@ Set the hard frequency limit (for example 3.8).
 No core may run above it, whatever profile is active; the
 .B dcc-hard-limit-enforcer
 timer checks it every 10 seconds.
+A limit is a ceiling: many CPUs do not go below a certain speed once they
+have work to do, however low the limit is (see
+.BR dcc-cpu-daemon (8)).
 .TP
 .B \-\-hard\-limit\-get
 Show the hard frequency limit.

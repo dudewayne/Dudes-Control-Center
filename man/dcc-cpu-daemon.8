@@ -37,6 +37,15 @@ It reads the hard limit from
 .I profiles.json
 with the rights of that file's owner and lowers every core whose maximum
 frequency is above it.
+.SH NOTES
+A maximum frequency is a ceiling, not a target: with the
+.B intel_pstate
+driver the CPU picks its own speed below it.
+Many CPUs do not go below a certain speed once they have work to do, however
+low the maximum is.
+An Intel Core Ultra 9 275HX keeps about 2.2\~GHz on its P-cores and
+1.5\~GHz on its E-cores, also at low load; maximums above that are kept
+exactly.
 .SH OPTIONS
 .TP
 .BR \-\-foreground ", " \-f

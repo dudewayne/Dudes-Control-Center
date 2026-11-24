@@ -31,6 +31,9 @@ msgstr "Japanisch (JP)"
 msgid "Korean (KR)"
 msgstr "Koreanisch (KR)"
 
+msgid "A maximum frequency is a ceiling, not a target: the CPU picks its own speed below it. Many CPUs do not go below a certain speed once they have work to do, however low the maximum is (an Intel Core Ultra 9 275HX keeps about 2.2 GHz on its P-cores and 1.5 GHz on its E-cores). Maximums below that change little; higher ones are kept exactly."
+msgstr "Eine Höchstfrequenz ist eine Obergrenze, kein Ziel: Die CPU wählt ihre Geschwindigkeit darunter selbst. Viele CPUs gehen nicht unter eine bestimmte Geschwindigkeit, sobald sie Arbeit haben, egal wie niedrig das Maximum ist (ein Intel Core Ultra 9 275HX hält etwa 2,2 GHz auf den P-Kernen und 1,5 GHz auf den E-Kernen). Niedrigere Maxima ändern wenig; höhere werden genau eingehalten."
+
 msgid "<b>Warning:</b> You have unsaved changes to the curve points.\n\nWhat would you like to do?"
 msgstr "<b>Warnung:</b> Die Kurvenpunkte haben ungespeicherte Änderungen.\n\nWas möchten Sie tun?"
 
