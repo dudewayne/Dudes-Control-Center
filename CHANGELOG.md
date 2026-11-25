@@ -6,6 +6,14 @@ Programs and services were named `dudes-control-center-*` before 1.19.0 (for exa
 
 ## [Unreleased]
 
+## [1.36.1] - 2026-11-25
+
+### Fixed
+- Logs tab: the keyboard daemon's log tab is called **Keyboard Backlight Daemon Log**, like *CPU Daemon Log* and *Fan Daemon Log* (it was *Keyboard Backlight Log*); translated in all UI languages.
+
+### Documentation
+- README: all screenshot titles in the table are centered (only the first row was).
+
 ## [1.36.0] - 2026-11-25
 
 ### Added
@@ -950,7 +958,8 @@ Programs and services were named `dudes-control-center-*` before 1.19.0 (for exa
 - Unix socket IPC between GUI and daemon
 - Watchdog timer and fail-safe mode in daemon
 
-[Unreleased]: https://github.com/dudewayne/Dudes-Control-Center/compare/v1.36.0...HEAD
+[Unreleased]: https://github.com/dudewayne/Dudes-Control-Center/compare/v1.36.1...HEAD
+[1.36.1]: https://github.com/dudewayne/Dudes-Control-Center/compare/v1.36.0...v1.36.1
 [1.36.0]: https://github.com/dudewayne/Dudes-Control-Center/compare/v1.35.0...v1.36.0
 [1.35.0]: https://github.com/dudewayne/Dudes-Control-Center/compare/v1.34.4...v1.35.0
 [1.34.4]: https://github.com/dudewayne/Dudes-Control-Center/compare/v1.34.3...v1.34.4

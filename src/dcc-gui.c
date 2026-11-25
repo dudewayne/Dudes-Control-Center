@@ -6874,7 +6874,7 @@ static GtkWidget *create_log_page(AppData *app) {
         gtk_notebook_append_page(GTK_NOTEBOOK(notebook), scrolled, gtk_label_new(_("Fan Daemon Log")));
     }
     
-    /* Tab 4: Keyboard Backlight Log */
+    /* Tab 4: Keyboard Backlight Daemon Log */
     {
         GtkWidget *scrolled = gtk_scrolled_window_new(NULL, NULL);
         gtk_scrolled_window_set_policy(GTK_SCROLLED_WINDOW(scrolled), GTK_POLICY_AUTOMATIC, GTK_POLICY_ALWAYS);
@@ -6889,7 +6889,7 @@ static GtkWidget *create_log_page(AppData *app) {
         app->kbd_daemon_log_buffer = gtk_text_view_get_buffer(GTK_TEXT_VIEW(app->kbd_daemon_log_view));
         gtk_container_add(GTK_CONTAINER(scrolled), app->kbd_daemon_log_view);
         
-        gtk_notebook_append_page(GTK_NOTEBOOK(notebook), scrolled, gtk_label_new(_("Keyboard Backlight Log")));
+        gtk_notebook_append_page(GTK_NOTEBOOK(notebook), scrolled, gtk_label_new(_("Keyboard Backlight Daemon Log")));
     }
     
     /* Start the log refresh timer (every 500ms) */

@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: dudes-control-center\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-11-24 19:14+0100\n"
+"POT-Creation-Date: 2026-11-25 19:05+0100\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -868,7 +868,7 @@ msgid "Fan Daemon Log"
 msgstr ""
 
 #: src/dcc-gui.c:6892
-msgid "Keyboard Backlight Log"
+msgid "Keyboard Backlight Daemon Log"
 msgstr ""
 
 #: src/dcc-gui.c:7061

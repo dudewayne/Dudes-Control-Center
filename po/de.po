@@ -603,8 +603,8 @@ msgstr "CPU-Daemon-Protokoll"
 msgid "Fan Daemon Log"
 msgstr "Lüfter-Daemon-Protokoll"
 
-msgid "Keyboard Backlight Log"
-msgstr "Tastaturbeleuchtungs-Protokoll"
+msgid "Keyboard Backlight Daemon Log"
+msgstr "Tastaturbeleuchtungs-Daemon-Protokoll"
 
 msgid "<span foreground='#e74c3c'>Unable to read daemon log. Check permissions or ensure the daemon is running.</span>\n"
 msgstr "<span foreground='#e74c3c'>Daemon-Protokoll kann nicht gelesen werden. Berechtigungen prüfen oder sicherstellen, dass der Daemon läuft.</span>\n"

@@ -607,8 +607,8 @@ msgstr "CPU 데몬 로그"
 msgid "Fan Daemon Log"
 msgstr "팬 데몬 로그"
 
-msgid "Keyboard Backlight Log"
-msgstr "키보드 백라이트 로그"
+msgid "Keyboard Backlight Daemon Log"
+msgstr "키보드 백라이트 데몬 로그"
 
 msgid "<span foreground='#e74c3c'>Unable to read daemon log. Check permissions or ensure the daemon is running.</span>\n"
 msgstr "<span foreground='#e74c3c'>데몬 로그를 읽을 수 없습니다. 권한을 확인하거나 데몬이 실행 중인지 확인하세요.</span>\n"

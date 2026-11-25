@@ -607,8 +607,8 @@ msgstr "Registro del daemon de CPU"
 msgid "Fan Daemon Log"
 msgstr "Registro del daemon de ventiladores"
 
-msgid "Keyboard Backlight Log"
-msgstr "Registro de la retroiluminación del teclado"
+msgid "Keyboard Backlight Daemon Log"
+msgstr "Registro del daemon de retroiluminación del teclado"
 
 msgid "<span foreground='#e74c3c'>Unable to read daemon log. Check permissions or ensure the daemon is running.</span>\n"
 msgstr "<span foreground='#e74c3c'>No se puede leer el registro del daemon. Compruebe los permisos o que el daemon esté en ejecución.</span>\n"

@@ -607,8 +607,8 @@ msgstr "CPU デーモンのログ"
 msgid "Fan Daemon Log"
 msgstr "ファンデーモンのログ"
 
-msgid "Keyboard Backlight Log"
-msgstr "キーボードバックライトのログ"
+msgid "Keyboard Backlight Daemon Log"
+msgstr "キーボードバックライトデーモンのログ"
 
 msgid "<span foreground='#e74c3c'>Unable to read daemon log. Check permissions or ensure the daemon is running.</span>\n"
 msgstr "<span foreground='#e74c3c'>デーモンのログを読み取れません。権限を確認するか、デーモンが実行中であることを確認してください。</span>\n"
