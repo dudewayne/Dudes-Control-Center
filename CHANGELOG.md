@@ -6,6 +6,9 @@ Programs and services were named `dudes-control-center-*` before 1.19.0 (for exa
 
 ## [Unreleased]
 
+### Documentation
+- README: the Help tab screenshot renewed (shows the `dcc_fan` module and the effects in the components list).
+
 ## [1.37.0] - 2026-11-25
 
 ### Added
