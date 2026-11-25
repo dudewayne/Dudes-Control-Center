@@ -48,13 +48,18 @@ if [ "$1" = "configure" ]; then
         dkms add -m $DKMS_MOD_NAME -v $DKMS_MOD_VER || true
         dkms build -m $DKMS_MOD_NAME -v $DKMS_MOD_VER || true
         dkms install --force -m $DKMS_MOD_NAME -v $DKMS_MOD_VER || true
-        # Unload the old module and load the freshly built one
+        # Unload the old modules and load the freshly built ones. dcc_fan
+        # (1.36.0) sets the fans to 100% when unloaded; the fan daemon,
+        # restarted below, takes over again.
         modprobe -r $DKMS_MOD_NAME 2>/dev/null || true
         modprobe $DKMS_MOD_NAME || true
+        modprobe -r dcc_fan 2>/dev/null || true
+        modprobe dcc_fan 2>/dev/null || echo "dcc_fan: not loaded (no Clevo WMI interface?) - the fan daemon uses port I/O"
         # The keyboard LEDs were recreated: let UPower (the desktop's keyboard
         # brightness slider) pick up the new devices
         systemctl try-restart upower.service 2>/dev/null || true
         echo "ite_829x: $(modinfo -F version $DKMS_MOD_NAME 2>/dev/null || echo unknown) from $(modinfo -n $DKMS_MOD_NAME 2>/dev/null)"
+        echo "dcc_fan: $(modinfo -F version dcc_fan 2>/dev/null || echo unknown) from $(modinfo -n dcc_fan 2>/dev/null)"
     fi
     systemctl enable dcc-fan-daemon
     systemctl restart dcc-fan-daemon || systemctl start dcc-fan-daemon

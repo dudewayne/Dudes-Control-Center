@@ -1,2 +1,5 @@
-# Only build the ite_829x module (keyboard backlight driver)
+# Kernel modules of Dudes Control Center (one DKMS package "ite_829x"):
+#   ite_829x - keyboard backlight driver (TUXEDO Computers, GPL-2.0+)
+#   dcc_fan  - fan and temperature access for Clevo notebooks (1.36.0)
 obj-m += ite_829x.o
+obj-m += dcc_fan.o

@@ -146,9 +146,12 @@ deb: all
 	@cp packaging/org.dudes-control-center.component.policy $(DEB_BUILD_DIR)/$(PACKAGE)-$(VERSION)/usr/share/polkit-1/actions/
 	@# DKMS kernel module source
 	@mkdir -p $(DEB_BUILD_DIR)/$(PACKAGE)-$(VERSION)/usr/src/$(DKMS_MODULE_NAME)-$(DKMS_MODULE_VERSION)
-	@cp drivers/ite_829x.c $(DEB_BUILD_DIR)/$(PACKAGE)-$(VERSION)/usr/src/$(DKMS_MODULE_NAME)-$(DKMS_MODULE_VERSION)/
+	@cp drivers/ite_829x.c drivers/dcc_fan.c $(DEB_BUILD_DIR)/$(PACKAGE)-$(VERSION)/usr/src/$(DKMS_MODULE_NAME)-$(DKMS_MODULE_VERSION)/
 	@cp drivers/Kbuild $(DEB_BUILD_DIR)/$(PACKAGE)-$(VERSION)/usr/src/$(DKMS_MODULE_NAME)-$(DKMS_MODULE_VERSION)/
-	@printf 'ccflags-y += -DITE829X_VERSION=\\"%s\\"\n' '$(DKMS_MODULE_VERSION)' >> $(DEB_BUILD_DIR)/$(PACKAGE)-$(VERSION)/usr/src/$(DKMS_MODULE_NAME)-$(DKMS_MODULE_VERSION)/Kbuild
+	@printf 'ccflags-y += -DITE829X_VERSION=\\"%s\\" -DDCC_FAN_VERSION=\\"%s\\"\n' '$(DKMS_MODULE_VERSION)' '$(DKMS_MODULE_VERSION)' >> $(DEB_BUILD_DIR)/$(PACKAGE)-$(VERSION)/usr/src/$(DKMS_MODULE_NAME)-$(DKMS_MODULE_VERSION)/Kbuild
+	@# dcc_fan has no hardware alias: load it at boot (1.36.0)
+	@mkdir -p $(DEB_BUILD_DIR)/$(PACKAGE)-$(VERSION)/usr/lib/modules-load.d
+	@echo dcc_fan > $(DEB_BUILD_DIR)/$(PACKAGE)-$(VERSION)/usr/lib/modules-load.d/dudes-control-center.conf
 	@cp drivers/Makefile $(DEB_BUILD_DIR)/$(PACKAGE)-$(VERSION)/usr/src/$(DKMS_MODULE_NAME)-$(DKMS_MODULE_VERSION)/
 	@cp drivers/LICENSE $(DEB_BUILD_DIR)/$(PACKAGE)-$(VERSION)/usr/src/$(DKMS_MODULE_NAME)-$(DKMS_MODULE_VERSION)/LICENSE
 	@cp packaging/copyright $(DEB_BUILD_DIR)/$(PACKAGE)-$(VERSION)/usr/share/doc/dudes-control-center/copyright

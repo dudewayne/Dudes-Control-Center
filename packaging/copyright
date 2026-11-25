@@ -20,6 +20,12 @@ Comment: ITE 829x keyboard backlight driver from tuxedo-drivers
  modified for Dudes Control Center. The full text with the origin is in
  /usr/src/ite_829x-<version>/LICENSE.
 
+Files: usr/src/ite_829x-*/dcc_fan.c
+Copyright: 2026 Dudemeister and contributors
+License: GPL-2.0-only
+Comment: dcc_fan kernel module (fans and temperatures), written for Dudes
+ Control Center; shipped in the same DKMS source folder as ite_829x.
+
 License: GPL-2.0-only
  This program is free software; you can redistribute it and/or modify it under
  the terms of the GNU General Public License version 2 as published by the Free

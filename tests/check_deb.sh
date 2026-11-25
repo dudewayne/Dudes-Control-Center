@@ -95,6 +95,12 @@ for n in gui fan-cli cpu-cli; do
 done
 
 # third-party driver: TUXEDO copyright and GPL text shipped with it
+# dcc_fan module (1.36.0): source, built with ite_829x, loaded at boot, own copyright entry
+check "[ -s \"\$(ls '$R'/usr/src/ite_829x-*/dcc_fan.c)\" ] && grep -q '^obj-m += dcc_fan.o' '$R'/usr/src/ite_829x-*/Kbuild && grep -q 'DCC_FAN_VERSION' '$R'/usr/src/ite_829x-*/Kbuild" "dcc_fan source and Kbuild entry in the DKMS folder"
+check "grep -q 'BUILT_MODULE_NAME\[1\]=\"dcc_fan\"' '$R'/usr/src/ite_829x-*/dkms.conf" "DKMS builds dcc_fan"
+check "[ \"\$(cat '$R/usr/lib/modules-load.d/dudes-control-center.conf')\" = dcc_fan ]" "dcc_fan loaded at boot (modules-load.d)"
+check "grep -q 'modprobe dcc_fan' '$TMP/ctrl/postinst' && grep -q 'rmmod dcc_fan' '$TMP/ctrl/prerm'" "postinst loads dcc_fan, prerm unloads it"
+check "grep -q '^Files: usr/src/ite_829x-\*/dcc_fan.c' '$R/usr/share/doc/dudes-control-center/copyright'" "copyright file lists dcc_fan as project code"
 check "grep -q 'TUXEDO Computers GmbH' '$R'/usr/src/ite_829x-*/ite_829x.c && grep -q 'GNU GENERAL PUBLIC LICENSE' '$R'/usr/src/ite_829x-*/LICENSE" "ite_829x source keeps the TUXEDO copyright and ships the GPL"
 check "grep -q 'TUXEDO Computers GmbH' '$R/usr/share/doc/dudes-control-center/copyright'" "copyright file credits TUXEDO for the driver"
 check "grep -q '^License: GPL-2.0-only' '$R/usr/share/doc/dudes-control-center/copyright' && grep -q 'agramian/clevo-fan-control' '$R/usr/share/doc/dudes-control-center/copyright'" "copyright file: project GPL-2.0-only, fan code origin credited"

@@ -8,6 +8,8 @@ if [ "$1" = "remove" ]; then
     rmmod ite_829x 2>/dev/null || true
     systemctl stop dcc-fan-daemon 2>/dev/null || true
     systemctl disable dcc-fan-daemon 2>/dev/null || true
+    # dcc_fan leaves the fans at 100% when unloaded (like the daemon's stop)
+    rmmod dcc_fan 2>/dev/null || true
     systemctl stop dcc-cpu-daemon 2>/dev/null || true
     systemctl disable dcc-cpu-daemon 2>/dev/null || true
     systemctl stop dcc-hard-limit-enforcer.timer 2>/dev/null || true
