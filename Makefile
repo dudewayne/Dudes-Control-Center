@@ -47,7 +47,7 @@ DEB_BUILD_DIR = build-deb
 
 # Man pages (1.33.0): man/<name>.<section>, @VERSION@ filled in
 MAN_PAGES = dudes-control-center.7 dcc-gui.1 dcc-fan-cli.1 dcc-cpu-cli.1 dcc-kbd-cli.1 \
-            dcc-fan-daemon.8 dcc-cpu-daemon.8 dcc-kbd-daemon.8 dcc-component.8
+            dcc-fan-daemon.8 dcc-cpu-daemon.8 dcc-kbd-daemon.8 dcc-component.8 dcc_fan.4
 
 # DKMS module name and version
 DKMS_MODULE_NAME = ite_829x

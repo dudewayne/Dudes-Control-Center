@@ -58,7 +58,7 @@ done
 check "grep -q '^## \\[$(dpkg-deb -f "$DEB" Version)\\]' '$R/usr/share/doc/dudes-control-center/CHANGELOG.md'" "packaged Changelog has an entry for this version"
 
 # Man pages (1.33.0): installed compressed, version filled in, render without warnings
-for p in dudes-control-center.7 dcc-gui.1 dcc-fan-cli.1 dcc-cpu-cli.1 dcc-kbd-cli.1 dcc-fan-daemon.8 dcc-cpu-daemon.8 dcc-kbd-daemon.8 dcc-component.8; do
+for p in dudes-control-center.7 dcc-gui.1 dcc-fan-cli.1 dcc-cpu-cli.1 dcc-kbd-cli.1 dcc-fan-daemon.8 dcc-cpu-daemon.8 dcc-kbd-daemon.8 dcc-component.8 dcc_fan.4; do
     f="$R/usr/local/share/man/man${p##*.}/$p.gz"
     check "[ -s '$f' ] && zcat '$f' | grep -q '^\\.TH .*\"Dudes Control Center [0-9][0-9.]*\"' && [ -z \"\$(zcat '$f' | groff -man -ww -z 2>&1)\" ]" "man page $p installed and renders without warnings"
 done

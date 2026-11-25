@@ -27,7 +27,13 @@ The status display,
 .B \-\-set
 and
 .B \-\-auto
-read and write the embedded controller (EC) directly and need root.
+read and write the embedded controller (EC).
+With the
+.BR dcc_fan (4)
+module loaded they go through it, and the status needs no root; otherwise
+they use the I/O ports directly and need root.
+Setting the speed always needs root.
+The status names the method (\(lqEC access\(rq).
 .B \-\-log\-level
 and
 .B \-\-log\-level\-get
@@ -80,4 +86,5 @@ Let the daemon log every control step.
 .SH SEE ALSO
 .BR dudes-control-center (7),
 .BR dcc-fan-daemon (8),
+.BR dcc_fan (4),
 .BR dcc-gui (1)

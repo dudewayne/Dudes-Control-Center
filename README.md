@@ -22,6 +22,7 @@ A control center for Clevo-based notebooks on Linux: fan control through the Emb
 | `dcc-fan-daemon` | Fan control via EC I/O ports: fan curves (profiles), manual speed, safety overrides. systemd service with watchdog. |
 | `dcc-cpu-daemon` | CPU power modes (governor + energy preference), per-core frequency profiles, a hard frequency limit. |
 | `dcc-kbd-daemon` | Keyboard backlight: whole-keyboard and per-key colors, effects (Breathing, Rainbow, Wave), brightness, keyboard profiles. |
+| `dcc_fan` kernel module (DKMS) | Fans and temperatures through the kernel: EC access under the ACPI EC driver's lock, the real fan duty and fan speed setting through Clevo WMI, a watchdog, a standard hwmon device (`sensors`). The fan daemon and CLI use it when it is loaded and fall back to direct port I/O otherwise. Loads only on notebooks with Clevo's WMI interface. See `man dcc_fan` and [drivers/README.md](drivers/README.md). |
 | `ite_829x` kernel module (DKMS) | Driver for the ITE 829x keyboard controller: one RGB LED class device per key (`rgb:kbd_backlight*`). Written by **TUXEDO Computers** as part of [tuxedo-drivers](https://github.com/tuxedocomputers/tuxedo-drivers) (GPL-2.0-or-later), modified for this project; see [drivers/README.md](drivers/README.md). |
 | `dcc-hard-limit-enforcer` | systemd timer (every 10 s) that re-applies the CPU hard limit independently of the CPU daemon. |
 | `dcc-gui` | GTK3 GUI for everything above, with system tray icon. |
@@ -40,7 +41,7 @@ sudo dpkg -i dudes-control-center_<version>_amd64.deb
 The package:
 - installs the daemons, GUI, CLIs and systemd units, and starts the services
 - installs the man pages (`man dudes-control-center`) and, for the GUI's Help tab, the README, changelog and license in `/usr/share/doc/dudes-control-center/`
-- builds and loads the `ite_829x` keyboard module with DKMS (signed with your MOK key if Secure Boot is set up)
+- builds and loads the `ite_829x` keyboard module and the `dcc_fan` fan module with DKMS (signed with your MOK key if Secure Boot is set up); `dcc_fan` is also loaded at boot
 - creates the group `dudes-control-center` and adds your user to it (only its members and root may control the daemons)
 - writes your user name to `/etc/dudes-control-center/user`, so the root daemons use your `~/.config/dudes-control-center/profiles.json` (see [Configuration](#configuration))
 
@@ -122,7 +123,7 @@ Click a picture for the full size.
 ## Command line
 
 ```bash
-sudo dcc-fan-cli             # temperatures and fan status
+dcc-fan-cli                  # temperatures and fan status (sudo without the dcc_fan module)
 sudo dcc-fan-cli --set 40    # fan speed 0,10,...,100 (0 = fans off)
 sudo dcc-fan-cli --auto      # automatic, temperature-based
 dcc-fan-cli --log-level DEBUG
@@ -144,7 +145,7 @@ dcc-kbd-cli --profile "Gaming"
 dcc-kbd-cli --show-profile "Gaming"
 ```
 
-`--help` shows all options; every program has a man page (`man dcc-kbd-cli`, ...), and `man dudes-control-center` gives an overview of all parts. The fan status, `--set` and `--auto` access the EC directly and need root. `dcc-kbd-cli` talks to the keyboard daemon like the GUI does (members of the `dudes-control-center` group).
+`--help` shows all options; every program has a man page (`man dcc-kbd-cli`, ...), and `man dudes-control-center` gives an overview of all parts. `--set` and `--auto` need root; the fan status needs root only when the `dcc_fan` module is not loaded (then it uses the EC's I/O ports directly). `dcc-kbd-cli` talks to the keyboard daemon like the GUI does (members of the `dudes-control-center` group).
 
 ## Safety features
 
@@ -152,10 +153,11 @@ dcc-kbd-cli --show-profile "Gaming"
 2. **Sensor fail-safe** (auto and manual mode): invalid readings (below 10°C, above 110°C, no answer from the EC) count as failures; after 2 in a row (~10 s) the fans are held at 100% until valid readings return. Afterwards the previous mode and speed are restored.
 3. **Emergency temperature** (auto and manual mode): at 95°C or more (CPU or GPU) the fans go to 100% until the temperature drops below 90°C. In manual mode the emergency **ends manual mode**: when it clears, the fan curve (auto mode) takes over instead of going back to a low manual speed. The GUI switches to auto and says why.
 4. **Safe curve fallback**: a missing or empty fan profile uses the built-in default curve, never a fixed low speed.
-5. **CPU hard limit**: a maximum frequency for all cores, enforced by the CPU daemon and, independently, by a systemd timer every 10 s.
-6. **Access control**: the daemons accept commands only from root and members of `dudes-control-center` (checked with `SO_PEERCRED`). Files in the user's home directory are read and written with the user's identity, never through symlinks. The Settings tab's component switches run the root helper `/usr/local/sbin/dcc-component` through polkit, which asks for the administrator password.
+5. **Kernel watchdog** (with the `dcc_fan` module): the daemon writes the fan duty every 5 s; if 30 s pass without a write, the module sets the fans to 100% itself, and so does unloading it.
+6. **CPU hard limit**: a maximum frequency for all cores, enforced by the CPU daemon and, independently, by a systemd timer every 10 s.
+7. **Access control**: the daemons accept commands only from root and members of `dudes-control-center` (checked with `SO_PEERCRED`). Files in the user's home directory are read and written with the user's identity, never through symlinks. The Settings tab's component switches run the root helper `/usr/local/sbin/dcc-component` through polkit, which asks for the administrator password.
 
-`STATUS` of the fan daemon reports `FAILSAFE=1` while an override is active.
+`STATUS` of the fan daemon reports `FAILSAFE=1` while an override is active, and `EC_ACCESS=module` or `ports`.
 
 ## Configuration
 
@@ -260,6 +262,8 @@ sudo systemctl restart dcc-fan-daemon
 **A low maximum frequency seems to be ignored**: a maximum (per-core profile or hard limit) is a ceiling; the CPU picks its own speed below it. Many CPUs do not go below a certain speed once they have work to do, however low the maximum is. Measured on the Core Ultra 9 275HX: about 2.2 GHz on the P-cores and 1.5 GHz on the E-cores, also at 1% load; maximums above that are kept exactly. The firmware of the X58xWNx also holds the CPU at a sustained 46 W (after short bursts up to 130 W) and ignores lower power limits set through the kernel (`/sys/class/powercap`), so the power use cannot be lowered further from Linux.
 
 **Zero or wrong temperatures, fans do not react**: your model may use a different EC layout or commands, or the BIOS may lock fan control.
+
+**Is the `dcc_fan` module in use?** `lsmod | grep dcc_fan`, `dcc-fan-cli` (line "EC access") or `sensors dcc_fan-*`. It loads only where Clevo's WMI interface exists (`modprobe dcc_fan force=1` tries it anyway); without it the fan daemon works as before with direct port I/O, which kernel lockdown (Secure Boot) does not allow.
 
 **Test the connection to a daemon:**
 ```bash

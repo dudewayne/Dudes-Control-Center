@@ -1,0 +1,96 @@
+.\" SPDX-License-Identifier: GPL-2.0-only
+.TH DCC_FAN 4 2026-11-25 "Dudes Control Center @VERSION@" "Kernel Interfaces"
+.nh
+.SH NAME
+dcc_fan \- fan and temperature kernel module for Clevo notebooks
+.SH SYNOPSIS
+.B modprobe dcc_fan
+.RB [ method=auto | wmi | ec ]
+.RI [ watchdog_sec=N ]
+.RB [ force=1 ]
+.SH DESCRIPTION
+.B dcc_fan
+gives
+.BR dcc-fan-daemon (8)
+and
+.BR dcc-fan-cli (1)
+access to the fans and temperatures of Clevo notebooks through the kernel,
+instead of the programs writing to the embedded controller's I/O ports
+0x62/0x66 themselves.
+The package builds it with DKMS (together with
+.BR ite_829x )
+and loads it at boot.
+The programs use it when it is loaded and fall back to direct port I/O
+otherwise; their status shows which is in use.
+.PP
+Compared with port I/O from user space:
+.IP \(bu 2
+the EC is read through the kernel's ACPI EC driver, under the same lock the
+firmware's own EC accesses use, so the two cannot interleave;
+.IP \(bu 2
+no
+.BR ioperm (2)
+is needed, which kernel lockdown (usually on with Secure Boot) forbids;
+.IP \(bu 2
+the fan duty that is shown is the one the firmware reports through Clevo's
+WMI interface (some ECs leave the duty registers at 0);
+.IP \(bu 2
+temperatures and fans appear in standard tools such as
+.BR sensors (1);
+.IP \(bu 2
+a watchdog in the kernel sets the fans to 100\~% when the controlling
+program stops sending updates.
+.PP
+The module loads only where Clevo's WMI interface
+(GUID ABBC0F6D-8EA1-11D1-00A0-C90629100000) exists, unless
+.BR force=1 .
+.SH HWMON INTERFACE
+The module registers a hwmon device named
+.BR dcc_fan :
+.TP
+.BR temp1_input ", " temp2_input
+CPU and GPU temperature in millidegrees Celsius (EC registers 0x07, 0xCD);
+labels CPU and GPU.
+.TP
+.BR fan1_input ", " fan2_input
+CPU and GPU fan speed in RPM (EC registers 0xD0/0xD1, 0xD2/0xD3).
+.TP
+.BR pwm1 ", " pwm2
+Fan duty 0\-255.
+Reading gives the duty the firmware runs (WMI GET_FANINFO1/2, byte 0).
+Writing (root only) sets it.
+Very low values can stop a fan; on the X58xWNx below about 31 (12\~%).
+.SH PARAMETERS
+.TP
+.BR method= auto | wmi | ec
+How the fan speed is set: Clevo WMI SET_FANSPEED_VALUE (0x68) or EC command
+0x99 through the kernel's EC driver; auto (default) uses WMI when present.
+.TP
+.BI watchdog_sec= N
+Once a duty was written, the fans go to 100\~% when no write comes for
+.I N
+seconds (default 30, 0 = off).
+.BR dcc-fan-daemon (8)
+writes every 5 seconds.
+Unloading the module also sets 100\~% if it had set a duty.
+.TP
+.B force=1
+Load without the Clevo WMI interface (EC only).
+.SH FILES
+.TP
+.I /sys/devices/platform/dcc_fan/control
+Method in use, last duties written, watchdog state.
+.TP
+.I /sys/devices/platform/dcc_fan/wmi_faninfo
+Raw results of the WMI fan information commands.
+.TP
+.I /sys/devices/platform/dcc_fan/ec_values
+The EC values the module reads.
+.TP
+.I /usr/lib/modules-load.d/dudes-control-center.conf
+Loads the module at boot.
+.SH SEE ALSO
+.BR dudes-control-center (7),
+.BR dcc-fan-daemon (8),
+.BR dcc-fan-cli (1),
+.BR sensors (1)

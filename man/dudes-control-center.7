@@ -54,6 +54,11 @@ DKMS kernel module for the ITE 829x keyboard controller; it provides the LEDs
 .I rgb:kbd_backlight*
 under
 .IR /sys/class/leds .
+.TP
+.BR dcc_fan (4)
+DKMS kernel module for fans and temperatures on Clevo notebooks: EC access
+through the kernel, the real fan duty through Clevo WMI, a watchdog; used by
+the fan daemon and CLI when loaded.
 .SS Access
 The daemons listen on Unix sockets in
 .IR /run .
@@ -114,6 +119,7 @@ Keyboard layouts (de, uk, es, jp, kr): key positions and pictures.
 .BR dcc-cpu-daemon (8),
 .BR dcc-kbd-daemon (8),
 .BR dcc-component (8),
+.BR dcc_fan (4),
 .BR systemctl (1)
 .PP
 https://github.com/dudewayne/Dudes-Control-Center

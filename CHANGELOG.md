@@ -6,6 +6,21 @@ Programs and services were named `dudes-control-center-*` before 1.19.0 (for exa
 
 ## [Unreleased]
 
+## [1.36.0] - 2026-11-25
+
+### Added
+- **`dcc_fan` kernel module** (DKMS, built and signed together with `ite_829x`, loaded at boot through `/usr/lib/modules-load.d/dudes-control-center.conf`). It gives the fan daemon and `dcc-fan-cli` access to fans and temperatures through the kernel instead of writing to the EC's I/O ports 0x62/0x66 from user space:
+  - the EC is read through the kernel's ACPI EC driver, under the lock the firmware's own EC accesses use, so the two can no longer interleave;
+  - no `ioperm` is needed, which kernel lockdown (usually on with Secure Boot) forbids;
+  - the fan duty shown is the one the firmware reports through Clevo's WMI interface (this EC's duty registers 0xCE/0xCF always read 0, so the Status tab used to show the duty the daemon had set);
+  - the fan speed is set through Clevo WMI (`SET_FANSPEED_VALUE`), or EC command 0x99 under the EC lock with `method=ec`;
+  - a standard hwmon device `dcc_fan` (`temp1/2_input`, `fan1/2_input`, `pwm1/2`), so `sensors` and desktop monitors show CPU and GPU temperature and both fans;
+  - a watchdog: the fans go to 100% when no fan update comes for 30 s (the daemon writes every 5 s), and when the module is unloaded.
+  It loads only where Clevo's WMI interface exists (`force=1` to try anyway). Without it, the daemon and CLI work as before with port I/O; they switch back by themselves if the module is unloaded and find it again after a reload. Measured on the X58xWNx: WMI and EC give the same results, the firmware takes every duty as given (no rounding of low values), and at very low duties the fans stop: the GPU fan at 8% (it turns at 12%), the CPU fan at 4% (it turns at 8%).
+- `dcc-fan-cli` without options works without root when the module is loaded, and shows the EC access method; the fan daemon logs it at start and reports `EC_ACCESS=module|ports` in `STATUS`.
+- Man page `dcc_fan(4)`; the fan daemon, CLI and overview pages mention the module.
+- Tests: the hwmon backend against a fake hwmon tree (detection, reading, writing, keepalive, reload, removal); `make deb-check` checks the DKMS source, the boot loading, the maintainer scripts and the copyright entry.
+
 ## [1.35.0] - 2026-11-24
 
 ### Added
@@ -935,7 +950,8 @@ Programs and services were named `dudes-control-center-*` before 1.19.0 (for exa
 - Unix socket IPC between GUI and daemon
 - Watchdog timer and fail-safe mode in daemon
 
-[Unreleased]: https://github.com/dudewayne/Dudes-Control-Center/compare/v1.35.0...HEAD
+[Unreleased]: https://github.com/dudewayne/Dudes-Control-Center/compare/v1.36.0...HEAD
+[1.36.0]: https://github.com/dudewayne/Dudes-Control-Center/compare/v1.35.0...v1.36.0
 [1.35.0]: https://github.com/dudewayne/Dudes-Control-Center/compare/v1.34.4...v1.35.0
 [1.34.4]: https://github.com/dudewayne/Dudes-Control-Center/compare/v1.34.3...v1.34.4
 [1.34.3]: https://github.com/dudewayne/Dudes-Control-Center/compare/v1.34.2...v1.34.3

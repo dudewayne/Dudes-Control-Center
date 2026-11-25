@@ -22,6 +22,14 @@ Fan curves come from the desktop user's
 (see
 .BR dudes-control-center (7)).
 .PP
+When the
+.BR dcc_fan (4)
+kernel module is loaded, the daemon reaches the EC through it (and writes the
+fan duty every 5 seconds for the module's watchdog); otherwise it uses the
+I/O ports 0x62/0x66 directly.
+The log names the method at start; STATUS reports it as
+.BR EC_ACCESS=module | ports .
+.PP
 Clients connect to
 .IR /run/dcc-fan.sock ;
 only root and members of the group
@@ -32,6 +40,12 @@ are accepted (checked with SO_PEERCRED on every connection).
 .B Watchdog
 The daemon reports to the systemd watchdog every 2 seconds.
 If its main loop hangs for 30 seconds, systemd kills and restarts it.
+.TP
+.B Kernel watchdog
+With
+.BR dcc_fan (4)
+loaded, the module itself sets the fans to 100\~% when the daemon has not
+written for 30 seconds.
 .TP
 .B Stop fail-safe
 Whenever the service stops (crash, watchdog, stop, update), its
@@ -82,4 +96,5 @@ hands them back to the firmware while the system runs.
 .BR dcc-fan-cli (1),
 .BR dcc-gui (1),
 .BR dcc-component (8),
+.BR dcc_fan (4),
 .BR systemd.service (5)
