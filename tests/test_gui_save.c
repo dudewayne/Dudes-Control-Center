@@ -550,6 +550,80 @@ int main(int argc, char **argv) {
               "S: flag removed -> on again; invalid component numbers are 'on'");
     }
 
+    /* P: Status tab power, battery, NVMe, GPU (v1.37.0) */
+    {
+        g_mkdir_with_parents("ps/BAT0", 0755);
+        g_mkdir_with_parents("ps/AC", 0755);
+        g_file_set_contents("ps/AC/type", "Mains\n", -1, NULL);
+        g_file_set_contents("ps/AC/online", "0\n", -1, NULL);
+        g_file_set_contents("ps/BAT0/type", "Battery\n", -1, NULL);
+        g_file_set_contents("ps/BAT0/status", "Discharging\n", -1, NULL);
+        g_file_set_contents("ps/BAT0/capacity", "64\n", -1, NULL);
+        g_file_set_contents("ps/BAT0/current_now", "2000000\n", -1, NULL);    /* 2 A */
+        g_file_set_contents("ps/BAT0/voltage_now", "15000000\n", -1, NULL);   /* 15 V */
+        g_file_set_contents("ps/BAT0/charge_now", "4500000\n", -1, NULL);     /* 4.5 Ah */
+        g_file_set_contents("ps/BAT0/charge_full", "5926000\n", -1, NULL);
+        g_file_set_contents("ps/BAT0/charge_full_design", "6300000\n", -1, NULL);
+        g_file_set_contents("ps/BAT0/cycle_count", "0\n", -1, NULL);
+        StatusBattery b;
+        status_battery_read("ps", &b);
+        char c[128], st[128], h[128];
+        status_battery_texts(&b, c, st, h, sizeof c);
+        CHECK(b.present && b.on_ac == 0 && b.capacity == 64 && b.power_w > 29.9 && b.power_w < 30.1 &&
+              b.hours > 2.24 && b.hours < 2.26 && b.health == 94,
+              "P: battery from charge/current/voltage: 30 W, 2.25 h left, 94 % health");
+        CHECK(strstr(st, "30.0 W") || strstr(st, "30,0 W"), "P: discharging text shows the watts");
+        CHECK(strstr(st, "2:15 h") && !strstr(h, "cycles"), "P: time left as h:mm, 0 cycles left out");
+        /* energy-based battery (uWh/uW), charging */
+        g_mkdir_with_parents("ps2/BAT1", 0755);
+        g_file_set_contents("ps2/BAT1/type", "Battery\n", -1, NULL);
+        g_file_set_contents("ps2/BAT1/status", "Charging\n", -1, NULL);
+        g_file_set_contents("ps2/BAT1/capacity", "50\n", -1, NULL);
+        g_file_set_contents("ps2/BAT1/power_now", "40000000\n", -1, NULL);     /* 40 W */
+        g_file_set_contents("ps2/BAT1/energy_now", "40000000\n", -1, NULL);    /* 40 Wh */
+        g_file_set_contents("ps2/BAT1/energy_full", "80000000\n", -1, NULL);
+        g_file_set_contents("ps2/BAT1/energy_full_design", "80000000\n", -1, NULL);
+        g_file_set_contents("ps2/BAT1/cycle_count", "120\n", -1, NULL);
+        status_battery_read("ps2", &b);
+        status_battery_texts(&b, c, st, h, sizeof c);
+        CHECK(b.power_w > 39.9 && b.power_w < 40.1 && b.hours > 0.99 && b.hours < 1.01 && strstr(st, "1:00 h") &&
+              strstr(h, "100 %") && strstr(h, "120"), "P: energy-based battery, charging: full in 1:00 h, cycles shown");
+        status_battery_read("nowhere", &b);
+        status_battery_texts(&b, c, st, h, sizeof c);
+        CHECK(!b.present && !strcmp(c, _("No battery")), "P: no battery");
+        /* NVMe drives from hwmon */
+        g_mkdir_with_parents("hw/hwmon2/device", 0755);
+        g_mkdir_with_parents("hw/hwmon1", 0755);
+        g_file_set_contents("hw/hwmon1/name", "coretemp\n", -1, NULL);
+        g_file_set_contents("hw/hwmon2/name", "nvme\n", -1, NULL);
+        g_file_set_contents("hw/hwmon2/temp1_input", "35850\n", -1, NULL);
+        g_file_set_contents("hw/hwmon2/device/model", "Samsung SSD 990 PRO 4TB                 \n", -1, NULL);
+        char nv[256];
+        status_nvme_text("hw", nv, sizeof nv);
+        CHECK(!strcmp(nv, "Samsung SSD 990 PRO 4TB: 36°C"), "P: NVMe drive with model name, other sensors ignored");
+        /* GPU fields of the fan daemon's STATUS */
+        StatusGpu g = { "", "", -1, -1, -1, -1, -1, -1, "" };
+        status_gpu_field(&g, "STATE=awake");
+        status_gpu_field(&g, "NAME=NVIDIA GeForce RTX 5090 Laptop GPU");
+        status_gpu_field(&g, "POWER_W=26.3");
+        status_gpu_field(&g, "VRAM_TOTAL_MB=24463");
+        CHECK(!strcmp(g.state, "awake") && g.power > 26.29 && g.power < 26.31 && g.vram_total == 24463,
+              "P: GPU fields of STATUS parsed");
+        /* daemon numbers keep their decimals in a comma locale */
+        char *old = g_strdup(setlocale(LC_NUMERIC, NULL));
+        static const char *const comma[] = { "de_DE.UTF-8", "de_AT.UTF-8", "de_CH.UTF-8", "fr_FR.UTF-8", "es_ES.UTF-8", NULL };
+        int have = 0;
+        for (int i = 0; comma[i] && !have; i++) have = setlocale(LC_NUMERIC, comma[i]) != NULL;
+        if (have) {
+            CHECK(atof("26.3") < 26.29 && num_c("26.3") > 26.29 && num_c("26.3") < 26.31,
+                  "P: 26.3 from a daemon stays 26.3 in a decimal-comma locale (atof gave 26)");
+        } else {
+            printf("SKIP  P: no decimal-comma locale installed\n");
+        }
+        setlocale(LC_NUMERIC, old);
+        g_free(old);
+    }
+
     /* E: effects in the zone editor model (v1.35.0) */
     {
         static KbdProfileEdit e, f;

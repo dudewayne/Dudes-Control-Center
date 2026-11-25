@@ -32,6 +32,10 @@
 #define _(s) gettext(s)
 #define N_(s) (s)
 
+/* Numbers from the daemons and data files always use a decimal point; atof()
+ * follows the locale (German: comma) and stopped at the point (1.37.0) */
+static double num_c(const char *s) { return g_ascii_strtod(s, NULL); }
+
 /* GUI.log at INFO: events; plain g_print() goes to DEBUG (1.34.3) */
 static void gui_event(const char *fmt, ...) G_GNUC_PRINTF(1, 2);
 
@@ -225,7 +229,7 @@ static int kbd_layout_parse(const char *code, KbdLayoutData *L) {
         }
         int need = MAX(MAX(ck, cx), MAX(MAX(cy, cw), ch));
         if (nf <= need || !f[ck][0] || L->n >= KBD_MAX_KEYS) continue;
-        KeyPos k = { atof(f[cx]), atof(f[cy]), atof(f[cw]), atof(f[ch]) };
+        KeyPos k = { num_c(f[cx]), num_c(f[cy]), num_c(f[cw]), num_c(f[ch]) };
         if (k.w <= 0 || k.h <= 0) continue;
         snprintf(L->names[L->n], sizeof L->names[0], "%s", f[ck]);
         L->row[L->n] = (cr >= 0 && cr < nf && f[cr][0]) ? atoi(f[cr]) : -1;
@@ -425,7 +429,7 @@ static void get_timestamp(char *buf, size_t buf_size) {
     struct timeval tv;
     struct tm *tm_info;
     char time_str[32];
-    
+
     #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wformat-truncation"
     gettimeofday(&tv, NULL);
@@ -543,9 +547,14 @@ static void gui_install_log_handlers(void) {
 typedef struct {
     GtkWidget *window;
     GtkWidget *notebook;
-    
+
     /* Page 1: Status & Manual Control widgets */
     GtkWidget *cpu_temp_label;
+    /* Status tab (1.37.0): power, GPU, battery, NVMe */
+    GtkWidget *pw_cpu_label, *pw_gpu_label, *pw_bat_label;
+    GtkWidget *gpu_name_label, *gpu_clock_label, *gpu_load_label, *gpu_vram_label;
+    GtkWidget *bat_charge_label, *bat_state_label, *bat_health_label;
+    GtkWidget *nvme_box;                /* one label per NVMe drive */
     GtkWidget *gpu_temp_label;
     GtkWidget *cpu_fan_rpm_label;
     GtkWidget *gpu_fan_rpm_label;
@@ -554,7 +563,7 @@ typedef struct {
     GtkWidget *manual_speed_label; /* Display current manual speed */
     GtkWidget *manual_plus_btn;   /* +10% button */
     GtkWidget *manual_minus_btn;  /* -10% button */
-    
+
     /* Page 2: Curve Editor widgets */
     GtkWidget *profile_combo;
     GtkWidget *fan_activate_btn;   /* Fan Profiles tab: activate the selected profile */
@@ -564,69 +573,69 @@ typedef struct {
     int num_profiles;
     char **profile_names;
     int active_profile_idx;
-    
+
     /* Page 3: Profile List widgets */
     int pending_active_profile_idx; /* Pending selection before Apply */
-    
+
     /* Socket connection */
     int socket_fd;
     int connected;
-    
+
     /* Flag to prevent callback recursion during menu creation */
     int updating_tray_menu;
-    
+
     /* Flag to prevent profile loading during refresh */
     int refreshing_profile_list;
-    
+
     /* Flag to track unsaved curve point changes */
     int curve_points_modified;
-    
+
     /* Flag to prevent re-entry in notebook page switch callback */
     int switching_page;
-    
+
     /* Auto mode state from daemon */
     int auto_mode_enabled;
-    
+
     /* Manual mode current speed (for +/- buttons) */
     int manual_current_speed;
-    
+
     /* Last known fan duty from status refresh */
     int last_known_fan_duty;
     int emergency_auto_seen; /* last EMERGENCY_AUTO count from the fan daemon (-1 = none yet) */
-    
+
     /* Manual mode state tracking */
     int in_manual_mode; /* TRUE if currently in manual mode */
     int profile_before_manual; /* Profile index that was active before entering manual mode */
-    
+
     /* Page 3: Manual mode warning widgets */
     GtkWidget *manual_mode_warning_label;
     GtkWidget *disable_manual_mode_btn;
-    
+
     /* Signal IDs for blocking/unblocking callbacks */
     guint manual_mode_signal_id;
     guint profile_combo_signal_id;
     guint cpu_profile_combo_signal_id;
     guint cpu_custom_profile_combo_signal_id;
     guint cpu_apply_all_cores_signal_id;
-    
+
     /* Statusbar */
     GtkWidget *statusbar;
     guint status_context;
-    
+
     /* Refresh timer */
     guint refresh_timer_id;
-    
+
     /* System tray icon */
     GtkStatusIcon *status_icon;
     GtkWidget *tray_menu;
-    
+
     /* Window position */
     gint window_x, window_y;
     guint window_width, window_height;
-    
+
     /* Handler ID for page-switched signal (for blocking during cancel) */
     guint page_switched_handler_id;
-    
+
     /* Page 4: Log viewer widgets */
     GtkWidget *gui_log_view;
     GtkWidget *daemon_log_view;
@@ -637,7 +646,7 @@ typedef struct {
     GtkTextBuffer *cpu_daemon_log_buffer;
     GtkTextBuffer *kbd_daemon_log_buffer;
     guint log_refresh_timer_id;
-    
+
     /* Page 6: CPU Control widgets */
     int cpu_socket_fd;
     int cpu_connected;
@@ -650,12 +659,12 @@ typedef struct {
     GtkWidget *cpu_profile_combo;
     GtkListStore *cpu_profile_store;
     guint cpu_refresh_timer_id;
-    
+
     /* Per-core frequency display */
     GtkWidget *cpu_core_grid;
     GtkWidget *cpu_core_freq_labels[32];
     int cpu_core_count;
-    
+
     /* Per-core frequency profile management UI */
     GtkWidget *cpu_custom_profile_combo;
     GtkListStore *cpu_custom_profile_store;
@@ -761,7 +770,7 @@ typedef struct {
     int kbd_brightness_max;
     int kbd_off_active; /* 1 when off switch is active */
     int kbd_num_zones;
-    
+
     /* LED Wizard state */
     int kbd_wizard_active; /* 1 when wizard is running */
     int kbd_wizard_current_led; /* Current LED being assigned (0-119) */
@@ -989,25 +998,25 @@ static int check_unsaved_changes(AppData *app) {
     if (!app->curve_points_modified) {
         return 1; /* No unsaved changes, proceed normally */
     }
-    
+
     GtkWidget *dialog = gtk_message_dialog_new(GTK_WINDOW(app->window),
                                                 GTK_DIALOG_MODAL,
                                                 GTK_MESSAGE_WARNING,
                                                 GTK_BUTTONS_NONE,
                                                 NULL);
-    
+
     gtk_message_dialog_set_markup(GTK_MESSAGE_DIALOG(dialog),
                                   _("<b>Warning:</b> You have unsaved changes to the curve points.\n\nWhat would you like to do?"));
-    
+
     /* Add buttons with custom response IDs */
     gtk_dialog_add_button(GTK_DIALOG(dialog), _("_Cancel"), -102);
     gtk_dialog_add_button(GTK_DIALOG(dialog), _("_Discard Changes"), -100);
     gtk_dialog_add_button(GTK_DIALOG(dialog), _("_Save Changes"), -101);
-    
+
     gtk_widget_show_all(dialog);
     gint response = gtk_dialog_run(GTK_DIALOG(dialog));
     gtk_widget_destroy(dialog);
-    
+
     if (response == -101) {
         return 1; /* Apply changes */
     } else if (response == -100) {
@@ -1020,23 +1029,23 @@ static int check_unsaved_changes(AppData *app) {
 /* Send command to daemon and receive response */
 static const char *send_command(AppData *app, const char *cmd) {
     static char response[BUFFER_SIZE];
-    
+
     if (!app->connected || app->socket_fd < 0) {
         strcpy(response, "ERROR Not connected to daemon");
         return response;
     }
-    
+
     /* Add newline for line-buffered protocol */
     char cmd_with_newline[BUFFER_SIZE];
     snprintf(cmd_with_newline, sizeof(cmd_with_newline), "%s\n", cmd);
-    
+
     /* Only print non-STATUS commands to avoid spam from periodic refreshes */
     if (strcmp(cmd, "STATUS") != 0) {
         char ts[32];
         get_timestamp(ts, sizeof(ts));
         g_print("%s [GUI] Sending: %s\n", ts, cmd);
     }
-    
+
     /* Send command */
     ssize_t sent = send(app->socket_fd, cmd_with_newline, strlen(cmd_with_newline), MSG_NOSIGNAL);  /* EPIPE instead of SIGPIPE */
     if (sent < 0) {
@@ -1051,7 +1060,7 @@ static const char *send_command(AppData *app, const char *cmd) {
         strcpy(response, "ERROR Failed to send command");
         return response;
     }
-    
+
     /* Receive response */
     memset(response, 0, sizeof(response));
     ssize_t received = read(app->socket_fd, response, sizeof(response) - 1);
@@ -1075,14 +1084,14 @@ static const char *send_command(AppData *app, const char *cmd) {
         app->connected = 0;
         return response;
     }
-    
+
     /* Only print non-STATUS responses to avoid spam from periodic refreshes */
     if (strcmp(cmd, "STATUS") != 0) {
         char ts[32];
         get_timestamp(ts, sizeof(ts));
         g_print("%s [GUI] Received (%zd bytes): %s...\n", ts, received, response);
     }
-    
+
     return response;
 }
 
@@ -1185,17 +1194,19 @@ static void parse_cpu_status(AppData *app, const char *response) {
     char buffer[8192];
     strncpy(buffer, response, sizeof(buffer) - 1);
     buffer[sizeof(buffer) - 1] = '\0';
-    
+
 
 
     int cpu_temp = 0;
     float cpu_load = 0.0f;
     int num_cpus = 0;
+    double cpu_power = -1;          /* CPU daemons since 1.37.0 */
+    int cpu_power_limit = -1;
     char active_governor[64] = "N/A";
     char cur_gov[64] = "", cur_epp[64] = "";   /* raw values (daemons since 1.20.3) */
     char freq_values[256] = "N/A";
     char min_max_freq[128] = "N/A";
-    
+
     /* Per-core frequency storage */
     char core_freqs[32][64];
     int core_count = 0;
@@ -1209,8 +1220,12 @@ static void parse_cpu_status(AppData *app, const char *response) {
     while (line != NULL) {
         if (strncmp(line, "CPU_TEMP=", 9) == 0) {
             cpu_temp = atoi(line + 9);
+        } else if (strncmp(line, "CPU_POWER_W=", 12) == 0) {
+            cpu_power = num_c(line + 12);
+        } else if (strncmp(line, "CPU_POWER_LIMIT_W=", 18) == 0) {
+            cpu_power_limit = atoi(line + 18);
         } else if (strncmp(line, "CPU_LOAD=", 9) == 0) {
-            cpu_load = atof(line + 9);
+            cpu_load = num_c(line + 9);
         } else if (strncmp(line, "NUM_CPUS=", 9) == 0) {
             num_cpus = atoi(line + 9);
         } else if (strncmp(line, "ACTIVE_GOVERNOR=", 16) == 0) {
@@ -1257,6 +1272,16 @@ static void parse_cpu_status(AppData *app, const char *response) {
     gtk_label_set_text(GTK_LABEL(app->cpu_page_temp_label), temp_text);
     gtk_label_set_text(GTK_LABEL(app->cpu_page_load_label), load_text);
     gtk_label_set_text(GTK_LABEL(app->cpu_page_num_label), num_text);
+    if (app->pw_cpu_label) {   /* Status tab, Power (1.37.0) */
+        char pw[96];
+        if (cpu_power >= 0 && cpu_power_limit > 0)
+            snprintf(pw, sizeof pw, _("CPU: %.1f W (sustained limit %d W)"), cpu_power, cpu_power_limit);
+        else if (cpu_power >= 0)
+            snprintf(pw, sizeof pw, _("CPU: %.1f W"), cpu_power);
+        else
+            snprintf(pw, sizeof pw, "%s", _("CPU: -- W"));
+        gtk_label_set_text(GTK_LABEL(app->pw_cpu_label), pw);
+    }
     /* "Balanced (powersave, balance_performance)" */
     gchar *mode_text = cur_gov[0]
         ? (cur_epp[0] && strcmp(cur_gov, "performance") != 0
@@ -1279,7 +1304,7 @@ static void parse_cpu_status(AppData *app, const char *response) {
             app->cpu_core_freq_labels[i] = gtk_label_new(label_text);
             g_free(label_text);
             gtk_label_set_xalign(GTK_LABEL(app->cpu_core_freq_labels[i]), 0.0);
-            
+
             /* 4 columns layout: row = i / 4, col = i % 4 */
             int row = i / 4;
             int col = i % 4;
@@ -2670,24 +2695,24 @@ static void mark_cpu_freq_profiles_modified(AppData *app) {
 static gboolean on_manual_mode_switched(GtkSwitch *switch_widget, gboolean new_state, gpointer user_data) {
     AppData *app = (AppData *)user_data;
     int is_on = new_state; /* Use the new_state parameter from state-set signal */
-    
+
     const char *response;
     char ts[32];
     get_timestamp(ts, sizeof(ts)); /* Initialize timestamp first! */
-    
+
     g_print("%s [GUI] >>> on_manual_mode_switched called: is_on=%d, app->in_manual_mode=%d, app->auto_mode_enabled=%d <<<\n", ts, is_on, app->in_manual_mode, app->auto_mode_enabled);
-    
+
     if (is_on) {
         /* Enable manual mode - disable auto mode */
         g_print("%s [GUI] Sending SET_AUTO 0 to daemon\n", ts);
         response = send_command(app, "SET_AUTO 0");
         g_print("%s [GUI] SET_AUTO 0 response: %s\n", ts, response);
         app->auto_mode_enabled = 0;
-        
+
         /* Store the current profile index before entering manual mode */
         app->profile_before_manual = app->active_profile_idx;
         g_print("%s [GUI] Stored profile_before_manual = %d\n", ts, app->profile_before_manual);
-        
+
         gtk_widget_set_sensitive(app->manual_minus_btn, TRUE);
         gtk_widget_set_sensitive(app->manual_plus_btn, TRUE);
         /* Fetch fresh status to get current fan speed */
@@ -2723,13 +2748,13 @@ static gboolean on_manual_mode_switched(GtkSwitch *switch_widget, gboolean new_s
         gtk_switch_set_state(switch_widget, TRUE);
         g_signal_handler_unblock(app->manual_mode_switch, app->manual_mode_signal_id);
         g_print("%s [GUI] Signal handler unblocked, switch state after set: %d\n", ts, gtk_switch_get_active(GTK_SWITCH(switch_widget)));
-        
+
         /* Track that we're in manual mode */
         app->in_manual_mode = 1;
-        
+
         /* Update the profile tab UI for manual mode */
         update_profile_tab_for_manual_mode(app, 1);
-        
+
         get_timestamp(ts, sizeof(ts));
         gui_event("%s [GUI] Manual mode ENABLED, app->in_manual_mode=%d, app->auto_mode_enabled=%d\n", ts, app->in_manual_mode, app->auto_mode_enabled);
     } else {
@@ -2743,19 +2768,19 @@ static gboolean on_manual_mode_switched(GtkSwitch *switch_widget, gboolean new_s
         g_signal_handler_block(app->manual_mode_switch, app->manual_mode_signal_id);
         gtk_switch_set_state(switch_widget, FALSE);
         g_signal_handler_unblock(app->manual_mode_switch, app->manual_mode_signal_id);
-        
+
         /* Track that we're no longer in manual mode */
         app->in_manual_mode = 0;
-        
+
         /* Update the profile tab UI for manual mode */
         update_profile_tab_for_manual_mode(app, 0);
-        
+
         get_timestamp(ts, sizeof(ts));
         gui_event("%s [GUI] Manual mode DISABLED (auto mode enabled)\n", ts);
     }
-    
+
     show_status(app, response);
-    
+
     return TRUE; /* Accept the state change */
 }
 
@@ -2805,19 +2830,19 @@ static void on_manual_speed_minus_clicked(GtkWidget *button, gpointer user_data)
 static void on_apply_clicked(GtkWidget *widget, gpointer user_data) {
     (void)widget;
     AppData *app = (AppData *)user_data;
-    
+
     int profile_idx = gtk_combo_box_get_active(GTK_COMBO_BOX(app->profile_combo));
     if (profile_idx < 0) {
         show_status(app, _("ERROR No profile selected"));
         return;
     }
-    
+
     /* Collect all curve points from the tree view */
     GtkTreeModel *model = GTK_TREE_MODEL(app->curve_store);
     GtkTreeIter iter;
     int num_points = 0;
     int temps[50], fan_pcts[50];
-    
+
     if (gtk_tree_model_get_iter_first(model, &iter)) {
         do {
             gchar *temp_str;
@@ -2829,27 +2854,27 @@ static void on_apply_clicked(GtkWidget *widget, gpointer user_data) {
             num_points++;
         } while (gtk_tree_model_iter_next(model, &iter) && num_points < 50);
     }
-    
+
     /* Build the SET_CURVE_POINTS command */
     char cmd[1024];
     snprintf(cmd, sizeof(cmd), "SET_CURVE_POINTS %d %d", profile_idx, num_points);
-    
+
     /* Append all points as temp,fan_pct,temp,fan_pct,... */
     for (int i = 0; i < num_points; i++) {
         char point_str[32];
         snprintf(point_str, sizeof(point_str), ",%d,%d", temps[i], fan_pcts[i]);
         strncat(cmd, point_str, sizeof(cmd) - strlen(cmd) - 1);
     }
-    
+
     const char *response = send_command(app, cmd);
     show_status(app, response);
-    
+
     /* Also save profiles to disk (GUI writes directly) */
     gui_save_profiles_to_disk(app);
-    
+
     /* Clear the modified flag since changes are now saved */
     app->curve_points_modified = 0;
-    
+
     /* Reload curve points to ensure UI matches daemon state */
     load_curve_points_for_profile(app, profile_idx);
 }
@@ -2878,18 +2903,18 @@ static void on_create_profile_clicked(GtkWidget *widget, gpointer user_data) {
                                                     _("Cancel"), GTK_RESPONSE_CANCEL,
                                                     _("Create"), GTK_RESPONSE_ACCEPT,
                                                     NULL);
-    
+
     GtkWidget *entry = gtk_entry_new();
     gtk_entry_set_placeholder_text(GTK_ENTRY(entry), _("Profile name"));
-    
+
     GtkWidget *content = gtk_dialog_get_content_area(GTK_DIALOG(dialog));
     gtk_box_pack_start(GTK_BOX(content), entry, TRUE, TRUE, 0);
     gtk_widget_show_all(content);
-    
+
     /* Set Accept as default so Enter key triggers profile creation */
     gtk_dialog_set_default_response(GTK_DIALOG(dialog), GTK_RESPONSE_ACCEPT);
     g_signal_connect(entry, "activate", G_CALLBACK(on_entry_activate), dialog);
-    
+
     if (gtk_dialog_run(GTK_DIALOG(dialog)) == GTK_RESPONSE_ACCEPT) {
         const gchar *name = gtk_entry_get_text(GTK_ENTRY(entry));
         if (strlen(name) > 0) {
@@ -2917,11 +2942,11 @@ static void on_create_profile_clicked(GtkWidget *widget, gpointer user_data) {
             snprintf(cmd, sizeof(cmd), "CREATE_PROFILE %s", name);
             const char *response = send_command(app, cmd);
             show_status(app, response);
-            
+
             /* Refresh profile list and tray menu, then switch to the new profile */
             refresh_profile_list(app);
             update_tray_menu(app);
-            
+
             /* Find and select the newly created profile */
             int new_idx = -1;
             for (int k = 0; k < app->num_profiles; k++) {
@@ -2948,37 +2973,37 @@ static void on_create_profile_clicked(GtkWidget *widget, gpointer user_data) {
 static void on_delete_profile_clicked(GtkWidget *widget, gpointer user_data) {
     (void)widget; /* Unused */
     AppData *app = (AppData *)user_data;
-    
+
     int idx = gtk_combo_box_get_active(GTK_COMBO_BOX(app->profile_combo));
     if (idx < 0 || idx >= app->num_profiles) {
         show_status(app, _("ERROR No profile selected"));
         return;
     }
-    
+
     const char *profile_name = app->profile_names[idx];
-    
+
     /* Don't allow deleting the Default profile */
     if (strcmp(profile_name, "Default") == 0) {
         show_status(app, _("ERROR Cannot delete Default profile"));
         return;
     }
-    
+
     GtkWidget *dialog = gtk_message_dialog_new(GTK_WINDOW(app->window),
                                                GTK_DIALOG_MODAL,
                                                GTK_MESSAGE_QUESTION,
                                                GTK_BUTTONS_YES_NO,
                                                _("Are you sure you want to delete the profile '%s'?"), profile_name);
-    
+
     if (gtk_dialog_run(GTK_DIALOG(dialog)) == GTK_RESPONSE_YES) {
         char cmd[64];
         snprintf(cmd, sizeof(cmd), "DELETE_PROFILE %d", idx);
         const char *response = send_command(app, cmd);
         show_status(app, response);
-        
+
         /* Refresh profile list and tray menu */
         refresh_profile_list(app);
         update_tray_menu(app);
-        
+
         /* Reload curve points for the new active profile */
 
         int new_active = gtk_combo_box_get_active(GTK_COMBO_BOX(app->profile_combo));
@@ -2986,7 +3011,7 @@ static void on_delete_profile_clicked(GtkWidget *widget, gpointer user_data) {
             load_curve_points_for_profile(app, new_active);
         }
     }
-    
+
     gtk_widget_destroy(dialog);
 }
 
@@ -3074,7 +3099,7 @@ static int has_duplicate_temperature(AppData *app, int temp, gint index_to_exclu
     GtkTreeIter iter;
     GtkTreeModel *model = GTK_TREE_MODEL(app->curve_store);
     gint current_index = 0;
-    
+
     if (gtk_tree_model_get_iter_first(model, &iter)) {
         do {
             /* Skip the row we're currently editing */
@@ -3082,7 +3107,7 @@ static int has_duplicate_temperature(AppData *app, int temp, gint index_to_exclu
                 current_index++;
                 continue;
             }
-            
+
             gchar *temp_str;
             gtk_tree_model_get(model, &iter, 0, &temp_str, -1);
             /* Parse temperature from string like "50°C" */
@@ -3107,35 +3132,35 @@ static void show_curve_point_dialog(AppData *app, GtkTreeIter *edit_iter, int ed
         edit_iter ? _("Update") : _("Add"),
         GTK_RESPONSE_ACCEPT,
         NULL);
-    
+
     GtkWidget *grid = gtk_grid_new();
     gtk_grid_set_row_spacing(GTK_GRID(grid), 10);
     gtk_grid_set_column_spacing(GTK_GRID(grid), 10);
     gtk_container_set_border_width(GTK_CONTAINER(grid), 20);
-    
+
     GtkWidget *temp_label = gtk_label_new(_("Temperature (°C):"));
     GtkWidget *temp_entry = gtk_spin_button_new_with_range(0, 100, 1);
     gtk_spin_button_set_value(GTK_SPIN_BUTTON(temp_entry), edit_temp);
-    
+
     GtkWidget *fan_label = gtk_label_new(_("Fan Speed (%)"));
     GtkWidget *fan_entry = gtk_spin_button_new_with_range(0, 100, 10);
     gtk_spin_button_set_value(GTK_SPIN_BUTTON(fan_entry), edit_fan_pct);
-    
+
     gtk_grid_attach(GTK_GRID(grid), temp_label, 0, 0, 1, 1);
     gtk_grid_attach(GTK_GRID(grid), temp_entry, 1, 0, 1, 1);
     gtk_grid_attach(GTK_GRID(grid), fan_label, 0, 1, 1, 1);
     gtk_grid_attach(GTK_GRID(grid), fan_entry, 1, 1, 1, 1);
-    
+
     /* Connect Enter key to trigger Add/Update button */
     g_signal_connect(temp_entry, "key-press-event", G_CALLBACK(on_curve_point_dialog_key_press), dialog);
     g_signal_connect(fan_entry, "key-press-event", G_CALLBACK(on_curve_point_dialog_key_press), dialog);
-    
+
     GtkWidget *content = gtk_dialog_get_content_area(GTK_DIALOG(dialog));
     gtk_box_pack_start(GTK_BOX(content), grid, TRUE, TRUE, 0);
     gtk_widget_show_all(content);
-    
+
     gint response = gtk_dialog_run(GTK_DIALOG(dialog));
-    
+
     /* Handle Cancel or X click - just close dialog without changes */
     if (response != GTK_RESPONSE_ACCEPT) {
         char ts[32];
@@ -3144,11 +3169,11 @@ static void show_curve_point_dialog(AppData *app, GtkTreeIter *edit_iter, int ed
         gtk_widget_destroy(dialog);
         return;
     }
-    
+
     /* User clicked Add/Update - proceed with the operation */
     int temp = gtk_spin_button_get_value_as_int(GTK_SPIN_BUTTON(temp_entry));
     int fan_pct = gtk_spin_button_get_value_as_int(GTK_SPIN_BUTTON(fan_entry));
-    
+
     /* Get row index for exclusion when editing */
     gint edit_index = -1;
     if (edit_iter) {
@@ -3159,7 +3184,7 @@ static void show_curve_point_dialog(AppData *app, GtkTreeIter *edit_iter, int ed
             gtk_tree_path_free(path);
         }
     }
-    
+
     /* Check for duplicate temperature (excluding the current row when editing) */
     if (has_duplicate_temperature(app, temp, edit_index)) {
         GtkWidget *msg_dialog = gtk_message_dialog_new(
@@ -3174,11 +3199,11 @@ static void show_curve_point_dialog(AppData *app, GtkTreeIter *edit_iter, int ed
         gtk_widget_destroy(dialog);
         return;
     }
-    
+
     /* Collect all existing points plus the new/edited point */
     CurvePoint all_points[MAX_CURVE_POINTS];
     int point_count = 0;
-    
+
     GtkTreeIter iter;
     if (gtk_tree_model_get_iter_first(GTK_TREE_MODEL(app->curve_store), &iter)) {
         do {
@@ -3194,7 +3219,7 @@ static void show_curve_point_dialog(AppData *app, GtkTreeIter *edit_iter, int ed
             g_free(temp_str);
         } while (gtk_tree_model_iter_next(GTK_TREE_MODEL(app->curve_store), &iter));
     }
-    
+
     /* If editing, update the existing point; otherwise add new point */
     if (edit_iter) {
         /* Find and update the edited point in our array */
@@ -3212,12 +3237,12 @@ static void show_curve_point_dialog(AppData *app, GtkTreeIter *edit_iter, int ed
             point_count++;
         }
     }
-    
+
     /* Sort by temperature ascending */
     if (point_count > 1) {
         qsort(all_points, point_count, sizeof(CurvePoint), compare_curve_points_asc);
     }
-    
+
     /* Clear and repopulate the tree view with sorted points */
     gtk_list_store_clear(GTK_LIST_STORE(app->curve_store));
     for (int i = 0; i < point_count; i++) {
@@ -3229,19 +3254,19 @@ static void show_curve_point_dialog(AppData *app, GtkTreeIter *edit_iter, int ed
                           1, all_points[i].fan_pct,
                           -1);
     }
-    
+
     if (edit_iter) {
         show_status(app, _("Curve point updated (click Save to keep it)"));
     } else {
         show_status(app, _("Curve point added (click Save to keep it)"));
     }
-    
+
     /* Mark curve points as modified */
     app->curve_points_modified = 1;
-    
+
     /* Update the graph visualization */
     update_curve_graph(app);
-    
+
     gtk_widget_destroy(dialog);
 }
 
@@ -3249,7 +3274,7 @@ static void show_curve_point_dialog(AppData *app, GtkTreeIter *edit_iter, int ed
 static gboolean on_curve_point_dialog_key_press(GtkWidget *widget, GdkEventKey *event, gpointer user_data) {
     (void)widget; /* Unused */
     GtkWidget *dialog = GTK_WIDGET(user_data);
-    
+
     if (event->keyval == GDK_KEY_Return || event->keyval == GDK_KEY_KP_Enter) {
         /* Commit the current entry value before responding */
         gtk_spin_button_update(GTK_SPIN_BUTTON(widget));
@@ -3271,19 +3296,19 @@ static void on_curve_point_activated(GtkTreeView *treeview, GtkTreePath *path, G
     (void)treeview;
     (void)column; /* Unused - we don't care which column was clicked */
     AppData *app = (AppData *)user_data;
-    
+
     GtkTreeModel *model = GTK_TREE_MODEL(app->curve_store);
     GtkTreeIter iter;
-    
+
     if (gtk_tree_model_get_iter(model, &iter, path)) {
         gchar *temp_str;
         int fan_pct;
         gtk_tree_model_get(model, &iter, 0, &temp_str, 1, &fan_pct, -1);
-        
+
         /* Parse temperature from string like "50°C" */
         int temp = atoi(temp_str);
         g_free(temp_str);
-        
+
         /* Show edit dialog with current values */
         show_curve_point_dialog(app, &iter, temp, fan_pct);
     }
@@ -3293,21 +3318,21 @@ static void on_curve_point_activated(GtkTreeView *treeview, GtkTreePath *path, G
 static void on_delete_curve_point_clicked(GtkWidget *widget, gpointer user_data) {
     (void)widget;
     AppData *app = (AppData *)user_data;
-    
+
     /* Get selected row from tree view */
     GtkTreeSelection *selection = gtk_tree_view_get_selection(GTK_TREE_VIEW(app->curve_treeview));
     GtkTreeModel *model;
     GtkTreeIter iter;
-    
+
     if (gtk_tree_selection_get_selected(selection, &model, &iter)) {
         /* Remove the selected row from the tree view (local only, not saved yet) */
         gtk_list_store_remove(app->curve_store, &iter);
-        
+
         show_status(app, _("Curve point deleted (click Save to keep it)"));
-        
+
         /* Mark curve points as modified */
         app->curve_points_modified = 1;
-        
+
         /* Update the graph visualization */
         update_curve_graph(app);
     } else {
@@ -3322,24 +3347,24 @@ static void refresh_profile_list(AppData *app) {
     if (!app->connected || app->socket_fd < 0) {
         return;
     }
-    
+
     char ts[32];
     get_timestamp(ts, sizeof(ts));
     g_print("%s [GUI] refresh_profile_list called\n", ts);
-    
+
     /* Re-entry guard: prevent concurrent calls */
     if (app->refreshing_profile_list) {
         g_print("%s [GUI] -> Already refreshing, returning early\n", ts);
         return;
     }
-    
+
     /* Set flag to prevent callback recursion during refresh */
     app->refreshing_profile_list = 1;
     g_print("%s [GUI] -> Set refreshing_profile_list=1\n", ts);
-    
+
 
     char buffer[BUFFER_SIZE];
-    
+
     /* Free old profile names */
     if (app->profile_names) {
         for (int i = 0; i < app->num_profiles; i++) {
@@ -3348,7 +3373,7 @@ static void refresh_profile_list(AppData *app) {
         g_free(app->profile_names);
         app->profile_names = NULL;
     }
-    
+
     /* Remember the selected profile, so a refresh does not jump to the active one */
     int keep_idx = app->profile_combo ? gtk_combo_box_get_active(GTK_COMBO_BOX(app->profile_combo)) : -1;
 
@@ -3358,9 +3383,9 @@ static void refresh_profile_list(AppData *app) {
         gtk_combo_box_text_remove_all(GTK_COMBO_BOX_TEXT(app->profile_combo));
         g_signal_handler_unblock(app->profile_combo, app->profile_combo_signal_id);
     }
-    
+
     const char *response = send_command(app, "LIST_PROFILES");
-    
+
     /* Check for error responses */
     if (strncmp(response, "ERROR", 5) == 0) {
         char ts[32];
@@ -3369,15 +3394,15 @@ static void refresh_profile_list(AppData *app) {
         app->refreshing_profile_list = 0;
         return;
     }
-    
+
     strncpy(buffer, response, BUFFER_SIZE - 1);
     buffer[BUFFER_SIZE - 1] = '\0';
-    
+
     /* Make a copy for parsing (strtok modifies the string) */
     char buffer_copy[BUFFER_SIZE];
     strncpy(buffer_copy, buffer, BUFFER_SIZE - 1);
     buffer_copy[BUFFER_SIZE - 1] = '\0';
-    
+
     /* Parse response - first count profiles */
     app->num_profiles = 0;
     char *saveptr;
@@ -3388,14 +3413,14 @@ static void refresh_profile_list(AppData *app) {
         }
         line = strtok_r(NULL, "\n", &saveptr);
     }
-    
+
     /* Allocate profile names array */
     if (app->num_profiles > 0) {
         app->profile_names = g_new0(char*, app->num_profiles);
     } else {
         app->profile_names = NULL;
     }
-    
+
     /* Parse response again to fill the array using original buffer */
     line = strtok_r(buffer, "\n", &saveptr);
     int idx = 0;
@@ -3407,20 +3432,20 @@ static void refresh_profile_list(AppData *app) {
             int profile_num = -1;
             int is_active = 0;
             const char *name_start = NULL;
-            
+
             /* Skip "PROFILE " prefix */
             const char *p = line + 8;
-            
+
             /* Parse profile index */
             while (*p >= '0' && *p <= '9') {
                 if (profile_num < 0) profile_num = 0;
                 profile_num = profile_num * 10 + (*p - '0');
                 p++;
             }
-            
+
             /* Skip space before bracket */
             if (*p == ' ') p++;
-            
+
             /* Check for [*] (active) or [ ] (inactive) */
             if (*p == '[') {
                 is_active = (*(p + 1) == '*') ? 1 : 0;
@@ -3429,22 +3454,22 @@ static void refresh_profile_list(AppData *app) {
             }
             /* Skip leading space before the name */
             if (*p == ' ') p++;
-            
+
             /* Everything remaining is the profile name (may contain spaces) */
             name_start = p;
-            
+
             if (profile_num >= 0 && name_start != NULL && *name_start != '\0') {
                 if (is_active) {
                     app->active_profile_idx = profile_num;
                 }
-                
+
                 app->profile_names[idx] = g_strdup(name_start);
                 idx++;
             }
         }
         line = strtok_r(NULL, "\n", &saveptr);
     }
-    
+
     g_print("[GUI] Refreshed profile list: %d profiles, active_profile_idx=%d\n", app->num_profiles, app->active_profile_idx);
 
     /* Fill the dropdown; the active profile is marked "(Active)" */
@@ -3475,27 +3500,27 @@ static void refresh_profile_list(AppData *app) {
 /* Callback when profile combo box changes */
 static void on_profile_combo_changed(GtkWidget *widget, gpointer user_data) {
     AppData *app = (AppData *)user_data;
-    
+
     /* Validate app pointer */
     if (!app || !GTK_IS_COMBO_BOX(widget)) {
         g_print("[GUI] ERROR: Invalid app or widget in on_profile_combo_changed\n");
         return;
     }
-    
+
     char ts[32];
     get_timestamp(ts, sizeof(ts));
     int idx = gtk_combo_box_get_active(GTK_COMBO_BOX(widget));
-    
+
     /* Don't load curve points if we're currently refreshing the profile list */
     if (app->refreshing_profile_list) {
         return;
     }
-    
+
     /* Additional safety: ensure we're not in the middle of a page switch */
     if (app->switching_page) {
         return;
     }
-    
+
     /* Check for unsaved changes before switching profiles */
     if (app->curve_points_modified) {
         int result = check_unsaved_changes(app);
@@ -3512,25 +3537,25 @@ static void on_profile_combo_changed(GtkWidget *widget, gpointer user_data) {
             g_print("%s [GUI] -> Profile switch cancelled by user\n", ts);
             /* Don't reload anything - keep the unsaved changes visible in GUI */
             /* The flag stays set so we can warn again if they try to leave */
-            
+
             /* Reset combo box to current active profile */
             g_signal_handler_block(widget, app->profile_combo_signal_id);
             gtk_combo_box_set_active(GTK_COMBO_BOX(widget), app->active_profile_idx);
             g_signal_handler_unblock(widget, app->profile_combo_signal_id);
-            
+
             return;
         }
     }
-    
+
     get_timestamp(ts, sizeof(ts)); /* Get fresh timestamp */
     g_print("%s [GUI] -> DEBUG: After refreshing check, continuing\n", ts);
-    
+
     if (idx >= 0) {
         load_curve_points_for_profile(app, idx);
     } else {
         g_print("%s [GUI] -> Index is -1, not loading curve points\n", ts);
     }
-    
+
     g_print("%s [GUI] -> on_profile_combo_changed completed normally\n", ts);
 }
 
@@ -3751,23 +3776,23 @@ static void load_curve_points_for_profile(AppData *app, int profile_idx) {
     if (!app->connected || app->socket_fd < 0) {
         return;
     }
-    
+
     /* Check if curve_store is valid */
     if (!app->curve_store || !GTK_IS_LIST_STORE(app->curve_store)) {
         g_print("[GUI] WARNING: curve_store is NULL or invalid, cannot load curve points\n");
         return;
     }
-    
+
     g_print("[GUI] Loading curve points for profile index %d (active_profile_idx=%d)\n", profile_idx, app->active_profile_idx);
-    
+
     /* Clear existing curve points in tree view */
     gtk_list_store_clear(GTK_LIST_STORE(app->curve_store));
-    
+
     char buffer[BUFFER_SIZE];
     char cmd[64];
     snprintf(cmd, sizeof(cmd), "GET_PROFILE %d", profile_idx);
     const char *response = send_command(app, cmd);
-    
+
     /* Check for error responses */
     if (strncmp(response, "ERROR", 5) == 0) {
         char ts[32];
@@ -3775,14 +3800,14 @@ static void load_curve_points_for_profile(AppData *app, int profile_idx) {
         g_print("%s [GUI] Failed to load profile %d: %s\n", ts, profile_idx, response);
         return;
     }
-    
+
     strncpy(buffer, response, BUFFER_SIZE - 1);
     buffer[BUFFER_SIZE - 1] = '\0';
-    
+
     /* First pass: collect all curve points into an array */
     CurvePoint points[MAX_CURVE_POINTS];
     int point_count = 0;
-    
+
     char *line = strtok(buffer, "\n");
     while (line != NULL && point_count < MAX_CURVE_POINTS) {
         if (strncmp(line, "CURVE_POINT temp=", 15) == 0) {
@@ -3794,12 +3819,12 @@ static void load_curve_points_for_profile(AppData *app, int profile_idx) {
         }
         line = strtok(NULL, "\n");
     }
-    
+
     /* Sort curve points by temperature in ascending order */
     if (point_count > 1) {
         qsort(points, point_count, sizeof(CurvePoint), compare_curve_points_asc);
     }
-    
+
     /* Second pass: add sorted curve points to tree view */
     for (int i = 0; i < point_count; i++) {
         GtkTreeIter iter;
@@ -3812,7 +3837,7 @@ static void load_curve_points_for_profile(AppData *app, int profile_idx) {
                           1, points[i].fan_pct,
                           -1);
     }
-    
+
     /* Update the graph visualization */
     update_curve_graph(app);
 }
@@ -3821,12 +3846,12 @@ static void load_curve_points_for_profile(AppData *app, int profile_idx) {
 static void on_window_destroy(GtkWidget *widget, gpointer user_data) {
     (void)widget;
     AppData *app = (AppData *)user_data;
-    
+
     /* Stop refresh timer */
     if (app->refresh_timer_id > 0) {
         g_source_remove(app->refresh_timer_id);
     }
-    
+
     /* Stop log refresh timer */
     if (app->log_refresh_timer_id > 0) {
         g_source_remove(app->log_refresh_timer_id);
@@ -3844,9 +3869,9 @@ static void on_window_destroy(GtkWidget *widget, gpointer user_data) {
         }
         g_free(app->profile_names);
     }
-    
+
     /* Free profile radios list */
-    
+
     /* Disconnect from daemon */
     disconnect_from_daemon(app);
 
@@ -3899,7 +3924,7 @@ static void connect_to_daemon(AppData *app) {
         app->connected = 0;
         return;
     }
-    
+
     /* Check if socket file exists first */
     struct stat st;
     if (stat(SOCKET_PATH, &st) != 0) {
@@ -3919,13 +3944,13 @@ static void connect_to_daemon(AppData *app) {
         app->socket_fd = -1;
         return;
     }
-    
+
     /* Check socket permissions */
     mode_t perms = st.st_mode & 0777;
     if (perms != 0666) {
         LOG_WARN("Socket has unexpected permissions %o (expected 666)", perms);
     }
-    
+
     app->socket_fd = socket(AF_UNIX, SOCK_STREAM, 0);
     if (app->socket_fd < 0) {
         GtkWidget *dialog = gtk_message_dialog_new(GTK_WINDOW(app->window),
@@ -3938,12 +3963,12 @@ static void connect_to_daemon(AppData *app) {
         gtk_widget_destroy(dialog);
         return;
     }
-    
+
     struct sockaddr_un addr;
     memset(&addr, 0, sizeof(addr));
     addr.sun_family = AF_UNIX;
     strncpy(addr.sun_path, SOCKET_PATH, sizeof(addr.sun_path) - 1);
-    
+
     if (connect(app->socket_fd, (struct sockaddr*)&addr, sizeof(addr)) < 0) {
         GtkWidget *dialog = gtk_message_dialog_new(GTK_WINDOW(app->window),
                                                     GTK_DIALOG_MODAL | GTK_DIALOG_DESTROY_WITH_PARENT,
@@ -3957,7 +3982,7 @@ static void connect_to_daemon(AppData *app) {
         app->socket_fd = -1;
         return;
     }
-    
+
     app->connected = 1;
     gui_event("[GUI] Connected to daemon successfully!\n");
 }
@@ -4063,7 +4088,7 @@ static void connect_to_keyboard_daemon(AppData *app) {
     /* The daemon restores the backlight itself (off, profile colors or
      * white); the GUI only shows that state instead of switching it on */
     kbd_sync_power_switch(app);
-    
+
     /* Load LED mapping from CSV */
     kbd_load_led_mapping_csv(app);
     kbd_refresh_key_colors(app);
@@ -5042,7 +5067,7 @@ static void kbd_redraw_canvas(AppData *app) {
 static void on_led_wizard_start_clicked(GtkWidget *widget, gpointer user_data) {
     (void)widget;
 AppData *app = (AppData *)user_data;
-    
+
     /* Initialize wizard state */
     app->kbd_wizard_active = 1;
     app->kbd_wizard_current_led = 0;
@@ -5051,14 +5076,14 @@ AppData *app = (AppData *)user_data;
      * everything. (It used to
      * clear the mapping, so Save & Finish right away wrote an empty file.) */
     memcpy(app->kbd_wizard_backup, app->kbd_wizard_mapping, sizeof(app->kbd_wizard_backup));
-    
+
     /* Update UI */
     gtk_widget_set_sensitive(app->kbd_led_wizard_btn, FALSE);
     gtk_widget_set_sensitive(app->kbd_led_wizard_skip_btn, TRUE);
     gtk_widget_set_sensitive(app->kbd_led_wizard_nokey_btn, TRUE);
     gtk_widget_set_sensitive(app->kbd_led_wizard_save_btn, TRUE);
     gtk_widget_set_sensitive(app->kbd_led_wizard_cancel_btn, TRUE);
-    
+
     /* Show first step */
     kbd_wizard_step(app, NULL);
 }
@@ -5067,9 +5092,9 @@ AppData *app = (AppData *)user_data;
 static void on_led_wizard_skip_clicked(GtkWidget *widget, gpointer user_data) {
     (void)widget;
 AppData *app = (AppData *)user_data;
-    
+
     if (!app->kbd_wizard_active) return;
-    
+
     /* Move to next LED */
     app->kbd_wizard_current_led++;
     if (app->kbd_wizard_current_led >= 120) {
@@ -5097,17 +5122,17 @@ static void on_led_wizard_nokey_clicked(GtkWidget *widget, gpointer user_data) {
 static void on_led_wizard_save_finish_clicked(GtkWidget *widget, gpointer user_data) {
     (void)widget;
 AppData *app = (AppData *)user_data;
-    
+
     app->kbd_wizard_active = 0;
-    
+
     /* Restore all LEDs */
     send_keyboard_command(app, "TURN_ON");
     kbd_sync_power_switch(app);
-    
+
     /* Save mapping to CSV */
     kbd_save_led_mapping_csv(app);
     settings_update_layout_note(app);
-    
+
     /* Update UI */
     gtk_widget_set_sensitive(app->kbd_led_wizard_btn, TRUE);
     gtk_widget_set_sensitive(app->kbd_led_wizard_skip_btn, FALSE);
@@ -5116,7 +5141,7 @@ AppData *app = (AppData *)user_data;
     gtk_widget_set_sensitive(app->kbd_led_wizard_cancel_btn, FALSE);
     gtk_label_set_text(GTK_LABEL(app->kbd_led_wizard_label), _("LED Wizard saved!"));
     gtk_widget_show(app->kbd_led_wizard_label);
-    
+
     /* Back to the zone being edited and redraw */
     kbd_highlight_zone(app);
     kbd_redraw_canvas(app);
@@ -5130,11 +5155,11 @@ static void on_led_wizard_cancel_clicked(GtkWidget *widget, gpointer user_data) 
     app->kbd_wizard_active = 0;
     /* Cancel: back to the mapping from before the wizard started */
     memcpy(app->kbd_wizard_mapping, app->kbd_wizard_backup, sizeof(app->kbd_wizard_mapping));
-    
+
     /* Restore all LEDs */
     send_keyboard_command(app, "TURN_ON");
     kbd_sync_power_switch(app);
-    
+
     /* Update UI */
     gtk_widget_set_sensitive(app->kbd_led_wizard_btn, TRUE);
     gtk_widget_set_sensitive(app->kbd_led_wizard_skip_btn, FALSE);
@@ -5143,7 +5168,7 @@ static void on_led_wizard_cancel_clicked(GtkWidget *widget, gpointer user_data) 
     gtk_widget_set_sensitive(app->kbd_led_wizard_cancel_btn, FALSE);
     gtk_label_set_text(GTK_LABEL(app->kbd_led_wizard_label), _("LED Wizard cancelled"));
     gtk_widget_show(app->kbd_led_wizard_label);
-    
+
     /* Back to the zone being edited and redraw */
     kbd_highlight_zone(app);
     kbd_redraw_canvas(app);
@@ -5165,13 +5190,13 @@ static void kbd_wizard_step(AppData *app, const char *prev_key_name) {
     }
     gtk_label_set_text(GTK_LABEL(app->kbd_led_wizard_label), buf);
     gtk_widget_show(app->kbd_led_wizard_label);
-    
+
     /* Turn off all LEDs first, then light up only the current LED */
     send_keyboard_command(app, "TURN_OFF");
     char cmd_buf[64];
     snprintf(cmd_buf, sizeof(cmd_buf), "TEST_LED %d", app->kbd_wizard_current_led);
     send_keyboard_command(app, cmd_buf);
-    
+
     /* Highlight the current LED in the selection */
     app->kbd_num_selected_leds = 1;
     app->kbd_selected_led_indices[0] = app->kbd_wizard_current_led;
@@ -5181,11 +5206,11 @@ static void kbd_wizard_step(AppData *app, const char *prev_key_name) {
 /* LED Wizard: Finish and save mapping */
 static void kbd_wizard_finish(AppData *app) {
     app->kbd_wizard_active = 0;
-    
+
     /* Restore all LEDs */
     send_keyboard_command(app, "TURN_ON");
     kbd_sync_power_switch(app);
-    
+
     /* Update UI */
     gtk_widget_set_sensitive(app->kbd_led_wizard_btn, TRUE);
     gtk_widget_set_sensitive(app->kbd_led_wizard_skip_btn, FALSE);
@@ -5193,11 +5218,11 @@ static void kbd_wizard_finish(AppData *app) {
     gtk_widget_set_sensitive(app->kbd_led_wizard_cancel_btn, FALSE);
     gtk_label_set_text(GTK_LABEL(app->kbd_led_wizard_label), _("LED Wizard completed!"));
     gtk_widget_show(app->kbd_led_wizard_label);
-    
+
     /* Back to the zone being edited and redraw */
     kbd_highlight_zone(app);
     kbd_redraw_canvas(app);
-    
+
     /* Save mapping to CSV */
     kbd_save_led_mapping_csv(app);
 }
@@ -5213,19 +5238,19 @@ static void kbd_mapping_path(char *buf, size_t size, const char *code) {
 static void kbd_save_led_mapping_csv(AppData *app) {
     char csv_path[512];
     kbd_mapping_path(csv_path, sizeof csv_path, kbd_layout_code);
-    
+
     FILE *f = fopen(csv_path, "w");
     if (!f) {
         g_print("[GUI] WARNING: Could not write LED mapping CSV to %s\n", csv_path);
         return;
     }
-    
+
     /* Write header (semicolon delimiter) */
     fprintf(f, "led_id;position;led_index;%s;layout=%s\n", KBD_CSV_NUMBERING_MARK, kbd_layout_code);
-    
+
     /* Track which positions have been written and count LEDs per position */
     int pos_led_count[120] = {0};
-    
+
     /* First pass: count LEDs per position */
     for (int led = 0; led < 120; led++) {
         int pos = app->kbd_wizard_mapping[led];
@@ -5233,7 +5258,7 @@ static void kbd_save_led_mapping_csv(AppData *app) {
             pos_led_count[pos]++;
         }
     }
-    
+
     /* Second pass: write entries */
     int pos_led_written[120] = {0};
     for (int led = 0; led < 120; led++) {
@@ -5250,7 +5275,7 @@ static void kbd_save_led_mapping_csv(AppData *app) {
             fprintf(f, "%d;;\n", led);
         }
     }
-    
+
     fclose(f);
     gui_event("[GUI] LED mapping saved for layout '%s': %s\n", kbd_layout_code, csv_path);
 }
@@ -5566,28 +5591,28 @@ static gboolean kbd_canvas_draw(GtkWidget *widget, cairo_t *cr, gpointer user_da
     AppData *app = (AppData *)user_data;
     int width = gtk_widget_get_allocated_width(widget);
     int height = gtk_widget_get_allocated_height(widget);
-    
+
     /* Draw keyboard image if available */
     if (app->kbd_keyboard_image) {
         double img_width = cairo_image_surface_get_width(app->kbd_keyboard_image);
         double img_height = cairo_image_surface_get_height(app->kbd_keyboard_image);
-        
+
         /* Scale to fit canvas while maintaining aspect ratio */
         double scale_x = (double)width / img_width;
         double scale_y = (double)height / img_height;
         double scale = (scale_x < scale_y) ? scale_x : scale_y;
-        
+
         double scaled_w = img_width * scale;
         double offset_x = (width - scaled_w) / 2.0;
         double offset_y = 0;   /* picture at the top (1.24.2) */
-        
+
         cairo_save(cr);
         cairo_translate(cr, offset_x, offset_y);
         cairo_scale(cr, scale, scale);
         cairo_set_source_surface(cr, app->kbd_keyboard_image, 0, 0);
         cairo_paint(cr);
         cairo_restore(cr);
-        
+
         /* Draw key overlays */
         size_t num_keys = kbd_num_keys;
         for (size_t i = 0; i < num_keys; i++) {
@@ -5659,7 +5684,7 @@ static gboolean kbd_canvas_draw(GtkWidget *widget, cairo_t *cr, gpointer user_da
         cairo_show_text(cr, _("Keyboard schematic loading..."));
         cairo_stroke(cr);
     }
-    
+
     return FALSE;
 }
 
@@ -5672,25 +5697,25 @@ static gboolean kbd_canvas_click(GtkWidget *widget, double click_x, double click
     int height = gtk_widget_get_allocated_height(widget);
     double img_width = cairo_image_surface_get_width(app->kbd_keyboard_image);
     double img_height = cairo_image_surface_get_height(app->kbd_keyboard_image);
-    
+
     /* Same scaling as draw callback */
     double scale_x = (double)width / img_width;
     double scale_y = (double)height / img_height;
     double scale = (scale_x < scale_y) ? scale_x : scale_y;
-    
+
     double scaled_w = img_width * scale;
     double offset_x = (width - scaled_w) / 2.0;
     double offset_y = 0;   /* picture at the top (1.24.2) */
-    
+
     /* Convert click to image coordinates */
     double unscaled_x = (click_x - offset_x) / scale;
     double unscaled_y = (click_y - offset_y) / scale;
-    
+
     /* Find which key was clicked */
     size_t num_keys = kbd_num_keys;
     for (size_t i = 0; i < num_keys; i++) {
         if (kbd_key_contains(i, unscaled_x, unscaled_y)) {
-            
+
             /* Handle wizard mode */
             if (app->kbd_wizard_active) {
                 /* Assign this key position to the current LED */
@@ -5705,7 +5730,7 @@ static gboolean kbd_canvas_click(GtkWidget *widget, double click_x, double click
                 while (gtk_events_pending()) {
                     gtk_main_iteration();
                 }
-                
+
                 /* Move to next LED */
                 app->kbd_wizard_current_led++;
                 if (app->kbd_wizard_current_led >= 120) {
@@ -5715,7 +5740,7 @@ static gboolean kbd_canvas_click(GtkWidget *widget, double click_x, double click
                 }
                 return TRUE;
             }
-            
+
             /* Zone editor: a click adds the key to the zone being edited or
              * removes it; with no zone selected it selects the key's zone */
             int key_leds[120];
@@ -5746,7 +5771,7 @@ static gboolean kbd_canvas_click(GtkWidget *widget, double click_x, double click
             return TRUE;
         }
     }
-    
+
     return FALSE;
 }
 
@@ -5878,19 +5903,72 @@ static void on_kbd_custom_color_clicked(GtkWidget *widget, AppData *app) {
 }
 
 /* Parse STATUS response and update UI */
+/* GPU_* lines of the fan daemon's STATUS (1.37.0) */
+typedef struct {
+    char state[16], name[64];
+    double power;
+    int clock, mem_clock, util, vram_used, vram_total;
+    char pstate[8];
+} StatusGpu;
+
+static void status_gpu_field(StatusGpu *g, const char *kv) {
+    const char *v = strchr(kv, '=');
+    if (!v) return;
+    v++;
+    if (!strncmp(kv, "STATE=", 6)) snprintf(g->state, sizeof g->state, "%s", v);
+    else if (!strncmp(kv, "NAME=", 5)) snprintf(g->name, sizeof g->name, "%s", v);
+    else if (!strncmp(kv, "POWER_W=", 8)) g->power = num_c(v);
+    else if (!strncmp(kv, "CLOCK_MHZ=", 10)) g->clock = atoi(v);
+    else if (!strncmp(kv, "MEM_CLOCK_MHZ=", 14)) g->mem_clock = atoi(v);
+    else if (!strncmp(kv, "UTIL=", 5)) g->util = atoi(v);
+    else if (!strncmp(kv, "VRAM_USED_MB=", 13)) g->vram_used = atoi(v);
+    else if (!strncmp(kv, "VRAM_TOTAL_MB=", 14)) g->vram_total = atoi(v);
+    else if (!strncmp(kv, "PSTATE=", 7)) snprintf(g->pstate, sizeof g->pstate, "%s", v);
+}
+
+static void status_show_gpu(AppData *app, const StatusGpu *g) {
+    if (!app->gpu_name_label) return;
+    char a[128], b[128], c[128], d[128], pw[64];
+    a[0] = b[0] = c[0] = d[0] = '\0';
+    if (!strcmp(g->state, "awake")) {
+        snprintf(a, sizeof a, "%s", g->name[0] ? g->name : "NVIDIA GPU");
+        if (g->clock >= 0 && g->mem_clock >= 0)
+            snprintf(b, sizeof b, _("Clock: %d MHz, memory %d MHz"), g->clock, g->mem_clock);
+        if (g->util >= 0)
+            snprintf(c, sizeof c, g->pstate[0] ? _("Load: %d %% (power state %s)") : _("Load: %d %%"), g->util, g->pstate);
+        if (g->vram_used >= 0 && g->vram_total > 0)
+            snprintf(d, sizeof d, _("Video memory: %.1f / %.1f GB"), g->vram_used / 1024.0, g->vram_total / 1024.0);
+        if (g->power >= 0) snprintf(pw, sizeof pw, _("GPU: %.1f W"), g->power);
+        else snprintf(pw, sizeof pw, "%s", _("GPU: -- W"));
+    } else if (!strcmp(g->state, "sleeping")) {
+        snprintf(a, sizeof a, "%s", _("Sleeping (powered down)"));
+        snprintf(b, sizeof b, "%s", _("Not woken up for readings"));
+        snprintf(pw, sizeof pw, "%s", _("GPU: sleeping"));
+    } else {
+        snprintf(a, sizeof a, "%s", g->state[0] ? _("No NVIDIA GPU") : "--");
+        snprintf(pw, sizeof pw, "%s", _("GPU: -- W"));
+    }
+    gtk_label_set_text(GTK_LABEL(app->gpu_name_label), a);
+    gtk_label_set_text(GTK_LABEL(app->gpu_clock_label), b);
+    gtk_label_set_text(GTK_LABEL(app->gpu_load_label), c);
+    gtk_label_set_text(GTK_LABEL(app->gpu_vram_label), d);
+    gtk_label_set_text(GTK_LABEL(app->pw_gpu_label), pw);
+}
+
 static void parse_status(AppData *app, const char *response) {
     char buffer[BUFFER_SIZE];
     strncpy(buffer, response, BUFFER_SIZE - 1);
     buffer[BUFFER_SIZE - 1] = '\0';
-    
+
     char ts[32];
     get_timestamp(ts, sizeof(ts));
-    
+
     /* Parse response and update labels */
     int cpu_temp = 0, gpu_temp = 0, cpu_fan_rpm = 0, gpu_fan_rpm = 0;
     int auto_mode = 1, fan_duty = 0, emergency_auto = -1;
     int cpu_fan_duty = -1, gpu_fan_duty = -1;   /* EC duty per fan (daemons before 1.19.2: missing) */
-    
+    StatusGpu gpu = { "", "", -1, -1, -1, -1, -1, -1, "" };   /* GPU_* (1.37.0) */
+
     char *token = strtok(buffer, "\n");
     while (token != NULL) {
         if (strncmp(token, "CPU_TEMP=", 9) == 0) {
@@ -5912,10 +5990,12 @@ static void parse_status(AppData *app, const char *response) {
             gpu_fan_duty = atoi(token + 13);
         } else if (strncmp(token, "EMERGENCY_AUTO=", 15) == 0) {
             emergency_auto = atoi(token + 15);
+        } else if (strncmp(token, "GPU_", 4) == 0) {
+            status_gpu_field(&gpu, token + 4);
         }
         token = strtok(NULL, "\n");
     }
-    
+
     /* Update labels */
     char cpu_text[32], gpu_text[32], cpu_rpm_text[64], gpu_rpm_text[64];
     snprintf(cpu_text, sizeof(cpu_text), _("CPU: %d°C"), cpu_temp);
@@ -5923,20 +6003,21 @@ static void parse_status(AppData *app, const char *response) {
     /* Percent = duty set in the EC for each fan; RPM = measured speed */
     format_fan_text(cpu_rpm_text, sizeof(cpu_rpm_text), _("CPU Fan"), cpu_fan_rpm, cpu_fan_duty);
     format_fan_text(gpu_rpm_text, sizeof(gpu_rpm_text), _("GPU Fan"), gpu_fan_rpm, gpu_fan_duty);
-    
+
     gtk_label_set_text(GTK_LABEL(app->cpu_temp_label), cpu_text);
     gtk_label_set_text(GTK_LABEL(app->gpu_temp_label), gpu_text);
     gtk_label_set_text(GTK_LABEL(app->cpu_fan_rpm_label), cpu_rpm_text);
     gtk_label_set_text(GTK_LABEL(app->gpu_fan_rpm_label), gpu_rpm_text);
-    
+    status_show_gpu(app, &gpu);
+
     /* Sync manual mode switch state with daemon */
     if (app->manual_mode_switch != NULL && gtk_widget_get_realized(app->manual_mode_switch)) {
         gboolean current_switch_state = gtk_switch_get_active(GTK_SWITCH(app->manual_mode_switch));
         gboolean should_be_manual = (auto_mode == 0);
-        
-        g_print("%s [GUI] parse_status: AUTO_MODE=%d, current_switch_state=%d, should_be_manual=%d, app->in_manual_mode=%d, app->auto_mode_enabled=%d\n", 
+
+        g_print("%s [GUI] parse_status: AUTO_MODE=%d, current_switch_state=%d, should_be_manual=%d, app->in_manual_mode=%d, app->auto_mode_enabled=%d\n",
                 ts, auto_mode, current_switch_state, should_be_manual, app->in_manual_mode, app->auto_mode_enabled);
-        
+
         if (current_switch_state != should_be_manual) {
             g_print("%s [GUI] parse_status: SYNCING switch from %d to %d\n", ts, current_switch_state, should_be_manual);
             g_signal_handler_block(app->manual_mode_switch, app->manual_mode_signal_id);
@@ -5944,7 +6025,7 @@ static void parse_status(AppData *app, const char *response) {
             g_signal_handler_unblock(app->manual_mode_switch, app->manual_mode_signal_id);
         }
     }
-    
+
     /* Update +/- buttons and label based on mode */
     if (app->auto_mode_enabled == 0) { /* Manual mode */
         /* In manual mode, do NOT update from daemon - preserve user's manual setting */
@@ -5952,7 +6033,7 @@ static void parse_status(AppData *app, const char *response) {
     } else { /* Auto mode */
         /* In auto mode, show "--" and buttons are disabled (handled in switch callback) */
     }
-    
+
     /* The daemon ended manual mode after an emergency: follow it and say why */
     int ended_by_emergency = emergency_auto >= 0 && app->emergency_auto_seen >= 0 &&
                              emergency_auto > app->emergency_auto_seen;
@@ -5970,15 +6051,15 @@ static void parse_status(AppData *app, const char *response) {
     /* Update internal manual mode tracking */
     int was_in_manual_mode = app->in_manual_mode;
     app->in_manual_mode = (auto_mode == 0);
-    
+
     /* If manual mode state changed, update the profile tab UI */
     if (was_in_manual_mode != app->in_manual_mode) {
-        gui_event("[GUI] Manual mode state changed: %s -> %s\n", 
+        gui_event("[GUI] Manual mode state changed: %s -> %s\n",
                 was_in_manual_mode ? "ENABLED" : "DISABLED",
                 app->in_manual_mode ? "ENABLED" : "DISABLED");
         update_profile_tab_for_manual_mode(app, app->in_manual_mode);
     }
-    
+
     /* Update button sensitivity based on mode */
     if (app->manual_minus_btn != NULL && app->manual_plus_btn != NULL) {
         gboolean should_be_manual = (auto_mode == 0);
@@ -5988,73 +6069,283 @@ static void parse_status(AppData *app, const char *response) {
 }
 
 /* Create Page 1: Status & Manual Control */
+/* --- Status tab: battery and NVMe drives (1.37.0), read from sysfs --- */
+#ifndef DCC_POWER_SUPPLY_DIR
+#define DCC_POWER_SUPPLY_DIR "/sys/class/power_supply"
+#endif
+#ifndef DCC_GUI_HWMON_DIR
+#define DCC_GUI_HWMON_DIR "/sys/class/hwmon"
+#endif
+
+typedef struct {
+    int present;                 /* a battery was found */
+    int on_ac;                   /* mains adapter online (-1 unknown) */
+    char status[24];             /* Charging, Discharging, Full, Not charging */
+    int capacity;                /* % (-1 unknown) */
+    double power_w;              /* charge/discharge rate (-1 unknown) */
+    double hours;                /* to empty or to full (-1 unknown) */
+    int health;                  /* full charge in % of the design (-1 unknown) */
+    int cycles;                  /* (-1 unknown) */
+} StatusBattery;
+
+static long ps_read(const char *dir, const char *attr) {
+    char p[512], buf[64];
+    snprintf(p, sizeof p, "%s/%s", dir, attr);
+    FILE *f = fopen(p, "r");
+    if (!f) return -1;
+    int ok = fgets(buf, sizeof buf, f) != NULL;
+    fclose(f);
+    return ok ? strtol(buf, NULL, 10) : -1;
+}
+
+static void ps_read_str(const char *dir, const char *attr, char *out, size_t size) {
+    char p[512];
+    snprintf(p, sizeof p, "%s/%s", dir, attr);
+    out[0] = '\0';
+    FILE *f = fopen(p, "r");
+    if (!f) return;
+    if (!fgets(out, (int)size, f)) out[0] = '\0';
+    fclose(f);
+    out[strcspn(out, "\n")] = '\0';
+}
+
+/* Battery values from <base>/<supply>: charge_* (uAh) with current/voltage,
+ * or energy_* (uWh) with power_now - batteries report one or the other */
+static void status_battery_read(const char *base, StatusBattery *b) {
+    memset(b, 0, sizeof *b);
+    b->on_ac = -1; b->capacity = -1; b->power_w = -1; b->hours = -1; b->health = -1; b->cycles = -1;
+    DIR *d = opendir(base);
+    if (!d) return;
+    struct dirent *de;
+    while ((de = readdir(d)) != NULL) {
+        if (de->d_name[0] == '.') continue;
+        char dir[512], type[32];
+        snprintf(dir, sizeof dir, "%s/%s", base, de->d_name);
+        ps_read_str(dir, "type", type, sizeof type);
+        if (!strcmp(type, "Mains")) {
+            long on = ps_read(dir, "online");
+            if (on >= 0) b->on_ac = b->on_ac == 1 ? 1 : (int)on;
+            continue;
+        }
+        if (strcmp(type, "Battery") != 0 || b->present) continue;
+        if (ps_read(dir, "present") == 0) continue;
+        b->present = 1;
+        ps_read_str(dir, "status", b->status, sizeof b->status);
+        b->capacity = (int)ps_read(dir, "capacity");
+        b->cycles = (int)ps_read(dir, "cycle_count");
+        double now, full, design, rate;    /* uAh and uA, or uWh and uW */
+        long cur = ps_read(dir, "current_now"), volt = ps_read(dir, "voltage_now");
+        long pw = ps_read(dir, "power_now");
+        if (ps_read(dir, "charge_full") > 0) {
+            now = ps_read(dir, "charge_now"); full = ps_read(dir, "charge_full");
+            design = ps_read(dir, "charge_full_design");
+            rate = cur;
+            if (cur >= 0 && volt > 0) b->power_w = (double)cur * volt / 1e12;
+        } else {
+            now = ps_read(dir, "energy_now"); full = ps_read(dir, "energy_full");
+            design = ps_read(dir, "energy_full_design");
+            rate = pw;
+            if (pw >= 0) b->power_w = pw / 1e6;
+        }
+        if (cur < 0 && pw < 0) b->power_w = -1;
+        if (full > 0 && design > 0) b->health = (int)(full * 100.0 / design + 0.5);
+        if (rate > 0 && now >= 0) {
+            if (!strcmp(b->status, "Discharging")) b->hours = now / rate;
+            else if (!strcmp(b->status, "Charging") && full > now) b->hours = (full - now) / rate;
+        }
+    }
+    closedir(d);
+}
+
+/* "2:15 h" */
+static void fmt_hours(double h, char *out, size_t size) {
+    int m = (int)(h * 60 + 0.5);
+    snprintf(out, size, "%d:%02d h", m / 60, m % 60);
+}
+
+/* The three battery lines of the Status tab */
+static void status_battery_texts(const StatusBattery *b, char *charge, char *state, char *health, size_t size) {
+    if (!b->present) {
+        snprintf(charge, size, "%s", _("No battery"));
+        state[0] = health[0] = '\0';
+        return;
+    }
+    snprintf(charge, size, _("Charge: %d %%"), b->capacity < 0 ? 0 : b->capacity);
+    char t[32] = "";
+    if (b->hours > 0) fmt_hours(b->hours, t, sizeof t);
+    if (!strcmp(b->status, "Discharging")) {
+        if (b->power_w > 0 && t[0]) snprintf(state, size, _("Discharging: %.1f W, %s left"), b->power_w, t);
+        else snprintf(state, size, "%s", _("Discharging"));
+    } else if (!strcmp(b->status, "Charging")) {
+        if (b->power_w > 0 && t[0]) snprintf(state, size, _("Charging: %.1f W, full in %s"), b->power_w, t);
+        else snprintf(state, size, "%s", _("Charging"));
+    } else if (!strcmp(b->status, "Full")) {
+        snprintf(state, size, "%s", _("Full, on AC power"));
+    } else {
+        snprintf(state, size, "%s", b->on_ac == 1 ? _("Not charging, on AC power") : b->status);
+    }
+    if (b->health > 0 && b->cycles > 0)   /* some batteries always report 0 cycles */
+        snprintf(health, size, _("Health: %d %% of design, %d cycles"), b->health, b->cycles);
+    else if (b->health > 0)
+        snprintf(health, size, _("Health: %d %% of design"), b->health);
+    else
+        health[0] = '\0';
+}
+
+/* "Samsung SSD 990 PRO 4TB: 36°C" per NVMe drive, newline separated */
+static void status_nvme_text(const char *base, char *out, size_t size) {
+    out[0] = '\0';
+    DIR *d = opendir(base);
+    if (!d) return;
+    struct dirent *de;
+    size_t off = 0;
+    char *names[16];
+    int n = 0;
+    while ((de = readdir(d)) != NULL && n < 16)
+        if (!strncmp(de->d_name, "hwmon", 5)) names[n++] = g_strdup(de->d_name);
+    closedir(d);
+    for (int i = 0; i < n; i++)   /* stable order */
+        for (int j = i + 1; j < n; j++)
+            if (strcmp(names[j], names[i]) < 0) { char *t = names[i]; names[i] = names[j]; names[j] = t; }
+    for (int i = 0; i < n; i++) {
+        char dir[512], nm[32], model[64];
+        snprintf(dir, sizeof dir, "%s/%s", base, names[i]);
+        ps_read_str(dir, "name", nm, sizeof nm);
+        if (!strcmp(nm, "nvme")) {
+            long t = ps_read(dir, "temp1_input");
+            ps_read_str(dir, "device/model", model, sizeof model);
+            g_strstrip(model);
+            if (t > 0 && off < size)
+                off += (size_t)snprintf(out + off, size - off, "%s%s: %ld°C", off ? "\n" : "",
+                                        model[0] ? model : "NVMe", (t + 500) / 1000);
+        }
+        g_free(names[i]);
+    }
+}
+
+static void status_update_local(AppData *app) {
+    if (!app->bat_charge_label) return;
+    StatusBattery b;
+    char c[128], st[128], h[128];
+    status_battery_read(DCC_POWER_SUPPLY_DIR, &b);
+    status_battery_texts(&b, c, st, h, sizeof c);
+    gtk_label_set_text(GTK_LABEL(app->bat_charge_label), c);
+    gtk_label_set_text(GTK_LABEL(app->bat_state_label), st);
+    gtk_label_set_text(GTK_LABEL(app->bat_health_label), h);
+    gtk_widget_set_visible(app->bat_health_label, h[0] != '\0');
+    /* whole laptop: only measurable while running on the battery */
+    if (b.present && !strcmp(b.status, "Discharging") && b.power_w > 0)
+        snprintf(c, sizeof c, _("Laptop (battery): %.1f W"), b.power_w);
+    else
+        snprintf(c, sizeof c, "%s", _("Laptop: on AC power"));
+    gtk_label_set_text(GTK_LABEL(app->pw_bat_label), c);
+    char nv[512];
+    status_nvme_text(DCC_GUI_HWMON_DIR, nv, sizeof nv);
+    gtk_label_set_text(GTK_LABEL(app->nvme_box), nv);
+    gtk_widget_set_visible(app->nvme_box, nv[0] != '\0');
+}
+
+/* frame with a vertical box of left-aligned labels */
+static GtkWidget *status_frame(const char *title, GtkWidget **box_out) {
+    GtkWidget *frame = gtk_frame_new(title);
+    GtkWidget *box = gtk_box_new(GTK_ORIENTATION_VERTICAL, 10);
+    gtk_container_set_border_width(GTK_CONTAINER(box), 15);
+    gtk_container_add(GTK_CONTAINER(frame), box);
+    *box_out = box;
+    return frame;
+}
+
+static GtkWidget *status_label(GtkWidget *box, const char *text) {
+    GtkWidget *l = gtk_label_new(text);
+    gtk_widget_set_halign(l, GTK_ALIGN_START);
+    gtk_label_set_xalign(GTK_LABEL(l), 0.0f);
+    gtk_label_set_ellipsize(GTK_LABEL(l), PANGO_ELLIPSIZE_END);
+    gtk_box_pack_start(GTK_BOX(box), l, FALSE, FALSE, 0);
+    return l;
+}
+
 static GtkWidget *create_status_page(AppData *app) {
     GtkWidget *vbox = gtk_box_new(GTK_ORIENTATION_VERTICAL, 15);
     gtk_container_set_border_width(GTK_CONTAINER(vbox), 20);
-    
+
     /* Temperature display */
     GtkWidget *temp_frame = gtk_frame_new(_("Temperatures"));
     GtkWidget *temp_vbox = gtk_box_new(GTK_ORIENTATION_VERTICAL, 10);
     gtk_container_set_border_width(GTK_CONTAINER(temp_vbox), 15);
-    
+
     app->cpu_temp_label = gtk_label_new(_("CPU: --°C"));
     gtk_widget_set_halign(app->cpu_temp_label, GTK_ALIGN_START);
     GtkWidget *gpu_temp_label_holder = gtk_label_new(_("GPU: --°C"));
     gtk_widget_set_halign(gpu_temp_label_holder, GTK_ALIGN_START);
-    
+
     app->cpu_temp_label = gtk_label_new(_("CPU: --°C"));
     gtk_widget_set_halign(app->cpu_temp_label, GTK_ALIGN_START);
     app->gpu_temp_label = gtk_label_new(_("GPU: --°C"));
     gtk_widget_set_halign(app->gpu_temp_label, GTK_ALIGN_START);
-    
+
     gtk_box_pack_start(GTK_BOX(temp_vbox), app->cpu_temp_label, FALSE, FALSE, 0);
     gtk_box_pack_start(GTK_BOX(temp_vbox), app->gpu_temp_label, FALSE, FALSE, 0);
-    
+    app->nvme_box = status_label(temp_vbox, "");   /* NVMe drives (1.37.0) */
+    gtk_widget_set_no_show_all(app->nvme_box, TRUE);
+
     gtk_container_add(GTK_CONTAINER(temp_frame), temp_vbox);
-    gtk_box_pack_start(GTK_BOX(vbox), temp_frame, FALSE, FALSE, 0);
-    
+    /* Row 1 (1.37.0): Temperatures | Fan Speed | Power */
+    GtkWidget *row1 = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 10);
+    gtk_box_set_homogeneous(GTK_BOX(row1), TRUE);
+    gtk_box_pack_start(GTK_BOX(row1), temp_frame, TRUE, TRUE, 0);
+    gtk_box_pack_start(GTK_BOX(vbox), row1, FALSE, FALSE, 0);
+
     /* Fan speed display */
     GtkWidget *fan_frame = gtk_frame_new(_("Fan Speed"));
     GtkWidget *fan_vbox = gtk_box_new(GTK_ORIENTATION_VERTICAL, 10);
     gtk_container_set_border_width(GTK_CONTAINER(fan_vbox), 15);
-    
+
     app->cpu_fan_rpm_label = gtk_label_new(_("CPU Fan: -- RPM (--%)"));
     gtk_widget_set_halign(app->cpu_fan_rpm_label, GTK_ALIGN_START);
     app->gpu_fan_rpm_label = gtk_label_new(_("GPU Fan: -- RPM (--%)"));
     gtk_widget_set_halign(app->gpu_fan_rpm_label, GTK_ALIGN_START);
-    
+
     gtk_box_pack_start(GTK_BOX(fan_vbox), app->cpu_fan_rpm_label, FALSE, FALSE, 0);
     gtk_box_pack_start(GTK_BOX(fan_vbox), app->gpu_fan_rpm_label, FALSE, FALSE, 0);
-    
+
     gtk_container_add(GTK_CONTAINER(fan_frame), fan_vbox);
-    gtk_box_pack_start(GTK_BOX(vbox), fan_frame, FALSE, FALSE, 0);
-    
+    gtk_box_pack_start(GTK_BOX(row1), fan_frame, TRUE, TRUE, 0);
+
+    {   /* Power: CPU package, GPU, whole laptop on battery */
+        GtkWidget *box;
+        GtkWidget *f = status_frame(_("Power"), &box);
+        app->pw_cpu_label = status_label(box, _("CPU: -- W"));
+        app->pw_gpu_label = status_label(box, _("GPU: -- W"));
+        app->pw_bat_label = status_label(box, "");
+        gtk_box_pack_start(GTK_BOX(row1), f, TRUE, TRUE, 0);
+    }
+
     /* Manual control */
     GtkWidget *manual_frame = gtk_frame_new(_("Manual Fan Control"));
     GtkWidget *manual_vbox = gtk_box_new(GTK_ORIENTATION_VERTICAL, 15);
     gtk_container_set_border_width(GTK_CONTAINER(manual_vbox), 15);
-    
+
     /* Manual mode switch */
     GtkWidget *switch_hbox = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 10);
     app->manual_mode_switch = GTK_WIDGET(gtk_switch_new());
     GtkWidget *switch_label = gtk_label_new(_("Manual Mode:"));
     gtk_box_pack_start(GTK_BOX(switch_hbox), switch_label, FALSE, FALSE, 0);
     gtk_box_pack_start(GTK_BOX(switch_hbox), app->manual_mode_switch, FALSE, FALSE, 0);
-    
+
     /* Connect the toggle signal and store the handler ID */
     app->manual_mode_signal_id = g_signal_connect(app->manual_mode_switch, "state-set", G_CALLBACK(on_manual_mode_switched), app);
-    
+
     gtk_box_pack_start(GTK_BOX(manual_vbox), switch_hbox, FALSE, FALSE, 0);
-    
+
     /* Speed control with +/- buttons (disabled by default) */
     GtkWidget *speed_hbox = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 10);
-    
+
     /* Minus button */
     app->manual_minus_btn = gtk_button_new_with_label("-");
     gtk_widget_set_size_request(app->manual_minus_btn, 50, -1);
     gtk_widget_set_sensitive(app->manual_minus_btn, FALSE); /* Disabled until manual mode is enabled */
     g_signal_connect(app->manual_minus_btn, "clicked", G_CALLBACK(on_manual_speed_minus_clicked), app);
-    
+
     /* Speed display label */
     app->manual_speed_label = gtk_label_new("--");
     GtkWidget *speed_display_box = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 5);
@@ -6064,27 +6355,46 @@ static GtkWidget *create_status_page(AppData *app) {
     gtk_box_pack_start(GTK_BOX(speed_display_box), app->manual_speed_label, FALSE, FALSE, 0);
     GtkWidget *speed_pct_label = gtk_label_new("%");
     gtk_box_pack_start(GTK_BOX(speed_display_box), speed_pct_label, FALSE, FALSE, 0);
-    
+
     /* Plus button */
     app->manual_plus_btn = gtk_button_new_with_label("+");
     gtk_widget_set_size_request(app->manual_plus_btn, 50, -1);
     gtk_widget_set_sensitive(app->manual_plus_btn, FALSE); /* Disabled until manual mode is enabled */
     g_signal_connect(app->manual_plus_btn, "clicked", G_CALLBACK(on_manual_speed_plus_clicked), app);
-    
+
     gtk_box_pack_start(GTK_BOX(speed_hbox), app->manual_minus_btn, FALSE, FALSE, 0);
     gtk_box_pack_start(GTK_BOX(speed_hbox), speed_display_box, FALSE, FALSE, 0);
     gtk_box_pack_start(GTK_BOX(speed_hbox), app->manual_plus_btn, FALSE, FALSE, 0);
-    
+
     gtk_box_pack_start(GTK_BOX(manual_vbox), speed_hbox, FALSE, FALSE, 0);
-    
+
     /* Info label */
     GtkWidget *info_label = gtk_label_new(_("Note: Enable Manual Mode to override automatic fan control. Changes take effect immediately."));
     gtk_label_set_line_wrap(GTK_LABEL(info_label), TRUE);
     gtk_box_pack_start(GTK_BOX(manual_vbox), info_label, FALSE, FALSE, 0);
-    
+
     gtk_container_add(GTK_CONTAINER(manual_frame), manual_vbox);
-    gtk_box_pack_start(GTK_BOX(vbox), manual_frame, FALSE, FALSE, 0);
-    
+    /* Row 2 (1.37.0): Manual Fan Control | GPU | Battery */
+    GtkWidget *row2 = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 10);
+    gtk_box_set_homogeneous(GTK_BOX(row2), TRUE);
+    gtk_box_pack_start(GTK_BOX(row2), manual_frame, TRUE, TRUE, 0);
+    {
+        GtkWidget *box;
+        GtkWidget *f = status_frame(_("GPU"), &box);
+        app->gpu_name_label = status_label(box, "--");
+        app->gpu_clock_label = status_label(box, "");
+        app->gpu_load_label = status_label(box, "");
+        app->gpu_vram_label = status_label(box, "");
+        gtk_box_pack_start(GTK_BOX(row2), f, TRUE, TRUE, 0);
+        f = status_frame(_("Battery"), &box);
+        app->bat_charge_label = status_label(box, "--");
+        app->bat_state_label = status_label(box, "");
+        app->bat_health_label = status_label(box, "");
+        gtk_widget_set_no_show_all(app->bat_health_label, TRUE);
+        gtk_box_pack_start(GTK_BOX(row2), f, TRUE, TRUE, 0);
+    }
+    gtk_box_pack_start(GTK_BOX(vbox), row2, FALSE, FALSE, 0);
+
     /* Per-Core CPU Frequencies */
     {
         GtkWidget *core_frame = gtk_frame_new(_("Per-Core CPU Frequencies"));
@@ -6117,20 +6427,20 @@ static GtkWidget *create_status_page(AppData *app) {
         gtk_container_add(GTK_CONTAINER(prof_frame), grid);
         gtk_box_pack_start(GTK_BOX(row), prof_frame, TRUE, TRUE, 0);
         gtk_box_pack_start(GTK_BOX(vbox), row, TRUE, TRUE, 0);
-        
+
         /* 4-column grid for compact display */
         app->cpu_core_grid = gtk_grid_new();
         gtk_grid_set_row_spacing(GTK_GRID(app->cpu_core_grid), 2);
         gtk_grid_set_column_spacing(GTK_GRID(app->cpu_core_grid), 10);
         gtk_container_add(GTK_CONTAINER(core_scrolled), app->cpu_core_grid);
-        
+
         /* Initialize labels to NULL */
         app->cpu_core_count = 0;
         for (int i = 0; i < 32; i++) {
             app->cpu_core_freq_labels[i] = NULL;
         }
     }
-    
+
     return vbox;
 }
 
@@ -6162,7 +6472,7 @@ static GtkWidget *create_curve_editor_page(AppData *app) {
     gtk_widget_set_margin_bottom(vbox, 20);
     gtk_widget_set_margin_start(vbox, 20);
     gtk_widget_set_margin_end(vbox, 20);
-    
+
     /* Daemon status (like the Keyboard tab) */
     {
         GtkWidget *frame = gtk_frame_new(_("Fan Daemon Status"));
@@ -6192,7 +6502,7 @@ static GtkWidget *create_curve_editor_page(AppData *app) {
     g_signal_connect(app->disable_manual_mode_btn, "clicked", G_CALLBACK(on_disable_manual_mode_clicked), app);
     gtk_widget_set_no_show_all(app->disable_manual_mode_btn, TRUE);
     gtk_box_pack_start(GTK_BOX(vbox), app->disable_manual_mode_btn, FALSE, FALSE, 0);
-    
+
     /* Profile selection */
     GtkWidget *profile_box = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 10);
     GtkWidget *profile_label = gtk_label_new(_("Profile:"));
@@ -6200,7 +6510,7 @@ static GtkWidget *create_curve_editor_page(AppData *app) {
 
     /* Connect profile change to load curve points and store handler ID */
     app->profile_combo_signal_id = g_signal_connect(app->profile_combo, "changed", G_CALLBACK(on_profile_combo_changed), app);
-    
+
     gtk_box_pack_start(GTK_BOX(profile_box), profile_label, FALSE, FALSE, 0);
     gtk_box_pack_start(GTK_BOX(profile_box), app->profile_combo, TRUE, TRUE, 0);
 
@@ -6229,12 +6539,12 @@ static GtkWidget *create_curve_editor_page(AppData *app) {
     app->fan_activate_btn = gtk_button_new_with_label(_("Activate"));
     g_signal_connect(app->fan_activate_btn, "clicked", G_CALLBACK(on_fan_activate_clicked), app);
     gtk_box_pack_start(GTK_BOX(profile_box), app->fan_activate_btn, FALSE, FALSE, 0);
-    
+
     gtk_box_pack_start(GTK_BOX(vbox), profile_box, FALSE, FALSE, 0);
-    
+
     /* Create horizontal box for tree view and graph side by side */
     GtkWidget *hbox = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 10);
-    
+
     /* Left side: Curve points tree view */
     GtkWidget *tree_frame = gtk_frame_new(_("Temperature Curve Points"));
     GtkWidget *scrolled = gtk_scrolled_window_new(NULL, NULL);
@@ -6242,12 +6552,12 @@ static GtkWidget *create_curve_editor_page(AppData *app) {
      * horizontal scrolling, the natural width is passed on */
     gtk_scrolled_window_set_policy(GTK_SCROLLED_WINDOW(scrolled), GTK_POLICY_NEVER, GTK_POLICY_AUTOMATIC);
     gtk_scrolled_window_set_propagate_natural_width(GTK_SCROLLED_WINDOW(scrolled), TRUE);
-    
+
     /* Create list store with columns: Temperature (text), Fan % (int) */
     app->curve_store = gtk_list_store_new(2, G_TYPE_STRING, G_TYPE_INT);
-    
+
     app->curve_treeview = GTK_WIDGET(gtk_tree_view_new_with_model(GTK_TREE_MODEL(app->curve_store)));
-    
+
     /* Temperature column */
     GtkCellRenderer *renderer = gtk_cell_renderer_text_new();
     GtkTreeViewColumn *temp_col = gtk_tree_view_column_new_with_attributes(
@@ -6255,51 +6565,51 @@ static GtkWidget *create_curve_editor_page(AppData *app) {
     /* sized to header and content: translated headers are longer (1.31.0) */
     gtk_tree_view_column_set_sizing(temp_col, GTK_TREE_VIEW_COLUMN_AUTOSIZE);
     gtk_tree_view_append_column(GTK_TREE_VIEW(app->curve_treeview), temp_col);
-    
+
     /* Fan % column */
     renderer = gtk_cell_renderer_text_new();
     GtkTreeViewColumn *fan_col = gtk_tree_view_column_new_with_attributes(
         _("Fan Speed (%)"), renderer, "text", 1, NULL);
     gtk_tree_view_column_set_sizing(fan_col, GTK_TREE_VIEW_COLUMN_AUTOSIZE);
     gtk_tree_view_append_column(GTK_TREE_VIEW(app->curve_treeview), fan_col);
-    
+
     /* Connect double-click to edit curve point */
     g_signal_connect(app->curve_treeview, "row-activated",
                     G_CALLBACK(on_curve_point_activated), app);
-    
+
     gtk_container_add(GTK_CONTAINER(scrolled), app->curve_treeview);
     gtk_container_add(GTK_CONTAINER(tree_frame), scrolled);
     gtk_box_pack_start(GTK_BOX(hbox), tree_frame, FALSE, FALSE, 0);
-    
+
     /* Right side: Temperature curve graph */
     GtkWidget *graph_frame = gtk_frame_new(_("Temperature Curve Graph"));
     app->curve_graph = gtk_drawing_area_new();
     gtk_widget_set_size_request(app->curve_graph, 700, 430);   /* fills the rest of the row */
-    
+
     /* Connect draw signal */
     g_signal_connect(app->curve_graph, "draw", G_CALLBACK(draw_curve_graph), app);
-    
+
     gtk_container_add(GTK_CONTAINER(graph_frame), app->curve_graph);
     gtk_box_pack_start(GTK_BOX(hbox), graph_frame, TRUE, TRUE, 0);
-    
+
     gtk_box_pack_start(GTK_BOX(vbox), hbox, FALSE, FALSE, 0);
-    
+
     /* Curve point controls */
     GtkWidget *point_controls = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 10);
-    
+
     GtkWidget *add_btn = gtk_button_new_with_label(_("Add Point"));
     g_signal_connect(add_btn, "clicked", G_CALLBACK(on_add_curve_point_clicked), app);
     gtk_box_pack_start(GTK_BOX(point_controls), add_btn, FALSE, FALSE, 0);
-    
+
     GtkWidget *delete_btn = gtk_button_new_with_label(_("Delete Point"));
     g_signal_connect(delete_btn, "clicked", G_CALLBACK(on_delete_curve_point_clicked), app);
     gtk_box_pack_start(GTK_BOX(point_controls), delete_btn, FALSE, FALSE, 0);
-    
+
     GtkWidget *control_label = gtk_label_new(_("  (Double-click to edit, points are auto-sorted by temperature)"));
     gtk_box_pack_start(GTK_BOX(point_controls), control_label, FALSE, FALSE, 10);
-    
+
     gtk_box_pack_start(GTK_BOX(vbox), point_controls, FALSE, FALSE, 5);
-    
+
     /* No Cancel button (1.24.3): unsaved curve changes are asked about
      * (Save / Discard) when switching profiles, leaving the tab or closing */
 
@@ -6337,36 +6647,36 @@ static void graph_text(cairo_t *cr, const char *text, double x, double y, double
 
 static gboolean draw_curve_graph(GtkWidget *widget, cairo_t *cr, gpointer user_data) {
     AppData *app = (AppData *)user_data;
-    
+
     /* Get widget dimensions */
     gint width = gtk_widget_get_allocated_width(widget);
     gint height = gtk_widget_get_allocated_height(widget);
-    
+
     /* Margins for the graph area */
     const double left_margin = 60;   /* Space for Y-axis labels */
     const double right_margin = 20;
     const double top_margin = 20;
     const double bottom_margin = 50;  /* Space for X-axis labels */
-    
+
     /* Graph area dimensions */
     double graph_width = width - left_margin - right_margin;
     double graph_height = height - top_margin - bottom_margin;
-    
+
     if (graph_width <= 0 || graph_height <= 0) {
         return FALSE;
     }
-    
+
     /* Clear background */
     /* colors follow the theme (1.29.0) */
     const double bg = app->is_dark ? 0.14 : 1.0, grid = app->is_dark ? 0.28 : 0.9, fg = app->is_dark ? 0.88 : 0.0;
     cairo_set_source_rgb(cr, bg, bg, bg);
     cairo_rectangle(cr, 0, 0, width, height);
     cairo_fill(cr);
-    
+
     /* Draw grid lines and axes */
     cairo_set_source_rgb(cr, grid, grid, grid);
     cairo_set_line_width(cr, 1.0);
-    
+
     /* Horizontal grid lines (fan speed) - every 10% */
     for (int i = 0; i <= 10; i++) {
         double y = top_margin + (graph_height * (1.0 - (i * 0.1)));
@@ -6374,7 +6684,7 @@ static gboolean draw_curve_graph(GtkWidget *widget, cairo_t *cr, gpointer user_d
         cairo_line_to(cr, width - right_margin, y);
     }
     cairo_stroke(cr);
-    
+
     /* Vertical grid lines (temperature) - every 10°C */
     for (int i = 0; i <= 10; i++) {
         double x = left_margin + (graph_width * (i * 0.1));
@@ -6382,20 +6692,20 @@ static gboolean draw_curve_graph(GtkWidget *widget, cairo_t *cr, gpointer user_d
         cairo_line_to(cr, x, height - bottom_margin);
     }
     cairo_stroke(cr);
-    
+
     /* Draw axes */
     cairo_set_source_rgb(cr, fg, fg, fg);   /* axes */
     cairo_set_line_width(cr, 2.0);
-    
+
     /* X-axis (temperature) */
     cairo_move_to(cr, left_margin, height - bottom_margin);
     cairo_line_to(cr, width - right_margin, height - bottom_margin);
-    
+
     /* Y-axis (fan speed) */
     cairo_move_to(cr, left_margin, top_margin);
     cairo_line_to(cr, left_margin, height - bottom_margin);
     cairo_stroke(cr);
-    
+
     /* Axis labels and titles with Pango (1.31.0): cairo's toy text API has
      * no font fallback, so Japanese and Korean showed as boxes */
     cairo_set_source_rgb(cr, fg, fg, fg);   /* labels */
@@ -6424,19 +6734,19 @@ static gboolean draw_curve_graph(GtkWidget *widget, cairo_t *cr, gpointer user_d
     /* Get curve points from the list store */
     GtkTreeIter iter;
     gboolean has_iter = gtk_tree_model_get_iter_first(GTK_TREE_MODEL(app->curve_store), &iter);
-    
+
     if (!has_iter) {
         return TRUE;  /* No data to draw */
     }
-    
+
     /* Store points in arrays for drawing */
     int temps[100], speeds[100];
     int point_count = 0;
-    
+
     while (has_iter && point_count < 100) {
         gchar *temp_str;
         int speed_val;
-        gtk_tree_model_get(GTK_TREE_MODEL(app->curve_store), &iter, 
+        gtk_tree_model_get(GTK_TREE_MODEL(app->curve_store), &iter,
                           0, &temp_str,
                           1, &speed_val,
                           -1);
@@ -6446,46 +6756,46 @@ static gboolean draw_curve_graph(GtkWidget *widget, cairo_t *cr, gpointer user_d
         point_count++;
         has_iter = gtk_tree_model_iter_next(GTK_TREE_MODEL(app->curve_store), &iter);
     }
-    
+
     if (point_count < 2) {
         return TRUE;  /* Not enough points to draw a line */
     }
-    
+
     /* Draw the curve line connecting points */
     cairo_set_source_rgb(cr, 0.0, 0.5, 1.0);  /* Blue for the curve */
     cairo_set_line_width(cr, 2.5);
     cairo_set_line_cap(cr, CAIRO_LINE_CAP_ROUND);
     cairo_set_line_join(cr, CAIRO_LINE_JOIN_ROUND);
-    
+
     cairo_move_to(cr, left_margin + (graph_width * temps[0] / 100.0),
                   top_margin + (graph_height * (1.0 - speeds[0] / 100.0)));
-    
+
     for (int i = 1; i < point_count; i++) {
         cairo_line_to(cr, left_margin + (graph_width * temps[i] / 100.0),
                       top_margin + (graph_height * (1.0 - speeds[i] / 100.0)));
     }
     cairo_stroke(cr);
-    
+
     /* Draw points as circles */
     cairo_set_source_rgb(cr, 1.0, 0.3, 0.0);  /* Red-orange for points */
     cairo_set_line_width(cr, 1.0);
-    
+
     for (int i = 0; i < point_count; i++) {
         double x = left_margin + (graph_width * temps[i] / 100.0);
         double y = top_margin + (graph_height * (1.0 - speeds[i] / 100.0));
-        
+
         /* orange for every point (1.32.1: only the first was orange, the
          * outline color of the previous point filled the others) */
         cairo_set_source_rgb(cr, 1.0, 0.3, 0.0);
         cairo_arc(cr, x, y, 5.0, 0, 2 * M_PI);
         cairo_fill(cr);
-        
+
         /* outline in the background color for better visibility */
         cairo_set_source_rgb(cr, bg, bg, bg);
         cairo_arc(cr, x, y, 5.0, 0, 2 * M_PI);
         cairo_stroke(cr);
     }
-    
+
     return TRUE;
 }
 
@@ -6494,7 +6804,7 @@ static gboolean draw_curve_graph(GtkWidget *widget, cairo_t *cr, gpointer user_d
 static void on_apply_profile_clicked(GtkWidget *widget, gpointer user_data) {
     AppData *app = (AppData *)user_data;
     int profile_idx = -1;
-    
+
     /* Check if called from tray menu (profile index stored in widget data) */
     if (GTK_IS_WIDGET(widget)) {
         gpointer idx_ptr = g_object_get_data(G_OBJECT(widget), "profile_idx");
@@ -6502,25 +6812,25 @@ static void on_apply_profile_clicked(GtkWidget *widget, gpointer user_data) {
             profile_idx = *(int*)idx_ptr;
         }
     }
-    
+
     /* Fall back to the pending selection (Fan Profiles tab: Activate) */
     if (profile_idx < 0) {
         profile_idx = app->pending_active_profile_idx;
     }
-    
+
     if (profile_idx >= 0 && profile_idx < app->num_profiles) {
         char cmd[64];
         snprintf(cmd, sizeof(cmd), "SET_ACTIVE_PROFILE %d", profile_idx);
         const char *response = send_command(app, cmd);
         show_status(app, response);
-        
+
         /* Update the active profile index in app */
         app->active_profile_idx = profile_idx;
         app->pending_active_profile_idx = profile_idx;
-        
+
         /* Refresh the dropdown so "(Active)" moves */
         refresh_profile_list(app);
-        
+
         /* Update tray menu to reflect new active profile */
         update_tray_menu(app);
 
@@ -6539,7 +6849,7 @@ static void update_profile_tab_for_manual_mode(AppData *app, int manual_mode_ena
     g_print("%s [GUI] Updating profile tab for manual mode: %s\n", ts, manual_mode_enabled ? "ENABLED" : "DISABLED");
     g_print("%s [GUI] -> app->manual_mode_warning_label = %p\n", ts, (void*)app->manual_mode_warning_label);
     g_print("%s [GUI] -> app->disable_manual_mode_btn = %p\n", ts, (void*)app->disable_manual_mode_btn);
-    
+
     /* Show/hide warning label and button */
     if (app->manual_mode_warning_label && GTK_IS_WIDGET(app->manual_mode_warning_label)) {
         if (manual_mode_enabled) {
@@ -6548,7 +6858,7 @@ static void update_profile_tab_for_manual_mode(AppData *app, int manual_mode_ena
             gtk_widget_hide(app->manual_mode_warning_label);
         }
     }
-    
+
     if (app->disable_manual_mode_btn && GTK_IS_WIDGET(app->disable_manual_mode_btn)) {
         if (manual_mode_enabled) {
             gtk_widget_show(app->disable_manual_mode_btn);
@@ -6556,7 +6866,7 @@ static void update_profile_tab_for_manual_mode(AppData *app, int manual_mode_ena
             gtk_widget_hide(app->disable_manual_mode_btn);
         }
     }
-    
+
     /* Activating a profile is not possible in manual mode */
     if (app->fan_activate_btn && GTK_IS_WIDGET(app->fan_activate_btn))
         gtk_widget_set_sensitive(app->fan_activate_btn, !manual_mode_enabled);
@@ -6566,27 +6876,27 @@ static void update_profile_tab_for_manual_mode(AppData *app, int manual_mode_ena
 static void on_disable_manual_mode_clicked(GtkWidget *widget, gpointer user_data) {
     (void)widget;
     AppData *app = (AppData *)user_data;
-    
+
     char ts[32];
     get_timestamp(ts, sizeof(ts));
     g_print("%s [GUI] Disable manual mode button clicked\n", ts);
-    
+
     /* Re-enable auto mode on daemon */
     const char *response = send_command(app, "SET_AUTO 1");
     if (strncmp(response, "OK", 2) == 0) {
         app->auto_mode_enabled = 1;
         app->in_manual_mode = 0;
-        
+
         /* Update manual mode UI on Status tab */
         gtk_widget_set_sensitive(app->manual_minus_btn, FALSE);
         gtk_widget_set_sensitive(app->manual_plus_btn, FALSE);
         gtk_label_set_text(GTK_LABEL(app->manual_speed_label), "--");
-        
+
         /* Reset the switch visually */
         g_signal_handler_block(app->manual_mode_switch, app->manual_mode_signal_id);
         gtk_switch_set_state(GTK_SWITCH(app->manual_mode_switch), FALSE);
         g_signal_handler_unblock(app->manual_mode_switch, app->manual_mode_signal_id);
-        
+
         /* Reactivate the profile that was active before manual mode */
         if (app->profile_before_manual >= 0) {
             gui_event("%s [GUI] Re-activating profile %d\n", ts, app->profile_before_manual);
@@ -6601,7 +6911,7 @@ static void on_disable_manual_mode_clicked(GtkWidget *widget, gpointer user_data
                 show_status(app, _("Failed to reactivate previous profile"));
             }
         }
-        
+
         /* Update the profile tab UI */
         update_profile_tab_for_manual_mode(app, 0);
     } else {
@@ -6614,19 +6924,19 @@ static void on_notebook_page_switched(GtkNotebook *notebook, GtkWidget *page, gi
     (void)notebook;
     (void)page;
     AppData *app = (AppData *)user_data;
-    
+
     /* Prevent re-entry */
     if (app->switching_page) {
         return;
     }
-    
+
     /* Check if we're leaving the Fan Profiles tab with unsaved curve changes */
     gint current_page = gtk_notebook_get_current_page(notebook);
     if (current_page == PAGE_FAN && page_num != PAGE_FAN && app->curve_points_modified) {
         char ts[32];
         get_timestamp(ts, sizeof(ts));
         g_print("%s [GUI] Leaving Curve Editor tab with unsaved changes\n", ts);
-        
+
         int result = check_unsaved_changes(app);
         if (result == 1) {
             /* User chose to apply changes - call on_apply_clicked logic */
@@ -6638,20 +6948,20 @@ static void on_notebook_page_switched(GtkNotebook *notebook, GtkWidget *page, gi
         } else {
             /* User clicked Cancel - abort tab switch, keep curve points as-is */
             g_print("%s [GUI] -> Tab switch cancelled by user\n", ts);
-            
+
             /* Stop the page switch immediately by forcing back to current page */
             gtk_notebook_set_current_page(GTK_NOTEBOOK(notebook), current_page);
-            
+
             /* Stop further emission of this signal to prevent any side effects */
             g_signal_stop_emission_by_name(G_OBJECT(notebook), "switch-page");
-            
+
             g_print("%s [GUI] -> Page switch cancelled, staying on page %d\n", ts, current_page);
-            
+
             /* Return early to prevent further execution of this callback */
             return;
         }
     }
-    
+
     /* Leaving the Keyboard tab: unsaved changes, then the active profile again (1.24.0) */
     if (current_page == PAGE_KEYBOARD && page_num != PAGE_KEYBOARD) {
         if (kbd_leave_tab(app) < 0) {
@@ -6673,7 +6983,7 @@ static void on_notebook_page_switched(GtkNotebook *notebook, GtkWidget *page, gi
     /* Clear status messages when switching tabs */
     if (current_page != page_num) {
         show_status(app, "");
-        
+
         /* Clear CPU profile status label when leaving the CPU Profiles tab */
         if (current_page == PAGE_CPU && app->cpu_freq_profile_status_label) {
             gtk_label_set_text(GTK_LABEL(app->cpu_freq_profile_status_label), "");
@@ -6726,7 +7036,7 @@ static void on_notebook_page_switched(GtkNotebook *notebook, GtkWidget *page, gi
 
         /* Edit the active profile */
         kbd_enter_tab(app);
-        
+
         /* Redraw canvas to show loaded LED mapping */
         if (app->kbd_keyboard_canvas) {
             gtk_widget_queue_draw(app->kbd_keyboard_canvas);
@@ -6760,17 +7070,17 @@ static GtkWidget *create_clickable_link(const char *url) {
     gtk_label_set_markup(GTK_LABEL(label), markup);
     g_free(markup);
     gtk_widget_set_halign(label, GTK_ALIGN_CENTER);
-    
+
     /* Wrap label in an EventBox to reliably capture mouse events */
     GtkWidget *event_box = gtk_event_box_new();
     gtk_container_add(GTK_CONTAINER(event_box), label);
     gtk_container_set_border_width(GTK_CONTAINER(event_box), 2);
     gtk_widget_set_halign(event_box, GTK_ALIGN_CENTER);
-    
+
     /* Connect the button-press-event to the event box */
     g_signal_connect_data(event_box, "button-press-event", G_CALLBACK(on_link_clicked),
                           g_strdup(url), (GClosureNotify)(void (*)(void))g_free, 0);
-    
+
     return event_box;
 }
 
@@ -6819,13 +7129,13 @@ static GtkWidget *create_log_page(AppData *app) {
     /* Create a notebook for tabbed daemon logs */
     GtkWidget *notebook = gtk_notebook_new();
     gtk_container_set_border_width(GTK_CONTAINER(notebook), 5);
-    
+
     /* Tab 1: GUI Log */
     {
         GtkWidget *scrolled = gtk_scrolled_window_new(NULL, NULL);
         gtk_scrolled_window_set_policy(GTK_SCROLLED_WINDOW(scrolled), GTK_POLICY_AUTOMATIC, GTK_POLICY_ALWAYS);
         gtk_scrolled_window_set_min_content_height(GTK_SCROLLED_WINDOW(scrolled), 150);   /* was 300 (1.24.4) */
-        
+
         app->gui_log_view = gtk_text_view_new();
         gtk_text_view_set_editable(GTK_TEXT_VIEW(app->gui_log_view), FALSE);
         gtk_text_view_set_wrap_mode(GTK_TEXT_VIEW(app->gui_log_view), GTK_WRAP_WORD_CHAR);
@@ -6834,16 +7144,16 @@ static GtkWidget *create_log_page(AppData *app) {
         gtk_style_context_add_class(gtk_widget_get_style_context(app->gui_log_view), "monospace-log-view");
         app->gui_log_buffer = gtk_text_view_get_buffer(GTK_TEXT_VIEW(app->gui_log_view));
         gtk_container_add(GTK_CONTAINER(scrolled), app->gui_log_view);
-        
+
         gtk_notebook_append_page(GTK_NOTEBOOK(notebook), scrolled, gtk_label_new(_("GUI Log")));
     }
-    
+
     /* Tab 2: CPU Daemon Log */
     {
         GtkWidget *scrolled = gtk_scrolled_window_new(NULL, NULL);
         gtk_scrolled_window_set_policy(GTK_SCROLLED_WINDOW(scrolled), GTK_POLICY_AUTOMATIC, GTK_POLICY_ALWAYS);
         gtk_scrolled_window_set_min_content_height(GTK_SCROLLED_WINDOW(scrolled), 150);   /* was 300 (1.24.4) */
-        
+
         app->cpu_daemon_log_view = gtk_text_view_new();
         gtk_text_view_set_editable(GTK_TEXT_VIEW(app->cpu_daemon_log_view), FALSE);
         gtk_text_view_set_wrap_mode(GTK_TEXT_VIEW(app->cpu_daemon_log_view), GTK_WRAP_WORD_CHAR);
@@ -6852,16 +7162,16 @@ static GtkWidget *create_log_page(AppData *app) {
         gtk_style_context_add_class(gtk_widget_get_style_context(app->cpu_daemon_log_view), "monospace-log-view");
         app->cpu_daemon_log_buffer = gtk_text_view_get_buffer(GTK_TEXT_VIEW(app->cpu_daemon_log_view));
         gtk_container_add(GTK_CONTAINER(scrolled), app->cpu_daemon_log_view);
-        
+
         gtk_notebook_append_page(GTK_NOTEBOOK(notebook), scrolled, gtk_label_new(_("CPU Daemon Log")));
     }
-    
+
     /* Tab 3: Fan Daemon Log */
     {
         GtkWidget *scrolled = gtk_scrolled_window_new(NULL, NULL);
         gtk_scrolled_window_set_policy(GTK_SCROLLED_WINDOW(scrolled), GTK_POLICY_AUTOMATIC, GTK_POLICY_ALWAYS);
         gtk_scrolled_window_set_min_content_height(GTK_SCROLLED_WINDOW(scrolled), 150);   /* was 300 (1.24.4) */
-        
+
         app->daemon_log_view = gtk_text_view_new();
         gtk_text_view_set_editable(GTK_TEXT_VIEW(app->daemon_log_view), FALSE);
         gtk_text_view_set_wrap_mode(GTK_TEXT_VIEW(app->daemon_log_view), GTK_WRAP_WORD_CHAR);
@@ -6870,16 +7180,16 @@ static GtkWidget *create_log_page(AppData *app) {
         gtk_style_context_add_class(gtk_widget_get_style_context(app->daemon_log_view), "monospace-log-view");
         app->daemon_log_buffer = gtk_text_view_get_buffer(GTK_TEXT_VIEW(app->daemon_log_view));
         gtk_container_add(GTK_CONTAINER(scrolled), app->daemon_log_view);
-        
+
         gtk_notebook_append_page(GTK_NOTEBOOK(notebook), scrolled, gtk_label_new(_("Fan Daemon Log")));
     }
-    
+
     /* Tab 4: Keyboard Backlight Daemon Log */
     {
         GtkWidget *scrolled = gtk_scrolled_window_new(NULL, NULL);
         gtk_scrolled_window_set_policy(GTK_SCROLLED_WINDOW(scrolled), GTK_POLICY_AUTOMATIC, GTK_POLICY_ALWAYS);
         gtk_scrolled_window_set_min_content_height(GTK_SCROLLED_WINDOW(scrolled), 150);   /* was 300 (1.24.4) */
-        
+
         app->kbd_daemon_log_view = gtk_text_view_new();
         gtk_text_view_set_editable(GTK_TEXT_VIEW(app->kbd_daemon_log_view), FALSE);
         gtk_text_view_set_wrap_mode(GTK_TEXT_VIEW(app->kbd_daemon_log_view), GTK_WRAP_WORD_CHAR);
@@ -6888,26 +7198,26 @@ static GtkWidget *create_log_page(AppData *app) {
         gtk_style_context_add_class(gtk_widget_get_style_context(app->kbd_daemon_log_view), "monospace-log-view");
         app->kbd_daemon_log_buffer = gtk_text_view_get_buffer(GTK_TEXT_VIEW(app->kbd_daemon_log_view));
         gtk_container_add(GTK_CONTAINER(scrolled), app->kbd_daemon_log_view);
-        
+
         gtk_notebook_append_page(GTK_NOTEBOOK(notebook), scrolled, gtk_label_new(_("Keyboard Backlight Daemon Log")));
     }
-    
+
     /* Start the log refresh timer (every 500ms) */
     app->log_refresh_timer_id = g_timeout_add(500, refresh_logs_timer, app);
-    
+
     /* Initial load of logs */
     load_gui_logs(app);
     load_daemon_logs(app);
     load_cpu_daemon_logs(app);
     load_kbd_daemon_logs(app);
-    
+
     return notebook;
 }
 
 /* Timer callback to refresh logs periodically */
 static gboolean refresh_logs_timer(gpointer user_data) {
     AppData *app = (AppData *)user_data;
-    
+
     /* Check if we're on the log page before refreshing to save resources */
     gint current_page = gtk_notebook_get_current_page(GTK_NOTEBOOK(app->notebook));
     if (current_page == PAGE_LOGS) {
@@ -6916,7 +7226,7 @@ static gboolean refresh_logs_timer(gpointer user_data) {
         load_cpu_daemon_logs(app);
         load_kbd_daemon_logs(app);
     }
-    
+
     return G_SOURCE_CONTINUE;  /* Keep the timer running */
 }
 
@@ -6925,31 +7235,31 @@ static void load_gui_logs(AppData *app) {
     const char *home = g_get_home_dir();
     char log_path[512];
     snprintf(log_path, sizeof(log_path), "%s/.cache/dudes-control-center/logs/GUI.log", home);
-    
+
     static long last_file_size = 0;
     static gboolean initial_load_done = FALSE;
-    
+
     FILE *f = fopen(log_path, "r");
     if (!f) {
         return;  /* Log file doesn't exist yet */
     }
-    
+
     /* Get file size */
     fseek(f, 0, SEEK_END);
     long file_size = ftell(f);
-    
+
     if (file_size == last_file_size) {
         fclose(f);
         return;  /* No new content */
     }
-    
+
     /* Handle file rotation/truncation */
     if (file_size < last_file_size) {
         last_file_size = 0;
         initial_load_done = FALSE;
         gtk_text_buffer_set_text(app->gui_log_buffer, "", 0);
     }
-    
+
     /* On initial load, only read the tail to avoid blocking GTK */
     if (!initial_load_done) {
         if (file_size > 10000) {
@@ -6957,23 +7267,23 @@ static void load_gui_logs(AppData *app) {
         }
         initial_load_done = TRUE;
     }
-    
+
     /* Cap new content per refresh to avoid blocking GTK after standby/large bursts */
     const long MAX_NEW_CONTENT = 65536;  // 64KB max per refresh
     long new_size = file_size - last_file_size;
-    
+
     if (new_size > MAX_NEW_CONTENT) {
         /* Too much new content - only read the tail */
         new_size = MAX_NEW_CONTENT;
         last_file_size = file_size - new_size;
     }
-    
+
     char *new_content = malloc(new_size + 1);
     if (!new_content) {
         fclose(f);
         return;
     }
-    
+
     /* starting inside a line? (the first load starts 10 KB before the end) */
     int mid_line = 0;
     if (last_file_size > 0 && fseek(f, last_file_size - 1, SEEK_SET) == 0) mid_line = fgetc(f) != '\n';
@@ -6987,7 +7297,7 @@ static void load_gui_logs(AppData *app) {
         last_file_size = read_up_to;
         return;
     }
-    
+
     /* Split into lines */
     GSList *lines = NULL;
     char *saveptr = NULL;
@@ -6997,10 +7307,10 @@ static void load_gui_logs(AppData *app) {
         line = strtok_r(NULL, "\n", &saveptr);
     }
     free(new_content);
-    
+
     /* Reverse the list so newest lines come first */
     lines = g_slist_reverse(lines);
-    
+
     /* Build single string with all lines, trailing newline ensures separation from existing buffer */
     GString *reversed = g_string_new(NULL);
     GSList *first = lines;
@@ -7011,12 +7321,12 @@ static void load_gui_logs(AppData *app) {
         g_string_append(reversed, (gchar *)l->data);
     }
     g_string_append_c(reversed, '\n');
-    
+
     /* Insert all at once at the start of the buffer */
     GtkTextIter start_iter;
     gtk_text_buffer_get_start_iter(app->gui_log_buffer, &start_iter);
     gtk_text_buffer_insert(app->gui_log_buffer, &start_iter, reversed->str, -1);
-    
+
     /* Trim buffer if too large to keep GTK responsive */
     const gsize MAX_BUFFER_CHARS = 10000;
     gsize current_length = gtk_text_buffer_get_char_count(app->gui_log_buffer);
@@ -7027,16 +7337,16 @@ static void load_gui_logs(AppData *app) {
         gtk_text_buffer_get_iter_at_offset(app->gui_log_buffer, &trim_iter, MAX_BUFFER_CHARS);
         gtk_text_buffer_delete(app->gui_log_buffer, &trim_iter, &end_iter);
     }
-    
+
     /* Cleanup */
     g_string_free(reversed, TRUE);
     for (GSList *l = lines; l != NULL; l = l->next) {
         g_free(l->data);
     }
     g_slist_free(lines);
-    
+
     last_file_size = read_up_to;   /* an unfinished last line is read next time */
-    
+
     /* Scroll to top */
     gtk_text_buffer_get_start_iter(app->gui_log_buffer, &start_iter);
     gtk_text_view_scroll_to_iter(GTK_TEXT_VIEW(app->gui_log_view), &start_iter, 0.0, FALSE, 0.0, 0.0);
@@ -7045,41 +7355,41 @@ static void load_gui_logs(AppData *app) {
 /* Load daemon logs from file */
 static void load_daemon_logs(AppData *app) {
     char log_path[] = "/var/log/dudes-control-center/FAN_DAEMON.log";
-    
+
     static long last_file_size = 0;
     static gboolean initial_load_done = FALSE;
-    
+
     FILE *f = fopen(log_path, "r");
     if (!f) {
         /* Try to add a placeholder message if we can't read the file */
         GtkTextIter start_iter;
         gtk_text_buffer_get_start_iter(app->daemon_log_buffer, &start_iter);
         gsize current_length = gtk_text_buffer_get_char_count(app->daemon_log_buffer);
-        
+
         if (current_length == 0) {
-            gtk_text_buffer_insert_markup(app->daemon_log_buffer, &start_iter, 
+            gtk_text_buffer_insert_markup(app->daemon_log_buffer, &start_iter,
                 _("<span foreground='#e74c3c'>Unable to read daemon log. Check permissions or ensure the daemon is running.</span>\n"), -1);
         }
         return;
     }
-    
+
     /* Get file size */
     fseek(f, 0, SEEK_END);
     long file_size = ftell(f);
     fseek(f, 0, SEEK_SET);
-    
+
     if (file_size == last_file_size) {
         fclose(f);
         return;  /* No new content */
     }
-    
+
     /* Handle file rotation/truncation */
     if (file_size < last_file_size) {
         last_file_size = 0;
         initial_load_done = FALSE;
         gtk_text_buffer_set_text(app->daemon_log_buffer, "", 0);
     }
-    
+
     /* On initial load, only read the tail to avoid blocking GTK */
     if (!initial_load_done) {
         if (file_size > 10000) {
@@ -7087,23 +7397,23 @@ static void load_daemon_logs(AppData *app) {
         }
         initial_load_done = TRUE;
     }
-    
+
     /* Cap new content per refresh to avoid blocking GTK after standby/large bursts */
     const long MAX_NEW_CONTENT = 65536;  // 64KB max per refresh
     long new_size = file_size - last_file_size;
-    
+
     if (new_size > MAX_NEW_CONTENT) {
         /* Too much new content - only read the tail */
         new_size = MAX_NEW_CONTENT;
         last_file_size = file_size - new_size;
     }
-    
+
     char *new_content = malloc(new_size + 1);
     if (!new_content) {
         fclose(f);
         return;
     }
-    
+
     /* starting inside a line? (the first load starts 10 KB before the end) */
     int mid_line = 0;
     if (last_file_size > 0 && fseek(f, last_file_size - 1, SEEK_SET) == 0) mid_line = fgetc(f) != '\n';
@@ -7117,7 +7427,7 @@ static void load_daemon_logs(AppData *app) {
         last_file_size = read_up_to;
         return;
     }
-    
+
     /* Split into lines */
     GSList *lines = NULL;
     char *saveptr = NULL;
@@ -7127,10 +7437,10 @@ static void load_daemon_logs(AppData *app) {
         line = strtok_r(NULL, "\n", &saveptr);
     }
     free(new_content);
-    
+
     /* Reverse the list so newest lines come first */
     lines = g_slist_reverse(lines);
-    
+
     /* Build single string with all lines, trailing newline ensures separation from existing buffer */
     GString *reversed = g_string_new(NULL);
     GSList *first = lines;
@@ -7141,12 +7451,12 @@ static void load_daemon_logs(AppData *app) {
         g_string_append(reversed, (gchar *)l->data);
     }
     g_string_append_c(reversed, '\n');
-    
+
     /* Insert all at once at the start of the buffer */
     GtkTextIter start_iter;
     gtk_text_buffer_get_start_iter(app->daemon_log_buffer, &start_iter);
     gtk_text_buffer_insert(app->daemon_log_buffer, &start_iter, reversed->str, -1);
-    
+
     /* Trim buffer if too large to keep GTK responsive */
     const gsize MAX_BUFFER_CHARS = 10000;
     gsize current_length = gtk_text_buffer_get_char_count(app->daemon_log_buffer);
@@ -7157,16 +7467,16 @@ static void load_daemon_logs(AppData *app) {
         gtk_text_buffer_get_iter_at_offset(app->daemon_log_buffer, &trim_iter, MAX_BUFFER_CHARS);
         gtk_text_buffer_delete(app->daemon_log_buffer, &trim_iter, &end_iter);
     }
-    
+
     /* Cleanup */
     g_string_free(reversed, TRUE);
     for (GSList *l = lines; l != NULL; l = l->next) {
         g_free(l->data);
     }
     g_slist_free(lines);
-    
+
     last_file_size = read_up_to;   /* an unfinished last line is read next time */
-    
+
     /* Scroll to top */
     gtk_text_buffer_get_start_iter(app->daemon_log_buffer, &start_iter);
     gtk_text_view_scroll_to_iter(GTK_TEXT_VIEW(app->daemon_log_view), &start_iter, 0.0, FALSE, 0.0, 0.0);
@@ -7175,59 +7485,59 @@ static void load_daemon_logs(AppData *app) {
 /* Load CPU daemon logs from file */
 static void load_cpu_daemon_logs(AppData *app) {
     char log_path[] = "/var/log/dudes-control-center/CPU_DAEMON.log";
-    
+
     static long last_file_size = 0;
     static gboolean initial_load_done = FALSE;
-    
+
     FILE *f = fopen(log_path, "r");
     if (!f) {
         GtkTextIter start_iter;
         gtk_text_buffer_get_start_iter(app->cpu_daemon_log_buffer, &start_iter);
         gsize current_length = gtk_text_buffer_get_char_count(app->cpu_daemon_log_buffer);
-        
+
         if (current_length == 0) {
             gtk_text_buffer_insert_markup(app->cpu_daemon_log_buffer, &start_iter,
                 _("<span foreground='#e74c3c'>Unable to read CPU daemon log. Check permissions or ensure the daemon is running.</span>\n"), -1);
         }
         return;
     }
-    
+
     fseek(f, 0, SEEK_END);
     long file_size = ftell(f);
     fseek(f, 0, SEEK_SET);
-    
+
     if (file_size == last_file_size) {
         fclose(f);
         return;
     }
-    
+
     if (file_size < last_file_size) {
         last_file_size = 0;
         initial_load_done = FALSE;
         gtk_text_buffer_set_text(app->cpu_daemon_log_buffer, "", 0);
     }
-    
+
     if (!initial_load_done) {
         if (file_size > 10000) {
             last_file_size = file_size - 10000;
         }
         initial_load_done = TRUE;
     }
-    
+
     const long MAX_NEW_CONTENT = 65536;
     long new_size = file_size - last_file_size;
-    
+
     if (new_size > MAX_NEW_CONTENT) {
         new_size = MAX_NEW_CONTENT;
         last_file_size = file_size - new_size;
     }
-    
+
     char *new_content = malloc(new_size + 1);
     if (!new_content) {
         fclose(f);
         return;
     }
-    
+
     /* starting inside a line? (the first load starts 10 KB before the end) */
     int mid_line = 0;
     if (last_file_size > 0 && fseek(f, last_file_size - 1, SEEK_SET) == 0) mid_line = fgetc(f) != '\n';
@@ -7241,7 +7551,7 @@ static void load_cpu_daemon_logs(AppData *app) {
         last_file_size = read_up_to;
         return;
     }
-    
+
     GSList *lines = NULL;
     char *saveptr = NULL;
     char *line = strtok_r(new_content, "\n", &saveptr);
@@ -7250,9 +7560,9 @@ static void load_cpu_daemon_logs(AppData *app) {
         line = strtok_r(NULL, "\n", &saveptr);
     }
     free(new_content);
-    
+
     lines = g_slist_reverse(lines);
-    
+
     GString *reversed = g_string_new(NULL);
     GSList *first = lines;
     for (GSList *l = first; l != NULL; l = l->next) {
@@ -7262,11 +7572,11 @@ static void load_cpu_daemon_logs(AppData *app) {
         g_string_append(reversed, (gchar *)l->data);
     }
     g_string_append_c(reversed, '\n');
-    
+
     GtkTextIter start_iter;
     gtk_text_buffer_get_start_iter(app->cpu_daemon_log_buffer, &start_iter);
     gtk_text_buffer_insert(app->cpu_daemon_log_buffer, &start_iter, reversed->str, -1);
-    
+
     const gsize MAX_BUFFER_CHARS = 10000;
     gsize current_length = gtk_text_buffer_get_char_count(app->cpu_daemon_log_buffer);
     if (current_length > MAX_BUFFER_CHARS) {
@@ -7276,15 +7586,15 @@ static void load_cpu_daemon_logs(AppData *app) {
         gtk_text_buffer_get_iter_at_offset(app->cpu_daemon_log_buffer, &trim_iter, MAX_BUFFER_CHARS);
         gtk_text_buffer_delete(app->cpu_daemon_log_buffer, &trim_iter, &end_iter);
     }
-    
+
     g_string_free(reversed, TRUE);
     for (GSList *l = lines; l != NULL; l = l->next) {
         g_free(l->data);
     }
     g_slist_free(lines);
-    
+
     last_file_size = read_up_to;   /* an unfinished last line is read next time */
-    
+
     gtk_text_buffer_get_start_iter(app->cpu_daemon_log_buffer, &start_iter);
     gtk_text_view_scroll_to_iter(GTK_TEXT_VIEW(app->cpu_daemon_log_view), &start_iter, 0.0, FALSE, 0.0, 0.0);
 }
@@ -7292,59 +7602,59 @@ static void load_cpu_daemon_logs(AppData *app) {
 /* Load keyboard backlight daemon logs (same as the CPU daemon log view) */
 static void load_kbd_daemon_logs(AppData *app) {
     char log_path[] = "/var/log/dudes-control-center/KBD_BACKLIGHT_DAEMON.log";
-    
+
     static long last_file_size = 0;
     static gboolean initial_load_done = FALSE;
-    
+
     FILE *f = fopen(log_path, "r");
     if (!f) {
         GtkTextIter start_iter;
         gtk_text_buffer_get_start_iter(app->kbd_daemon_log_buffer, &start_iter);
         gsize current_length = gtk_text_buffer_get_char_count(app->kbd_daemon_log_buffer);
-        
+
         if (current_length == 0) {
             gtk_text_buffer_insert_markup(app->kbd_daemon_log_buffer, &start_iter,
                 _("<span foreground='#e74c3c'>Unable to read Keyboard daemon log. Check permissions or ensure the daemon is running.</span>\n"), -1);
         }
         return;
     }
-    
+
     fseek(f, 0, SEEK_END);
     long file_size = ftell(f);
     fseek(f, 0, SEEK_SET);
-    
+
     if (file_size == last_file_size) {
         fclose(f);
         return;
     }
-    
+
     if (file_size < last_file_size) {
         last_file_size = 0;
         initial_load_done = FALSE;
         gtk_text_buffer_set_text(app->kbd_daemon_log_buffer, "", 0);
     }
-    
+
     if (!initial_load_done) {
         if (file_size > 10000) {
             last_file_size = file_size - 10000;
         }
         initial_load_done = TRUE;
     }
-    
+
     const long MAX_NEW_CONTENT = 65536;
     long new_size = file_size - last_file_size;
-    
+
     if (new_size > MAX_NEW_CONTENT) {
         new_size = MAX_NEW_CONTENT;
         last_file_size = file_size - new_size;
     }
-    
+
     char *new_content = malloc(new_size + 1);
     if (!new_content) {
         fclose(f);
         return;
     }
-    
+
     /* starting inside a line? (the first load starts 10 KB before the end) */
     int mid_line = 0;
     if (last_file_size > 0 && fseek(f, last_file_size - 1, SEEK_SET) == 0) mid_line = fgetc(f) != '\n';
@@ -7358,7 +7668,7 @@ static void load_kbd_daemon_logs(AppData *app) {
         last_file_size = read_up_to;
         return;
     }
-    
+
     GSList *lines = NULL;
     char *saveptr = NULL;
     char *line = strtok_r(new_content, "\n", &saveptr);
@@ -7367,9 +7677,9 @@ static void load_kbd_daemon_logs(AppData *app) {
         line = strtok_r(NULL, "\n", &saveptr);
     }
     free(new_content);
-    
+
     lines = g_slist_reverse(lines);
-    
+
     GString *reversed = g_string_new(NULL);
     GSList *first = lines;
     for (GSList *l = first; l != NULL; l = l->next) {
@@ -7379,11 +7689,11 @@ static void load_kbd_daemon_logs(AppData *app) {
         g_string_append(reversed, (gchar *)l->data);
     }
     g_string_append_c(reversed, '\n');
-    
+
     GtkTextIter start_iter;
     gtk_text_buffer_get_start_iter(app->kbd_daemon_log_buffer, &start_iter);
     gtk_text_buffer_insert(app->kbd_daemon_log_buffer, &start_iter, reversed->str, -1);
-    
+
     const gsize MAX_BUFFER_CHARS = 10000;
     gsize current_length = gtk_text_buffer_get_char_count(app->kbd_daemon_log_buffer);
     if (current_length > MAX_BUFFER_CHARS) {
@@ -7393,15 +7703,15 @@ static void load_kbd_daemon_logs(AppData *app) {
         gtk_text_buffer_get_iter_at_offset(app->kbd_daemon_log_buffer, &trim_iter, MAX_BUFFER_CHARS);
         gtk_text_buffer_delete(app->kbd_daemon_log_buffer, &trim_iter, &end_iter);
     }
-    
+
     g_string_free(reversed, TRUE);
     for (GSList *l = lines; l != NULL; l = l->next) {
         g_free(l->data);
     }
     g_slist_free(lines);
-    
+
     last_file_size = read_up_to;   /* an unfinished last line is read next time */
-    
+
     gtk_text_buffer_get_start_iter(app->kbd_daemon_log_buffer, &start_iter);
     gtk_text_view_scroll_to_iter(GTK_TEXT_VIEW(app->kbd_daemon_log_view), &start_iter, 0.0, FALSE, 0.0, 0.0);
 }
@@ -8750,7 +9060,7 @@ static GtkWidget *create_keyboard_page(AppData *app) {
     gtk_box_pack_start(GTK_BOX(wizard_btn_row), app->kbd_led_wizard_save_btn, FALSE, FALSE, 0);
     gtk_box_pack_start(GTK_BOX(wizard_btn_row), app->kbd_led_wizard_cancel_btn, FALSE, FALSE, 0);
     gtk_box_pack_start(GTK_BOX(wizard_box), wizard_btn_row, FALSE, FALSE, 0);
-    
+
     /* LED Wizard status label */
     app->kbd_led_wizard_label = gtk_label_new("");
     gtk_label_set_xalign(GTK_LABEL(app->kbd_led_wizard_label), 0.0);
@@ -8758,7 +9068,7 @@ static GtkWidget *create_keyboard_page(AppData *app) {
     gtk_widget_set_no_show_all(app->kbd_led_wizard_label, TRUE);   /* shown once the wizard runs */
     gtk_label_set_line_wrap(GTK_LABEL(app->kbd_led_wizard_label), TRUE);
     gtk_box_pack_start(GTK_BOX(wizard_box), app->kbd_led_wizard_label, FALSE, FALSE, 0);
-    
+
     /* Keyboard schematic canvas */
     app->kbd_keyboard_canvas = gtk_drawing_area_new();
     gtk_widget_set_events(app->kbd_keyboard_canvas,
@@ -8832,7 +9142,7 @@ static GtkWidget *create_keyboard_page(AppData *app) {
 static GtkWidget *create_main_window(AppData *app) {
     app->window = gtk_window_new(GTK_WINDOW_TOPLEVEL);
     gtk_window_set_title(GTK_WINDOW(app->window), _("Dudes Control Center"));
-    
+
     /* Window icon from the icon theme (hicolor, all sizes), like the menu entry;
      * the old relative "DudesControlCenter.png" only worked from the source
      * folder (1.34.4) */
@@ -8846,16 +9156,16 @@ static GtkWidget *create_main_window(AppData *app) {
             g_object_unref(pixbuf);
         }
     }
-    
+
     /* Handle window close button - minimize to tray instead of closing */
     g_signal_connect(app->window, "delete-event", G_CALLBACK(on_window_delete_event), app);
-    
+
     /* Handle actual destroy (from Exit menu or programmatic quit) */
     g_signal_connect(app->window, "destroy", G_CALLBACK(on_window_destroy), app);
-    
+
     /* Create notebook with pages */
     app->notebook = gtk_notebook_new();
-    
+
     GtkWidget *page1 = create_status_page(app);
     GtkWidget *page2 = create_curve_editor_page(app);
 GtkWidget *page4 = create_log_page(app);
@@ -8889,7 +9199,7 @@ GtkWidget *page4 = create_log_page(app);
     gtk_notebook_append_page(GTK_NOTEBOOK(app->notebook), page4, gtk_label_new(_("Logs")));
     gtk_notebook_append_page(GTK_NOTEBOOK(app->notebook), help_page, gtk_label_new(_("Help")));
     gtk_notebook_append_page(GTK_NOTEBOOK(app->notebook), page6, gtk_label_new(_("About")));
-    
+
     settings_apply_visibility(app);   /* hide the tabs of switched-off components */
     /* desktop theme changes while following the system (1.29.0) */
     g_signal_connect(gtk_settings_get_default(), "notify::gtk-theme-name", G_CALLBACK(on_gtk_theme_changed), app);
@@ -8898,17 +9208,17 @@ GtkWidget *page4 = create_log_page(app);
 
     /* Connect notebook page-switch signal to update profile tab when switching to it */
     app->page_switched_handler_id = g_signal_connect(app->notebook, "switch-page", G_CALLBACK(on_notebook_page_switched), app);
-    
+
     /* Create statusbar */
     app->statusbar = gtk_statusbar_new();
-    
+
     /* Create main vbox */
     GtkWidget *main_vbox = gtk_box_new(GTK_ORIENTATION_VERTICAL, 0);
     gtk_box_pack_start(GTK_BOX(main_vbox), app->notebook, TRUE, TRUE, 0);
     gtk_box_pack_end(GTK_BOX(main_vbox), app->statusbar, FALSE, FALSE, 0);
-    
+
     gtk_container_add(GTK_CONTAINER(app->window), main_vbox);
-    
+
     return app->window;
 }
 
@@ -9340,16 +9650,16 @@ static void update_tray_menu(AppData *app) {
 static void create_system_tray(AppData *app) {
     /* Load the icon - try multiple locations */
     GdkPixbuf *pixbuf = NULL;
-    
+
     /* Try installed location first (from .deb package) */
     pixbuf = gdk_pixbuf_new_from_file_at_size("/usr/share/icons/hicolor/256x256/apps/dudes-control-center.png", 48, 48, NULL);
-    
+
     /* Fallback to current directory (for development) */
     if (!pixbuf) {
         g_print("[GUI] Trying alternative icon location...\n");
         pixbuf = gdk_pixbuf_new_from_file_at_size("DudesControlCenter.png", 48, 48, NULL);
     }
-    
+
     /* Fallback: next to the executable (running from the source tree) */
     if (!pixbuf) {
         gchar *exe = g_file_read_link("/proc/self/exe", NULL);
@@ -9368,23 +9678,23 @@ static void create_system_tray(AppData *app) {
         g_printerr("[GUI] Failed to load tray icon from any location\n");
         return;
     }
-    
+
     #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wdeprecated-declarations"
     /* Create status icon */
     app->status_icon = gtk_status_icon_new_from_pixbuf(pixbuf);
     g_object_unref(pixbuf);
-    
+
     gtk_status_icon_set_title(GTK_STATUS_ICON(app->status_icon), "Dudes Control Center");
     gtk_status_icon_set_tooltip_text(GTK_STATUS_ICON(app->status_icon), "Dudes Control Center");
 #pragma GCC diagnostic pop
-    
+
     /* Create context menu */
     app->tray_menu = create_tray_menu(app);
-    
+
     /* Connect popup-menu signal for right-click context menu */
     g_signal_connect(app->status_icon, "popup-menu", G_CALLBACK(on_tray_popup_menu), app);
-    
+
     /* Connect activate signal for left-click to toggle window visibility */
     g_signal_connect(app->status_icon, "activate", G_CALLBACK(on_tray_activate_left_click), app);
 }
@@ -9392,23 +9702,23 @@ static void create_system_tray(AppData *app) {
 /* Create the tray context menu */
 static GtkWidget* create_tray_menu(AppData *app) {
     g_print("[GUI] Creating tray menu with %d profiles\n", app->num_profiles);
-    
+
     /* Set flag to prevent callback recursion during menu creation */
     app->updating_tray_menu = 1;
-    
+
     GtkWidget *menu = gtk_menu_new();
-    
+
     /* Show/Hide application */
     GtkWidget *show_item = gtk_menu_item_new_with_label(_("Show Application"));
     g_signal_connect(show_item, "activate", G_CALLBACK(on_tray_show_app), app);
     gtk_container_add(GTK_CONTAINER(menu), show_item);
     gtk_widget_show(show_item);
-    
+
     /* Separator */
     GtkWidget *separator1 = gtk_separator_menu_item_new();
     gtk_container_add(GTK_CONTAINER(menu), separator1);
     gtk_widget_show(separator1);
-    
+
     /* CPU Profiles submenu (alphabetical: C before F) */
     if (app->cpu_connected) {
         GtkWidget *cpu_profiles_menuitem = gtk_menu_item_new_with_label(_("CPU Profiles"));
@@ -9416,10 +9726,10 @@ static GtkWidget* create_tray_menu(AppData *app) {
         gtk_menu_item_set_submenu(GTK_MENU_ITEM(cpu_profiles_menuitem), cpu_profiles_submenu);
         gtk_container_add(GTK_CONTAINER(menu), cpu_profiles_menuitem);
         gtk_widget_show(cpu_profiles_menuitem);
-        
+
         /* Get number of CPU profiles from the store */
         int cpu_profile_count = gtk_tree_model_iter_n_children(GTK_TREE_MODEL(app->cpu_custom_profile_store), NULL);
-        
+
         GtkWidget *first_cpu_profile_radio = NULL;
         GtkTreeIter cpu_iter;
         gboolean has_iter = gtk_tree_model_get_iter_first(GTK_TREE_MODEL(app->cpu_custom_profile_store), &cpu_iter);
@@ -9427,7 +9737,7 @@ static GtkWidget* create_tray_menu(AppData *app) {
         while (has_iter && i < cpu_profile_count) {
             char *raw_name = NULL;
             gtk_tree_model_get(GTK_TREE_MODEL(app->cpu_custom_profile_store), &cpu_iter, 0, &raw_name, -1);
-            
+
             char label[256];
             if (raw_name) {
                 const char *clean_name = cpu_profile_name_from_display(raw_name);
@@ -9440,9 +9750,9 @@ static GtkWidget* create_tray_menu(AppData *app) {
             } else {
                 snprintf(label, sizeof(label), _("Profile %d"), i);
             }
-            
+
             g_print("[GUI] Adding CPU profile item: %s\n", label);
-            
+
             GtkWidget *cpu_profile_item;
             if (first_cpu_profile_radio == NULL) {
                 cpu_profile_item = gtk_radio_menu_item_new_with_label(NULL, label);
@@ -9450,25 +9760,25 @@ static GtkWidget* create_tray_menu(AppData *app) {
             } else {
                 cpu_profile_item = gtk_radio_menu_item_new_with_label_from_widget(GTK_RADIO_MENU_ITEM(first_cpu_profile_radio), label);
             }
-            
+
             /* Store profile index in widget data */
             int *idx_ptr = g_malloc(sizeof(int));
             *idx_ptr = i;
             g_object_set_data(G_OBJECT(cpu_profile_item), "cpu_profile_idx", idx_ptr);
-            
+
             if (i == app->cpu_active_custom_profile_idx) {
                 gtk_check_menu_item_set_active(GTK_CHECK_MENU_ITEM(cpu_profile_item), TRUE);
             }
             g_signal_connect(cpu_profile_item, "activate", G_CALLBACK(on_tray_select_cpu_profile), app);
             gtk_container_add(GTK_CONTAINER(cpu_profiles_submenu), cpu_profile_item);
             gtk_widget_show(cpu_profile_item);
-            
+
             /* Advance to next row */
             has_iter = gtk_tree_model_iter_next(GTK_TREE_MODEL(app->cpu_custom_profile_store), &cpu_iter);
             i++;
         }
     }
-    
+
     /* Fan Profiles submenu */
     if (!dcc_component_disabled(COMP_FAN)) {
         GtkWidget *profiles_menuitem = gtk_menu_item_new_with_label(_("Fan Profiles"));
@@ -9476,7 +9786,7 @@ static GtkWidget* create_tray_menu(AppData *app) {
         gtk_menu_item_set_submenu(GTK_MENU_ITEM(profiles_menuitem), profiles_submenu);
         gtk_container_add(GTK_CONTAINER(menu), profiles_menuitem);
         gtk_widget_show(profiles_menuitem);
-        
+
         GtkWidget *first_profile_radio = NULL;
         for (int i = 0; i < app->num_profiles; i++) {
             char label[128];
@@ -9485,9 +9795,9 @@ static GtkWidget* create_tray_menu(AppData *app) {
             } else {
                 snprintf(label, sizeof(label), "%s", app->profile_names[i]);
             }
-            
+
             g_print("[GUI] Adding profile item: %s\n", label);
-            
+
             GtkWidget *profile_item;
             if (first_profile_radio == NULL) {
                 profile_item = gtk_radio_menu_item_new_with_label(NULL, label);
@@ -9495,11 +9805,11 @@ static GtkWidget* create_tray_menu(AppData *app) {
             } else {
                 profile_item = gtk_radio_menu_item_new_with_label_from_widget(GTK_RADIO_MENU_ITEM(first_profile_radio), label);
             }
-            
+
             int *idx_ptr = g_malloc(sizeof(int));
             *idx_ptr = i;
             g_object_set_data(G_OBJECT(profile_item), "profile_idx", idx_ptr);
-            
+
             if (i == app->active_profile_idx) {
                 gtk_check_menu_item_set_active(GTK_CHECK_MENU_ITEM(profile_item), TRUE);
             }
@@ -9545,12 +9855,12 @@ static GtkWidget* create_tray_menu(AppData *app) {
             g_strfreev(lines);
         }
     }
-    
+
     /* Separator */
     GtkWidget *separator2 = gtk_separator_menu_item_new();
     gtk_container_add(GTK_CONTAINER(menu), separator2);
     gtk_widget_show(separator2);
-    
+
     /* Version label (greyed out) - wrapped in menu item */
     {
         char version_label[256];
@@ -9560,21 +9870,21 @@ static GtkWidget* create_tray_menu(AppData *app) {
         gtk_container_add(GTK_CONTAINER(menu), version_menuitem);
         gtk_widget_show(version_menuitem);
     }
-    
+
     /* Separator after version */
     GtkWidget *separator3 = gtk_separator_menu_item_new();
     gtk_container_add(GTK_CONTAINER(menu), separator3);
     gtk_widget_show(separator3);
-    
+
     /* Exit */
     GtkWidget *exit_item = gtk_menu_item_new_with_label(_("Exit"));
     g_signal_connect(exit_item, "activate", G_CALLBACK(on_tray_exit), app);
     gtk_container_add(GTK_CONTAINER(menu), exit_item);
     gtk_widget_show(exit_item);
-    
+
     /* Unset flag after menu creation */
     app->updating_tray_menu = 0;
-    
+
     return menu;
 }
 
@@ -9583,17 +9893,17 @@ static gboolean on_tray_popup_menu(GtkStatusIcon *status_icon, guint button, gui
     (void)status_icon;
     (void)activate_time;
     AppData *app = (AppData *)user_data;
-    
+
     g_print("[GUI] Tray popup-menu signal received, button: %d\n", button);
-    
+
     if (!app->tray_menu || !GTK_IS_MENU(app->tray_menu)) {
         g_printerr("[GUI] Tray menu is NULL or invalid\n");
         return FALSE;
     }
-    
+
     gtk_widget_show_all(app->tray_menu);
     gtk_menu_popup_at_pointer(GTK_MENU(app->tray_menu), NULL);
-    
+
     return TRUE;
 }
 
@@ -9601,14 +9911,14 @@ static gboolean on_tray_popup_menu(GtkStatusIcon *status_icon, guint button, gui
 static void on_tray_activate_left_click(GtkStatusIcon *status_icon, gpointer user_data) {
     (void)status_icon;
     AppData *app = (AppData *)user_data;
-    
+
     g_print("[GUI] Tray icon activated (left-click), toggling window\n");
-    
+
     if (!app->window || !GTK_IS_WIDGET(app->window)) {
         g_printerr("[GUI] Window widget is NULL or invalid\n");
         return;
     }
-    
+
     if (gtk_widget_get_visible(app->window)) {
         /* Save current window position before hiding */
         gtk_window_get_position(GTK_WINDOW(app->window), &app->window_x, &app->window_y);
@@ -9622,19 +9932,19 @@ static void on_tray_activate_left_click(GtkStatusIcon *status_icon, gpointer use
         g_print("[GUI] About to call gtk_widget_show_all\n");
         gtk_widget_show_all(app->window);
         g_print("[GUI] gtk_widget_show_all completed successfully\n");
-        
+
         /* Reapply saved window position after showing — WM ignores positions on hidden windows */
         gtk_window_move(GTK_WINDOW(app->window), app->window_x, app->window_y);
-        
+
         /* Force a redraw to ensure proper display after widget recreation */
         gtk_widget_queue_draw(app->window);
         g_print("[GUI] About to call gtk_window_present\n");
-        
+
         /* Fetch current status from daemon to sync manual mode state before showing window */
         const char *response = send_command(app, "STATUS");
         if (response != NULL) {
             parse_status(app, response);  /* Parse STATUS to update app->in_manual_mode flag */
-            
+
             /* If we're on the Fan Profiles tab, defer refresh until widgets are realized.
              * gtk_widget_show_all() triggers realization asynchronously. */
             gint current_page = gtk_notebook_get_current_page(GTK_NOTEBOOK(app->notebook));
@@ -9642,7 +9952,7 @@ static void on_tray_activate_left_click(GtkStatusIcon *status_icon, gpointer use
                 g_idle_add(refresh_profile_tab_idle, app);
             }
         }
-        
+
         /* Present the window */
         gtk_window_present(GTK_WINDOW(app->window));
     }
@@ -9652,18 +9962,18 @@ static void on_tray_activate_left_click(GtkStatusIcon *status_icon, gpointer use
 static void on_tray_show_app(GtkMenuItem *menuitem, gpointer user_data) {
     (void)menuitem;
     AppData *app = (AppData *)user_data;
-    
+
     if (!gtk_widget_get_visible(app->window)) {
         gtk_widget_show_all(app->window);
         /* Reapply saved window position after showing — WM ignores positions on hidden windows */
         gtk_window_move(GTK_WINDOW(app->window), app->window_x, app->window_y);
         gtk_widget_queue_draw(app->window);
-        
+
         /* Fetch current status from daemon to sync manual mode state before showing window */
         const char *response = send_command(app, "STATUS");
         if (response != NULL) {
             parse_status(app, response);  /* Parse STATUS to update app->in_manual_mode flag */
-            
+
             /* If we're on the Fan Profiles tab, defer refresh until widgets are realized.
              * gtk_widget_show_all() triggers realization asynchronously. */
             gint current_page = gtk_notebook_get_current_page(GTK_NOTEBOOK(app->notebook));
@@ -9672,7 +9982,7 @@ static void on_tray_show_app(GtkMenuItem *menuitem, gpointer user_data) {
             }
         }
     }
-    
+
     gtk_window_present(GTK_WINDOW(app->window));
 }
 
@@ -9690,7 +10000,7 @@ static void on_tray_exit(GtkMenuItem *menuitem, gpointer user_data) {
     }
     if (cpu_check_unsaved_changes(app) < 0) return;
     if (kbd_leave_tab(app) < 0) return;
-    
+
     /* Save window position before exiting if window is visible */
     if (gtk_widget_get_visible(app->window)) {
         gtk_window_get_position(GTK_WINDOW(app->window), &app->window_x, &app->window_y);
@@ -9698,29 +10008,29 @@ static void on_tray_exit(GtkMenuItem *menuitem, gpointer user_data) {
         app->window_height = gtk_widget_get_allocated_height(app->window);
         save_window_position(app);
     }
-    
+
     gtk_main_quit();
 }
 
 /* Select profile from tray context menu */
 static void on_tray_select_profile(GtkRadioMenuItem *radiomenuitem, gpointer user_data) {
     AppData *app = (AppData *)user_data;
-    
+
     /* Prevent callback during menu creation/update to avoid infinite loop */
     if (app->updating_tray_menu) {
         return;
     }
-    
+
     /* Get the profile index stored in widget data */
     gpointer idx_ptr = g_object_get_data(G_OBJECT(radiomenuitem), "profile_idx");
     if (!idx_ptr) {
         g_printerr("[GUI] No profile index found in menu item\n");
         return;
     }
-    
+
     int selected_idx = *(int*)idx_ptr;
     gui_event("[GUI] Tray profile selected: index %d (%s)\n", selected_idx, app->profile_names[selected_idx]);
-    
+
     if (selected_idx >= 0 && selected_idx < app->num_profiles && selected_idx != app->active_profile_idx) {
         g_print("[GUI] Activating profile %d: %s\n", selected_idx, app->profile_names[selected_idx]);
         char cmd[64];
@@ -9729,14 +10039,14 @@ static void on_tray_select_profile(GtkRadioMenuItem *radiomenuitem, gpointer use
         if (response && strstr(response, "OK")) {
             gui_event("[GUI] Profile activated successfully\n");
             show_status(app, g_strdup_printf(_("Profile '%s' activated"), app->profile_names[selected_idx]));
-            
+
             /* Update active profile index */
             app->active_profile_idx = selected_idx;
             app->pending_active_profile_idx = selected_idx;
-            
+
             /* Refresh the dropdown so "(Active)" moves */
             refresh_profile_list(app);
-            
+
             /* Update tray menu to reflect new active profile */
             update_tray_menu(app);
         } else {
@@ -9778,21 +10088,21 @@ static void on_tray_select_kbd_profile(GtkMenuItem *item, gpointer user_data) {
 /* Callback: select a CPU profile from the system tray menu */
 static void on_tray_select_cpu_profile(GtkRadioMenuItem *radiomenuitem, gpointer user_data) {
     AppData *app = (AppData *)user_data;
-    
+
     /* Prevent callback during menu creation/update to avoid infinite loop */
     if (app->updating_tray_menu) {
         return;
     }
-    
+
     /* Get the profile index stored in widget data */
     gpointer idx_ptr = g_object_get_data(G_OBJECT(radiomenuitem), "cpu_profile_idx");
     if (!idx_ptr) {
         g_printerr("[GUI] No CPU profile index found in menu item\n");
         return;
     }
-    
+
     int selected_idx = *(int*)idx_ptr;
-    
+
     /* Get the profile name from the store */
     char *profile_name = NULL;
     GtkTreeIter iter;
@@ -9807,9 +10117,9 @@ static void on_tray_select_cpu_profile(GtkRadioMenuItem *radiomenuitem, gpointer
             gtk_tree_model_get(GTK_TREE_MODEL(app->cpu_custom_profile_store), &iter, 0, &profile_name, -1);
         }
     }
-    
+
     gui_event("[GUI] Tray CPU profile selected: index %d (%s)\n", selected_idx, profile_name ? profile_name : "(null)");
-    
+
     if (selected_idx >= 0 && selected_idx != app->cpu_active_custom_profile_idx) {
         g_print("[GUI] Activating CPU profile %d\n", selected_idx);
         char cmd[256];
@@ -9818,23 +10128,23 @@ static void on_tray_select_cpu_profile(GtkRadioMenuItem *radiomenuitem, gpointer
         if (response && strncmp(response, "OK", 2) == 0) {
             gui_event("[GUI] CPU profile activated successfully\n");
             show_status(app, g_strdup_printf(_("CPU profile '%s' activated"), profile_name ? profile_name : _("Unknown")));
-            
+
             /* Update active index */
             app->cpu_active_custom_profile_idx = selected_idx;
-            
+
             /* Reload profile list to update markers */
             load_cpu_custom_profiles(app);
-            
+
             /* Persist the active_profile_index */
             gui_save_profiles_to_disk(app);
-            
+
             /* Update tray menu to reflect new active profile */
             update_tray_menu(app);
         } else {
             show_status(app, _("Failed to activate CPU profile"));
         }
     }
-    
+
     if (profile_name) g_free(profile_name);
 }
 
@@ -10115,7 +10425,7 @@ static void save_window_position(AppData *app) {
     const char *config_dir = g_get_user_config_dir();
     char config_path[512];
     snprintf(config_path, sizeof(config_path), "%s/dudes-control-center/config.json", config_dir);
-    
+
     /* keep the other settings (keyboard_layout, 1.28.0) */
     cJSON *json = config_read();
     cJSON_DeleteItemFromObject(json, "window_x");
@@ -10126,7 +10436,7 @@ static void save_window_position(AppData *app) {
     cJSON_AddNumberToObject(json, "window_y", app->window_y);
     cJSON_AddNumberToObject(json, "window_width", app->window_width);
     cJSON_AddNumberToObject(json, "window_height", app->window_height);
-    
+
     char *json_str = cJSON_Print(json);
     FILE *f = fopen(config_path, "w");
     if (f) {
@@ -10135,7 +10445,7 @@ static void save_window_position(AppData *app) {
         g_print("[GUI] Saved window position to config.json: %d,%d %ux%u\n",
                 app->window_x, app->window_y, app->window_width, app->window_height);
     }
-    
+
     cJSON_free(json_str);
     cJSON_Delete(json);
 }
@@ -10145,7 +10455,7 @@ static void load_window_position(AppData *app) {
     const char *config_dir = g_get_user_config_dir();
     char config_path[512];
     snprintf(config_path, sizeof(config_path), "%s/dudes-control-center/config.json", config_dir);
-    
+
     FILE *f = fopen(config_path, "r");
     if (f) {
         fseek(f, 0, SEEK_END);
@@ -10155,7 +10465,7 @@ static void load_window_position(AppData *app) {
         if (json_str) {
             size_t read = fread(json_str, 1, fsize, f);
             json_str[read] = '\0';
-            
+
             cJSON *json = cJSON_Parse(json_str);
             if (json) {
                 cJSON *val;
@@ -10174,7 +10484,7 @@ static void load_window_position(AppData *app) {
         /* No saved position - center the window on screen */
         app->window_width = 800;
         app->window_height = 600;
-        
+
         /* Get primary monitor size for centering */
         GdkScreen *screen = gtk_widget_get_screen(app->window);
         if (screen) {
@@ -10183,20 +10493,20 @@ static void load_window_position(AppData *app) {
             if (monitor) {
                 GdkRectangle geometry;
                 gdk_monitor_get_geometry(monitor, &geometry);
-                
+
                 /* Calculate centered position */
                 app->window_x = geometry.width / 2 - app->window_width / 2;
                 app->window_y = geometry.height / 2 - app->window_height / 2;
-                
+
                 g_print("[GUI] No saved position, centering on screen: %d,%d\n",
                         app->window_x, app->window_y);
             }
         }
     }
-    
+
     /* Apply the loaded/default window position */
     gtk_window_move(GTK_WINDOW(app->window), app->window_x, app->window_y);
-    
+
     /* Set default size but allow window to shrink based on content */
     gtk_window_set_default_size(GTK_WINDOW(app->window), (gint)app->window_width, (gint)app->window_height);
 }
@@ -10205,7 +10515,7 @@ static void load_window_position(AppData *app) {
 static gboolean on_window_delete_event(GtkWidget *widget, GdkEvent *event, gpointer user_data) {
     (void)event;
     AppData *app = (AppData *)user_data;
-    
+
     /* Check for unsaved curve point changes before closing */
     if (app->curve_points_modified) {
         int result = check_unsaved_changes(app);
@@ -10223,16 +10533,16 @@ static gboolean on_window_delete_event(GtkWidget *widget, GdkEvent *event, gpoin
     if (cpu_check_unsaved_changes(app) < 0) return TRUE;   /* CPU profile (1.23.0) */
     if (gtk_notebook_get_current_page(GTK_NOTEBOOK(app->notebook)) == PAGE_KEYBOARD &&
         kbd_leave_tab(app) < 0) return TRUE;                 /* keyboard profile (1.24.0) */
-    
+
     /* Save current window position before hiding */
     gtk_window_get_position(GTK_WINDOW(widget), &app->window_x, &app->window_y);
     app->window_width = gtk_widget_get_allocated_width(widget);
     app->window_height = gtk_widget_get_allocated_height(widget);
     save_window_position(app);
-    
+
     g_print("[GUI] Window close button clicked, minimizing to tray\n");
     gtk_widget_hide(widget);
-    
+
     /* Return TRUE to prevent the window from being destroyed */
     return TRUE;
 }
@@ -10305,9 +10615,10 @@ static gboolean refresh_timer_callback(gpointer user_data) {
     AppData *app = (AppData *)user_data;
     update_daemon_status_labels(app);
     status_update_active_profiles(app);
+    status_update_local(app);   /* battery, NVMe (1.37.0) */
     char ts[32];
     get_timestamp(ts, sizeof(ts));
-    
+
     /* Every 6 s: keep the keyboard connection alive (reconnects after a
      * daemon restart) and the Backlight Off switch in sync with the daemon */
     static int kbd_tick = 0;
@@ -10324,9 +10635,9 @@ static gboolean refresh_timer_callback(gpointer user_data) {
         connect_to_daemon(app);
         return G_SOURCE_CONTINUE;
     }
-    
+
     g_print("%s [GUI] >>> refresh_timer_callback firing (app->in_manual_mode=%d, app->auto_mode_enabled=%d) <<<\n", ts, app->in_manual_mode, app->auto_mode_enabled);
-    
+
     /* Fetch current status from daemon and parse it to update UI */
     const char *response = send_command(app, "STATUS");
     if (response != NULL) {
@@ -10339,7 +10650,7 @@ static gboolean refresh_timer_callback(gpointer user_data) {
         get_timestamp(ts, sizeof(ts));
         g_print("%s [GUI] <<< refresh_timer_callback done (app->in_manual_mode=%d, app->auto_mode_enabled=%d) <<<\n", ts, app->in_manual_mode, app->auto_mode_enabled);
     }
-    
+
     return G_SOURCE_CONTINUE;
 }
 
@@ -10387,7 +10698,7 @@ static int check_single_instance(void) {
     } else {
         return 0; /* Can't determine home directory, skip check */
     }
-    
+
     /* Try to open existing PID file */
     FILE *fp = fopen(pid_path, "r");
     if (fp) {
@@ -10395,7 +10706,7 @@ static int check_single_instance(void) {
         char line[32];
         if (fgets(line, sizeof(line), fp)) {
             old_pid = atoi(line);
-            
+
             /* Check if process is still running (not this process itself:
              * "Restart now" in Settings re-executes with the same PID) */
             if (old_pid != getpid() && kill(old_pid, 0) == 0) {
@@ -10406,7 +10717,7 @@ static int check_single_instance(void) {
         }
         fclose(fp);
     }
-    
+
     return 0; /* No other instance found */
 }
 
@@ -10417,14 +10728,14 @@ static void write_pid_file(void) {
     if (!home) {
         return;
     }
-    
+
     snprintf(pid_path, sizeof(pid_path), "%s/.config/dudes-control-center/gui.pid", home);
-    
+
     /* Ensure directory exists */
     char dir_path[256];
     snprintf(dir_path, sizeof(dir_path), "%s/.config/dudes-control-center", home);
     mkdir(dir_path, 0755);
-    
+
     /* Write PID file */
     FILE *fp = fopen(pid_path, "w");
     if (fp) {
@@ -10448,7 +10759,7 @@ int main(int argc, char *argv[]) {
     gui_install_log_handlers();
 
     LOG_INFO("Application starting (version %s)...", APP_VERSION);
-    
+
     /* Check for another running instance before initializing GTK */
     int existing_pid = check_single_instance();
     if (existing_pid > 0) {
@@ -10456,40 +10767,40 @@ int main(int argc, char *argv[]) {
         log_cleanup();
         return 1;
     }
-    
+
     /* Write PID file BEFORE GTK init to avoid memory issues */
     write_pid_file();
     LOG_INFO("PID file written, process ID: %d", getpid());
-    
+
     ui_language_init();   /* before GTK builds anything (1.31.0) */
     gtk_init(&argc, &argv);
-    
+
     g_print("[GUI] GTK initialized successfully\n");
     g_print("[GUI] DISPLAY=%s\n", g_getenv("DISPLAY"));
     g_print("[GUI] XDG_RUNTIME_DIR=%s\n", g_getenv("XDG_RUNTIME_DIR"));
-    
+
     AppData app = {0};
     app.emergency_auto_seen = -1;   /* first STATUS only records the count */
     app.cpu_running_profile_idx = -1;
     app.kbd_sel_zone = -1;
-    
+
     /* Create main window */
     appearance_init(&app);   /* theme and dark/light before the window is built (1.29.0) */
     kbd_layout_init();   /* before the keyboard tab is built */
     kbd_mapping_set_defaults(&app);   /* until the wizard CSV is loaded */
     GtkWidget *window = create_main_window(&app);
-    
+
     if (!window) {
         g_printerr("[GUI] ERROR: Failed to create main window!\n");
         log_cleanup();
         return 1;
     }
-    
+
     gui_event("[GUI] Main window created successfully\n");
-    
+
     /* Load saved window position */
     load_window_position(&app);
-    
+
     /* Connect to daemon */
     connect_to_daemon(&app);
 
@@ -10501,7 +10812,7 @@ int main(int argc, char *argv[]) {
 
     /* Initialize pending selection to current active profile */
     app.pending_active_profile_idx = app.active_profile_idx;
-    
+
     /* Refresh profile list and load curve points for active profile */
     if (app.connected) {
         refresh_profile_list(&app);
@@ -10509,7 +10820,7 @@ int main(int argc, char *argv[]) {
             load_curve_points_for_profile(&app, app.active_profile_idx);
         }
     }
-    
+
     /* Start refresh timer (every 2 seconds) */
     app.refresh_timer_id = g_timeout_add_seconds(2, refresh_timer_callback, &app);
 
@@ -10526,20 +10837,20 @@ int main(int argc, char *argv[]) {
 
     /* Create system tray icon */
     create_system_tray(&app);
-    
+
     gui_event("[GUI] System tray icon created\n");
-    
+
     /* Start minimized - hide window initially, show only when user clicks tray icon */
     gui_event("[GUI] Starting minimized to system tray\n");
     gtk_widget_hide(window);
-    
+
     g_print("[GUI] Window hidden, ready for tray activation\n");
-    
+
     /* Run main loop */
     gtk_main();
-    
+
     LOG_INFO("Application shutting down...");
     log_cleanup();
-    
+
     return 0;
 }
