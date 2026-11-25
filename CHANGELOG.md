@@ -13,6 +13,10 @@ Programs and services were named `dudes-control-center-*` before 1.19.0 (for exa
 - **P/E core labels** on hybrid CPUs: "Core 0 (P)", "Core 8 (E)" in the Status tab's per-core frequencies and the CPU tab's profile grid; useful with the different speed floors of P- and E-cores.
 - Tests: name cleanup (Intel, older Intel with "@ GHz", AMD), CPU lists, P/E counting with Hyper-Threading, non-hybrid CPUs.
 
+### Fixed
+- **The GUI would not start again after Exit** when it had been started from the desktop's menu: the quit process stayed a zombie (Cinnamon did not collect it), and the single-instance check took the zombie's PID for a running GUI ("Another instance already running"). Zombies and PIDs of other programs no longer count; killing did not help because a zombie is already gone.
+- Tests: zombie, running `dcc-gui`, other program and no process.
+
 ### Tests
 - The keyboard effect tests wait for a complete frame: on a slow CI runner they caught a frame halfway (the daemon writes it key by key) and failed. CI uploads the test folders of a failed run as one archive (the fake sysfs names with ':' were rejected).
 

@@ -8,6 +8,8 @@
 #define main gui_main
 #include "dcc-gui.c"
 #undef main
+#include <sys/prctl.h>
+#include <sys/wait.h>
 
 static int fails = 0;
 #define CHECK(c, m) do { if (c) printf("PASS  %s\n", m); else { printf("FAIL  %s\n", m); fails++; } } while (0)
@@ -548,6 +550,25 @@ int main(int argc, char **argv) {
         unlink("components/disabled-keyboard");
         CHECK(!dcc_component_disabled(COMP_KEYBOARD) && !dcc_component_disabled(-1) && !dcc_component_disabled(7),
               "S: flag removed -> on again; invalid component numbers are 'on'");
+    }
+
+    /* Q: single instance ignores zombies and other programs (v1.38.0) */
+    {
+        pid_t z = fork();
+        if (z == 0) _exit(0);                 /* exits, not reaped yet: a zombie */
+        usleep(200000);
+        int zombie_seen = gui_pid_alive(z);
+        pid_t g = fork();
+        if (g == 0) { prctl(PR_SET_NAME, "dcc-gui"); pause(); _exit(0); }
+        usleep(200000);
+        int gui_seen = gui_pid_alive(g);
+        int other_seen = gui_pid_alive(getpid());   /* this test program */
+        kill(g, SIGKILL);
+        waitpid(g, NULL, 0);
+        waitpid(z, NULL, 0);
+        CHECK(!zombie_seen, "Q: a quit GUI that is still a zombie does not count as running");
+        CHECK(gui_seen, "Q: a running dcc-gui process counts as running");
+        CHECK(!other_seen && !gui_pid_alive(999999), "Q: another program with that PID or no process: not running");
     }
 
     /* N: processor name and P/E cores (v1.38.0) */

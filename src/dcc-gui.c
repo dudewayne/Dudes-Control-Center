@@ -10835,6 +10835,29 @@ static void ui_language_init(void) {
 }
 
 /* Check if another instance is already running */
+/* Is pid a running dcc-gui (1.38.0)? kill(pid, 0) alone also succeeds for
+ * a zombie: a GUI started from the desktop's menu that has quit stays one
+ * until the desktop collects it, which Cinnamon did not, so every new start
+ * thought it was already running. A reused PID of another program does not
+ * count either. */
+static int gui_pid_alive(int pid) {
+    if (pid <= 0 || kill(pid, 0) != 0) return 0;
+    char path[64], buf[512];
+    snprintf(path, sizeof path, "/proc/%d/stat", pid);
+    FILE *f = fopen(path, "r");
+    if (!f) return 1;                         /* no /proc: trust kill() */
+    size_t n = fread(buf, 1, sizeof buf - 1, f);
+    fclose(f);
+    buf[n] = '\0';
+    /* "pid (comm) state ...": comm may contain spaces and ')' */
+    char *open = strchr(buf, '('), *close = strrchr(buf, ')');
+    if (!open || !close || close < open || close[1] != ' ') return 1;
+    char state = close[2];
+    if (state == 'Z' || state == 'X' || state == 'x') return 0;   /* zombie or dead */
+    *close = '\0';
+    return strcmp(open + 1, "dcc-gui") == 0;
+}
+
 static int check_single_instance(void) {
     char pid_path[256];
     const char *home = getenv("HOME");
@@ -10854,8 +10877,7 @@ static int check_single_instance(void) {
 
             /* Check if process is still running (not this process itself:
              * "Restart now" in Settings re-executes with the same PID) */
-            if (old_pid != getpid() && kill(old_pid, 0) == 0) {
-                /* Process exists and we can signal it (it's running) */
+            if (old_pid != getpid() && gui_pid_alive(old_pid)) {
                 fclose(fp);
                 return old_pid;
             }
