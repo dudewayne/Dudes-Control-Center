@@ -111,7 +111,7 @@ Only modes the system supports are offered. Each per-core profile stores its mod
 Click a picture for the full size.
 
 | Status | Fan Profiles |
-|---|---|
+|:---:|:---:|
 | [![Status tab](docs/screenshots/status.png)](docs/screenshots/status.png) | [![Fan Profiles tab](docs/screenshots/fan-profiles.png)](docs/screenshots/fan-profiles.png) |
 | **CPU Profiles** | **Keyboard Backlight** |
 | [![CPU Profiles tab](docs/screenshots/cpu-profiles.png)](docs/screenshots/cpu-profiles.png) | [![Keyboard Backlight tab](docs/screenshots/keyboard-backlight.png)](docs/screenshots/keyboard-backlight.png) |
