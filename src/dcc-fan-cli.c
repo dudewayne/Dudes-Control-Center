@@ -65,6 +65,12 @@ static void print_status(int cpu_temp, int gpu_temp, int cpu_fan_rpm, int gpu_fa
     format_fan_text(line, sizeof line, "GPU Fan", gpu_fan_rpm, fan_duty_plausible(gd, gpu_fan_rpm) ? gd : -1);
     printf("%s\n", line);
     printf("EC access: %s\n", ec_backend_module() ? "dcc_fan kernel module" : "direct port I/O");
+    GpuInfo gi;
+    int gs = gpu_info_get(&gi);
+    if (gs == GPU_AWAKE && gi.power_w >= 0)
+        printf("GPU: %s, %.1f W, %d MHz, load %d%%\n", gi.name, gi.power_w, gi.clock_mhz, gi.util);
+    else if (gs == GPU_SLEEPING)
+        printf("GPU: sleeping (powered down)\n");
 }
 
 static volatile sig_atomic_t g_stop = 0;

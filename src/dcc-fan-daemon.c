@@ -391,6 +391,18 @@ static int handle_command(const char *cmd, char *response, size_t resp_size) {
     
     /* Command: STATUS */
     if (strcmp(action, "STATUS") == 0) {
+        /* NVIDIA GPU (1.37.0): values only while it is awake anyway */
+        char gpu_status[512];
+        GpuInfo gi;
+        int gs = gpu_info_get(&gi);
+        if (gs == GPU_AWAKE)
+            snprintf(gpu_status, sizeof gpu_status,
+                     "GPU_STATE=awake\nGPU_NAME=%s\nGPU_POWER_W=%.1f\nGPU_CLOCK_MHZ=%d\nGPU_MEM_CLOCK_MHZ=%d\n"
+                     "GPU_UTIL=%d\nGPU_VRAM_USED_MB=%d\nGPU_VRAM_TOTAL_MB=%d\nGPU_PSTATE=%s\n",
+                     gi.name, gi.power_w, gi.clock_mhz, gi.mem_clock_mhz, gi.util,
+                     gi.vram_used_mb, gi.vram_total_mb, gi.pstate);
+        else
+            snprintf(gpu_status, sizeof gpu_status, "GPU_STATE=%s\n", gs == GPU_SLEEPING ? "sleeping" : "none");
         int cpu_temp = get_cpu_temp();
         int gpu_temp = get_gpu_temp();
         int cpu_fan_rpm = get_cpu_fan_rpm();
@@ -410,12 +422,13 @@ static int handle_command(const char *cmd, char *response, size_t resp_size) {
             "AUTO_MODE=%d\n"
             "FAILSAFE=%d\n"
             "EMERGENCY_AUTO=%d\n"
-            "EC_ACCESS=%s\n",
+            "EC_ACCESS=%s\n"
+            "%s",
             cpu_temp, gpu_temp, cpu_fan_rpm, gpu_fan_rpm, fan_duty,
             status_fan_duty(get_cpu_fan_duty(), cpu_fan_rpm, "CPU"),
             status_fan_duty(get_gpu_fan_duty(), gpu_fan_rpm, "GPU"), auto_mode_enabled,
             override_reason != OVERRIDE_NONE ? 1 : 0, emergency_auto_count,
-            ec_backend_module() ? "module" : "ports");
+            ec_backend_module() ? "module" : "ports", gpu_status);
         return 0;
     }
     

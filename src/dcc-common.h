@@ -45,6 +45,18 @@ uint8_t ec_io_read(const uint32_t port);                       /* returns 0 if t
 int ec_io_read_checked(const uint32_t port, uint8_t *value);  /* 0 on success, -1 on EC timeout */
 int ec_io_do(const uint32_t cmd, const uint32_t port, const uint8_t value);
 
+/* --- NVIDIA GPU (1.37.0): never wakes a powered-down GPU --- */
+enum { GPU_NONE = 0, GPU_SLEEPING = 1, GPU_AWAKE = 2 };
+typedef struct {
+    int state;                 /* GPU_NONE, GPU_SLEEPING, GPU_AWAKE */
+    char name[64];
+    int temp;                  /* degC, -1 unknown */
+    double power_w;            /* -1 unknown */
+    int clock_mhz, mem_clock_mhz, util, vram_used_mb, vram_total_mb;   /* -1 unknown */
+    char pstate[8];
+} GpuInfo;
+int gpu_info_get(GpuInfo *out);   /* returns state; values only when awake (cached 3 s) */
+
 /* --- Temperature reading functions --- */
 int get_cpu_temp(void);           /* Returns CPU temperature in °C, or -1 on error */
 int get_gpu_temp(void);           /* Returns GPU temperature in °C, or -1 on error */

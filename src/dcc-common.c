@@ -16,6 +16,7 @@
 #include <fcntl.h>
 #include <errno.h>
 #include <unistd.h>
+#include <time.h>
 #include <sys/io.h>
 #include <sys/stat.h>
 #include <sys/socket.h>
@@ -252,23 +253,115 @@ static int gpu_temp_sysfs(void) {
     return best;
 }
 
-/* Helper: Read GPU temp from nvidia-smi */
-static int gpu_temp_nvidia_smi(void) {
-    if (!path_exists("/usr/bin/nvidia-smi")) return -1;
+/* --- NVIDIA GPU (1.37.0) ---
+ * nvidia-smi wakes a GPU that the driver has powered down (runtime D3,
+ * "on-demand" mode on hybrid laptops). It used to run for the GPU
+ * temperature on every control step and STATUS request, so the GPU could
+ * never sleep. Now the PCI runtime state is checked first; nvidia-smi runs
+ * only while the GPU is awake anyway, at most every GPU_CACHE_SEC, and gives
+ * temperature, power, clocks, load and VRAM in one call. */
+#ifndef DCC_PCI_DIR
+#define DCC_PCI_DIR "/sys/bus/pci/devices"
+#endif
+#ifndef DCC_NVIDIA_SMI
+#define DCC_NVIDIA_SMI "/usr/bin/nvidia-smi"
+#endif
+#define GPU_CACHE_SEC 3.0
 
-    FILE *p = popen("/usr/bin/nvidia-smi --query-gpu=temperature.gpu --format=csv,noheader,nounits 2>/dev/null", "r");
-    if (!p) return -1;
-
-    char buf[64] = {0};
-    if (!fgets(buf, sizeof(buf), p)) {
-        pclose(p);
-        return -1;
+/* GPU_NONE: no NVIDIA GPU; GPU_SLEEPING: powered down; GPU_AWAKE */
+static int gpu_power_state(void) {
+    DIR *d = opendir(DCC_PCI_DIR);
+    if (!d) return GPU_NONE;
+    int state = GPU_NONE;
+    struct dirent *de;
+    while ((de = readdir(d)) != NULL) {
+        if (de->d_name[0] == '.') continue;
+        char p[512], buf[32] = "";
+        snprintf(p, sizeof p, "%s/%s/vendor", DCC_PCI_DIR, de->d_name);
+        FILE *f = fopen(p, "r");
+        if (!f) continue;
+        int ok = fgets(buf, sizeof buf, f) != NULL;
+        fclose(f);
+        if (!ok || strncmp(buf, "0x10de", 6) != 0) continue;
+        snprintf(p, sizeof p, "%s/%s/class", DCC_PCI_DIR, de->d_name);
+        if (!(f = fopen(p, "r"))) continue;
+        ok = fgets(buf, sizeof buf, f) != NULL;
+        fclose(f);
+        if (!ok || strncmp(buf, "0x03", 4) != 0) continue;      /* display controller */
+        snprintf(p, sizeof p, "%s/%s/power/runtime_status", DCC_PCI_DIR, de->d_name);
+        buf[0] = '\0';
+        if ((f = fopen(p, "r"))) {
+            if (!fgets(buf, sizeof buf, f)) buf[0] = '\0';
+            fclose(f);
+        }
+        /* "suspended"/"suspending": asleep; "active", "resuming" or no
+         * runtime PM: awake */
+        int sleeping = strncmp(buf, "suspend", 7) == 0;
+        if (!sleeping) { state = GPU_AWAKE; break; }
+        state = GPU_SLEEPING;
     }
-    pclose(p);
+    closedir(d);
+    return state;
+}
 
-    int t = atoi(buf);
-    if (t > 0 && t < 130) return t;
-    return -1;
+static double now_sec(void) {
+    struct timespec ts;
+    clock_gettime(CLOCK_MONOTONIC, &ts);
+    return (double)ts.tv_sec + ts.tv_nsec / 1e9;
+}
+
+/* "12.5" -> 12.5; "[N/A]", "N/A", "" -> -1 */
+static double csv_num(const char *f) {
+    while (*f == ' ') f++;
+    char *end = NULL;
+    double v = strtod(f, &end);
+    return end == f ? -1.0 : v;
+}
+
+int gpu_info_get(GpuInfo *out) {
+    static GpuInfo cache;
+    static double cache_time = -1e9;
+    double now = now_sec();
+    if (now - cache_time < GPU_CACHE_SEC) { *out = cache; return cache.state; }
+
+    GpuInfo g;
+    memset(&g, 0, sizeof g);
+    g.temp = g.clock_mhz = g.mem_clock_mhz = g.util = g.vram_used_mb = g.vram_total_mb = -1;
+    g.power_w = -1;
+    g.state = gpu_power_state();
+    if (g.state == GPU_AWAKE && path_exists(DCC_NVIDIA_SMI)) {
+        FILE *p = popen(DCC_NVIDIA_SMI " --query-gpu=name,temperature.gpu,power.draw,clocks.gr,clocks.mem,"
+                        "utilization.gpu,memory.used,memory.total,pstate --format=csv,noheader,nounits 2>/dev/null", "r");
+        char line[512] = "";
+        if (p) {
+            if (!fgets(line, sizeof line, p)) line[0] = '\0';
+            pclose(p);
+        }
+        line[strcspn(line, "\n")] = '\0';
+        char *field[9] = { 0 };
+        int n = 0;
+        for (char *save = NULL, *t = strtok_r(line, ",", &save); t && n < 9; t = strtok_r(NULL, ",", &save))
+            field[n++] = t;
+        if (n == 9) {
+            while (*field[0] == ' ') field[0]++;
+            snprintf(g.name, sizeof g.name, "%s", field[0]);
+            g.temp = (int)csv_num(field[1]);
+            g.power_w = csv_num(field[2]);
+            g.clock_mhz = (int)csv_num(field[3]);
+            g.mem_clock_mhz = (int)csv_num(field[4]);
+            g.util = (int)csv_num(field[5]);
+            g.vram_used_mb = (int)csv_num(field[6]);
+            g.vram_total_mb = (int)csv_num(field[7]);
+            char *ps = field[8];
+            while (*ps == ' ') ps++;
+            snprintf(g.pstate, sizeof g.pstate, "%s", ps);
+            if (g.temp < 1 || g.temp > 130) g.temp = -1;
+        }
+    }
+    cache = g;
+    cache_time = now;
+    *out = g;
+    return g.state;
 }
 
 int get_gpu_temp(void) {
@@ -278,10 +371,10 @@ int get_gpu_temp(void) {
         return temp;
     }
 
-    temp = gpu_temp_nvidia_smi();
-    if (temp > 0 && temp <= TEMP_MAX_VALID_C) {
-        return temp;
-    }
+    /* NVIDIA: only while the GPU is awake (asleep: the EC's sensor below) */
+    GpuInfo gi;
+    if (gpu_info_get(&gi) == GPU_AWAKE && gi.temp > 0 && gi.temp <= TEMP_MAX_VALID_C)
+        return gi.temp;
 
     /* Fallback to EC register */
     uint8_t ec_temp = 0;

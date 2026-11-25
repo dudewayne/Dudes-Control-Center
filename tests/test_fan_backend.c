@@ -2,8 +2,9 @@
 /*
  * test_fan_backend.c - EC access through the dcc_fan kernel module's hwmon
  * device (v1.36.0): detection, reading, writing, keepalive, the module
- * being reloaded or removed. Built with DCC_HWMON_DIR="hwmon", runs in an
- * empty directory with a fake hwmon tree; needs no root and no module.
+ * being reloaded or removed; NVIDIA GPU values without waking a sleeping GPU
+ * (v1.37.0). Built with DCC_HWMON_DIR="hwmon", DCC_PCI_DIR="pci" and
+ * DCC_NVIDIA_SMI="./nvidia-smi"; runs in an empty directory with fake trees.
  */
 #include "dcc-common.h"
 
@@ -19,6 +20,11 @@ static int fails = 0;
 static void put(const char *dir, const char *file, const char *text) {
     char p[256];
     snprintf(p, sizeof p, "hwmon/%s/%s", dir, file);
+    FILE *f = fopen(p, "w");
+    if (f) { fputs(text, f); fclose(f); }
+}
+
+static void put_abs(const char *p, const char *text) {
     FILE *f = fopen(p, "w");
     if (f) { fputs(text, f); fclose(f); }
 }
@@ -85,6 +91,42 @@ int main(void) {
     rename("hwmon/hwmon9", "hwmon/gone");
     get_cpu_fan_rpm();
     CHECK(!ec_backend_module(), "module removed: the backend switches back to port I/O");
+
+    /* NVIDIA GPU (v1.37.0): nvidia-smi only while the GPU is awake */
+    GpuInfo g;
+    CHECK(gpu_info_get(&g) == GPU_NONE, "no NVIDIA GPU -> state none");
+    mkdir("pci", 0755);
+    mkdir("pci/0000:00:02.0", 0755);                 /* Intel iGPU: ignored */
+    put_abs("pci/0000:00:02.0/vendor", "0x8086\n");
+    put_abs("pci/0000:00:02.0/class", "0x030000\n");
+    mkdir("pci/0000:02:00.0", 0755);
+    mkdir("pci/0000:02:00.0/power", 0755);
+    put_abs("pci/0000:02:00.0/vendor", "0x10de\n");
+    put_abs("pci/0000:02:00.0/class", "0x030000\n");
+    put_abs("pci/0000:02:00.0/power/runtime_status", "suspended\n");
+    put_abs("nvidia-smi", "#!/bin/sh\necho x >> calls\n"
+            "echo 'NVIDIA GeForce RTX 5090 Laptop GPU, 43, 26.26, 502, 14001, 2, 2487, 24463, P0'\n");
+    chmod("nvidia-smi", 0755);
+    sleep(4);                                        /* past the 3 s cache */
+    CHECK(gpu_info_get(&g) == GPU_SLEEPING && access("calls", F_OK) != 0,
+          "sleeping GPU: nvidia-smi is not run (it would wake the GPU)");
+    put_abs("pci/0000:02:00.0/power/runtime_status", "active\n");
+    sleep(4);
+    CHECK(gpu_info_get(&g) == GPU_AWAKE && g.temp == 43 && g.power_w > 26.2 && g.power_w < 26.3 &&
+          g.clock_mhz == 502 && g.mem_clock_mhz == 14001 && g.util == 2 && g.vram_used_mb == 2487 &&
+          g.vram_total_mb == 24463 && !strcmp(g.pstate, "P0") && !strcmp(g.name, "NVIDIA GeForce RTX 5090 Laptop GPU"),
+          "awake GPU: one nvidia-smi call gives temperature, power, clocks, load, VRAM, P-state");
+    gpu_info_get(&g);
+    get_gpu_temp();
+    int calls = 0;
+    FILE *cf = fopen("calls", "r");
+    for (int ch; cf && (ch = fgetc(cf)) != EOF;) calls += ch == '\n';
+    if (cf) fclose(cf);
+    CHECK(calls == 1, "values are cached: further requests within 3 s run nvidia-smi no more");
+    put_abs("nvidia-smi", "#!/bin/sh\necho 'GPU, [N/A], [N/A], 300, 405, 0, 10, 8000, P8'\n");
+    sleep(4);
+    CHECK(gpu_info_get(&g) == GPU_AWAKE && g.temp == -1 && g.power_w < 0 && g.clock_mhz == 300,
+          "[N/A] fields read as unknown");
 
     ec_cleanup();
     printf("\n%d failure(s)\n", fails);

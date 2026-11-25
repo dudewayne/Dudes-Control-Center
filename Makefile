@@ -316,10 +316,10 @@ $(TEST_BUILD):
 	mkdir -p $@
 
 $(TEST_BUILD)/test_fan_responses: tests/test_fan_responses.c $(FAN_DAEMON_DEPS) | $(TEST_BUILD)
-	$(CC) $(TEST_CFLAGS) $(CJSON_CFLAGS) -o $@ tests/test_fan_responses.c $(COMMON_SRC) $(LOG_SRC) $(SECURE_SRC) $(CJSON_LIBS)
+	$(CC) $(TEST_CFLAGS) $(CJSON_CFLAGS) -DDCC_PCI_DIR='"pci"' -DDCC_NVIDIA_SMI='"./nvidia-smi"' -o $@ tests/test_fan_responses.c $(COMMON_SRC) $(LOG_SRC) $(SECURE_SRC) $(CJSON_LIBS)
 
 $(TEST_BUILD)/test_fan_safety: tests/test_fan_safety.c $(FAN_DAEMON_DEPS) | $(TEST_BUILD)
-	$(CC) $(TEST_CFLAGS) $(CJSON_CFLAGS) -o $@ tests/test_fan_safety.c $(COMMON_SRC) $(LOG_SRC) $(SECURE_SRC) $(CJSON_LIBS)
+	$(CC) $(TEST_CFLAGS) $(CJSON_CFLAGS) -DDCC_PCI_DIR='"pci"' -DDCC_NVIDIA_SMI='"./nvidia-smi"' -o $@ tests/test_fan_safety.c $(COMMON_SRC) $(LOG_SRC) $(SECURE_SRC) $(CJSON_LIBS)
 
 $(TEST_BUILD)/test_secure_allow: tests/test_secure.c $(SECURE_SRC) $(SECURE_HDR) $(LOG_SRC) | $(TEST_BUILD)
 	$(CC) $(TEST_CFLAGS) -DDCC_AUTH_GROUP='"$(TEST_GROUP)"' -o $@ tests/test_secure.c $(SECURE_SRC) $(LOG_SRC)
@@ -328,7 +328,7 @@ $(TEST_BUILD)/test_secure_deny: tests/test_secure.c $(SECURE_SRC) $(SECURE_HDR) 
 	$(CC) $(TEST_CFLAGS) -DDCC_AUTH_GROUP='"dcc-test-no-such-group"' -o $@ tests/test_secure.c $(SECURE_SRC) $(LOG_SRC)
 
 $(TEST_BUILD)/test_fan_backend: tests/test_fan_backend.c $(COMMON_SRC) $(COMMON_HDR) | $(TEST_BUILD)
-	$(CC) $(TEST_CFLAGS) -DDCC_HWMON_DIR='"hwmon"' -o $@ tests/test_fan_backend.c $(COMMON_SRC)
+	$(CC) $(TEST_CFLAGS) -DDCC_HWMON_DIR='"hwmon"' -DDCC_PCI_DIR='"pci"' -DDCC_NVIDIA_SMI='"./nvidia-smi"' -o $@ tests/test_fan_backend.c $(COMMON_SRC)
 
 $(TEST_BUILD)/test_paths: tests/test_paths.c $(SECURE_SRC) $(SECURE_HDR) $(LOG_SRC) | $(TEST_BUILD)
 	$(CC) $(TEST_CFLAGS) -DDCC_USER_FILE='"user"' -o $@ tests/test_paths.c $(SECURE_SRC) $(LOG_SRC)
