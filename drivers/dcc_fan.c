@@ -2,7 +2,9 @@
 /*
  * dcc_fan - fan and temperature access for Clevo notebooks (Dudes Control Center)
  *
- * 1.36.0 (in progress). Step 1 read, step 2 sets the fan speed:
+ * Used by dcc-fan-daemon and dcc-fan-cli when loaded (1.36.0); they fall
+ * back to direct port I/O without it. Loads only where the Clevo WMI
+ * interface exists, unless force=1.
  *
  *  - Reads the EC through the kernel's ACPI EC driver (ec_read), which holds
  *    the EC lock: no race with firmware/ACPI accesses, unlike user-space
@@ -59,6 +61,10 @@ static bool have_wmi;
 static char *method = "auto";
 module_param(method, charp, 0444);
 MODULE_PARM_DESC(method, "How the fan speed is set: auto (WMI if present, else EC), wmi, ec");
+
+static bool force;
+module_param(force, bool, 0444);
+MODULE_PARM_DESC(force, "Load without the Clevo WMI interface (EC only)");
 
 static int watchdog_sec = 30;
 module_param(watchdog_sec, int, 0644);
@@ -371,6 +377,10 @@ static int __init dcc_fan_init(void)
 	int err;
 
 	have_wmi = wmi_has_guid(CLEVO_WMI_METHOD_GUID);
+	if (!have_wmi && !force) {
+		pr_info(DCC_FAN_NAME ": no Clevo WMI interface, not loading (force=1 to use the EC anyway)\n");
+		return -ENODEV;
+	}
 	if (!strcmp(method, "wmi") && !have_wmi) {
 		pr_err(DCC_FAN_NAME ": method=wmi, but there is no Clevo WMI interface\n");
 		return -ENODEV;

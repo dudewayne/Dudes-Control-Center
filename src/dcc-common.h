@@ -35,8 +35,12 @@
 /* --- RPM to percentage conversion --- */
 
 /* --- Function prototypes for EC access --- */
+/* EC access: the dcc_fan kernel module's hwmon device when it is loaded
+ * (no root needed for reading), else port I/O 0x62/0x66 (root) */
 int ec_init(void);
 void ec_cleanup(void);
+int ec_backend_module(void);       /* 1: dcc_fan module, 0: port I/O */
+int fan_keepalive(void);           /* module: rewrite the last duty (watchdog) */
 uint8_t ec_io_read(const uint32_t port);                       /* returns 0 if the EC does not answer */
 int ec_io_read_checked(const uint32_t port, uint8_t *value);  /* 0 on success, -1 on EC timeout */
 int ec_io_do(const uint32_t cmd, const uint32_t port, const uint8_t value);

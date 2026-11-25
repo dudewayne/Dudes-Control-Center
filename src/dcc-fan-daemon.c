@@ -409,11 +409,13 @@ static int handle_command(const char *cmd, char *response, size_t resp_size) {
             "GPU_FAN_DUTY=%d\n"
             "AUTO_MODE=%d\n"
             "FAILSAFE=%d\n"
-            "EMERGENCY_AUTO=%d\n",
+            "EMERGENCY_AUTO=%d\n"
+            "EC_ACCESS=%s\n",
             cpu_temp, gpu_temp, cpu_fan_rpm, gpu_fan_rpm, fan_duty,
             status_fan_duty(get_cpu_fan_duty(), cpu_fan_rpm, "CPU"),
             status_fan_duty(get_gpu_fan_duty(), gpu_fan_rpm, "GPU"), auto_mode_enabled,
-            override_reason != OVERRIDE_NONE ? 1 : 0, emergency_auto_count);
+            override_reason != OVERRIDE_NONE ? 1 : 0, emergency_auto_count,
+            ec_backend_module() ? "module" : "ports");
         return 0;
     }
     
@@ -974,6 +976,10 @@ static void fan_control_step(void) {
     static int ring[3] = {-1, -1, -1};
     static int ring_idx = 0, ring_filled = 0;
 
+    /* dcc_fan module (1.36.0): rewrite the duty every step, so its watchdog
+     * (fans to 100% without updates) knows the daemon is alive */
+    if (fan_keepalive() != 0) LOG_WARN("dcc_fan: keepalive write failed");
+
     int cpu_temp = get_cpu_temp();
     int gpu_temp = get_gpu_temp();
     int cpu_valid = (cpu_temp >= TEMP_MIN_VALID_C && cpu_temp <= TEMP_MAX_VALID_C);
@@ -1198,6 +1204,8 @@ int main(int argc, char *argv[]) {
         LOG_ERROR("Failed to initialize EC access");
         return EXIT_FAILURE;
     }
+    LOG_INFO("EC access: %s", ec_backend_module()
+             ? "dcc_fan kernel module (ACPI EC driver, Clevo WMI)" : "direct port I/O (0x62/0x66)");
     
     /* Create server socket */
     if (create_server_socket() != 0) {

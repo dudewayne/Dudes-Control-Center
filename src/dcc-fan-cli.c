@@ -64,6 +64,7 @@ static void print_status(int cpu_temp, int gpu_temp, int cpu_fan_rpm, int gpu_fa
     printf("%s\n", line);
     format_fan_text(line, sizeof line, "GPU Fan", gpu_fan_rpm, fan_duty_plausible(gd, gpu_fan_rpm) ? gd : -1);
     printf("%s\n", line);
+    printf("EC access: %s\n", ec_backend_module() ? "dcc_fan kernel module" : "direct port I/O");
 }
 
 static volatile sig_atomic_t g_stop = 0;
@@ -86,6 +87,7 @@ static int run_auto_mode(void) {
     set_fan_duty(current_duty);
     
     while (!g_stop) {
+        fan_keepalive();   /* dcc_fan module watchdog (1.36.0) */
         int cpu_temp = get_cpu_temp();
         int gpu_temp = get_gpu_temp();
         
@@ -250,7 +252,7 @@ int main(int argc, char *argv[]) {
     
     /* Initialize EC access */
     if (ec_init() != 0) {
-        fprintf(stderr, "Error: Failed to initialize EC access. Try running with sudo.\n");
+        fprintf(stderr, "Error: Failed to initialize EC access. Run with sudo, or load the dcc_fan module.\n");
         return EXIT_FAILURE;
     }
     

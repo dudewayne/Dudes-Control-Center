@@ -23,6 +23,89 @@
 
 #define DAEMON_SOCKET_PATH "/run/dcc-fan.sock"
 
+/* --- dcc_fan kernel module (1.36.0) ---
+ * When the module is loaded, its hwmon device "dcc_fan" is used instead of
+ * port I/O: the kernel reads the EC under the ACPI EC driver's lock (no race
+ * with the firmware), no ioperm is needed (kernel lockdown, Secure Boot),
+ * the real fan duty comes from Clevo WMI, and the fan speed is set through
+ * WMI. Reading needs no root; writing pwm1/pwm2 does. */
+#ifndef DCC_HWMON_DIR
+#define DCC_HWMON_DIR "/sys/class/hwmon"
+#endif
+static char g_kmod[512];        /* hwmon dir of dcc_fan, "" = port I/O */
+static int g_ports_ok;          /* ioperm done */
+static int g_last_raw = -1;     /* last duty written (0-255), for fan_keepalive */
+
+static int kmod_find(void) {
+    DIR *d = opendir(DCC_HWMON_DIR);
+    if (!d) return 0;
+    struct dirent *de;
+    int found = 0;
+    while (!found && (de = readdir(d)) != NULL) {
+        if (strncmp(de->d_name, "hwmon", 5) != 0) continue;
+        char path[512], name[32] = "";
+        snprintf(path, sizeof path, "%s/%s/name", DCC_HWMON_DIR, de->d_name);
+        FILE *f = fopen(path, "r");
+        if (!f) continue;
+        if (fgets(name, sizeof name, f)) name[strcspn(name, "\n")] = '\0';
+        fclose(f);
+        if (strcmp(name, "dcc_fan") == 0) {
+            snprintf(g_kmod, sizeof g_kmod, "%s/%s", DCC_HWMON_DIR, de->d_name);
+            found = 1;
+        }
+    }
+    closedir(d);
+    return found;
+}
+
+static int ports_init(void) {
+    if (g_ports_ok) return 0;
+    if (ioperm(EC_DATA, 1, 1) != 0) {
+        fprintf(stderr, "Error: Cannot set I/O permission for port 0x%X\n", EC_DATA);
+        return -1;
+    }
+    if (ioperm(EC_SC, 1, 1) != 0) {
+        fprintf(stderr, "Error: Cannot set I/O permission for port 0x%X\n", EC_SC);
+        return -1;
+    }
+    g_ports_ok = 1;
+    return 0;
+}
+
+/* The module went away (rmmod, package update): back to port I/O */
+static void kmod_lost(void) {
+    if (!g_kmod[0]) return;
+    g_kmod[0] = '\0';
+    if (kmod_find()) return;                  /* reloaded (package update): new hwmonN */
+    fprintf(stderr, "dcc_fan module no longer available, using port I/O\n");
+    ports_init();
+}
+
+static int kmod_read(const char *attr, long *val) {
+    char path[600], buf[32];
+    snprintf(path, sizeof path, "%s/%s", g_kmod, attr);
+    FILE *f = fopen(path, "r");
+    if (!f) { if (errno == ENOENT) kmod_lost(); return -1; }
+    int ok = fgets(buf, sizeof buf, f) != NULL;
+    fclose(f);
+    if (!ok) return -1;
+    char *end = NULL;
+    *val = strtol(buf, &end, 10);
+    return end == buf ? -1 : 0;
+}
+
+static int kmod_write(const char *attr, long val) {
+    char path[600];
+    snprintf(path, sizeof path, "%s/%s", g_kmod, attr);
+    FILE *f = fopen(path, "w");
+    if (!f) { if (errno == ENOENT) kmod_lost(); return -1; }
+    int ok = fprintf(f, "%ld\n", val) > 0;
+    if (fclose(f) != 0) ok = 0;   /* the module reports errors on close/flush */
+    return ok ? 0 : -1;
+}
+
+int ec_backend_module(void) { return g_kmod[0] != '\0'; }
+
 /* --- EC I/O helper functions --- */
 
 static int ec_io_wait(const uint32_t port, const uint32_t flag, const char value) {
@@ -37,20 +120,16 @@ static int ec_io_wait(const uint32_t port, const uint32_t flag, const char value
 }
 
 int ec_init(void) {
-    if (ioperm(EC_DATA, 1, 1) != 0) {
-        fprintf(stderr, "Error: Cannot set I/O permission for port 0x%X\n", EC_DATA);
-        return -1;
-    }
-    if (ioperm(EC_SC, 1, 1) != 0) {
-        fprintf(stderr, "Error: Cannot set I/O permission for port 0x%X\n", EC_SC);
-        return -1;
-    }
-    return 0;
+    if (kmod_find()) return 0;
+    return ports_init();
 }
 
 void ec_cleanup(void) {
-    ioperm(EC_DATA, 1, 0);
-    ioperm(EC_SC, 1, 0);
+    if (g_ports_ok) {
+        ioperm(EC_DATA, 1, 0);
+        ioperm(EC_SC, 1, 0);
+        g_ports_ok = 0;
+    }
 }
 
 int ec_io_read_checked(const uint32_t port, uint8_t *value) {
@@ -92,7 +171,12 @@ int ec_io_do(const uint32_t cmd, const uint32_t port, const uint8_t value) {
 
 int get_cpu_temp(void) {
     uint8_t temp = 0;
-    if (ec_io_read_checked(EC_REG_CPU_TEMP, &temp) != 0) {
+    long mc;
+    if (ec_backend_module() && kmod_read("temp1_input", &mc) == 0) {
+        int t = (int)(mc / 1000);
+        return (t < TEMP_MIN_VALID_C || t > TEMP_MAX_VALID_C) ? -1 : t;
+    }
+    if (ec_backend_module() || ec_io_read_checked(EC_REG_CPU_TEMP, &temp) != 0) {
         return -1; /* EC did not answer */
     }
     if (temp < TEMP_MIN_VALID_C || temp > TEMP_MAX_VALID_C) {
@@ -171,17 +255,17 @@ static int gpu_temp_sysfs(void) {
 /* Helper: Read GPU temp from nvidia-smi */
 static int gpu_temp_nvidia_smi(void) {
     if (!path_exists("/usr/bin/nvidia-smi")) return -1;
-    
+
     FILE *p = popen("/usr/bin/nvidia-smi --query-gpu=temperature.gpu --format=csv,noheader,nounits 2>/dev/null", "r");
     if (!p) return -1;
-    
+
     char buf[64] = {0};
-    if (!fgets(buf, sizeof(buf), p)) { 
-        pclose(p); 
-        return -1; 
+    if (!fgets(buf, sizeof(buf), p)) {
+        pclose(p);
+        return -1;
     }
     pclose(p);
-    
+
     int t = atoi(buf);
     if (t > 0 && t < 130) return t;
     return -1;
@@ -193,19 +277,25 @@ int get_gpu_temp(void) {
     if (temp > 0 && temp <= TEMP_MAX_VALID_C) {
         return temp;
     }
-    
+
     temp = gpu_temp_nvidia_smi();
     if (temp > 0 && temp <= TEMP_MAX_VALID_C) {
         return temp;
     }
-    
+
     /* Fallback to EC register */
     uint8_t ec_temp = 0;
+    long mc;
+    if (ec_backend_module()) {
+        if (kmod_read("temp2_input", &mc) == 0 && mc / 1000 >= TEMP_MIN_VALID_C && mc / 1000 <= TEMP_MAX_VALID_C)
+            return (int)(mc / 1000);
+        return -1;
+    }
     if (ec_io_read_checked(EC_REG_GPU_TEMP, &ec_temp) == 0 &&
         ec_temp >= TEMP_MIN_VALID_C && ec_temp <= TEMP_MAX_VALID_C) {
         return (int)ec_temp;
     }
-    
+
     return -1; /* No valid GPU temperature found */
 }
 
@@ -219,6 +309,11 @@ static int clamp_impl(int v, int lo, int hi) {
 
 static int fan_duty_pct(uint32_t reg) {
     uint8_t raw = 0;
+    if (ec_backend_module()) {     /* the duty the firmware really runs (WMI) */
+        long v;
+        if (kmod_read(reg == EC_REG_FAN1_DUTY ? "pwm1" : "pwm2", &v) != 0) return -1;
+        return ((int)v * 100 + 127) / 255;
+    }
     if (ec_io_read_checked(reg, &raw) != 0) return -1;
     return ((int)raw * 100 + 127) / 255;     /* 0-255 -> 0-100, rounded */
 }
@@ -240,11 +335,13 @@ void format_fan_text(char *buf, size_t size, const char *name, int rpm, int duty
 }
 
 int get_cpu_fan_rpm(void) {
+    long v;
+    if (ec_backend_module()) return kmod_read("fan1_input", &v) == 0 ? (int)v : 0;
     /* Read CPU fan (fan1) RPM */
     int hi = (int)ec_io_read(EC_REG_FAN1_RPM_HI);
     int lo = (int)ec_io_read(EC_REG_FAN1_RPM_LO);
     int raw = (hi << 8) | lo;
-    
+
     if (raw > 0) {
         return (2156220 / raw);
     }
@@ -252,11 +349,13 @@ int get_cpu_fan_rpm(void) {
 }
 
 int get_gpu_fan_rpm(void) {
+    long v;
+    if (ec_backend_module()) return kmod_read("fan2_input", &v) == 0 ? (int)v : 0;
     /* Read GPU fan (fan2) RPM */
     int hi = (int)ec_io_read(EC_REG_FAN2_RPM_HI);
     int lo = (int)ec_io_read(EC_REG_FAN2_RPM_LO);
     int raw = (hi << 8) | lo;
-    
+
     if (raw > 0) {
         return (2156220 / raw);
     }
@@ -266,7 +365,19 @@ int get_gpu_fan_rpm(void) {
 int set_fan_duty(int pct) {
     pct = clamp_impl(pct, 0, 100);
     int v = (int)(pct / 100.0 * 255.0 + 0.5);
-    
+
+    if (ec_backend_module()) {
+        if (kmod_write("pwm1", v) != 0 || kmod_write("pwm2", v) != 0) {
+            if (ec_backend_module()) return -1;   /* module there, write refused */
+            /* module gone: fall through to port I/O */
+        } else {
+            g_last_raw = v;
+            usleep(500 * 1000);
+            return 0;
+        }
+    }
+    if (!g_ports_ok && ports_init() != 0) return -1;
+
     /* Set both fans to the same duty */
     if (ec_io_do(0x99, 0x01, (uint8_t)v) != 0) {
         return -1;
@@ -274,10 +385,18 @@ int set_fan_duty(int pct) {
     if (ec_io_do(0x99, 0x02, (uint8_t)v) != 0) {
         return -1;
     }
-    
+
     /* Small delay for the change to take effect */
     usleep(500 * 1000);
-    
+    g_last_raw = v;
+    return 0;
+}
+
+/* Write the last duty again, so the module's watchdog knows the controlling
+ * program is alive (it sets 100% after watchdog_sec without a write) */
+int fan_keepalive(void) {
+    if (!ec_backend_module() || g_last_raw < 0) return 0;
+    if (kmod_write("pwm1", g_last_raw) != 0 || kmod_write("pwm2", g_last_raw) != 0) return -1;
     return 0;
 }
 
@@ -296,18 +415,18 @@ int daemon_send_command(const char *cmd, char *resp, size_t resp_size) {
         fprintf(stderr, "Error: Failed to create socket\n");
         return -1;
     }
-    
+
     struct sockaddr_un addr;
     memset(&addr, 0, sizeof(addr));
     addr.sun_family = AF_UNIX;
     strncpy(addr.sun_path, DAEMON_SOCKET_PATH, sizeof(addr.sun_path) - 1);
-    
+
     if (connect(fd, (struct sockaddr *)&addr, sizeof(addr)) < 0) {
         fprintf(stderr, "Error: Failed to connect to daemon at %s (%s)\n", DAEMON_SOCKET_PATH, strerror(errno));
         close(fd);
         return -1;
     }
-    
+
     /* Send command with newline */
     char cmd_buf[256];
     snprintf(cmd_buf, sizeof(cmd_buf), "%s\n", cmd);
@@ -317,7 +436,7 @@ int daemon_send_command(const char *cmd, char *resp, size_t resp_size) {
         close(fd);
         return -1;
     }
-    
+
     /* Receive response */
     memset(resp, 0, resp_size);
     ssize_t received = read(fd, resp, resp_size - 1);
@@ -331,7 +450,7 @@ int daemon_send_command(const char *cmd, char *resp, size_t resp_size) {
         close(fd);
         return -1;
     }
-    
+
     close(fd);
     return 0;
 }
