@@ -10,6 +10,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <ctype.h>
 #include <unistd.h>
 #include <sys/socket.h>
 #include <sys/un.h>
@@ -1190,6 +1191,130 @@ static const char *send_cpu_command(AppData *app, const char *cmd) {
 }
 
 /* Parse CPU STATUS response and update UI */
+/* --- Processor name and core types (1.38.0), read once ---
+ * Name from /proc/cpuinfo without "(R)", "(TM)" and Intel's " CPU @ x GHz".
+ * Hybrid Intel CPUs list their performance and efficiency cores in
+ * /sys/devices/cpu_core/cpus and cpu_atom/cpus; physical cores are counted
+ * with the first CPU of each topology/core_cpus_list (Hyper-Threading). */
+#ifndef DCC_CPUINFO
+#define DCC_CPUINFO "/proc/cpuinfo"
+#endif
+#ifndef DCC_SYSDEV_DIR
+#define DCC_SYSDEV_DIR "/sys/devices"
+#endif
+#define CPU_IDENT_MAX 256
+
+typedef struct {
+    char name[96];
+    int hybrid;                         /* P and E cores listed */
+    char type[CPU_IDENT_MAX];           /* 'P', 'E' or 0 per logical CPU */
+    int p_cores, e_cores;               /* physical cores */
+} CpuIdent;
+
+static void cpu_name_clean(const char *raw, char *out, size_t size) {
+    char buf[128];
+    snprintf(buf, sizeof buf, "%s", raw);
+    char *at = strstr(buf, " CPU @");
+    if (!at) at = strstr(buf, " @ ");
+    if (at) *at = '\0';
+    static const char *const drop[] = { "(R)", "(r)", "(TM)", "(tm)" };
+    for (size_t d = 0; d < sizeof drop / sizeof drop[0]; d++)
+        for (char *q; (q = strstr(buf, drop[d])) != NULL;)
+            memmove(q, q + strlen(drop[d]), strlen(q + strlen(drop[d])) + 1);
+    /* single spaces, no leading/trailing blanks */
+    size_t w = 0;
+    for (size_t r = 0; buf[r] && w + 1 < size; r++) {
+        if (isspace((unsigned char)buf[r])) {
+            if (w > 0 && out[w - 1] != ' ') out[w++] = ' ';
+        } else {
+            out[w++] = buf[r];
+        }
+    }
+    while (w > 0 && out[w - 1] == ' ') w--;
+    out[w] = '\0';
+}
+
+/* "0-7,9,12-13" -> mark[cpu] = val; returns the number of CPUs marked */
+static int cpulist_mark(const char *list, char *mark, int max, char val) {
+    int n = 0;
+    const char *q = list;
+    while (*q) {
+        char *end;
+        long a = strtol(q, &end, 10), b;
+        if (end == q) break;
+        b = a;
+        if (*end == '-') { q = end + 1; b = strtol(q, &end, 10); }
+        for (long c = a; c <= b && c < max; c++) if (c >= 0) { mark[c] = val; n++; }
+        q = end;
+        if (*q == ',') q++;
+        else break;
+    }
+    return n;
+}
+
+static void cpu_ident_read(const char *cpuinfo, const char *sysdev, CpuIdent *ci) {
+    memset(ci, 0, sizeof *ci);
+    FILE *f = fopen(cpuinfo, "r");
+    char line[256];
+    while (f && fgets(line, sizeof line, f)) {
+        if (!strncmp(line, "model name", 10)) {
+            char *c = strchr(line, ':');
+            if (c) {
+                c[strcspn(c, "\n")] = '\0';
+                cpu_name_clean(c + 1, ci->name, sizeof ci->name);
+            }
+            break;
+        }
+    }
+    if (f) fclose(f);
+    char p[512], list[256];
+    static const char *const kinds[2] = { "cpu_core", "cpu_atom" };
+    int found = 0;
+    for (int k = 0; k < 2; k++) {
+        snprintf(p, sizeof p, "%s/%s/cpus", sysdev, kinds[k]);
+        FILE *lf = fopen(p, "r");
+        if (!lf) continue;
+        if (fgets(list, sizeof list, lf) && cpulist_mark(list, ci->type, CPU_IDENT_MAX, k ? 'E' : 'P') > 0) found |= 1 << k;
+        fclose(lf);
+    }
+    ci->hybrid = found == 3;
+    if (!ci->hybrid) { memset(ci->type, 0, sizeof ci->type); return; }
+    for (int c = 0; c < CPU_IDENT_MAX; c++) {
+        if (!ci->type[c]) continue;
+        int first = c;                    /* no topology file: count every CPU */
+        snprintf(p, sizeof p, "%s/system/cpu/cpu%d/topology/core_cpus_list", sysdev, c);
+        FILE *tf = fopen(p, "r");
+        if (tf) {
+            if (fgets(list, sizeof list, tf)) first = atoi(list);
+            fclose(tf);
+        }
+        if (first == c) { if (ci->type[c] == 'P') ci->p_cores++; else ci->e_cores++; }
+    }
+}
+
+static const CpuIdent *cpu_ident(void) {
+    static CpuIdent ci;
+    static int done;
+    if (!done) { cpu_ident_read(DCC_CPUINFO, DCC_SYSDEV_DIR, &ci); done = 1; }
+    return &ci;
+}
+
+/* " (P)", " (E)" or "" after "Core N" */
+static const char *cpu_core_tag(int cpu) {
+    const CpuIdent *ci = cpu_ident();
+    if (cpu < 0 || cpu >= CPU_IDENT_MAX || !ci->hybrid) return "";
+    return ci->type[cpu] == 'P' ? " (P)" : ci->type[cpu] == 'E' ? " (E)" : "";
+}
+
+/* "Intel Core Ultra 9 275HX (8 P-cores, 16 E-cores)" */
+static void cpu_ident_text(const CpuIdent *ci, char *out, size_t size) {
+    if (!ci->name[0]) { snprintf(out, size, "%s", _("N/A")); return; }
+    if (ci->hybrid && ci->p_cores > 0 && ci->e_cores > 0)
+        snprintf(out, size, _("%s (%d P-cores, %d E-cores)"), ci->name, ci->p_cores, ci->e_cores);
+    else
+        snprintf(out, size, "%s", ci->name);
+}
+
 static void parse_cpu_status(AppData *app, const char *response) {
     char buffer[8192];
     strncpy(buffer, response, sizeof(buffer) - 1);
@@ -1300,7 +1425,7 @@ static void parse_cpu_status(AppData *app, const char *response) {
         app->cpu_core_count = core_count;
 
         for (int i = 0; i < core_count && i < 32; i++) {
-            gchar *label_text = g_strdup_printf(_("Core %d: %s"), i, core_freqs[i]);
+            gchar *label_text = g_strdup_printf(_("Core %d%s: %s"), i, cpu_core_tag(i), core_freqs[i]);
             app->cpu_core_freq_labels[i] = gtk_label_new(label_text);
             g_free(label_text);
             gtk_label_set_xalign(GTK_LABEL(app->cpu_core_freq_labels[i]), 0.0);
@@ -1318,7 +1443,7 @@ static void parse_cpu_status(AppData *app, const char *response) {
         for (int i = 0; i < app->cpu_core_count && i < 32; i++) {
             if (app->cpu_core_freq_labels[i] != NULL) {
                 char label_text[128];
-                snprintf(label_text, sizeof(label_text), _("Core %d: %s"), i, core_freqs[i]);
+                snprintf(label_text, sizeof(label_text), _("Core %d%s: %s"), i, cpu_core_tag(i), core_freqs[i]);
                 gtk_label_set_text(GTK_LABEL(app->cpu_core_freq_labels[i]), label_text);
             }
         }
@@ -2561,7 +2686,7 @@ static void build_cpu_core_freq_grid(AppData *app, int num_cores) {
 
         /* Core label */
         char core_name[32];
-        snprintf(core_name, sizeof(core_name), _("Core %d"), i);
+        snprintf(core_name, sizeof(core_name), _("Core %d%s"), i, cpu_core_tag(i));
         GtkWidget *core_label = gtk_label_new(core_name);
         gtk_widget_set_halign(core_label, GTK_ALIGN_END);
         gtk_grid_attach(GTK_GRID(app->cpu_core_freq_grid), core_label, col_label, row, 1, 1);
@@ -6397,7 +6522,14 @@ static GtkWidget *create_status_page(AppData *app) {
 
     /* Per-Core CPU Frequencies */
     {
-        GtkWidget *core_frame = gtk_frame_new(_("Per-Core CPU Frequencies"));
+        GtkWidget *core_frame;
+        if (cpu_ident()->name[0]) {   /* processor name in the title (1.38.0) */
+            gchar *t = g_strdup_printf(_("Per-Core CPU Frequencies: %s"), cpu_ident()->name);
+            core_frame = gtk_frame_new(t);
+            g_free(t);
+        } else {
+            core_frame = gtk_frame_new(_("Per-Core CPU Frequencies"));
+        }
         GtkWidget *core_scrolled = gtk_scrolled_window_new(NULL, NULL);
         gtk_scrolled_window_set_policy(GTK_SCROLLED_WINDOW(core_scrolled), GTK_POLICY_NEVER, GTK_POLICY_AUTOMATIC);
         gtk_scrolled_window_set_max_content_height(GTK_SCROLLED_WINDOW(core_scrolled), 400);
@@ -8527,6 +8659,19 @@ static GtkWidget *create_cpu_page(AppData *app) {
     GtkWidget *info_right = gtk_box_new(GTK_ORIENTATION_VERTICAL, 5);
     gtk_box_pack_start(GTK_BOX(info_cols), info_left, TRUE, TRUE, 0);
     gtk_box_pack_start(GTK_BOX(info_cols), info_right, TRUE, TRUE, 0);
+    {   /* Processor (1.38.0): name and, on hybrid CPUs, P- and E-cores */
+        GtkWidget *row = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 10);
+        GtkWidget *label = gtk_label_new(_("Processor:"));
+        gtk_widget_set_halign(label, GTK_ALIGN_END);
+        gtk_label_set_width_chars(GTK_LABEL(label), 20);
+        gtk_box_pack_start(GTK_BOX(row), label, FALSE, FALSE, 0);
+        char t[160];
+        cpu_ident_text(cpu_ident(), t, sizeof t);
+        GtkWidget *val = gtk_label_new(t);
+        gtk_widget_set_halign(val, GTK_ALIGN_START);
+        gtk_box_pack_start(GTK_BOX(row), val, TRUE, TRUE, 0);
+        gtk_box_pack_start(GTK_BOX(info_box), row, FALSE, FALSE, 0);
+    }
     gtk_box_pack_start(GTK_BOX(info_box), info_cols, FALSE, FALSE, 0);
 
     /* CPU Temperature */
