@@ -21,6 +21,9 @@ Programs and services were named `dudes-control-center-*` before 1.19.0 (for exa
 - **The NVIDIA GPU could never power down**: the fan daemon ran `nvidia-smi` for the GPU temperature on every 5-second control step and every Status request, which wakes a GPU in on-demand mode. It now checks the GPU's PCI power state first and asks only while the GPU is awake (at most every 3 s, all values in one call); while it sleeps, the EC's GPU sensor gives the temperature. Other programs that use the GPU still keep it on (see README, Troubleshooting).
 - **Decimals lost with a decimal-comma locale**: the GUI read numbers from the daemons with `atof()`, which follows the locale; with e.g. German or Austrian number format "4.7" became 4 (CPU load in the CPU tab, now also the power values). Numbers from the daemons and data files are read locale-independently.
 
+### Documentation
+- README screenshots of the Status (new Power, GPU and Battery sections), Logs and About tabs renewed; the home folder path in the Logs screenshot is blurred.
+
 ## [1.36.1] - 2026-11-25
 
 ### Fixed
