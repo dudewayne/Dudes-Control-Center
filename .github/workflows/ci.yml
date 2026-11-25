@@ -47,10 +47,16 @@ jobs:
           path: build-deb/*.deb
           retention-days: 14
 
+      # The fake sysfs keeps real names with ':' (rgb:kbd_backlight,
+      # intel-rapl:0), which artifact uploads reject: upload one archive.
+      - name: Pack test logs on failure
+        if: failure()
+        run: tar czf test-work.tar.gz -C build-test work || true
+
       - name: Upload test logs on failure
         if: failure()
         uses: actions/upload-artifact@v6
         with:
           name: test-work
-          path: build-test/work
+          path: test-work.tar.gz
           retention-days: 7

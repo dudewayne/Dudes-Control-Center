@@ -6,6 +6,9 @@ Programs and services were named `dudes-control-center-*` before 1.19.0 (for exa
 
 ## [Unreleased]
 
+### Tests
+- The keyboard effect tests wait for a complete frame: on a slow CI runner they caught a frame halfway (the daemon writes it key by key) and failed. CI uploads the test folders of a failed run as one archive (the fake sysfs names with ':' were rejected).
+
 ### Documentation
 - README: the Help tab screenshot renewed (shows the `dcc_fan` module and the effects in the components list).
 

@@ -229,16 +229,29 @@ try:
           "TURN_ON restores the per-key colors instead of plain white")
 
     # animated effects (1.35.0): drawn by the daemon's main loop
+    # The daemon writes a frame key by key; reading all 120 files can catch a
+    # frame halfway (seen on slow CI runners), so wait for a complete one.
+    def settled(cond, tries=50):
+        c = colors()
+        for _ in range(tries):
+            if cond(c):
+                return c
+            time.sleep(0.02)
+            c = colors()
+        return c
+
+    one_color = lambda c: len(set(c)) == 1
     r = ask(s, "PREVIEW::0,0,0@rainbow:10::")
-    c1 = colors(); time.sleep(0.4); c2 = colors()
-    check(r.startswith("OK") and len(set(c1)) == 1 and c1 != c2,
+    c1 = settled(one_color); time.sleep(0.4); c2 = settled(one_color)
+    check(r.startswith("OK") and one_color(c1) and one_color(c2) and c1 != c2,
           "Rainbow: all keys one color, changing over time")
     check("BASE color=0,0,0 effect=rainbow:10" in ask(s, "GET_ZONES"), "GET_ZONES shows the base effect")
     check("EFFECTS=1" in ask(s, "STATUS"), "STATUS reports a running effect")
     ask(s, "PREVIEW::0,0,0@wave:10:right::")
     time.sleep(0.15)
-    c = colors()
-    check(c[0] == c[20] == c[100] and c[0] != c[10], "Wave: one color per column, different across the keyboard")
+    columns = lambda c: c[0] == c[20] == c[100] and c[0] != c[10]
+    c = settled(columns)
+    check(columns(c), "Wave: one color per column, different across the keyboard")
     ask(s, "PREVIEW::0,0,50::Z|255,0,0@breathing:10|5")
     seen = set()
     for _ in range(12):
