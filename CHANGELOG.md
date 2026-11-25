@@ -6,6 +6,21 @@ Programs and services were named `dudes-control-center-*` before 1.19.0 (for exa
 
 ## [Unreleased]
 
+## [1.37.0] - 2026-11-25
+
+### Added
+- **Status tab: Power, GPU and Battery.** New layout: Temperatures | Fan Speed | Power in the first row, Manual Fan Control | GPU | Battery in the second, per-core frequencies and active profiles below.
+  - **Power**: CPU package watts with the sustained limit (the CPU daemon measures the kernel's RAPL energy counter, which only root can read; on the X58xWNx the firmware's 46 W), GPU watts, and the whole laptop's draw while it runs on the battery.
+  - **GPU** (NVIDIA): name, graphics and memory clock, load with the power state (P0-P8), video memory used/total; "Sleeping (powered down)" when the driver has switched it off.
+  - **Battery**: charge, charging/discharging with the rate in watts and the time to full or empty, health (full charge in % of the design capacity, cycle count when the battery reports one).
+  - **Temperatures** also lists the NVMe drives by model name.
+- `STATUS` of the CPU daemon has `CPU_POWER_W` and `CPU_POWER_LIMIT_W`, the fan daemon's `GPU_STATE` and `GPU_*` values; `dcc-cpu-cli` shows the package power, `dcc-fan-cli` the GPU.
+- Tests: GPU values with a fake PCI tree and a fake `nvidia-smi` (not run while the GPU sleeps, one cached call while awake, `[N/A]` fields), CPU power from a fake RAPL counter (including the wrap-around and the limit), battery (charge- and energy-based), NVMe and GPU parsing in the GUI.
+
+### Fixed
+- **The NVIDIA GPU could never power down**: the fan daemon ran `nvidia-smi` for the GPU temperature on every 5-second control step and every Status request, which wakes a GPU in on-demand mode. It now checks the GPU's PCI power state first and asks only while the GPU is awake (at most every 3 s, all values in one call); while it sleeps, the EC's GPU sensor gives the temperature. Other programs that use the GPU still keep it on (see README, Troubleshooting).
+- **Decimals lost with a decimal-comma locale**: the GUI read numbers from the daemons with `atof()`, which follows the locale; with e.g. German or Austrian number format "4.7" became 4 (CPU load in the CPU tab, now also the power values). Numbers from the daemons and data files are read locale-independently.
+
 ## [1.36.1] - 2026-11-25
 
 ### Fixed
@@ -958,7 +973,8 @@ Programs and services were named `dudes-control-center-*` before 1.19.0 (for exa
 - Unix socket IPC between GUI and daemon
 - Watchdog timer and fail-safe mode in daemon
 
-[Unreleased]: https://github.com/dudewayne/Dudes-Control-Center/compare/v1.36.1...HEAD
+[Unreleased]: https://github.com/dudewayne/Dudes-Control-Center/compare/v1.37.0...HEAD
+[1.37.0]: https://github.com/dudewayne/Dudes-Control-Center/compare/v1.36.1...v1.37.0
 [1.36.1]: https://github.com/dudewayne/Dudes-Control-Center/compare/v1.36.0...v1.36.1
 [1.36.0]: https://github.com/dudewayne/Dudes-Control-Center/compare/v1.35.0...v1.36.0
 [1.35.0]: https://github.com/dudewayne/Dudes-Control-Center/compare/v1.34.4...v1.35.0

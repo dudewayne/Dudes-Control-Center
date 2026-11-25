@@ -47,6 +47,10 @@ msgid "_Save Changes"
 msgstr "Änderungen _speichern"
 
 #, c-format
+msgid "CPU: %.1f W (sustained limit %d W)"
+msgstr "CPU: %.1f W (Dauergrenze %d W)"
+
+#, c-format
 msgid "Core %d: %s"
 msgstr "Kern %d: %s"
 
@@ -485,6 +489,34 @@ msgstr "Tastaturfarbe"
 msgid "Custom color"
 msgstr "Eigene Farbe"
 
+#, c-format
+msgid "Clock: %d MHz, memory %d MHz"
+msgstr "Takt: %d MHz, Speicher %d MHz"
+
+#, c-format
+msgid "Load: %d %% (power state %s)"
+msgstr "Auslastung: %d %% (Energiezustand %s)"
+
+#, c-format
+msgid "Load: %d %%"
+msgstr "Auslastung: %d %%"
+
+#, c-format
+msgid "Video memory: %.1f / %.1f GB"
+msgstr "Grafikspeicher: %.1f / %.1f GB"
+
+msgid "Sleeping (powered down)"
+msgstr "Schläft (abgeschaltet)"
+
+msgid "Not woken up for readings"
+msgstr "Für Messwerte nicht aufgeweckt"
+
+msgid "GPU: sleeping"
+msgstr "GPU: schläft"
+
+msgid "No NVIDIA GPU"
+msgstr "Keine NVIDIA-GPU"
+
 msgid "CPU Fan"
 msgstr "CPU-Lüfter"
 
@@ -494,6 +526,48 @@ msgstr "GPU-Lüfter"
 #, no-c-format
 msgid "Manual fan mode ended: the CPU/GPU reached 95°C - fans at 100% until it cools down, then the fan curve (auto mode)"
 msgstr "Manueller Lüftermodus beendet: CPU/GPU hat 95°C erreicht – Lüfter auf 100%, bis sie abkühlt, dann wieder die Lüfterkurve (Automatik)"
+
+msgid "No battery"
+msgstr "Kein Akku"
+
+#, c-format
+msgid "Charge: %d %%"
+msgstr "Ladung: %d %%"
+
+#, c-format
+msgid "Discharging: %.1f W, %s left"
+msgstr "Entlädt: %.1f W, noch %s"
+
+msgid "Discharging"
+msgstr "Entlädt"
+
+#, c-format
+msgid "Charging: %.1f W, full in %s"
+msgstr "Lädt: %.1f W, voll in %s"
+
+msgid "Charging"
+msgstr "Lädt"
+
+msgid "Full, on AC power"
+msgstr "Voll, am Netzteil"
+
+msgid "Not charging, on AC power"
+msgstr "Lädt nicht, am Netzteil"
+
+#, c-format
+msgid "Health: %d %% of design, %d cycles"
+msgstr "Zustand: %d %% der Nennkapazität, %d Zyklen"
+
+#, c-format
+msgid "Health: %d %% of design"
+msgstr "Zustand: %d %% der Nennkapazität"
+
+#, c-format
+msgid "Laptop (battery): %.1f W"
+msgstr "Laptop (Akku): %.1f W"
+
+msgid "Laptop: on AC power"
+msgstr "Laptop: am Netzteil"
 
 msgid "Temperatures"
 msgstr "Temperaturen"
@@ -507,6 +581,9 @@ msgstr "CPU-Lüfter: -- U/min (--%)"
 msgid "GPU Fan: -- RPM (--%)"
 msgstr "GPU-Lüfter: -- U/min (--%)"
 
+msgid "Power"
+msgstr "Leistung"
+
 msgid "Manual Fan Control"
 msgstr "Manuelle Lüftersteuerung"
 
@@ -515,6 +592,9 @@ msgstr "Manueller Modus:"
 
 msgid "Note: Enable Manual Mode to override automatic fan control. Changes take effect immediately."
 msgstr "Hinweis: Der manuelle Modus übersteuert die automatische Lüftersteuerung. Änderungen wirken sofort."
+
+msgid "Battery"
+msgstr "Akku"
 
 msgid "Per-Core CPU Frequencies"
 msgstr "CPU-Frequenzen pro Kern"

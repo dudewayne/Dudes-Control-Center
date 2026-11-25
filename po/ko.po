@@ -47,6 +47,10 @@ msgid "_Save Changes"
 msgstr "변경 사항 저장(_S)"
 
 #, c-format
+msgid "CPU: %.1f W (sustained limit %d W)"
+msgstr "CPU: %.1f W (지속 한도 %d W)"
+
+#, c-format
 msgid "Core %d: %s"
 msgstr "코어 %d: %s"
 
@@ -489,6 +493,34 @@ msgstr "키보드 색상"
 msgid "Custom color"
 msgstr "사용자 지정 색상"
 
+#, c-format
+msgid "Clock: %d MHz, memory %d MHz"
+msgstr "클럭: %d MHz, 메모리 %d MHz"
+
+#, c-format
+msgid "Load: %d %% (power state %s)"
+msgstr "부하: %d %% (전원 상태 %s)"
+
+#, c-format
+msgid "Load: %d %%"
+msgstr "부하: %d %%"
+
+#, c-format
+msgid "Video memory: %.1f / %.1f GB"
+msgstr "비디오 메모리: %.1f / %.1f GB"
+
+msgid "Sleeping (powered down)"
+msgstr "절전 중 (전원 꺼짐)"
+
+msgid "Not woken up for readings"
+msgstr "측정을 위해 깨우지 않음"
+
+msgid "GPU: sleeping"
+msgstr "GPU: 절전 중"
+
+msgid "No NVIDIA GPU"
+msgstr "NVIDIA GPU 없음"
+
 msgid "CPU Fan"
 msgstr "CPU 팬"
 
@@ -498,6 +530,48 @@ msgstr "GPU 팬"
 #, no-c-format
 msgid "Manual fan mode ended: the CPU/GPU reached 95°C - fans at 100% until it cools down, then the fan curve (auto mode)"
 msgstr "수동 팬 모드 종료: CPU/GPU가 95°C에 도달했습니다 - 식을 때까지 팬 100%, 이후 팬 곡선(자동 모드)"
+
+msgid "No battery"
+msgstr "배터리 없음"
+
+#, c-format
+msgid "Charge: %d %%"
+msgstr "충전량: %d %%"
+
+#, c-format
+msgid "Discharging: %.1f W, %s left"
+msgstr "방전 중: %.1f W, %s 남음"
+
+msgid "Discharging"
+msgstr "방전 중"
+
+#, c-format
+msgid "Charging: %.1f W, full in %s"
+msgstr "충전 중: %.1f W, %s 후 완충"
+
+msgid "Charging"
+msgstr "충전 중"
+
+msgid "Full, on AC power"
+msgstr "완충, AC 전원"
+
+msgid "Not charging, on AC power"
+msgstr "충전 안 함, AC 전원"
+
+#, c-format
+msgid "Health: %d %% of design, %d cycles"
+msgstr "상태: 설계 용량의 %d %%, %d 사이클"
+
+#, c-format
+msgid "Health: %d %% of design"
+msgstr "상태: 설계 용량의 %d %%"
+
+#, c-format
+msgid "Laptop (battery): %.1f W"
+msgstr "노트북 (배터리): %.1f W"
+
+msgid "Laptop: on AC power"
+msgstr "노트북: AC 전원"
 
 msgid "Temperatures"
 msgstr "온도"
@@ -511,6 +585,9 @@ msgstr "CPU 팬: -- RPM (--%)"
 msgid "GPU Fan: -- RPM (--%)"
 msgstr "GPU 팬: -- RPM (--%)"
 
+msgid "Power"
+msgstr "전력"
+
 msgid "Manual Fan Control"
 msgstr "수동 팬 제어"
 
@@ -519,6 +596,9 @@ msgstr "수동 모드:"
 
 msgid "Note: Enable Manual Mode to override automatic fan control. Changes take effect immediately."
 msgstr "참고: 수동 모드를 켜면 자동 팬 제어보다 우선합니다. 변경 사항은 즉시 적용됩니다."
+
+msgid "Battery"
+msgstr "배터리"
 
 msgid "Per-Core CPU Frequencies"
 msgstr "코어별 CPU 주파수"

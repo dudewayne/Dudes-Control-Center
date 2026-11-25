@@ -14,7 +14,9 @@ over
 .IR /run/dcc-cpu.sock .
 The user must be root or a member of the group
 .BR dudes-control-center .
-Without options it shows the governor and the frequencies of all cores.
+Without options it shows the governor, the frequencies of all cores and the
+CPU package power with its sustained limit (from the kernel's RAPL energy
+counter, measured by the daemon).
 .SH OPTIONS
 .TP
 .B \-\-list\-profiles

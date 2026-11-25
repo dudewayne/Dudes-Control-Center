@@ -30,6 +30,13 @@ I/O ports 0x62/0x66 directly.
 The log names the method at start; STATUS reports it as
 .BR EC_ACCESS=module | ports .
 .PP
+For an NVIDIA GPU the daemon runs
+.BR nvidia-smi (1)
+only while the GPU is awake (PCI runtime power state), at most every
+3 seconds; a powered-down GPU would be woken up by it.
+STATUS reports the GPU state (awake, sleeping, none), power, clocks, load and
+video memory as GPU_* values; while it sleeps the EC's GPU sensor is used.
+.PP
 Clients connect to
 .IR /run/dcc-fan.sock ;
 only root and members of the group

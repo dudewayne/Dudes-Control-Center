@@ -47,6 +47,10 @@ msgid "_Save Changes"
 msgstr "_Guardar cambios"
 
 #, c-format
+msgid "CPU: %.1f W (sustained limit %d W)"
+msgstr "CPU: %.1f W (límite sostenido %d W)"
+
+#, c-format
 msgid "Core %d: %s"
 msgstr "Núcleo %d: %s"
 
@@ -489,6 +493,34 @@ msgstr "Color del teclado"
 msgid "Custom color"
 msgstr "Color personalizado"
 
+#, c-format
+msgid "Clock: %d MHz, memory %d MHz"
+msgstr "Reloj: %d MHz, memoria %d MHz"
+
+#, c-format
+msgid "Load: %d %% (power state %s)"
+msgstr "Carga: %d %% (estado de energía %s)"
+
+#, c-format
+msgid "Load: %d %%"
+msgstr "Carga: %d %%"
+
+#, c-format
+msgid "Video memory: %.1f / %.1f GB"
+msgstr "Memoria de vídeo: %.1f / %.1f GB"
+
+msgid "Sleeping (powered down)"
+msgstr "En reposo (apagada)"
+
+msgid "Not woken up for readings"
+msgstr "No se despierta para leer valores"
+
+msgid "GPU: sleeping"
+msgstr "GPU: en reposo"
+
+msgid "No NVIDIA GPU"
+msgstr "Sin GPU NVIDIA"
+
 msgid "CPU Fan"
 msgstr "Ventilador de CPU"
 
@@ -498,6 +530,48 @@ msgstr "Ventilador de GPU"
 #, no-c-format
 msgid "Manual fan mode ended: the CPU/GPU reached 95°C - fans at 100% until it cools down, then the fan curve (auto mode)"
 msgstr "Modo manual de ventiladores terminado: la CPU/GPU llegó a 95°C; ventiladores al 100% hasta que se enfríe, luego la curva (modo automático)"
+
+msgid "No battery"
+msgstr "Sin batería"
+
+#, c-format
+msgid "Charge: %d %%"
+msgstr "Carga: %d %%"
+
+#, c-format
+msgid "Discharging: %.1f W, %s left"
+msgstr "Descargando: %.1f W, quedan %s"
+
+msgid "Discharging"
+msgstr "Descargando"
+
+#, c-format
+msgid "Charging: %.1f W, full in %s"
+msgstr "Cargando: %.1f W, llena en %s"
+
+msgid "Charging"
+msgstr "Cargando"
+
+msgid "Full, on AC power"
+msgstr "Llena, con corriente"
+
+msgid "Not charging, on AC power"
+msgstr "No carga, con corriente"
+
+#, c-format
+msgid "Health: %d %% of design, %d cycles"
+msgstr "Salud: %d %% de la capacidad de diseño, %d ciclos"
+
+#, c-format
+msgid "Health: %d %% of design"
+msgstr "Salud: %d %% de la capacidad de diseño"
+
+#, c-format
+msgid "Laptop (battery): %.1f W"
+msgstr "Portátil (batería): %.1f W"
+
+msgid "Laptop: on AC power"
+msgstr "Portátil: con corriente"
 
 msgid "Temperatures"
 msgstr "Temperaturas"
@@ -511,6 +585,9 @@ msgstr "Ventilador de CPU: -- RPM (--%)"
 msgid "GPU Fan: -- RPM (--%)"
 msgstr "Ventilador de GPU: -- RPM (--%)"
 
+msgid "Power"
+msgstr "Potencia"
+
 msgid "Manual Fan Control"
 msgstr "Control manual de ventiladores"
 
@@ -519,6 +596,9 @@ msgstr "Modo manual:"
 
 msgid "Note: Enable Manual Mode to override automatic fan control. Changes take effect immediately."
 msgstr "Nota: active el modo manual para anular el control automático de los ventiladores. Los cambios se aplican de inmediato."
+
+msgid "Battery"
+msgstr "Batería"
 
 msgid "Per-Core CPU Frequencies"
 msgstr "Frecuencias de CPU por núcleo"

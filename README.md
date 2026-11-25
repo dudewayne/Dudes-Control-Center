@@ -65,7 +65,7 @@ dcc-gui --debug    # more output in GUI.log
 
 | Tab | Contents |
 |---|---|
-| **Status** | CPU/GPU temperature, each fan's RPM and duty (from the EC), auto/manual fan mode. Manual mode: +/- in 10% steps from **0% (fans off)** to 100%. Per-core CPU frequencies and **Active Profiles** (fan profile, CPU profile, power mode, keyboard profile) side by side. |
+| **Status** | CPU/GPU and NVMe temperatures, each fan's RPM and duty, auto/manual fan mode. Manual mode: +/- in 10% steps from **0% (fans off)** to 100%. **Power**: CPU package watts with the sustained limit, GPU watts, the whole laptop's draw while on battery. **GPU**: clocks, load, power state, video memory, or "sleeping" (a powered-down NVIDIA GPU is not woken up for readings). **Battery**: charge, charge/discharge rate, time left, health. Per-core CPU frequencies and **Active Profiles** (fan profile, CPU profile, power mode, keyboard profile). |
 | **Fan Profiles** | One dropdown for all fan profiles (the one in use is marked "(Active)"): Create, Rename, Save, Delete, **Activate**, and the graphical temperature-to-fan-speed curve of the selected profile (add, edit, delete points; Save keeps them, unsaved changes are asked about before switching profiles or leaving the tab). Shows a warning with "Disable Manual Mode" while manual mode is on. |
 | **CPU Profiles** | Power mode (**Performance / Balanced / Power Save**), per-core min/max frequency profiles (Create, Rename, Save, Delete, Activate; unsaved changes are asked about before switching profiles, leaving the tab or closing), the CPU hard limit. |
 | **Keyboard Backlight** | Keyboard profiles, **brightness slider**, backlight off switch, preset and custom colors, **effects** (Breathing, Rainbow, Wave), the **zone editor** (keyboard picture + zone list) for per-key lighting, the LED wizard. |
@@ -260,6 +260,8 @@ sudo systemctl restart dcc-fan-daemon
 **The desktop's keyboard slider only switches on and off** (after upgrading from a version before 1.20.0): the desktop's power daemon (e.g. Cinnamon's `csd-power`) remembers the old 0-255 range until the next login. Log out and in once.
 
 **A low maximum frequency seems to be ignored**: a maximum (per-core profile or hard limit) is a ceiling; the CPU picks its own speed below it. Many CPUs do not go below a certain speed once they have work to do, however low the maximum is. Measured on the Core Ultra 9 275HX: about 2.2 GHz on the P-cores and 1.5 GHz on the E-cores, also at 1% load; maximums above that are kept exactly. The firmware of the X58xWNx also holds the CPU at a sustained 46 W (after short bursts up to 130 W) and ignores lower power limits set through the kernel (`/sys/class/powercap`), so the power use cannot be lowered further from Linux.
+
+**The NVIDIA GPU never powers down (on-demand mode)**: Dudes Control Center does not wake it (it reads GPU values only while the GPU is awake), but every program that uses it keeps it on: the desktop itself, browsers, chat and game launchers. `cat /sys/bus/pci/devices/*/power/runtime_status` shows its state; the Status tab says "sleeping" when it is powered down.
 
 **Zero or wrong temperatures, fans do not react**: your model may use a different EC layout or commands, or the BIOS may lock fan control.
 

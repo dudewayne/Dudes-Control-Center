@@ -47,6 +47,10 @@ msgid "_Save Changes"
 msgstr "変更を保存(_S)"
 
 #, c-format
+msgid "CPU: %.1f W (sustained limit %d W)"
+msgstr "CPU: %.1f W (持続上限 %d W)"
+
+#, c-format
 msgid "Core %d: %s"
 msgstr "コア %d: %s"
 
@@ -489,6 +493,34 @@ msgstr "キーボードの色"
 msgid "Custom color"
 msgstr "カスタムカラー"
 
+#, c-format
+msgid "Clock: %d MHz, memory %d MHz"
+msgstr "クロック: %d MHz、メモリ %d MHz"
+
+#, c-format
+msgid "Load: %d %% (power state %s)"
+msgstr "負荷: %d %% (電源状態 %s)"
+
+#, c-format
+msgid "Load: %d %%"
+msgstr "負荷: %d %%"
+
+#, c-format
+msgid "Video memory: %.1f / %.1f GB"
+msgstr "ビデオメモリ: %.1f / %.1f GB"
+
+msgid "Sleeping (powered down)"
+msgstr "スリープ中 (電源オフ)"
+
+msgid "Not woken up for readings"
+msgstr "計測のために起こしません"
+
+msgid "GPU: sleeping"
+msgstr "GPU: スリープ中"
+
+msgid "No NVIDIA GPU"
+msgstr "NVIDIA GPU なし"
+
 msgid "CPU Fan"
 msgstr "CPU ファン"
 
@@ -498,6 +530,48 @@ msgstr "GPU ファン"
 #, no-c-format
 msgid "Manual fan mode ended: the CPU/GPU reached 95°C - fans at 100% until it cools down, then the fan curve (auto mode)"
 msgstr "手動ファンモードを終了しました: CPU/GPU が 95°C に達しました - 冷えるまでファン 100%、その後はファンカーブ (自動モード)"
+
+msgid "No battery"
+msgstr "バッテリーなし"
+
+#, c-format
+msgid "Charge: %d %%"
+msgstr "充電量: %d %%"
+
+#, c-format
+msgid "Discharging: %.1f W, %s left"
+msgstr "放電中: %.1f W、残り %s"
+
+msgid "Discharging"
+msgstr "放電中"
+
+#, c-format
+msgid "Charging: %.1f W, full in %s"
+msgstr "充電中: %.1f W、満充電まで %s"
+
+msgid "Charging"
+msgstr "充電中"
+
+msgid "Full, on AC power"
+msgstr "満充電、AC 電源"
+
+msgid "Not charging, on AC power"
+msgstr "充電していません、AC 電源"
+
+#, c-format
+msgid "Health: %d %% of design, %d cycles"
+msgstr "劣化状態: 設計容量の %d %%、%d サイクル"
+
+#, c-format
+msgid "Health: %d %% of design"
+msgstr "劣化状態: 設計容量の %d %%"
+
+#, c-format
+msgid "Laptop (battery): %.1f W"
+msgstr "ノート PC (バッテリー): %.1f W"
+
+msgid "Laptop: on AC power"
+msgstr "ノート PC: AC 電源"
 
 msgid "Temperatures"
 msgstr "温度"
@@ -511,6 +585,9 @@ msgstr "CPU ファン: -- RPM (--%)"
 msgid "GPU Fan: -- RPM (--%)"
 msgstr "GPU ファン: -- RPM (--%)"
 
+msgid "Power"
+msgstr "電力"
+
 msgid "Manual Fan Control"
 msgstr "手動ファン制御"
 
@@ -519,6 +596,9 @@ msgstr "手動モード:"
 
 msgid "Note: Enable Manual Mode to override automatic fan control. Changes take effect immediately."
 msgstr "注: 手動モードを有効にすると自動ファン制御より優先されます。変更はすぐに反映されます。"
+
+msgid "Battery"
+msgstr "バッテリー"
 
 msgid "Per-Core CPU Frequencies"
 msgstr "コアごとの CPU 周波数"
