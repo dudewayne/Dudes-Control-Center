@@ -607,10 +607,6 @@ msgstr "Nota: active el modo manual para anular el control automático de los ve
 msgid "Battery"
 msgstr "Batería"
 
-#, c-format
-msgid "Per-Core CPU Frequencies: %s"
-msgstr "Frecuencias de CPU por núcleo: %s"
-
 msgid "Per-Core CPU Frequencies"
 msgstr "Frecuencias de CPU por núcleo"
 

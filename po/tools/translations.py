@@ -192,7 +192,6 @@ T = [
 (r"Hinweis: Der manuelle Modus übersteuert die automatische Lüftersteuerung. Änderungen wirken sofort.", r"Nota: active el modo manual para anular el control automático de los ventiladores. Los cambios se aplican de inmediato.", r"注: 手動モードを有効にすると自動ファン制御より優先されます。変更はすぐに反映されます。", r"참고: 수동 모드를 켜면 자동 팬 제어보다 우선합니다. 변경 사항은 즉시 적용됩니다."),
 (None, None, None, None),
 (r"Akku", r"Batería", r"バッテリー", r"배터리"),
-(r"CPU-Frequenzen pro Kern: %s", r"Frecuencias de CPU por núcleo: %s", r"コアごとの CPU 周波数: %s", r"코어별 CPU 주파수: %s"),
 (r"CPU-Frequenzen pro Kern", r"Frecuencias de CPU por núcleo", r"コアごとの CPU 周波数", r"코어별 CPU 주파수"),
 (r"Aktive Profile", r"Perfiles activos", r"有効なプロファイル", r"활성 프로필"),
 (r"Lüfterprofil:", r"Perfil de ventiladores:", r"ファンプロファイル:", r"팬 프로필:"),

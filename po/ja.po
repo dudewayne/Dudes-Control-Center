@@ -604,10 +604,6 @@ msgstr "注: 手動モードを有効にすると自動ファン制御より優�
 msgid "Battery"
 msgstr "バッテリー"
 
-#, c-format
-msgid "Per-Core CPU Frequencies: %s"
-msgstr "コアごとの CPU 周波数: %s"
-
 msgid "Per-Core CPU Frequencies"
 msgstr "コアごとの CPU 周波数"
 

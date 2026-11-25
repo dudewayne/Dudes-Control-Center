@@ -6522,19 +6522,24 @@ static GtkWidget *create_status_page(AppData *app) {
 
     /* Per-Core CPU Frequencies */
     {
-        GtkWidget *core_frame;
-        if (cpu_ident()->name[0]) {   /* processor name in the title (1.38.0) */
-            gchar *t = g_strdup_printf(_("Per-Core CPU Frequencies: %s"), cpu_ident()->name);
-            core_frame = gtk_frame_new(t);
-            g_free(t);
-        } else {
-            core_frame = gtk_frame_new(_("Per-Core CPU Frequencies"));
+        GtkWidget *core_frame = gtk_frame_new(_("Per-Core CPU Frequencies"));
+        GtkWidget *core_box = gtk_box_new(GTK_ORIENTATION_VERTICAL, 4);
+        gtk_container_add(GTK_CONTAINER(core_frame), core_box);
+        if (cpu_ident()->name[0]) {   /* processor as the first line (1.38.0) */
+            char t[160];
+            cpu_ident_text(cpu_ident(), t, sizeof t);
+            GtkWidget *name = gtk_label_new(t);
+            gtk_label_set_xalign(GTK_LABEL(name), 0.0f);
+            gtk_label_set_ellipsize(GTK_LABEL(name), PANGO_ELLIPSIZE_END);
+            gtk_widget_set_margin_start(name, 6);
+            gtk_widget_set_margin_top(name, 6);
+            gtk_box_pack_start(GTK_BOX(core_box), name, FALSE, FALSE, 0);
         }
         GtkWidget *core_scrolled = gtk_scrolled_window_new(NULL, NULL);
         gtk_scrolled_window_set_policy(GTK_SCROLLED_WINDOW(core_scrolled), GTK_POLICY_NEVER, GTK_POLICY_AUTOMATIC);
         gtk_scrolled_window_set_max_content_height(GTK_SCROLLED_WINDOW(core_scrolled), 400);
         gtk_container_set_border_width(GTK_CONTAINER(core_scrolled), 5);
-        gtk_container_add(GTK_CONTAINER(core_frame), core_scrolled);
+        gtk_box_pack_start(GTK_BOX(core_box), core_scrolled, TRUE, TRUE, 0);
         /* Per-core frequencies and Active Profiles side by side, same width (1.30.0) */
         GtkWidget *row = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 10);
         gtk_box_set_homogeneous(GTK_BOX(row), TRUE);

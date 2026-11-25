@@ -9,7 +9,7 @@ Programs and services were named `dudes-control-center-*` before 1.19.0 (for exa
 ## [1.38.0] - 2026-11-25
 
 ### Added
-- **Processor name**: the CPU tab's *CPU Information* starts with *Processor*, e.g. "Intel Core Ultra 9 275HX (8 P-cores, 16 E-cores)" (name from `/proc/cpuinfo` without "(R)", "(TM)" and Intel's "CPU @ x GHz"; P- and E-cores on hybrid Intel CPUs, physical cores counted once with Hyper-Threading). The Status tab shows the name in the title of the per-core frequencies.
+- **Processor name**: the CPU tab's *CPU Information* starts with *Processor*, e.g. "Intel Core Ultra 9 275HX (8 P-cores, 16 E-cores)" (name from `/proc/cpuinfo` without "(R)", "(TM)" and Intel's "CPU @ x GHz"; P- and E-cores on hybrid Intel CPUs, physical cores counted once with Hyper-Threading). The Status tab shows the same line at the top of the per-core frequencies.
 - **P/E core labels** on hybrid CPUs: "Core 0 (P)", "Core 8 (E)" in the Status tab's per-core frequencies and the CPU tab's profile grid; useful with the different speed floors of P- and E-cores.
 - Tests: name cleanup (Intel, older Intel with "@ GHz", AMD), CPU lists, P/E counting with Hyper-Threading, non-hybrid CPUs.
 

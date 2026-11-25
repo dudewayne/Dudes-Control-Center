@@ -607,10 +607,6 @@ msgstr "참고: 수동 모드를 켜면 자동 팬 제어보다 우선합니다.
 msgid "Battery"
 msgstr "배터리"
 
-#, c-format
-msgid "Per-Core CPU Frequencies: %s"
-msgstr "코어별 CPU 주파수: %s"
-
 msgid "Per-Core CPU Frequencies"
 msgstr "코어별 CPU 주파수"
 

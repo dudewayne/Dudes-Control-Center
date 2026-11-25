@@ -603,10 +603,6 @@ msgstr "Hinweis: Der manuelle Modus übersteuert die automatische Lüftersteueru
 msgid "Battery"
 msgstr "Akku"
 
-#, c-format
-msgid "Per-Core CPU Frequencies: %s"
-msgstr "CPU-Frequenzen pro Kern: %s"
-
 msgid "Per-Core CPU Frequencies"
 msgstr "CPU-Frequenzen pro Kern"
 
