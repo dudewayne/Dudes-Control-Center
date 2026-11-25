@@ -46,13 +46,20 @@ msgstr "Änderungen _verwerfen"
 msgid "_Save Changes"
 msgstr "Änderungen _speichern"
 
+msgid "N/A"
+msgstr "k. A."
+
+#, c-format
+msgid "%s (%d P-cores, %d E-cores)"
+msgstr "%s (%d P-Kerne, %d E-Kerne)"
+
 #, c-format
 msgid "CPU: %.1f W (sustained limit %d W)"
 msgstr "CPU: %.1f W (Dauergrenze %d W)"
 
 #, c-format
-msgid "Core %d: %s"
-msgstr "Kern %d: %s"
+msgid "Core %d%s: %s"
+msgstr "Kern %d%s: %s"
 
 msgid "Power mode applied - click Save to keep it in the profile"
 msgstr "Energiemodus angewendet – auf Speichern klicken, um ihn im Profil zu behalten"
@@ -144,8 +151,8 @@ msgid "Failed to apply hard limit"
 msgstr "Hardlimit konnte nicht angewendet werden"
 
 #, c-format
-msgid "Core %d"
-msgstr "Kern %d"
+msgid "Core %d%s"
+msgstr "Kern %d%s"
 
 msgid "Min (MHz)"
 msgstr "Min. (MHz)"
@@ -596,6 +603,10 @@ msgstr "Hinweis: Der manuelle Modus übersteuert die automatische Lüftersteueru
 msgid "Battery"
 msgstr "Akku"
 
+#, c-format
+msgid "Per-Core CPU Frequencies: %s"
+msgstr "CPU-Frequenzen pro Kern: %s"
+
 msgid "Per-Core CPU Frequencies"
 msgstr "CPU-Frequenzen pro Kern"
 
@@ -753,11 +764,11 @@ msgstr "CPU-Daemon nicht verbunden"
 msgid "CPU Information"
 msgstr "CPU-Informationen"
 
+msgid "Processor:"
+msgstr "Prozessor:"
+
 msgid "CPU Temperature:"
 msgstr "CPU-Temperatur:"
-
-msgid "N/A"
-msgstr "k. A."
 
 msgid "CPU Load:"
 msgstr "CPU-Last:"

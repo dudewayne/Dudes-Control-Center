@@ -47,12 +47,16 @@ msgid "_Save Changes"
 msgstr "変更を保存(_S)"
 
 #, c-format
+msgid "%s (%d P-cores, %d E-cores)"
+msgstr "%s (P コア %d、E コア %d)"
+
+#, c-format
 msgid "CPU: %.1f W (sustained limit %d W)"
 msgstr "CPU: %.1f W (持続上限 %d W)"
 
 #, c-format
-msgid "Core %d: %s"
-msgstr "コア %d: %s"
+msgid "Core %d%s: %s"
+msgstr "コア %d%s: %s"
 
 msgid "Power mode applied - click Save to keep it in the profile"
 msgstr "電源モードを適用しました - プロファイルに残すには「保存」をクリック"
@@ -144,8 +148,8 @@ msgid "Failed to apply hard limit"
 msgstr "上限を適用できませんでした"
 
 #, c-format
-msgid "Core %d"
-msgstr "コア %d"
+msgid "Core %d%s"
+msgstr "コア %d%s"
 
 msgid "Min (MHz)"
 msgstr "最小 (MHz)"
@@ -600,6 +604,10 @@ msgstr "注: 手動モードを有効にすると自動ファン制御より優�
 msgid "Battery"
 msgstr "バッテリー"
 
+#, c-format
+msgid "Per-Core CPU Frequencies: %s"
+msgstr "コアごとの CPU 周波数: %s"
+
 msgid "Per-Core CPU Frequencies"
 msgstr "コアごとの CPU 周波数"
 
@@ -760,6 +768,9 @@ msgstr "CPU デーモン未接続"
 
 msgid "CPU Information"
 msgstr "CPU 情報"
+
+msgid "Processor:"
+msgstr "プロセッサ:"
 
 msgid "CPU Temperature:"
 msgstr "CPU 温度:"

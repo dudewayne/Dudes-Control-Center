@@ -46,13 +46,20 @@ msgstr "_Descartar cambios"
 msgid "_Save Changes"
 msgstr "_Guardar cambios"
 
+msgid "N/A"
+msgstr "N/D"
+
+#, c-format
+msgid "%s (%d P-cores, %d E-cores)"
+msgstr "%s (%d núcleos P, %d núcleos E)"
+
 #, c-format
 msgid "CPU: %.1f W (sustained limit %d W)"
 msgstr "CPU: %.1f W (límite sostenido %d W)"
 
 #, c-format
-msgid "Core %d: %s"
-msgstr "Núcleo %d: %s"
+msgid "Core %d%s: %s"
+msgstr "Núcleo %d%s: %s"
 
 msgid "Power mode applied - click Save to keep it in the profile"
 msgstr "Modo de energía aplicado: pulse Guardar para conservarlo en el perfil"
@@ -144,8 +151,8 @@ msgid "Failed to apply hard limit"
 msgstr "No se pudo aplicar el límite máximo"
 
 #, c-format
-msgid "Core %d"
-msgstr "Núcleo %d"
+msgid "Core %d%s"
+msgstr "Núcleo %d%s"
 
 msgid "Min (MHz)"
 msgstr "Mín. (MHz)"
@@ -600,6 +607,10 @@ msgstr "Nota: active el modo manual para anular el control automático de los ve
 msgid "Battery"
 msgstr "Batería"
 
+#, c-format
+msgid "Per-Core CPU Frequencies: %s"
+msgstr "Frecuencias de CPU por núcleo: %s"
+
 msgid "Per-Core CPU Frequencies"
 msgstr "Frecuencias de CPU por núcleo"
 
@@ -761,11 +772,11 @@ msgstr "Daemon de CPU no conectado"
 msgid "CPU Information"
 msgstr "Información de la CPU"
 
+msgid "Processor:"
+msgstr "Procesador:"
+
 msgid "CPU Temperature:"
 msgstr "Temperatura de la CPU:"
-
-msgid "N/A"
-msgstr "N/D"
 
 msgid "CPU Load:"
 msgstr "Carga de la CPU:"

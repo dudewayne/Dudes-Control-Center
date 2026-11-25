@@ -550,6 +550,44 @@ int main(int argc, char **argv) {
               "S: flag removed -> on again; invalid component numbers are 'on'");
     }
 
+    /* N: processor name and P/E cores (v1.38.0) */
+    {
+        char n[96];
+        cpu_name_clean(" Intel(R) Core(TM) Ultra 9 275HX", n, sizeof n);
+        CHECK(!strcmp(n, "Intel Core Ultra 9 275HX"), "N: (R) and (TM) removed");
+        cpu_name_clean("Intel(R) Core(TM) i7-8750H CPU @ 2.20GHz", n, sizeof n);
+        CHECK(!strcmp(n, "Intel Core i7-8750H"), "N: Intel's ' CPU @ x GHz' removed");
+        cpu_name_clean("AMD Ryzen 9 7945HX with Radeon Graphics  ", n, sizeof n);
+        CHECK(!strcmp(n, "AMD Ryzen 9 7945HX with Radeon Graphics"), "N: AMD name kept, trailing blanks removed");
+        char mark[32] = { 0 };
+        CHECK(cpulist_mark("0-3,8,10-11\n", mark, 32, 'P') == 7 && mark[3] == 'P' && mark[8] == 'P' && !mark[9] && mark[11] == 'P',
+              "N: CPU list '0-3,8,10-11' read");
+        /* hybrid CPU with Hyper-Threading on the P-cores: 2 P-cores (4 CPUs), 2 E-cores */
+        g_mkdir_with_parents("sd/cpu_core", 0755);
+        g_mkdir_with_parents("sd/cpu_atom", 0755);
+        g_file_set_contents("sd/cpu_core/cpus", "0-3\n", -1, NULL);
+        g_file_set_contents("sd/cpu_atom/cpus", "4-5\n", -1, NULL);
+        const char *sib[6] = { "0-1\n", "0-1\n", "2-3\n", "2-3\n", "4\n", "5\n" };
+        for (int c = 0; c < 6; c++) {
+            char d[64], f[96];
+            snprintf(d, sizeof d, "sd/system/cpu/cpu%d/topology", c);
+            g_mkdir_with_parents(d, 0755);
+            snprintf(f, sizeof f, "%s/core_cpus_list", d);
+            g_file_set_contents(f, sib[c], -1, NULL);
+        }
+        g_file_set_contents("cpuinfo", "processor\t: 0\nmodel name\t: Intel(R) Core(TM) Test 1234H\nflags\t\t: fpu\n", -1, NULL);
+        CpuIdent ci;
+        cpu_ident_read("cpuinfo", "sd", &ci);
+        char t[160];
+        cpu_ident_text(&ci, t, sizeof t);
+        CHECK(ci.hybrid && ci.p_cores == 2 && ci.e_cores == 2 && ci.type[1] == 'P' && ci.type[5] == 'E',
+              "N: hybrid CPU: 2 P-cores (Hyper-Threading counted once), 2 E-cores");
+        CHECK(strstr(t, "Intel Core Test 1234H") && strstr(t, "2") && strstr(t, "P"), "N: Processor text with name and core counts");
+        cpu_ident_read("cpuinfo", "nowhere", &ci);
+        cpu_ident_text(&ci, t, sizeof t);
+        CHECK(!ci.hybrid && !strcmp(t, "Intel Core Test 1234H") && !ci.type[0], "N: not hybrid: name only, no P/E labels");
+    }
+
     /* P: Status tab power, battery, NVMe, GPU (v1.37.0) */
     {
         g_mkdir_with_parents("ps/BAT0", 0755);

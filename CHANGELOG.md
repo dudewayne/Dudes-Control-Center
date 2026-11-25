@@ -6,6 +6,13 @@ Programs and services were named `dudes-control-center-*` before 1.19.0 (for exa
 
 ## [Unreleased]
 
+## [1.38.0] - 2026-11-25
+
+### Added
+- **Processor name**: the CPU tab's *CPU Information* starts with *Processor*, e.g. "Intel Core Ultra 9 275HX (8 P-cores, 16 E-cores)" (name from `/proc/cpuinfo` without "(R)", "(TM)" and Intel's "CPU @ x GHz"; P- and E-cores on hybrid Intel CPUs, physical cores counted once with Hyper-Threading). The Status tab shows the name in the title of the per-core frequencies.
+- **P/E core labels** on hybrid CPUs: "Core 0 (P)", "Core 8 (E)" in the Status tab's per-core frequencies and the CPU tab's profile grid; useful with the different speed floors of P- and E-cores.
+- Tests: name cleanup (Intel, older Intel with "@ GHz", AMD), CPU lists, P/E counting with Hyper-Threading, non-hybrid CPUs.
+
 ### Tests
 - The keyboard effect tests wait for a complete frame: on a slow CI runner they caught a frame halfway (the daemon writes it key by key) and failed. CI uploads the test folders of a failed run as one archive (the fake sysfs names with ':' were rejected).
 
@@ -982,7 +989,8 @@ Programs and services were named `dudes-control-center-*` before 1.19.0 (for exa
 - Unix socket IPC between GUI and daemon
 - Watchdog timer and fail-safe mode in daemon
 
-[Unreleased]: https://github.com/dudewayne/Dudes-Control-Center/compare/v1.37.0...HEAD
+[Unreleased]: https://github.com/dudewayne/Dudes-Control-Center/compare/v1.38.0...HEAD
+[1.38.0]: https://github.com/dudewayne/Dudes-Control-Center/compare/v1.37.0...v1.38.0
 [1.37.0]: https://github.com/dudewayne/Dudes-Control-Center/compare/v1.36.1...v1.37.0
 [1.36.1]: https://github.com/dudewayne/Dudes-Control-Center/compare/v1.36.0...v1.36.1
 [1.36.0]: https://github.com/dudewayne/Dudes-Control-Center/compare/v1.35.0...v1.36.0
