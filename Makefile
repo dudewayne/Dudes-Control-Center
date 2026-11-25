@@ -302,7 +302,7 @@ CPU_DAEMON_DEPS = src/dcc-cpu-daemon.c src/dcc-cpu-common.c src/dcc-cpu-common.h
 TEST_BINS = $(TEST_BUILD)/test_fan_responses $(TEST_BUILD)/test_fan_safety \
             $(TEST_BUILD)/test_secure_allow $(TEST_BUILD)/test_secure_deny \
             $(TEST_BUILD)/cpud_test $(TEST_BUILD)/test_gui_save $(TEST_BUILD)/kbdd_test $(TEST_BUILD)/kbdcli_test \
-            $(TEST_BUILD)/test_paths
+            $(TEST_BUILD)/test_paths $(TEST_BUILD)/test_fan_backend
 
 test: $(TEST_BINS) test-locale
 	bash tests/run_tests.sh $(TEST_BUILD)
@@ -326,6 +326,9 @@ $(TEST_BUILD)/test_secure_allow: tests/test_secure.c $(SECURE_SRC) $(SECURE_HDR)
 
 $(TEST_BUILD)/test_secure_deny: tests/test_secure.c $(SECURE_SRC) $(SECURE_HDR) $(LOG_SRC) | $(TEST_BUILD)
 	$(CC) $(TEST_CFLAGS) -DDCC_AUTH_GROUP='"dcc-test-no-such-group"' -o $@ tests/test_secure.c $(SECURE_SRC) $(LOG_SRC)
+
+$(TEST_BUILD)/test_fan_backend: tests/test_fan_backend.c $(COMMON_SRC) $(COMMON_HDR) | $(TEST_BUILD)
+	$(CC) $(TEST_CFLAGS) -DDCC_HWMON_DIR='"hwmon"' -o $@ tests/test_fan_backend.c $(COMMON_SRC)
 
 $(TEST_BUILD)/test_paths: tests/test_paths.c $(SECURE_SRC) $(SECURE_HDR) $(LOG_SRC) | $(TEST_BUILD)
 	$(CC) $(TEST_CFLAGS) -DDCC_USER_FILE='"user"' -o $@ tests/test_paths.c $(SECURE_SRC) $(LOG_SRC)
