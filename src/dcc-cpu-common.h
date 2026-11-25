@@ -213,4 +213,9 @@ void format_frequency(uint64_t freq_hz, char *buf, size_t buf_size);  /* Format 
 /* Exposed global state for read access */
 extern CpuControlState g_cpu_state;
 
+/* CPU package power (1.37.0): average W since the previous call (RAPL, root
+ * only; -1 on the first call or without RAPL) and the sustained limit in W */
+double cpu_package_power_w(void);
+int cpu_power_limit_w(void);
+
 #endif /* DUDES_CONTROL_CENTER_CPU_COMMON_H */

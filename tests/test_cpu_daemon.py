@@ -27,6 +27,13 @@ check = Checker()
 make_sysfs("sys", NCPU)
 wr("sys/cpu3/cpufreq/scaling_min_freq", 3600000)  # stale min, profile says 0.8 GHz
 wr("sys/cpu4/cpufreq/scaling_min_freq", 1500000)  # profile sets no min -> leave alone
+# fake RAPL (v1.37.0): MSR and MMIO limits like the X58xWNx firmware sets them
+wr("powercap/intel-rapl:0/energy_uj", 1000000)
+wr("powercap/intel-rapl:0/max_energy_range_uj", 262143328850)
+wr("powercap/intel-rapl:0/enabled", 1)
+wr("powercap/intel-rapl:0/constraint_0_power_limit_uw", 200000000)
+wr("powercap/intel-rapl-mmio:0/enabled", 1)
+wr("powercap/intel-rapl-mmio:0/constraint_0_power_limit_uw", 46000000)
 os.makedirs("cfg", exist_ok=True)
 os.makedirs("logs", exist_ok=True)
 
@@ -165,6 +172,23 @@ try:
     check("Received command: GET_CPU_INFO" in lv and "Received command: GET_AVAILABLE_GOVERNORS" not in lv,
           "queries logged while the level is DEBUG only")
     check("Received command: SET_HARD_LIMIT" in lv, "commands that change something still logged at INFO")
+
+    # CPU package power from RAPL (v1.37.0): energy difference / time
+    wr("powercap/intel-rapl:0/energy_uj", 5000000000)
+    ask(a, "STATUS")
+    t0 = time.time()
+    time.sleep(1.0)
+    wr("powercap/intel-rapl:0/energy_uj", 5000000000 + 20000000)   # +20 J
+    st = ask(a, "STATUS")
+    dt = time.time() - t0
+    w = float(st.split("CPU_POWER_W=")[1].split("\n")[0])
+    check(abs(w - 20.0 / dt) < 3.0, f"CPU_POWER_W from the energy counter ({w:.1f} W, expected about {20.0 / dt:.1f})")
+    check("CPU_POWER_LIMIT_W=46\n" in st, "sustained limit: the lower of MSR (200 W) and MMIO (46 W)")
+    wr("powercap/intel-rapl:0/max_energy_range_uj", 6000000000)
+    wr("powercap/intel-rapl:0/energy_uj", 1000000)                  # wrapped
+    time.sleep(1.0)
+    w2 = float(ask(a, "STATUS").split("CPU_POWER_W=")[1].split("\n")[0])
+    check(0 < w2 < 1500, f"counter wrap-around handled ({w2:.0f} W)")
 
     # signals
     proc.send_signal(signal.SIGHUP)

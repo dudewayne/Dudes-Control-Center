@@ -1576,3 +1576,61 @@ int cpu_custom_profile_apply(int idx) {
     return (errors == 0) ? 0 : -1;
 }
 
+
+/* ============================================================================
+ * CPU package power (1.37.0): the kernel's RAPL energy counter, readable by
+ * root only. Power = energy difference / time since the previous sample.
+ * ============================================================================ */
+#ifndef DCC_POWERCAP_DIR
+#define DCC_POWERCAP_DIR "/sys/class/powercap"
+#endif
+
+static int read_u64(const char *path, uint64_t *v) {
+    FILE *f = fopen(path, "r");
+    if (!f) return -1;
+    unsigned long long x = 0;
+    int ok = fscanf(f, "%llu", &x) == 1;
+    fclose(f);
+    if (!ok) return -1;
+    *v = (uint64_t)x;
+    return 0;
+}
+
+double cpu_package_power_w(void) {
+    static uint64_t last_uj;
+    static double last_t = -1, last_w = -1;
+    uint64_t uj, range = 0;
+    if (read_u64(DCC_POWERCAP_DIR "/intel-rapl:0/energy_uj", &uj) != 0) return -1;
+    read_u64(DCC_POWERCAP_DIR "/intel-rapl:0/max_energy_range_uj", &range);
+    struct timespec ts;
+    clock_gettime(CLOCK_MONOTONIC, &ts);
+    double t = (double)ts.tv_sec + ts.tv_nsec / 1e9;
+    if (last_t < 0) {                       /* first sample: nothing to compare yet */
+        last_uj = uj; last_t = t;
+        return -1;
+    }
+    double dt = t - last_t;
+    if (dt < 0.5) return last_w;            /* several clients at once: keep the last value */
+    uint64_t de = uj >= last_uj ? uj - last_uj : (range ? range - last_uj + uj : 0);   /* counter wrapped */
+    last_w = (double)de / dt / 1e6;
+    last_uj = uj; last_t = t;
+    return last_w;
+}
+
+/* Sustained (long_term) package power limit in W, the lowest of the MSR and
+ * MMIO interfaces (the firmware may set either); -1 if unknown */
+int cpu_power_limit_w(void) {
+    static const char *const zones[] = { "intel-rapl:0", "intel-rapl-mmio:0" };
+    int best = -1;
+    for (size_t i = 0; i < sizeof zones / sizeof zones[0]; i++) {
+        char p[256];
+        uint64_t en = 1, uw = 0;
+        snprintf(p, sizeof p, "%s/%s/enabled", DCC_POWERCAP_DIR, zones[i]);
+        read_u64(p, &en);
+        snprintf(p, sizeof p, "%s/%s/constraint_0_power_limit_uw", DCC_POWERCAP_DIR, zones[i]);
+        if (!en || read_u64(p, &uw) != 0 || uw == 0) continue;
+        int w = (int)(uw / 1000000);
+        if (best < 0 || w < best) best = w;
+    }
+    return best;
+}

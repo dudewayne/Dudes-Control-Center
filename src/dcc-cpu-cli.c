@@ -121,6 +121,14 @@ static int run_default_mode(int fd) {
         printf("CPU Load: %.1f%%\n", load);
     }
 
+    tmp = strstr(resp, "CPU_POWER_W=");
+    if (tmp && atof(tmp + 12) >= 0) {
+        const char *lim = strstr(resp, "CPU_POWER_LIMIT_W=");
+        int l = lim ? atoi(lim + 18) : -1;
+        if (l > 0) printf("Package Power: %.1f W (sustained limit %d W)\n", atof(tmp + 12), l);
+        else printf("Package Power: %.1f W\n", atof(tmp + 12));
+    }
+
     tmp = strstr(resp, "ON_AC=");
     if (tmp) {
         int on_ac = atoi(tmp + 6);

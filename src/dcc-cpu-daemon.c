@@ -233,7 +233,9 @@ static void handle_command(const char *cmd, char *response, size_t resp_size) {
             "ACTIVE_GOVERNOR=%s\n"
             "GOVERNOR=%s\n"
             "EPP=%s\n"
-            "AUTO_MODE=%d\n",
+            "AUTO_MODE=%d\n"
+            "CPU_POWER_W=%.1f\n"
+            "CPU_POWER_LIMIT_W=%d\n",
             status.num_cpus,
             status.on_ac_power,
             status.cpu_temp_c,
@@ -243,7 +245,9 @@ static void handle_command(const char *cmd, char *response, size_t resp_size) {
             active_name,
             cur_gov,
             cur_epp,
-            g_cpu_state.auto_mode_enabled);
+            g_cpu_state.auto_mode_enabled,
+            cpu_package_power_w(),
+            cpu_power_limit_w());
 
         /* Add CPU details */
         size_t pos = strlen(response);
@@ -1146,6 +1150,8 @@ int main(int argc, char *argv[]) {
         LOG_ERROR("[DAEMON] Failed to initialize CPU control subsystem");
         return 1;
     }
+
+    cpu_package_power_w();   /* first energy sample, so the first STATUS has a value */
 
     /* cpu_control_init() already loaded the custom profiles and the hard limit */
     LOG_INFO("[DAEMON] CPU control initialized: %d power modes, %d custom profiles",
