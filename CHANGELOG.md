@@ -6,6 +6,12 @@ Programs and services were named `dudes-control-center-*` before 1.19.0 (for exa
 
 ## [Unreleased]
 
+## [1.38.1] - 2026-11-26
+
+### Fixed
+- **Unsaved-changes question only every other click**: after *Cancel* in the question that comes up when leaving the CPU, Fan Profiles or Keyboard tab with unsaved changes, clicking the same tab again did nothing; only a click on a different tab asked again. GTK had already moved its focus to the clicked tab before the switch was cancelled, so it took the next click on that tab as a click on the current one. The focus now goes back to the tab that stays shown.
+- Tests: two real mouse clicks on a tab whose switch is cancelled must ask twice.
+
 ## [1.38.0] - 2026-11-25
 
 ### Added
@@ -994,7 +1000,8 @@ Programs and services were named `dudes-control-center-*` before 1.19.0 (for exa
 - Unix socket IPC between GUI and daemon
 - Watchdog timer and fail-safe mode in daemon
 
-[Unreleased]: https://github.com/dudewayne/Dudes-Control-Center/compare/v1.38.0...HEAD
+[Unreleased]: https://github.com/dudewayne/Dudes-Control-Center/compare/v1.38.1...HEAD
+[1.38.1]: https://github.com/dudewayne/Dudes-Control-Center/compare/v1.38.0...v1.38.1
 [1.38.0]: https://github.com/dudewayne/Dudes-Control-Center/compare/v1.37.0...v1.38.0
 [1.37.0]: https://github.com/dudewayne/Dudes-Control-Center/compare/v1.36.1...v1.37.0
 [1.36.1]: https://github.com/dudewayne/Dudes-Control-Center/compare/v1.36.0...v1.36.1

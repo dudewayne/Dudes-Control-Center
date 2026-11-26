@@ -14,6 +14,46 @@
 static int fails = 0;
 #define CHECK(c, m) do { if (c) printf("PASS  %s\n", m); else { printf("FAIL  %s\n", m); fails++; } } while (0)
 
+/* --- tab switch refused with real clicks (v1.38.1) --- */
+static int tab_asked;
+static void tab_on_switch(GtkNotebook *nb, GtkWidget *page, guint num, gpointer d) {
+    AppData *a = d;
+    (void)page;
+    if (a->switching_page) return;
+    if (gtk_notebook_get_current_page(nb) == 0 && num != 0) {   /* "unsaved changes": Cancel */
+        tab_asked++;
+        notebook_refuse_switch(a, nb, 0, (int)num);
+    }
+}
+static void tab_pump(void) {
+    for (int k = 0; k < 4; k++) { g_usleep(50000); while (gtk_events_pending()) gtk_main_iteration_do(FALSE); }
+}
+static void tab_click(GtkWidget *nb, int n) {
+    GtkWidget *lab = gtk_notebook_get_tab_label(GTK_NOTEBOOK(nb), gtk_notebook_get_nth_page(GTK_NOTEBOOK(nb), n));
+    GtkAllocation al;
+    gtk_widget_get_allocation(lab, &al);
+    GdkWindow *win = gtk_widget_get_window(nb), *ev = NULL;
+    for (GList *l = gdk_window_peek_children(win); l; l = l->next) {
+        gpointer ud = NULL;
+        gdk_window_get_user_data(l->data, &ud);
+        if (ud == nb) ev = l->data;              /* the notebook's tab input window */
+    }
+    int ex = 0, ey = 0;
+    if (ev) gdk_window_get_position(ev, &ex, &ey); else ev = win;
+    for (int t = 0; t < 2; t++) {
+        GdkEvent *e = gdk_event_new(t ? GDK_BUTTON_RELEASE : GDK_BUTTON_PRESS);
+        e->button.window = g_object_ref(ev);
+        e->button.button = 1;
+        e->button.x = al.x + al.width / 2 - ex;
+        e->button.y = al.y + al.height / 2 - ey;
+        e->button.time = GDK_CURRENT_TIME;
+        gdk_event_set_device(e, gdk_seat_get_pointer(gdk_display_get_default_seat(gdk_display_get_default())));
+        gtk_main_do_event(e);
+        gdk_event_free(e);
+    }
+    tab_pump();
+}
+
 static int connect_sock(const char *path) {
     int fd = socket(AF_UNIX, SOCK_STREAM, 0);
     struct sockaddr_un a = {.sun_family = AF_UNIX};
@@ -550,6 +590,28 @@ int main(int argc, char **argv) {
         unlink("components/disabled-keyboard");
         CHECK(!dcc_component_disabled(COMP_KEYBOARD) && !dcc_component_disabled(-1) && !dcc_component_disabled(7),
               "S: flag removed -> on again; invalid component numbers are 'on'");
+    }
+
+    /* W: a cancelled tab switch asks again on the next click of that tab (v1.38.1) */
+    if (gtk_init_check(NULL, NULL)) {
+        static AppData ta;
+        GtkWidget *w = gtk_offscreen_window_new();
+        ta.notebook = gtk_notebook_new();
+        for (int i = 0; i < 3; i++) {
+            char tl[16];
+            snprintf(tl, sizeof tl, "Tab %d", i);
+            gtk_notebook_append_page(GTK_NOTEBOOK(ta.notebook), gtk_label_new(tl), gtk_label_new(tl));
+        }
+        g_signal_connect(ta.notebook, "switch-page", G_CALLBACK(tab_on_switch), &ta);
+        gtk_container_add(GTK_CONTAINER(w), ta.notebook);
+        gtk_window_set_default_size(GTK_WINDOW(w), 400, 200);
+        gtk_widget_show_all(w);
+        tab_pump();
+        tab_click(ta.notebook, 2);
+        tab_click(ta.notebook, 2);
+        CHECK(tab_asked == 2 && gtk_notebook_get_current_page(GTK_NOTEBOOK(ta.notebook)) == 0,
+              "W: Cancel keeps the tab, and clicking the same tab again asks again");
+        gtk_widget_destroy(w);
     }
 
     /* Q: single instance ignores zombies and other programs (v1.38.0) */

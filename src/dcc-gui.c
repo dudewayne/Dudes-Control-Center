@@ -593,6 +593,7 @@ typedef struct {
 
     /* Flag to prevent re-entry in notebook page switch callback */
     int switching_page;
+    int refused_page;                  /* tab whose switch was cancelled (1.38.1) */
 
     /* Auto mode state from daemon */
     int auto_mode_enabled;
@@ -7056,6 +7057,33 @@ static void on_disable_manual_mode_clicked(GtkWidget *widget, gpointer user_data
     }
 }
 
+/* A tab switch was cancelled (unsaved changes). GTK has already moved its
+ * focus tab to the clicked tab before "switch-page", so another click on
+ * that tab did nothing until a different tab was clicked (1.38.1). Switching
+ * to it and back without the checks puts the focus tab on the shown page;
+ * both happen before the next redraw, so nothing flickers. */
+static gboolean notebook_refocus_idle(gpointer user_data) {
+    AppData *app = (AppData *)user_data;
+    GtkNotebook *nb = GTK_NOTEBOOK(app->notebook);
+    int shown = gtk_notebook_get_current_page(nb);
+    int other = app->refused_page;
+    if (other >= 0 && other != shown && other < gtk_notebook_get_n_pages(nb)) {
+        app->switching_page = 1;
+        gtk_notebook_set_current_page(nb, other);
+        gtk_notebook_set_current_page(nb, shown);
+        app->switching_page = 0;
+    }
+    app->refused_page = -1;
+    return G_SOURCE_REMOVE;
+}
+
+static void notebook_refuse_switch(AppData *app, GtkNotebook *notebook, int stay, int wanted) {
+    gtk_notebook_set_current_page(notebook, stay);
+    g_signal_stop_emission_by_name(G_OBJECT(notebook), "switch-page");
+    app->refused_page = wanted;
+    g_idle_add(notebook_refocus_idle, app);
+}
+
 /* Callback when notebook page is switched */
 static void on_notebook_page_switched(GtkNotebook *notebook, GtkWidget *page, gint page_num, gpointer user_data) {
     (void)notebook;
@@ -7086,11 +7114,8 @@ static void on_notebook_page_switched(GtkNotebook *notebook, GtkWidget *page, gi
             /* User clicked Cancel - abort tab switch, keep curve points as-is */
             g_print("%s [GUI] -> Tab switch cancelled by user\n", ts);
 
-            /* Stop the page switch immediately by forcing back to current page */
-            gtk_notebook_set_current_page(GTK_NOTEBOOK(notebook), current_page);
-
-            /* Stop further emission of this signal to prevent any side effects */
-            g_signal_stop_emission_by_name(G_OBJECT(notebook), "switch-page");
+            /* Stay on this page (and keep GTK's focus tab on it) */
+            notebook_refuse_switch(app, notebook, current_page, page_num);
 
             g_print("%s [GUI] -> Page switch cancelled, staying on page %d\n", ts, current_page);
 
@@ -7102,8 +7127,7 @@ static void on_notebook_page_switched(GtkNotebook *notebook, GtkWidget *page, gi
     /* Leaving the Keyboard tab: unsaved changes, then the active profile again (1.24.0) */
     if (current_page == PAGE_KEYBOARD && page_num != PAGE_KEYBOARD) {
         if (kbd_leave_tab(app) < 0) {
-            gtk_notebook_set_current_page(GTK_NOTEBOOK(notebook), current_page);
-            g_signal_stop_emission_by_name(G_OBJECT(notebook), "switch-page");
+            notebook_refuse_switch(app, notebook, current_page, page_num);
             return;
         }
     }
@@ -7111,8 +7135,7 @@ static void on_notebook_page_switched(GtkNotebook *notebook, GtkWidget *page, gi
     /* Leaving the CPU tab with unsaved profile changes (1.23.0) */
     if (current_page == PAGE_CPU && page_num != PAGE_CPU && cpu_profile_has_unsaved_changes(app)) {
         if (cpu_check_unsaved_changes(app) < 0) {
-            gtk_notebook_set_current_page(GTK_NOTEBOOK(notebook), current_page);
-            g_signal_stop_emission_by_name(G_OBJECT(notebook), "switch-page");
+            notebook_refuse_switch(app, notebook, current_page, page_num);
             return;
         }
     }
