@@ -11519,9 +11519,10 @@ int main(int argc, char *argv[]) {
     /* Check for another running instance before initializing GTK */
     int existing_pid = check_single_instance();
     if (existing_pid > 0) {
-        /* Started again from the menu: show the running GUI's window (1.40.0);
-         * a start with --minimized (autostart) leaves it in the tray */
-        if (start_flag != 1 && instance_send_show())
+        /* Started again: show the running GUI's window (1.40.0). Also with
+         * --minimized, which the menu entry has when "Start minimized" is
+         * on: the option is for a fresh start only */
+        if (instance_send_show())
             LOG_INFO("Already running (PID: %d): asked it to show its window", existing_pid);
         else
             LOG_INFO("Another instance already running (PID: %d)", existing_pid);

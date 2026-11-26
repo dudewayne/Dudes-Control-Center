@@ -14,9 +14,9 @@ It runs as the desktop user and talks to the daemons over their sockets, so
 the user must be a member of the group
 .BR dudes-control-center .
 Only one instance runs at a time; a second start opens the running one's
-window (with
-.B \-\-minimized
-it leaves it in the tray) and exits.
+window and exits (also with
+.BR \-\-minimized ,
+which only decides how a fresh start begins).
 Closing the window hides it; the application keeps running in the tray until
 .B Exit
 is chosen in the tray menu.
