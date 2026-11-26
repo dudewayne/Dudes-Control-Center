@@ -160,6 +160,21 @@ int main(void) {
     snprintf(want, sizeof want, "CPU_FAN_DUTY=%d\n", current_fan_duty);
     CHECK(strstr(resp, want) != NULL, "EC duty register reading 0 at 3011 RPM -> the daemon's duty is shown, not 0%");
 
+    /* 11. no fan control (no module, no allowed direct EC access, v1.41.0):
+     * monitoring only, nothing is written, not even the fail-safe */
+    CHECK(strstr(resp, "EC_DIRECT=disabled\n") && !strstr(resp, "EC_REASON="), "STATUS: EC_DIRECT reported, no reason while controlling");
+    monitor_only = 1;
+    m_writes = 0;
+    m_cpu = -1; steps(6);                /* sensor failure would normally force 100% */
+    m_cpu = 99; steps(3);                /* emergency temperature */
+    CHECK(m_writes == 0, "monitor only: no fan writes, also not for sensor failure or emergency");
+    CHECK(strncmp(cmd("SET_MANUAL 50\n"), "ERROR Fan control not available", 31) == 0, "monitor only: SET_MANUAL refused with the reason");
+    CHECK(m_writes == 0, "monitor only: refused command wrote nothing");
+    cmd("STATUS\n");
+    CHECK(strstr(resp, "EC_ACCESS=") && strstr(resp, "EC_REASON=") && strstr(resp, "GPU_STATE="),
+          "monitor only: STATUS carries EC_REASON and still the GPU state");
+    monitor_only = 0; m_cpu = 50;
+
     printf("\n%d failure(s)\n", fails);
     return fails != 0;
 }

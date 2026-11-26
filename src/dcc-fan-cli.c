@@ -64,7 +64,12 @@ static void print_status(int cpu_temp, int gpu_temp, int cpu_fan_rpm, int gpu_fa
     printf("%s\n", line);
     format_fan_text(line, sizeof line, "GPU Fan", gpu_fan_rpm, fan_duty_plausible(gd, gpu_fan_rpm) ? gd : -1);
     printf("%s\n", line);
-    printf("EC access: %s\n", ec_backend_module() ? "dcc_fan kernel module" : "direct port I/O");
+    if (ec_backend_module())
+        printf("EC access: dcc_fan kernel module\n");
+    else if (!strcmp(ec_backend_name(), "ports"))
+        printf("EC access: direct port I/O (enabled by the administrator; only safe on Clevo EC layouts)\n");
+    else
+        printf("EC access: none - %s (fan values unknown; the firmware controls the fans)\n", ec_init_reason());
     GpuInfo gi;
     int gs = gpu_info_get(&gi);
     if (gs == GPU_AWAKE && gi.power_w >= 0)
@@ -256,9 +261,17 @@ int main(int argc, char *argv[]) {
         }
     }
     
-    /* Initialize EC access */
-    if (ec_init() != 0) {
-        fprintf(stderr, "Error: Failed to initialize EC access. Run with sudo, or load the dcc_fan module.\n");
+    /* Initialize EC access: the dcc_fan module, or direct port I/O only if
+     * the administrator enabled it and the EC looks like a Clevo EC (1.41.0) */
+    int ec_state = ec_init();
+    if (ec_state != EC_INIT_OK && argc > 1) {
+        if (ec_state == EC_INIT_ERROR)
+            fprintf(stderr, "Error: Failed to initialize EC access (%s). Run with sudo, or load the dcc_fan module.\n",
+                    ec_init_reason());
+        else
+            fprintf(stderr, "Error: fan control is not available: %s.\n"
+                    "Direct EC access is meant for Clevo laptops without the Clevo WMI interface; on other\n"
+                    "laptops it can damage the hardware. See man dcc-component (ec-direct).\n", ec_init_reason());
         return EXIT_FAILURE;
     }
     

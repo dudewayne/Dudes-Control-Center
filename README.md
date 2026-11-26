@@ -22,7 +22,7 @@ A control center for Clevo-based notebooks on Linux: fan control through the Emb
 | `dcc-fan-daemon` | Fan control via EC I/O ports: fan curves (profiles), manual speed, safety overrides. systemd service with watchdog. |
 | `dcc-cpu-daemon` | CPU power modes (governor + energy preference), per-core frequency profiles, a hard frequency limit. |
 | `dcc-kbd-daemon` | Keyboard backlight: whole-keyboard and per-key colors, effects (Breathing, Rainbow, Wave), brightness, keyboard profiles. |
-| `dcc_fan` kernel module (DKMS) | Fans and temperatures through the kernel: EC access under the ACPI EC driver's lock, the real fan duty and fan speed setting through Clevo WMI, a watchdog, a standard hwmon device (`sensors`). The fan daemon and CLI use it when it is loaded and fall back to direct port I/O otherwise. Loads only on notebooks with Clevo's WMI interface. See `man dcc_fan` and [drivers/README.md](drivers/README.md). |
+| `dcc_fan` kernel module (DKMS) | Fans and temperatures through the kernel: EC access under the ACPI EC driver's lock, the real fan duty and fan speed setting through Clevo WMI, a watchdog, a standard hwmon device (`sensors`). The fan daemon and CLI use it when it is loaded; without it they use direct port I/O only if you switch that on (Settings, with a warning). Loads only on notebooks with Clevo's WMI interface. See `man dcc_fan` and [drivers/README.md](drivers/README.md). |
 | `ite_829x` kernel module (DKMS) | Driver for the ITE 829x keyboard controller: one RGB LED class device per key (`rgb:kbd_backlight*`). Written by **TUXEDO Computers** as part of [tuxedo-drivers](https://github.com/tuxedocomputers/tuxedo-drivers) (GPL-2.0-or-later), modified for this project; see [drivers/README.md](drivers/README.md). |
 | `dcc-hard-limit-enforcer` | systemd timer (every 10 s) that re-applies the CPU hard limit independently of the CPU daemon. |
 | `dcc-gui` | GTK3 GUI for everything above, with system tray icon. |
@@ -165,7 +165,9 @@ dcc-kbd-cli --show-profile "Gaming"
 6. **CPU hard limit**: a maximum frequency for all cores, enforced by the CPU daemon and, independently, by a systemd timer every 10 s.
 7. **Access control**: the daemons accept commands only from root and members of `dudes-control-center` (checked with `SO_PEERCRED`). Files in the user's home directory are read and written with the user's identity, never through symlinks. The Settings tab's component switches run the root helper `/usr/local/sbin/dcc-component` through polkit, which asks for the administrator password.
 
-`STATUS` of the fan daemon reports `FAILSAFE=1` while an override is active, and `EC_ACCESS=module` or `ports`.
+8. **Direct EC access only as an opt-in** (1.41.0): without the `dcc_fan` module (no Clevo WMI interface) the fan daemon writes nothing to the EC; it only monitors and the firmware controls the fans. Direct port I/O (0x62/0x66) has to be switched on in Settings → Components (**Direct EC access**), after a warning that has to be confirmed, with the administrator password (`dcc-component ec-direct enable`). On laptops with another EC layout these writes can damage the hardware. Even then, the EC is first read and the ports are refused unless it answers like a Clevo EC. While in use, the Status tab, `dcc-fan-cli` and the log say so.
+
+`STATUS` of the fan daemon reports `FAILSAFE=1` while an override is active, `EC_ACCESS=module`, `ports` or `none`, `EC_DIRECT=enabled` or `disabled`, and while monitoring only `EC_REASON=`.
 
 ## Configuration
 
@@ -271,9 +273,11 @@ sudo systemctl restart dcc-fan-daemon
 
 **The NVIDIA GPU never powers down (on-demand mode)**: Dudes Control Center does not wake it (it reads GPU values only while the GPU is awake), but every program that uses it keeps it on: the desktop itself, browsers, chat and game launchers. `cat /sys/bus/pci/devices/*/power/runtime_status` shows its state; the Status tab says "sleeping" when it is powered down.
 
+**"No fan control on this laptop"** (Status tab): the `dcc_fan` module did not load (no Clevo WMI interface) and direct EC access is off. That is the safe default: the firmware controls the fans. Only on a Clevo-based laptop, switch on **Direct EC access** in Settings; hover over the state there to see why it was refused if the EC check fails.
+
 **Zero or wrong temperatures, fans do not react**: your model may use a different EC layout or commands, or the BIOS may lock fan control.
 
-**Is the `dcc_fan` module in use?** `lsmod | grep dcc_fan`, `dcc-fan-cli` (line "EC access") or `sensors dcc_fan-*`. It loads only where Clevo's WMI interface exists (`modprobe dcc_fan force=1` tries it anyway); without it the fan daemon works as before with direct port I/O, which kernel lockdown (Secure Boot) does not allow.
+**Is the `dcc_fan` module in use?** `lsmod | grep dcc_fan`, `dcc-fan-cli` (line "EC access") or `sensors dcc_fan-*`. It loads only where Clevo's WMI interface exists (`modprobe dcc_fan force=1` tries it anyway); without it the fan daemon only monitors (the firmware controls the fans) unless **Direct EC access** is switched on in Settings, which kernel lockdown (Secure Boot) does not allow anyway.
 
 **Test the connection to a daemon:**
 ```bash

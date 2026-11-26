@@ -1,5 +1,5 @@
 .\" SPDX-License-Identifier: GPL-2.0-only
-.TH DCC_FAN 4 2026-11-25 "Dudes Control Center @VERSION@" "Kernel Interfaces"
+.TH DCC_FAN 4 2026-11-26 "Dudes Control Center @VERSION@" "Kernel Interfaces"
 .nh
 .SH NAME
 dcc_fan \- fan and temperature kernel module for Clevo notebooks
@@ -20,8 +20,11 @@ instead of the programs writing to the embedded controller's I/O ports
 The package builds it with DKMS (together with
 .BR ite_829x )
 and loads it at boot.
-The programs use it when it is loaded and fall back to direct port I/O
-otherwise; their status shows which is in use.
+The programs use it when it is loaded; without it they use direct port I/O
+only if the administrator allowed it
+.RB ( "dcc-component ec-direct enable" )
+and the EC answers like a Clevo EC.
+Their status shows which is in use.
 .PP
 Compared with port I/O from user space:
 .IP \(bu 2

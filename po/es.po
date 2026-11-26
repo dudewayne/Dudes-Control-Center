@@ -1051,6 +1051,54 @@ msgstr "No se pudo cargar esta distribución de teclado"
 msgid "Keyboard layout changed"
 msgstr "Distribución de teclado cambiada"
 
+msgid "No fan control on this laptop: the firmware controls the fans."
+msgstr "Sin control de ventiladores en este portátil: el firmware controla los ventiladores."
+
+msgid "CPU Fan: --"
+msgstr "Ventilador CPU: --"
+
+msgid "GPU Fan: --"
+msgstr "Ventilador GPU: --"
+
+msgid "Direct EC access (switched on in Settings; only safe on Clevo laptops)"
+msgstr "Acceso directo al EC (activado en Configuración; solo seguro en portátiles Clevo)"
+
+msgid "Not needed: dcc_fan module in use"
+msgstr "No necesario: módulo dcc_fan en uso"
+
+msgid "On, in use"
+msgstr "Activado, en uso"
+
+msgid "On, refused: the EC check failed"
+msgstr "Activado, rechazado: la comprobación del EC falló"
+
+msgid "Off: no fan control"
+msgstr "Desactivado: sin control de ventiladores"
+
+msgid "On"
+msgstr "Activado"
+
+msgid "Off"
+msgstr "Desactivado"
+
+msgid "Direct EC access switched on - the fan daemon was restarted"
+msgstr "Acceso directo al EC activado: se reinició el servicio de ventiladores"
+
+msgid "Direct EC access switched off - the fan daemon was restarted"
+msgstr "Acceso directo al EC desactivado: se reinició el servicio de ventiladores"
+
+msgid "Switch on direct EC access?"
+msgstr "¿Activar el acceso directo al EC?"
+
+msgid "<b>This can damage your laptop.</b> The fan daemon would then write directly to the Embedded Controller through the I/O ports 0x62/0x66, using the register layout of Clevo laptops. On a laptop with a different layout, these writes can change charging, power or thermal settings, stop the fans or overheat the hardware.\n\nOnly use it on a Clevo-based laptop where the dcc_fan module does not load. Before the first write, the daemon checks that the EC answers like a Clevo EC and refuses otherwise, but this check cannot rule out every risk.\n\nYou use it at your own risk."
+msgstr "<b>Esto puede dañar su portátil.</b> El servicio de ventiladores escribiría directamente en el Embedded Controller a través de los puertos de E/S 0x62/0x66, con la distribución de registros de los portátiles Clevo. En un portátil con otra distribución, estas escrituras pueden cambiar ajustes de carga, energía o temperatura, detener los ventiladores o sobrecalentar el hardware.\n\nÚselo solo en un portátil basado en Clevo en el que el módulo dcc_fan no se cargue. Antes de la primera escritura, el servicio comprueba que el EC responde como un EC de Clevo y, si no, lo rechaza, pero esta comprobación no puede descartar todos los riesgos.\n\nLo usa bajo su propia responsabilidad."
+
+msgid "Switch on"
+msgstr "Activar"
+
+msgid "I understand the risk and use this on a Clevo-based laptop"
+msgstr "Entiendo el riesgo y lo uso en un portátil basado en Clevo"
+
 msgid "Components"
 msgstr "Componentes"
 
@@ -1072,6 +1120,12 @@ msgstr "Daemon de CPU y temporizador del límite máximo, pestaña Perfiles de C
 
 msgid "Keyboard daemon, Keyboard Backlight tab, keyboard profiles in the tray menu. The LEDs keep their last colors."
 msgstr "Daemon del teclado, pestaña Retroiluminación del teclado, perfiles de teclado en el menú de la bandeja. Los LED conservan sus últimos colores."
+
+msgid "Direct EC access (unsupported hardware)"
+msgstr "Acceso directo al EC (hardware no compatible)"
+
+msgid "Only for Clevo-based laptops where the dcc_fan module does not load. The fan daemon then writes directly to the Embedded Controller; on other laptops this can damage the hardware. Off: without the module, the firmware controls the fans."
+msgstr "Solo para portátiles basados en Clevo en los que el módulo dcc_fan no se carga. El servicio de ventiladores escribe entonces directamente en el Embedded Controller; en otros portátiles esto puede dañar el hardware. Desactivado: sin el módulo, el firmware controla los ventiladores."
 
 msgid "Switching asks for the administrator password and takes effect right away. The setting applies to the whole system and stays after reboots and updates."
 msgstr "Al cambiar se pide la contraseña de administrador y el cambio se aplica de inmediato. El ajuste afecta a todo el sistema y se mantiene tras reinicios y actualizaciones."

@@ -860,6 +860,31 @@ int main(int argc, char **argv) {
         CHECK(!ci.hybrid && !strcmp(t, "Intel Core Test 1234H") && !ci.type[0], "N: not hybrid: name only, no P/E labels");
     }
 
+    /* O: fan control state from the fan daemon (v1.41.0) */
+    if (gtk_init_check(NULL, NULL)) {
+        static AppData ea;
+        ea.socket_fd = ea.cpu_socket_fd = ea.kbd_socket_fd = -1;
+        GtkWidget *ew = gtk_offscreen_window_new();
+        gtk_container_add(GTK_CONTAINER(ew), create_status_page(&ea));
+        gtk_widget_show_all(ew);
+        parse_status(&ea, "STATUS OK\nCPU_TEMP=48\nGPU_TEMP=0\nCPU_FAN_RPM=0\nGPU_FAN_RPM=0\nFAN_DUTY=50\nAUTO_MODE=1\n"
+                          "EC_ACCESS=none\nEC_DIRECT=disabled\nEC_REASON=no dcc_fan module and direct EC access is not enabled\nGPU_STATE=none\n");
+        gchar *tip = gtk_widget_get_tooltip_text(ea.fan_ec_label);
+        CHECK(gtk_widget_get_visible(ea.fan_ec_label) && strstr(gtk_label_get_text(GTK_LABEL(ea.fan_ec_label)), "firmware") &&
+              tip && strstr(tip, "not enabled"), "O: no EC access -> 'firmware controls the fans', the reason as tooltip");
+        g_free(tip);
+        CHECK(!gtk_widget_get_visible(ea.manual_row) && !strcmp(gtk_label_get_text(GTK_LABEL(ea.cpu_fan_rpm_label)), "CPU Fan: --"),
+              "O: no EC access -> manual row hidden, fan values unknown");
+        parse_status(&ea, "STATUS OK\nCPU_TEMP=48\nCPU_FAN_RPM=3000\nAUTO_MODE=1\nEC_ACCESS=ports\nEC_DIRECT=enabled\nGPU_STATE=none\n");
+        CHECK(gtk_widget_get_visible(ea.fan_ec_label) && strstr(gtk_label_get_text(GTK_LABEL(ea.fan_ec_label)), "Direct EC access") &&
+              gtk_widget_get_visible(ea.manual_row), "O: direct EC access -> shown in Fan Speed, manual row back");
+        parse_status(&ea, "STATUS OK\nCPU_TEMP=48\nCPU_FAN_RPM=3000\nAUTO_MODE=1\nEC_ACCESS=module\nGPU_STATE=none\n");
+        CHECK(!gtk_widget_get_visible(ea.fan_ec_label) && gtk_widget_get_visible(ea.manual_row), "O: dcc_fan module -> no note");
+        gtk_widget_destroy(ew);
+    } else {
+        printf("SKIP  O: no display\n");
+    }
+
     /* P: Status tab power, battery, NVMe, GPU (v1.37.0) */
     {
         g_mkdir_with_parents("ps/BAT0", 0755);

@@ -1028,6 +1028,54 @@ msgstr "Dieses Tastaturlayout konnte nicht geladen werden"
 msgid "Keyboard layout changed"
 msgstr "Tastaturlayout geändert"
 
+msgid "No fan control on this laptop: the firmware controls the fans."
+msgstr "Keine Lüftersteuerung auf diesem Laptop: Die Firmware steuert die Lüfter."
+
+msgid "CPU Fan: --"
+msgstr "CPU-Lüfter: --"
+
+msgid "GPU Fan: --"
+msgstr "GPU-Lüfter: --"
+
+msgid "Direct EC access (switched on in Settings; only safe on Clevo laptops)"
+msgstr "Direkter EC-Zugriff (in den Einstellungen eingeschaltet; nur auf Clevo-Laptops sicher)"
+
+msgid "Not needed: dcc_fan module in use"
+msgstr "Nicht nötig: dcc_fan-Modul in Verwendung"
+
+msgid "On, in use"
+msgstr "Ein, in Verwendung"
+
+msgid "On, refused: the EC check failed"
+msgstr "Ein, abgelehnt: EC-Prüfung fehlgeschlagen"
+
+msgid "Off: no fan control"
+msgstr "Aus: keine Lüftersteuerung"
+
+msgid "On"
+msgstr "Ein"
+
+msgid "Off"
+msgstr "Aus"
+
+msgid "Direct EC access switched on - the fan daemon was restarted"
+msgstr "Direkter EC-Zugriff eingeschaltet – der Lüfter-Daemon wurde neu gestartet"
+
+msgid "Direct EC access switched off - the fan daemon was restarted"
+msgstr "Direkter EC-Zugriff ausgeschaltet – der Lüfter-Daemon wurde neu gestartet"
+
+msgid "Switch on direct EC access?"
+msgstr "Direkten EC-Zugriff einschalten?"
+
+msgid "<b>This can damage your laptop.</b> The fan daemon would then write directly to the Embedded Controller through the I/O ports 0x62/0x66, using the register layout of Clevo laptops. On a laptop with a different layout, these writes can change charging, power or thermal settings, stop the fans or overheat the hardware.\n\nOnly use it on a Clevo-based laptop where the dcc_fan module does not load. Before the first write, the daemon checks that the EC answers like a Clevo EC and refuses otherwise, but this check cannot rule out every risk.\n\nYou use it at your own risk."
+msgstr "<b>Das kann Ihren Laptop beschädigen.</b> Der Lüfter-Daemon schreibt dann über die I/O-Ports 0x62/0x66 direkt in den Embedded Controller, mit der Registerbelegung von Clevo-Laptops. Auf einem Laptop mit anderer Belegung können diese Schreibzugriffe Lade-, Energie- oder Temperatureinstellungen ändern, die Lüfter anhalten oder die Hardware überhitzen.\n\nNur auf einem Clevo-basierten Laptop verwenden, auf dem das dcc_fan-Modul nicht lädt. Vor dem ersten Schreiben prüft der Daemon, ob der EC wie ein Clevo-EC antwortet, und lehnt sonst ab – diese Prüfung kann aber nicht jedes Risiko ausschließen.\n\nDie Verwendung erfolgt auf eigene Gefahr."
+
+msgid "Switch on"
+msgstr "Einschalten"
+
+msgid "I understand the risk and use this on a Clevo-based laptop"
+msgstr "Ich verstehe das Risiko und verwende dies auf einem Clevo-basierten Laptop"
+
 msgid "Components"
 msgstr "Komponenten"
 
@@ -1049,6 +1097,12 @@ msgstr "CPU-Daemon und Hardlimit-Timer, Tab CPU-Profile, CPU-Profile im Tray-Men
 
 msgid "Keyboard daemon, Keyboard Backlight tab, keyboard profiles in the tray menu. The LEDs keep their last colors."
 msgstr "Tastatur-Daemon, Tab Tastaturbeleuchtung, Tastaturprofile im Tray-Menü. Die LEDs behalten ihre letzten Farben."
+
+msgid "Direct EC access (unsupported hardware)"
+msgstr "Direkter EC-Zugriff (nicht unterstützte Hardware)"
+
+msgid "Only for Clevo-based laptops where the dcc_fan module does not load. The fan daemon then writes directly to the Embedded Controller; on other laptops this can damage the hardware. Off: without the module, the firmware controls the fans."
+msgstr "Nur für Clevo-basierte Laptops, auf denen das dcc_fan-Modul nicht lädt. Der Lüfter-Daemon schreibt dann direkt in den Embedded Controller; auf anderen Laptops kann das die Hardware beschädigen. Aus: Ohne das Modul steuert die Firmware die Lüfter."
 
 msgid "Switching asks for the administrator password and takes effect right away. The setting applies to the whole system and stays after reboots and updates."
 msgstr "Das Umschalten fragt nach dem Administratorpasswort und wirkt sofort. Die Einstellung gilt systemweit und bleibt nach Neustarts und Updates erhalten."

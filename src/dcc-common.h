@@ -37,9 +37,22 @@
 /* --- Function prototypes for EC access --- */
 /* EC access: the dcc_fan kernel module's hwmon device when it is loaded
  * (no root needed for reading), else port I/O 0x62/0x66 (root) */
-int ec_init(void);
+/* Direct port I/O only after the opt-in (1.41.0): on a laptop with another
+ * EC layout, writes to 0x62/0x66 can hit registers for charging, power or
+ * thermal limits. The opt-in is the file DCC_EC_DIRECT_FILE containing
+ * "enabled", written by "dcc-component ec-direct enable" (root). */
+#ifndef DCC_EC_DIRECT_FILE
+#define DCC_EC_DIRECT_FILE "/etc/dudes-control-center/ec-direct-access"
+#endif
+enum { EC_INIT_OK = 0, EC_INIT_ERROR = -1, EC_INIT_DISABLED = -2, EC_INIT_IMPLAUSIBLE = -3 };
+int ec_init(void);                 /* EC_INIT_*: module, or opt-in + plausible ports */
 void ec_cleanup(void);
-int ec_backend_module(void);       /* 1: dcc_fan module, 0: port I/O */
+int ec_backend_module(void);       /* 1: dcc_fan module, 0: port I/O or none */
+const char *ec_backend_name(void); /* "module", "ports" or "none" */
+const char *ec_init_reason(void);  /* why direct access is not used ("" if it is) */
+int ec_direct_allowed(void);       /* the opt-in file says "enabled" */
+int cpu_temp_hwmon(void);          /* coretemp/k10temp package temperature, -1 if none */
+int ec_values_plausible(const int t[3], int ref, int r1, int r2, char *why, size_t n);   /* 1: Clevo-like */
 int fan_keepalive(void);           /* module: rewrite the last duty (watchdog) */
 uint8_t ec_io_read(const uint32_t port);                       /* returns 0 if the EC does not answer */
 int ec_io_read_checked(const uint32_t port, uint8_t *value);  /* 0 on success, -1 on EC timeout */

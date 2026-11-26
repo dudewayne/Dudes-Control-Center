@@ -34,7 +34,8 @@
 #define DCC_HWMON_DIR "/sys/class/hwmon"
 #endif
 static char g_kmod[512];        /* hwmon dir of dcc_fan, "" = port I/O */
-static int g_ports_ok;          /* ioperm done */
+static int g_ports_ok;          /* ioperm done and the EC looked plausible */
+static char g_reason[200];      /* why there is no direct access (1.41.0) */
 static int g_last_raw = -1;     /* last duty written (0-255), for fan_keepalive */
 
 static int kmod_find(void) {
@@ -73,13 +74,49 @@ static int ports_init(void) {
     return 0;
 }
 
-/* The module went away (rmmod, package update): back to port I/O */
+static int ports_plausible(char *why, size_t n);
+
+/* Opt-in for direct port I/O (1.41.0) */
+int ec_direct_allowed(void) {
+    char buf[32] = "";
+    FILE *f = fopen(DCC_EC_DIRECT_FILE, "r");
+    if (!f) return 0;
+    if (!fgets(buf, sizeof buf, f)) buf[0] = '\0';
+    fclose(f);
+    buf[strcspn(buf, " \t\r\n")] = '\0';
+    return strcmp(buf, "enabled") == 0;
+}
+
+/* Port I/O only with the opt-in and an EC that answers like a Clevo EC */
+static int ports_start(void) {
+    if (g_ports_ok) return EC_INIT_OK;
+    if (!ec_direct_allowed()) {
+        snprintf(g_reason, sizeof g_reason, "no dcc_fan module (no Clevo WMI interface) and direct EC access is not enabled");
+        return EC_INIT_DISABLED;
+    }
+    if (ports_init() != 0) {
+        snprintf(g_reason, sizeof g_reason, "no I/O permission for the EC ports (not root, or kernel lockdown)");
+        return EC_INIT_ERROR;
+    }
+    char why[160] = "";
+    if (!ports_plausible(why, sizeof why)) {
+        ec_cleanup();
+        snprintf(g_reason, sizeof g_reason, "direct EC access refused: %s", why);
+        return EC_INIT_IMPLAUSIBLE;
+    }
+    g_reason[0] = '\0';
+    return EC_INIT_OK;
+}
+
+/* The module went away (rmmod, package update): port I/O if allowed */
 static void kmod_lost(void) {
     if (!g_kmod[0]) return;
     g_kmod[0] = '\0';
     if (kmod_find()) return;                  /* reloaded (package update): new hwmonN */
-    fprintf(stderr, "dcc_fan module no longer available, using port I/O\n");
-    ports_init();
+    if (ports_start() == EC_INIT_OK)
+        fprintf(stderr, "dcc_fan module no longer available, using direct port I/O (enabled by the administrator)\n");
+    else
+        fprintf(stderr, "dcc_fan module no longer available, no fan control: %s\n", g_reason);
 }
 
 static int kmod_read(const char *attr, long *val) {
@@ -106,6 +143,36 @@ static int kmod_write(const char *attr, long val) {
 }
 
 int ec_backend_module(void) { return g_kmod[0] != '\0'; }
+const char *ec_backend_name(void) { return g_kmod[0] ? "module" : g_ports_ok ? "ports" : "none"; }
+const char *ec_init_reason(void) { return g_reason; }
+
+/* CPU package temperature from the standard drivers (coretemp, k10temp,
+ * zenpower): used when there is no EC access (1.41.0) */
+int cpu_temp_hwmon(void) {
+    DIR *d = opendir(DCC_HWMON_DIR);
+    if (!d) return -1;
+    struct dirent *de;
+    int t = -1;
+    while (t < 0 && (de = readdir(d)) != NULL) {
+        if (strncmp(de->d_name, "hwmon", 5) != 0) continue;
+        char path[600], name[32] = "";
+        snprintf(path, sizeof path, "%s/%s/name", DCC_HWMON_DIR, de->d_name);
+        FILE *f = fopen(path, "r");
+        if (!f) continue;
+        if (fgets(name, sizeof name, f)) name[strcspn(name, "\n")] = '\0';
+        fclose(f);
+        if (strcmp(name, "coretemp") && strcmp(name, "k10temp") && strcmp(name, "zenpower")) continue;
+        snprintf(path, sizeof path, "%s/%s/temp1_input", DCC_HWMON_DIR, de->d_name);
+        f = fopen(path, "r");
+        if (!f) continue;
+        long mc;
+        if (fscanf(f, "%ld", &mc) == 1 && mc / 1000 >= TEMP_MIN_VALID_C && mc / 1000 <= TEMP_MAX_VALID_C)
+            t = (int)(mc / 1000);
+        fclose(f);
+    }
+    closedir(d);
+    return t;
+}
 
 /* --- EC I/O helper functions --- */
 
@@ -121,8 +188,8 @@ static int ec_io_wait(const uint32_t port, const uint32_t flag, const char value
 }
 
 int ec_init(void) {
-    if (kmod_find()) return 0;
-    return ports_init();
+    if (kmod_find()) { g_reason[0] = '\0'; return EC_INIT_OK; }
+    return ports_start();
 }
 
 void ec_cleanup(void) {
@@ -134,6 +201,7 @@ void ec_cleanup(void) {
 }
 
 int ec_io_read_checked(const uint32_t port, uint8_t *value) {
+    if (!g_ports_ok) return -1;   /* no direct access (1.41.0): never touch the ports */
     /* Every handshake step must succeed; otherwise the byte on the data
      * port is stale or garbage and must not be used. */
     if (ec_io_wait(EC_SC, IBF, 0) != 0) return -1;
@@ -156,6 +224,7 @@ uint8_t ec_io_read(const uint32_t port) {
 }
 
 int ec_io_do(const uint32_t cmd, const uint32_t port, const uint8_t value) {
+    if (!g_ports_ok) return -1;   /* no direct access (1.41.0) */
     if (ec_io_wait(EC_SC, IBF, 0) != 0) return -1;
     outb(cmd, EC_SC);
 
@@ -177,6 +246,7 @@ int get_cpu_temp(void) {
         int t = (int)(mc / 1000);
         return (t < TEMP_MIN_VALID_C || t > TEMP_MAX_VALID_C) ? -1 : t;
     }
+    if (!ec_backend_module() && !g_ports_ok) return cpu_temp_hwmon();   /* no EC access (1.41.0) */
     if (ec_backend_module() || ec_io_read_checked(EC_REG_CPU_TEMP, &temp) != 0) {
         return -1; /* EC did not answer */
     }
@@ -469,7 +539,7 @@ int set_fan_duty(int pct) {
             return 0;
         }
     }
-    if (!g_ports_ok && ports_init() != 0) return -1;
+    if (!g_ports_ok) return -1;   /* no module, no (allowed and plausible) direct access */
 
     /* Set both fans to the same duty */
     if (ec_io_do(0x99, 0x01, (uint8_t)v) != 0) {
@@ -483,6 +553,51 @@ int set_fan_duty(int pct) {
     usleep(500 * 1000);
     g_last_raw = v;
     return 0;
+}
+
+/* Before any write through the ports (1.41.0): the EC must answer every
+ * handshake and its Clevo registers must hold sensible values - a CPU
+ * temperature that is steady over three reads (and close to the CPU's own
+ * sensor, if there is one) and fan speeds that are 0 or in a fan's range.
+ * Only reads; on another EC layout these registers hold other data and the
+ * check fails. */
+/* The rules (testable without an EC): t[3] = three reads of the CPU
+ * temperature register, ref = the CPU's own sensor (-1 none), r1/r2 = fan
+ * speeds from the RPM registers */
+int ec_values_plausible(const int t[3], int ref, int r1, int r2, char *why, size_t n) {
+    int lo = t[0], hi = t[0];
+    for (int i = 1; i < 3; i++) { if (t[i] < lo) lo = t[i]; if (t[i] > hi) hi = t[i]; }
+    if (lo < TEMP_MIN_VALID_C || hi > TEMP_MAX_VALID_C || hi - lo > 10) {
+        snprintf(why, n, "the CPU temperature register reads %d, %d, %d (not a steady temperature)", t[0], t[1], t[2]);
+        return 0;
+    }
+    if (ref > 0 && abs(ref - t[2]) > 20) {
+        snprintf(why, n, "the CPU temperature register reads %d degC, the CPU's sensor %d degC", t[2], ref);
+        return 0;
+    }
+    if ((r1 != 0 && (r1 < 200 || r1 > 10000)) || (r2 != 0 && (r2 < 200 || r2 > 10000))) {
+        snprintf(why, n, "the fan speed registers read %d and %d RPM (not a fan speed)", r1, r2);
+        return 0;
+    }
+    return 1;
+}
+
+static int ports_plausible(char *why, size_t n) {
+    int t[3];
+    g_ports_ok = 1;   /* the read helpers need it */
+    for (int i = 0; i < 3; i++) {
+        uint8_t v;
+        if (ec_io_read_checked(EC_REG_CPU_TEMP, &v) != 0) {
+            g_ports_ok = 0;
+            snprintf(why, n, "the EC at ports 0x62/0x66 does not answer");
+            return 0;
+        }
+        t[i] = v;
+        if (i < 2) usleep(150 * 1000);
+    }
+    int ok = ec_values_plausible(t, cpu_temp_hwmon(), get_cpu_fan_rpm(), get_gpu_fan_rpm(), why, n);
+    if (!ok) g_ports_ok = 0;
+    return ok;
 }
 
 /* Write the last duty again, so the module's watchdog knows the controlling

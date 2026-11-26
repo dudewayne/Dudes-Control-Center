@@ -1,5 +1,5 @@
 .\" SPDX-License-Identifier: GPL-2.0-only
-.TH DCC-FAN-CLI 1 2026-11-22 "Dudes Control Center @VERSION@" "User Commands"
+.TH DCC-FAN-CLI 1 2026-11-26 "Dudes Control Center @VERSION@" "User Commands"
 .nh
 .SH NAME
 dcc-fan-cli \- show and set the notebook fan speed
@@ -32,7 +32,18 @@ read and write the embedded controller (EC).
 With the
 .BR dcc_fan (4)
 module loaded they go through it, and the status needs no root; otherwise
-they use the I/O ports directly and need root.
+they use the I/O ports directly, which needs root and the administrator's
+opt-in
+.RB ( "dcc-component ec-direct enable" ,
+see
+.BR dcc-component (8)),
+and only if the EC answers like a Clevo EC.
+Without EC access the status shows the CPU temperature from coretemp or
+k10temp and the reason, and
+.B \-\-set
+and
+.B \-\-auto
+fail.
 Setting the speed always needs root.
 The status names the method (\(lqEC access\(rq).
 .B \-\-log\-level

@@ -56,19 +56,45 @@ static void fake_module(const char *dir) {
 int main(void) {
     int root = geteuid() == 0;
 
-    /* no module: port I/O (needs root, so it fails here) */
+    /* Direct EC access only with the opt-in (v1.41.0): DCC_EC_DIRECT_FILE = "ecdirect" */
+    CHECK(!ec_direct_allowed(), "no opt-in file -> direct EC access not allowed");
+    CHECK(ec_init() == EC_INIT_DISABLED && !ec_backend_module() && !strcmp(ec_backend_name(), "none") &&
+          strstr(ec_init_reason(), "not enabled"),
+          "no module, no opt-in -> EC_INIT_DISABLED, backend none, reason says why (ports never touched)");
+    CHECK(set_fan_duty(50) == -1, "no EC access -> no fan write");
+    CHECK(get_cpu_fan_rpm() == 0 && get_cpu_fan_duty() == -1, "no EC access -> fan values unknown, ports not read");
+    put_abs("ecdirect", "yes\n");
+    CHECK(!ec_direct_allowed() && ec_init() == EC_INIT_DISABLED, "opt-in file must say \"enabled\"");
+    put_abs("ecdirect", "enabled\n");
+    CHECK(ec_direct_allowed(), "opt-in file \"enabled\" -> allowed");
     if (!root) {
-        CHECK(ec_init() != 0 && !ec_backend_module(), "without the module and root: no EC access (port I/O refused)");
+        CHECK(ec_init() == EC_INIT_ERROR && !strcmp(ec_backend_name(), "none"),
+              "opt-in but no root -> port I/O refused (ioperm), backend none");
     } else {
         printf("SKIP  port I/O refusal (running as root)\n");
     }
+    unlink("ecdirect");
+
+    /* plausibility rules before any port write (v1.41.0) */
+    char why[200];
+    int ok3[3] = { 52, 53, 52 }, jump[3] = { 52, 90, 30 }, low[3] = { 0, 0, 0 }, ff[3] = { 255, 255, 255 };
+    CHECK(ec_values_plausible(ok3, 55, 3400, 0, why, sizeof why), "Clevo-like values (steady temperature, a fan speed, a fan off) pass");
+    CHECK(!ec_values_plausible(jump, -1, 0, 0, why, sizeof why) && strstr(why, "steady"), "jumping temperature register refused");
+    CHECK(!ec_values_plausible(low, -1, 0, 0, why, sizeof why), "register reads 0 -> refused");
+    CHECK(!ec_values_plausible(ff, -1, 0, 0, why, sizeof why), "register reads 255 (no such register) -> refused");
+    CHECK(!ec_values_plausible(ok3, 85, 0, 0, why, sizeof why) && strstr(why, "sensor"), "far from the CPU's own sensor -> refused");
+    CHECK(!ec_values_plausible(ok3, -1, 65000, 0, why, sizeof why) && strstr(why, "RPM"), "fan register not a fan speed -> refused");
+    CHECK(!ec_values_plausible(ok3, -1, 3000, 90, why, sizeof why), "second fan register not a fan speed -> refused");
 
     /* another hwmon device first, then the module */
     mkdir("hwmon", 0755);
     mkdir("hwmon/hwmon0", 0755);
     put("hwmon0", "name", "coretemp\n");
+    put("hwmon0", "temp1_input", "47000\n");
+    CHECK(cpu_temp_hwmon() == 47 && get_cpu_temp() == 47, "no EC access: CPU temperature from coretemp (v1.41.0)");
     fake_module("hwmon7");
-    CHECK(ec_init() == 0 && ec_backend_module(), "dcc_fan hwmon device found and used, no root needed");
+    CHECK(ec_init() == 0 && ec_backend_module() && !strcmp(ec_backend_name(), "module"),
+          "dcc_fan hwmon device found and used, no root needed");
 
     CHECK(get_cpu_temp() == 55, "CPU temperature from temp1_input");
     CHECK(get_cpu_fan_rpm() == 3428 && get_gpu_fan_rpm() == 3291, "fan RPM from fan1_input/fan2_input");
@@ -87,10 +113,11 @@ int main(void) {
     get_cpu_fan_rpm();                      /* notices the old path is gone */
     CHECK(ec_backend_module() && get_cpu_fan_rpm() == 3428, "reloaded module found again (new hwmon number)");
 
-    /* module removed: back to port I/O */
+    /* module removed: port I/O only with the opt-in (v1.41.0) */
     rename("hwmon/hwmon9", "hwmon/gone");
     get_cpu_fan_rpm();
-    CHECK(!ec_backend_module(), "module removed: the backend switches back to port I/O");
+    CHECK(!ec_backend_module() && !strcmp(ec_backend_name(), "none") && set_fan_duty(50) == -1,
+          "module removed without opt-in: no EC access, no writes");
 
     /* NVIDIA GPU (v1.37.0): nvidia-smi only while the GPU is awake */
     GpuInfo g;

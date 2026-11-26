@@ -1,5 +1,5 @@
 .\" SPDX-License-Identifier: GPL-2.0-only
-.TH DCC-COMPONENT 8 2026-11-22 "Dudes Control Center @VERSION@" "System Administration"
+.TH DCC-COMPONENT 8 2026-11-26 "Dudes Control Center @VERSION@" "System Administration"
 .nh
 .SH NAME
 dcc-component \- switch parts of Dudes Control Center on or off
@@ -7,6 +7,9 @@ dcc-component \- switch parts of Dudes Control Center on or off
 .B dcc-component
 .BR enable | disable
 .BR fan | cpu | keyboard
+.br
+.B dcc-component ec\-direct
+.BR enable | disable
 .br
 .B dcc-component status
 .SH DESCRIPTION
@@ -31,9 +34,31 @@ on that file, so systemd does not start them again.
 .B enable
 Removes the flag file and starts the units.
 .TP
+.B ec\-direct enable\fR|\fBdisable
+Allows or forbids direct EC access through the I/O ports 0x62/0x66 for
+laptops where the
+.BR dcc_fan (4)
+module does not load (no Clevo WMI interface), then restarts the fan daemon
+(unless fan control is switched off).
+It is off by default: without the module and without this, the fan daemon only
+monitors, the firmware controls the fans and nothing is written to the EC.
+.IP
+.B Warning:
+the ports are written with the register layout of Clevo laptops. On a laptop
+with another layout these writes can change charging, power or thermal
+settings, stop the fans or overheat the hardware. Use it only on Clevo-based
+laptops, at your own risk. Even when allowed, the daemon and
+.BR dcc-fan-cli (1)
+first read the EC and refuse the ports unless it answers like a Clevo EC
+(steady CPU temperature register, close to the CPU's own sensor; fan speed
+registers in a fan's range).
+The GUI's switch asks for a confirmed warning first.
+.TP
 .B status
 Prints one line per part:
-.IR component " " enabled | disabled .
+.IR component " " enabled | disabled ,
+and
+.BR "ec-direct enabled" | disabled .
 Needs no root.
 .SS Units per part
 .TP
@@ -56,6 +81,11 @@ fail-safe); after the reboot the firmware controls them.
 .TP
 .IR /etc/dudes-control-center/disabled-fan ", " disabled-cpu ", " disabled-keyboard
 Flag files.
+.TP
+.I /etc/dudes-control-center/ec-direct-access
+Contains
+.B enabled
+while direct EC access is allowed.
 .TP
 .I /usr/share/polkit-1/actions/org.dudes-control-center.component.policy
 polkit action.

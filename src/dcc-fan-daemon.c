@@ -114,7 +114,13 @@ static double monotonic_seconds(void) {
 
 /* Write a duty to the EC. current_fan_duty only changes if the write worked,
  * so a failed write is retried on the next control step. */
+/* No dcc_fan module and no (allowed, plausible) direct EC access (1.41.0):
+ * the daemon only reports temperatures; the firmware controls the fans and
+ * nothing is written */
+static int monitor_only;
+
 static int apply_fan_duty(int pct) {
+    if (monitor_only) return -1;
     pct = clamp(pct, 0, 100);
     if (set_fan_duty(pct) != 0) {
         LOG_ERROR("Failed to write fan duty %d%% to EC (EC not responding)", pct);
@@ -423,17 +429,24 @@ static int handle_command(const char *cmd, char *response, size_t resp_size) {
             "FAILSAFE=%d\n"
             "EMERGENCY_AUTO=%d\n"
             "EC_ACCESS=%s\n"
-            "%s",
+            "EC_DIRECT=%s\n"
+            "%s%s%s",
             cpu_temp, gpu_temp, cpu_fan_rpm, gpu_fan_rpm, fan_duty,
             status_fan_duty(get_cpu_fan_duty(), cpu_fan_rpm, "CPU"),
             status_fan_duty(get_gpu_fan_duty(), gpu_fan_rpm, "GPU"), auto_mode_enabled,
             override_reason != OVERRIDE_NONE ? 1 : 0, emergency_auto_count,
-            ec_backend_module() ? "module" : "ports", gpu_status);
+            ec_backend_name(), ec_direct_allowed() ? "enabled" : "disabled",
+            monitor_only ? "EC_REASON=" : "", monitor_only ? ec_init_reason() : "", monitor_only ? "\n" : "");
+        strncat(response, gpu_status, resp_size - strlen(response) - 1);
         return 0;
     }
     
     /* Command: SET_MANUAL <percentage> */
     if (strcmp(action, "SET_MANUAL") == 0) {
+        if (monitor_only) {
+            snprintf(response, resp_size, "ERROR Fan control not available: %s\n", ec_init_reason());
+            return -1;
+        }
         int pct = atoi(arg1);
         if (pct < 0 || pct > 100) {
             snprintf(response, resp_size, "ERROR Invalid percentage\n");
@@ -989,6 +1002,8 @@ static void fan_control_step(void) {
     static int ring[3] = {-1, -1, -1};
     static int ring_idx = 0, ring_filled = 0;
 
+    if (monitor_only) return;   /* nothing to control, nothing written (1.41.0) */
+
     /* dcc_fan module (1.36.0): rewrite the duty every step, so its watchdog
      * (fans to 100% without updates) knows the daemon is alive */
     if (fan_keepalive() != 0) LOG_WARN("dcc_fan: keepalive write failed");
@@ -1213,12 +1228,20 @@ int main(int argc, char *argv[]) {
     }
     
     /* Initialize EC access */
-    if (ec_init() != 0) {
-        LOG_ERROR("Failed to initialize EC access");
+    int ec_state = ec_init();
+    if (ec_state == EC_INIT_DISABLED || ec_state == EC_INIT_IMPLAUSIBLE) {
+        monitor_only = 1;
+        LOG_WARN("No fan control: %s. Monitoring only; the laptop's firmware controls the fans and "
+                 "nothing is written to the EC.", ec_init_reason());
+    } else if (ec_state != EC_INIT_OK) {
+        LOG_ERROR("Failed to initialize EC access: %s", ec_init_reason());
         return EXIT_FAILURE;
+    } else if (ec_backend_module()) {
+        LOG_INFO("EC access: dcc_fan kernel module (ACPI EC driver, Clevo WMI)");
+    } else {
+        LOG_WARN("EC access: direct port I/O (0x62/0x66), enabled by the administrator - only safe on "
+                 "laptops with a Clevo EC layout");
     }
-    LOG_INFO("EC access: %s", ec_backend_module()
-             ? "dcc_fan kernel module (ACPI EC driver, Clevo WMI)" : "direct port I/O (0x62/0x66)");
     
     /* Create server socket */
     if (create_server_socket() != 0) {

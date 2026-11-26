@@ -1057,6 +1057,54 @@ msgstr "このキーボード配列を読み込めませんでした"
 msgid "Keyboard layout changed"
 msgstr "キーボード配列を変更しました"
 
+msgid "No fan control on this laptop: the firmware controls the fans."
+msgstr "このノートPCではファン制御はできません。ファームウェアがファンを制御します。"
+
+msgid "CPU Fan: --"
+msgstr "CPU ファン: --"
+
+msgid "GPU Fan: --"
+msgstr "GPU ファン: --"
+
+msgid "Direct EC access (switched on in Settings; only safe on Clevo laptops)"
+msgstr "EC への直接アクセス (設定でオン。Clevo ノートPCでのみ安全)"
+
+msgid "Not needed: dcc_fan module in use"
+msgstr "不要: dcc_fan モジュールを使用中"
+
+msgid "On, in use"
+msgstr "オン、使用中"
+
+msgid "On, refused: the EC check failed"
+msgstr "オン、拒否: EC チェックに失敗"
+
+msgid "Off: no fan control"
+msgstr "オフ: ファン制御なし"
+
+msgid "On"
+msgstr "オン"
+
+msgid "Off"
+msgstr "オフ"
+
+msgid "Direct EC access switched on - the fan daemon was restarted"
+msgstr "EC への直接アクセスをオンにしました - ファンデーモンを再起動しました"
+
+msgid "Direct EC access switched off - the fan daemon was restarted"
+msgstr "EC への直接アクセスをオフにしました - ファンデーモンを再起動しました"
+
+msgid "Switch on direct EC access?"
+msgstr "EC への直接アクセスをオンにしますか?"
+
+msgid "<b>This can damage your laptop.</b> The fan daemon would then write directly to the Embedded Controller through the I/O ports 0x62/0x66, using the register layout of Clevo laptops. On a laptop with a different layout, these writes can change charging, power or thermal settings, stop the fans or overheat the hardware.\n\nOnly use it on a Clevo-based laptop where the dcc_fan module does not load. Before the first write, the daemon checks that the EC answers like a Clevo EC and refuses otherwise, but this check cannot rule out every risk.\n\nYou use it at your own risk."
+msgstr "<b>ノートPCが損傷するおそれがあります。</b> ファンデーモンは I/O ポート 0x62/0x66 を通じて、Clevo ノートPCのレジスタ配置で Embedded Controller に直接書き込みます。配置が異なるノートPCでは、この書き込みにより充電、電源、温度の設定が変わったり、ファンが止まったり、ハードウェアが過熱したりすることがあります。\n\ndcc_fan モジュールが読み込まれない Clevo ベースのノートPCでのみ使用してください。最初の書き込みの前に、デーモンは EC が Clevo の EC のように応答するかを確認し、そうでなければ拒否しますが、この確認ですべての危険を排除することはできません。\n\n使用は自己責任です。"
+
+msgid "Switch on"
+msgstr "オンにする"
+
+msgid "I understand the risk and use this on a Clevo-based laptop"
+msgstr "危険を理解しており、Clevo ベースのノートPCで使用します"
+
 msgid "Components"
 msgstr "コンポーネント"
 
@@ -1078,6 +1126,12 @@ msgstr "CPU デーモンと上限タイマー、CPU プロファイルタブ、�
 
 msgid "Keyboard daemon, Keyboard Backlight tab, keyboard profiles in the tray menu. The LEDs keep their last colors."
 msgstr "キーボードデーモン、キーボードバックライトタブ、トレイメニューのキーボードプロファイル。LED は最後の色のままです。"
+
+msgid "Direct EC access (unsupported hardware)"
+msgstr "EC への直接アクセス (非対応ハードウェア)"
+
+msgid "Only for Clevo-based laptops where the dcc_fan module does not load. The fan daemon then writes directly to the Embedded Controller; on other laptops this can damage the hardware. Off: without the module, the firmware controls the fans."
+msgstr "dcc_fan モジュールが読み込まれない Clevo ベースのノートPC専用です。ファンデーモンは Embedded Controller に直接書き込みます。他のノートPCではハードウェアが損傷するおそれがあります。オフ: モジュールがなければファームウェアがファンを制御します。"
 
 msgid "Switching asks for the administrator password and takes effect right away. The setting applies to the whole system and stays after reboots and updates."
 msgstr "切り替えには管理者パスワードが必要で、すぐに反映されます。この設定はシステム全体に適用され、再起動や更新後も保持されます。"

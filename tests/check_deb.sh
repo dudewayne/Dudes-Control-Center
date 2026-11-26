@@ -79,6 +79,11 @@ if [ "$(id -u)" -ne 0 ]; then
     check "sh '$H' disable fan >/dev/null 2>&1; [ \$? -eq 1 ]" "helper refuses to change anything without root"
 fi
 check "sh '$H' status | grep -qE '^fan (enabled|disabled)\$'" "helper status lists the components"
+check "sh '$H' status | grep -qE '^ec-direct (enabled|disabled)\$'" "helper status shows direct EC access (1.41.0)"
+check "sh '$H' ec-direct maybe >/dev/null 2>&1; [ \$? -eq 2 ]" "helper rejects unknown ec-direct actions"
+if [ "$(id -u)" -ne 0 ]; then
+    check "sh '$H' ec-direct enable >/dev/null 2>&1; [ \$? -eq 1 ]" "helper refuses to allow direct EC access without root"
+fi
 
 # every ExecStart/ExecStopPost and the desktop Exec point to a program in the package
 for f in "$R"/etc/systemd/system/*.service "$R"/usr/share/applications/*.desktop; do
