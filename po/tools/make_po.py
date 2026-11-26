@@ -32,7 +32,7 @@ def check(msgid, tr, lang, i):
 def uk(text):
     for us, gb in (('Coloring', 'Colouring'), ('coloring', 'colouring'), ('Colors', 'Colours'),
                    ('colors', 'colours'), ('Color', 'Colour'), ('color', 'colour'),
-                   ('Honoring', 'Honouring'), ('honoring', 'honouring')):
+                   ('Honoring', 'Honouring'), ('honoring', 'honouring'), ('Behavior', 'Behaviour')):
         text = re.sub(r'\b' + us, gb, text)
     return text
 

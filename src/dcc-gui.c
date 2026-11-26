@@ -10167,6 +10167,58 @@ static void on_settings_refresh_changed(GtkComboBox *combo, gpointer user_data) 
     gui_event("[GUI] Refresh interval set to %d s\n", app->refresh_sec);
 }
 
+/* Settings page parts (1.40.1): a grid with aligned labels, one row per
+ * setting with a small grey note under its control */
+static GtkWidget *settings_note(const char *text) {
+    GtkWidget *l = gtk_label_new(text);
+    gtk_label_set_xalign(GTK_LABEL(l), 0.0);
+    gtk_label_set_line_wrap(GTK_LABEL(l), TRUE);
+    gtk_label_set_max_width_chars(GTK_LABEL(l), 110);
+    gtk_style_context_add_class(gtk_widget_get_style_context(l), "dim-label");
+    PangoAttrList *at = pango_attr_list_new();
+    pango_attr_list_insert(at, pango_attr_scale_new(0.9));
+    gtk_label_set_attributes(GTK_LABEL(l), at);
+    pango_attr_list_unref(at);
+    return l;
+}
+
+/* A note with markup (option names in <tt>: two hyphens melt together in
+ * the small proportional font) */
+static GtkWidget *settings_note_markup(const char *markup) {
+    GtkWidget *l = settings_note("");
+    gtk_label_set_markup(GTK_LABEL(l), markup);
+    PangoAttrList *at = pango_attr_list_new();
+    pango_attr_list_insert(at, pango_attr_scale_new(0.9));
+    gtk_label_set_attributes(GTK_LABEL(l), at);
+    pango_attr_list_unref(at);
+    return l;
+}
+
+static GtkWidget *settings_grid(void) {
+    GtkWidget *g = gtk_grid_new();
+    gtk_container_set_border_width(GTK_CONTAINER(g), 10);
+    gtk_grid_set_row_spacing(GTK_GRID(g), 4);
+    gtk_grid_set_column_spacing(GTK_GRID(g), 12);
+    return g;
+}
+
+/* label | control, then the note under the control; rows 10 px apart */
+static void settings_grid_row(GtkWidget *g, int *row, const char *label, GtkWidget *control, GtkWidget *note) {
+    GtkWidget *l = gtk_label_new(label);
+    gtk_label_set_xalign(GTK_LABEL(l), 0.0);
+    gtk_widget_set_valign(control, GTK_ALIGN_CENTER);
+    if (*row > 0) gtk_widget_set_margin_top(l, 10), gtk_widget_set_margin_top(control, 10);
+    gtk_grid_attach(GTK_GRID(g), l, 0, *row, 1, 1);
+    gtk_widget_set_halign(control, GTK_ALIGN_START);
+    gtk_grid_attach(GTK_GRID(g), control, 1, *row, 1, 1);
+    (*row)++;
+    if (note) {
+        gtk_widget_set_hexpand(note, TRUE);
+        gtk_grid_attach(GTK_GRID(g), note, 1, *row, 1, 1);
+        (*row)++;
+    }
+}
+
 static GtkWidget *create_settings_page(AppData *app) {
     GtkWidget *vbox = gtk_box_new(GTK_ORIENTATION_VERTICAL, 10);
     gtk_container_set_border_width(GTK_CONTAINER(vbox), 12);
@@ -10216,16 +10268,21 @@ static GtkWidget *create_settings_page(AppData *app) {
         gtk_label_set_xalign(GTK_LABEL(app->settings_state[c]), 0.0);
         gtk_grid_attach(GTK_GRID(grid), app->settings_state[c], 2, row, 1, 1);
     }
+    /* The note belongs to the switches above (1.40.1: was at the bottom of the page) */
+    gtk_grid_attach(GTK_GRID(grid), settings_note(_("Switching asks for the administrator password and takes effect right away. "
+                                                    "The setting applies to the whole system and stays after reboots and updates.")),
+                    0, COMP_COUNT, 3, 1);
     gtk_container_add(GTK_CONTAINER(frame), grid);
     gtk_box_pack_start(GTK_BOX(vbox), frame, FALSE, FALSE, 0);
 
-    /* Language (1.31.0) */
+    /* Language & Display (1.40.1): language (1.31.0), keyboard layout
+     * (1.28.0) and dark/light mode (1.29.0) in one grid, labels aligned */
     {
-        GtkWidget *lframe2 = gtk_frame_new(_("Language"));
-        GtkWidget *lbox2 = gtk_box_new(GTK_ORIENTATION_VERTICAL, 6);
-        gtk_container_set_border_width(GTK_CONTAINER(lbox2), 10);
-        GtkWidget *row = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 10);
-        gtk_box_pack_start(GTK_BOX(row), gtk_label_new(_("Language:")), FALSE, FALSE, 0);
+        GtkWidget *dframe = gtk_frame_new(_("Language & Display"));
+        GtkWidget *g = settings_grid();
+        int r = 0;
+
+        GtkWidget *lrow = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 10);
         app->settings_language_combo = gtk_combo_box_text_new();
         for (int i = 0; i < UI_NUM_LANGUAGES; i++)
             gtk_combo_box_text_append(GTK_COMBO_BOX_TEXT(app->settings_language_combo), ui_languages[i].code,
@@ -10240,51 +10297,52 @@ static GtkWidget *create_settings_page(AppData *app) {
             cJSON_Delete(json);
         }
         g_signal_connect(app->settings_language_combo, "changed", G_CALLBACK(on_settings_language_changed), app);
-        gtk_box_pack_start(GTK_BOX(row), app->settings_language_combo, FALSE, FALSE, 0);
+        gtk_box_pack_start(GTK_BOX(lrow), app->settings_language_combo, FALSE, FALSE, 0);
         app->settings_restart_btn = gtk_button_new_with_label(_("Restart now"));
         g_signal_connect(app->settings_restart_btn, "clicked", G_CALLBACK(on_settings_restart_clicked), app);
-        gtk_box_pack_start(GTK_BOX(row), app->settings_restart_btn, FALSE, FALSE, 0);
-        gtk_box_pack_start(GTK_BOX(lbox2), row, FALSE, FALSE, 0);
-        app->settings_language_note = gtk_label_new("");
-        gtk_label_set_xalign(GTK_LABEL(app->settings_language_note), 0.0);
-        gtk_label_set_line_wrap(GTK_LABEL(app->settings_language_note), TRUE);
-        gtk_box_pack_start(GTK_BOX(lbox2), app->settings_language_note, FALSE, FALSE, 0);
-        gtk_container_add(GTK_CONTAINER(lframe2), lbox2);
-        gtk_box_pack_start(GTK_BOX(vbox), lframe2, FALSE, FALSE, 0);
-        settings_update_language_note(app);
-    }
+        gtk_box_pack_start(GTK_BOX(lrow), app->settings_restart_btn, FALSE, FALSE, 0);
+        app->settings_language_note = settings_note("");
+        settings_grid_row(g, &r, _("Language:"), lrow, app->settings_language_note);
 
-    /* Appearance (1.29.0) */
-    {
-        GtkWidget *aframe = gtk_frame_new(_("Appearance"));
-        GtkWidget *abox = gtk_box_new(GTK_ORIENTATION_VERTICAL, 6);
-        gtk_container_set_border_width(GTK_CONTAINER(abox), 10);
-        GtkWidget *row = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 10);
-        gtk_box_pack_start(GTK_BOX(row), gtk_label_new(_("Mode:")), FALSE, FALSE, 0);
+        app->settings_layout_combo = gtk_combo_box_text_new();
+        for (int i = 0; i < KBD_NUM_LAYOUTS; i++)
+            gtk_combo_box_text_append(GTK_COMBO_BOX_TEXT(app->settings_layout_combo), kbd_layouts[i].code, _(kbd_layouts[i].label));
+        gtk_combo_box_set_active_id(GTK_COMBO_BOX(app->settings_layout_combo), kbd_layout_code);
+        g_signal_connect(app->settings_layout_combo, "changed", G_CALLBACK(on_settings_layout_changed), app);
+        app->settings_layout_note = settings_note("");
+        settings_grid_row(g, &r, _("Keyboard layout:"), app->settings_layout_combo, app->settings_layout_note);
+
         app->settings_appearance_combo = gtk_combo_box_text_new();
         gtk_combo_box_text_append(GTK_COMBO_BOX_TEXT(app->settings_appearance_combo), "system", _("Follow the system"));
         gtk_combo_box_text_append(GTK_COMBO_BOX_TEXT(app->settings_appearance_combo), "dark", _("Dark"));
         gtk_combo_box_text_append(GTK_COMBO_BOX_TEXT(app->settings_appearance_combo), "light", _("Light"));
         gtk_combo_box_set_active(GTK_COMBO_BOX(app->settings_appearance_combo), app->appearance);
         g_signal_connect(app->settings_appearance_combo, "changed", G_CALLBACK(on_settings_appearance_changed), app);
-        gtk_box_pack_start(GTK_BOX(row), app->settings_appearance_combo, FALSE, FALSE, 0);
-        gtk_box_pack_start(GTK_BOX(abox), row, FALSE, FALSE, 0);
-        app->settings_appearance_note = gtk_label_new("");
-        gtk_label_set_xalign(GTK_LABEL(app->settings_appearance_note), 0.0);
-        gtk_label_set_line_wrap(GTK_LABEL(app->settings_appearance_note), TRUE);
-        gtk_box_pack_start(GTK_BOX(abox), app->settings_appearance_note, FALSE, FALSE, 0);
-        gtk_container_add(GTK_CONTAINER(aframe), abox);
-        gtk_box_pack_start(GTK_BOX(vbox), aframe, FALSE, FALSE, 0);
+        app->settings_appearance_note = settings_note("");
+        settings_grid_row(g, &r, _("Mode:"), app->settings_appearance_combo, app->settings_appearance_note);
+
+        gtk_container_add(GTK_CONTAINER(dframe), g);
+        gtk_box_pack_start(GTK_BOX(vbox), dframe, FALSE, FALSE, 0);
+        settings_update_language_note(app);
+        settings_update_layout_note(app);
         settings_update_appearance_note(app);
     }
 
-    /* Refresh interval (1.40.0) */
+    /* Behavior (1.40.1): start minimized and refresh interval (1.40.0) */
     {
-        GtkWidget *rframe = gtk_frame_new(_("Refresh Interval"));
-        GtkWidget *rbox = gtk_box_new(GTK_ORIENTATION_VERTICAL, 6);
-        gtk_container_set_border_width(GTK_CONTAINER(rbox), 10);
-        GtkWidget *row = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 10);
-        gtk_box_pack_start(GTK_BOX(row), gtk_label_new(_("Update every:")), FALSE, FALSE, 0);
+        GtkWidget *bframe = gtk_frame_new(_("Behavior"));
+        GtkWidget *g = settings_grid();
+        int r = 0;
+
+        app->settings_minimized_switch = gtk_switch_new();
+        gtk_widget_set_halign(app->settings_minimized_switch, GTK_ALIGN_START);
+        gtk_switch_set_active(GTK_SWITCH(app->settings_minimized_switch), start_minimized_load());
+        g_signal_connect(app->settings_minimized_switch, "state-set", G_CALLBACK(on_settings_minimized_set), app);
+        settings_grid_row(g, &r, _("Start minimized to tray:"), app->settings_minimized_switch,
+                          settings_note_markup(_("On: the GUI starts as a tray icon; off: it opens its window. The menu entry "
+                                                 "and your startup applications get the option <tt>--minimized</tt> to match. "
+                                                 "Starting it again while it runs opens its window.")));
+
         app->settings_refresh_combo = gtk_combo_box_text_new();
         if (app->refresh_sec <= 0) app->refresh_sec = refresh_sec_load();
         for (int i = 0; i < REFRESH_NUM_CHOICES; i++) {
@@ -10296,74 +10354,13 @@ static GtkWidget *create_settings_page(AppData *app) {
                 gtk_combo_box_set_active(GTK_COMBO_BOX(app->settings_refresh_combo), i);
         }
         g_signal_connect(app->settings_refresh_combo, "changed", G_CALLBACK(on_settings_refresh_changed), app);
-        gtk_box_pack_start(GTK_BOX(row), app->settings_refresh_combo, FALSE, FALSE, 0);
-        gtk_box_pack_start(GTK_BOX(rbox), row, FALSE, FALSE, 0);
-        GtkWidget *rnote = gtk_label_new(_("How often the window shows new temperatures, fan speeds, CPU frequencies, "
-                                           "power and GPU values. Shorter intervals look more live but wake the "
-                                           "CPU more often. The daemons keep controlling fans and CPU on their own "
-                                           "schedule (fan curve every 5 seconds), whatever is set here."));
-        gtk_label_set_xalign(GTK_LABEL(rnote), 0.0);
-        gtk_label_set_line_wrap(GTK_LABEL(rnote), TRUE);
-        gtk_label_set_max_width_chars(GTK_LABEL(rnote), 110);
-        gtk_box_pack_start(GTK_BOX(rbox), rnote, FALSE, FALSE, 0);
-        gtk_container_add(GTK_CONTAINER(rframe), rbox);
-        gtk_box_pack_start(GTK_BOX(vbox), rframe, FALSE, FALSE, 0);
-    }
+        settings_grid_row(g, &r, _("Refresh interval:"), app->settings_refresh_combo,
+                          settings_note(_("How often the window shows new temperatures, fan speeds, frequencies and "
+                                          "power. The daemons control fans and CPU on their own schedule.")));
 
-    /* Start minimized to tray (1.40.0) */
-    {
-        GtkWidget *sframe = gtk_frame_new(_("Startup"));
-        GtkWidget *sbox = gtk_box_new(GTK_ORIENTATION_VERTICAL, 6);
-        gtk_container_set_border_width(GTK_CONTAINER(sbox), 10);
-        GtkWidget *row = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 10);
-        app->settings_minimized_switch = gtk_switch_new();
-        gtk_switch_set_active(GTK_SWITCH(app->settings_minimized_switch), start_minimized_load());
-        g_signal_connect(app->settings_minimized_switch, "state-set", G_CALLBACK(on_settings_minimized_set), app);
-        gtk_box_pack_start(GTK_BOX(row), app->settings_minimized_switch, FALSE, FALSE, 0);
-        gtk_box_pack_start(GTK_BOX(row), gtk_label_new(_("Start minimized to tray")), FALSE, FALSE, 0);
-        gtk_box_pack_start(GTK_BOX(sbox), row, FALSE, FALSE, 0);
-        GtkWidget *snote = gtk_label_new(_("On: the GUI starts as an icon in the system tray. Off: it opens its "
-                                           "window. The application menu entry and your startup applications "
-                                           "that start Dudes Control Center are adjusted (option --minimized). "
-                                           "Starting it again while it runs opens its window."));
-        gtk_label_set_xalign(GTK_LABEL(snote), 0.0);
-        gtk_label_set_line_wrap(GTK_LABEL(snote), TRUE);
-        gtk_label_set_max_width_chars(GTK_LABEL(snote), 110);
-        gtk_box_pack_start(GTK_BOX(sbox), snote, FALSE, FALSE, 0);
-        gtk_container_add(GTK_CONTAINER(sframe), sbox);
-        gtk_box_pack_start(GTK_BOX(vbox), sframe, FALSE, FALSE, 0);
+        gtk_container_add(GTK_CONTAINER(bframe), g);
+        gtk_box_pack_start(GTK_BOX(vbox), bframe, FALSE, FALSE, 0);
     }
-
-    /* Keyboard layout (1.28.0) */
-    {
-        GtkWidget *lframe = gtk_frame_new(_("Keyboard Layout"));
-        GtkWidget *lbox = gtk_box_new(GTK_ORIENTATION_VERTICAL, 6);
-        gtk_container_set_border_width(GTK_CONTAINER(lbox), 10);
-        GtkWidget *row = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 10);
-        gtk_box_pack_start(GTK_BOX(row), gtk_label_new(_("Layout:")), FALSE, FALSE, 0);
-        app->settings_layout_combo = gtk_combo_box_text_new();
-        for (int i = 0; i < KBD_NUM_LAYOUTS; i++)
-            gtk_combo_box_text_append(GTK_COMBO_BOX_TEXT(app->settings_layout_combo), kbd_layouts[i].code, _(kbd_layouts[i].label));
-        gtk_combo_box_set_active_id(GTK_COMBO_BOX(app->settings_layout_combo), kbd_layout_code);
-        g_signal_connect(app->settings_layout_combo, "changed", G_CALLBACK(on_settings_layout_changed), app);
-        gtk_box_pack_start(GTK_BOX(row), app->settings_layout_combo, FALSE, FALSE, 0);
-        gtk_box_pack_start(GTK_BOX(lbox), row, FALSE, FALSE, 0);
-        app->settings_layout_note = gtk_label_new("");
-        gtk_label_set_xalign(GTK_LABEL(app->settings_layout_note), 0.0);
-        gtk_label_set_line_wrap(GTK_LABEL(app->settings_layout_note), TRUE);
-        gtk_label_set_max_width_chars(GTK_LABEL(app->settings_layout_note), 110);
-        gtk_box_pack_start(GTK_BOX(lbox), app->settings_layout_note, FALSE, FALSE, 0);
-        gtk_container_add(GTK_CONTAINER(lframe), lbox);
-        gtk_box_pack_start(GTK_BOX(vbox), lframe, FALSE, FALSE, 0);
-        settings_update_layout_note(app);
-    }
-
-    GtkWidget *note = gtk_label_new(_("Switching asks for the administrator password and takes effect right away. "
-                                    "The setting applies to the whole system and stays after reboots and updates."));
-    gtk_label_set_xalign(GTK_LABEL(note), 0.0);
-    gtk_label_set_line_wrap(GTK_LABEL(note), TRUE);
-    gtk_widget_set_name(note, "kbd-off-switch-note");
-    gtk_box_pack_start(GTK_BOX(vbox), note, FALSE, FALSE, 0);
 
     settings_sync_switches(app);
     return vbox;

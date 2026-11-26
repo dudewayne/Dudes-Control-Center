@@ -1050,20 +1050,20 @@ msgstr "CPU-Daemon und Hardlimit-Timer, Tab CPU-Profile, CPU-Profile im Tray-Men
 msgid "Keyboard daemon, Keyboard Backlight tab, keyboard profiles in the tray menu. The LEDs keep their last colors."
 msgstr "Tastatur-Daemon, Tab Tastaturbeleuchtung, Tastaturprofile im Tray-Menü. Die LEDs behalten ihre letzten Farben."
 
-msgid "Language"
-msgstr "Sprache"
+msgid "Switching asks for the administrator password and takes effect right away. The setting applies to the whole system and stays after reboots and updates."
+msgstr "Das Umschalten fragt nach dem Administratorpasswort und wirkt sofort. Die Einstellung gilt systemweit und bleibt nach Neustarts und Updates erhalten."
 
-msgid "Language:"
-msgstr "Sprache:"
+msgid "Language & Display"
+msgstr "Sprache & Anzeige"
 
 msgid "Restart now"
 msgstr "Jetzt neu starten"
 
-msgid "Appearance"
-msgstr "Darstellung"
+msgid "Language:"
+msgstr "Sprache:"
 
-msgid "Mode:"
-msgstr "Modus:"
+msgid "Keyboard layout:"
+msgstr "Tastaturlayout:"
 
 msgid "Follow the system"
 msgstr "System folgen"
@@ -1074,11 +1074,17 @@ msgstr "Dunkel"
 msgid "Light"
 msgstr "Hell"
 
-msgid "Refresh Interval"
-msgstr "Aktualisierungsintervall"
+msgid "Mode:"
+msgstr "Modus:"
 
-msgid "Update every:"
-msgstr "Aktualisieren alle:"
+msgid "Behavior"
+msgstr "Verhalten"
+
+msgid "Start minimized to tray:"
+msgstr "Minimiert im Infobereich starten:"
+
+msgid "On: the GUI starts as a tray icon; off: it opens its window. The menu entry and your startup applications get the option <tt>--minimized</tt> to match. Starting it again while it runs opens its window."
+msgstr "Ein: Die Oberfläche startet als Symbol im Infobereich; aus: Sie öffnet ihr Fenster. Der Menüeintrag und Ihre Startprogramme erhalten passend die Option <tt>--minimized</tt>. Ein erneuter Start, während sie läuft, öffnet ihr Fenster."
 
 msgid "1 second"
 msgstr "1 Sekunde"
@@ -1087,23 +1093,11 @@ msgstr "1 Sekunde"
 msgid "%d seconds"
 msgstr "%d Sekunden"
 
-msgid "How often the window shows new temperatures, fan speeds, CPU frequencies, power and GPU values. Shorter intervals look more live but wake the CPU more often. The daemons keep controlling fans and CPU on their own schedule (fan curve every 5 seconds), whatever is set here."
-msgstr "Wie oft das Fenster neue Temperaturen, Lüfterdrehzahlen, CPU-Frequenzen, Leistungs- und GPU-Werte zeigt. Kürzere Intervalle wirken lebendiger, wecken die CPU aber öfter auf. Die Dienste steuern Lüfter und CPU unabhängig davon in ihrem eigenen Takt (Lüfterkurve alle 5 Sekunden)."
+msgid "Refresh interval:"
+msgstr "Aktualisierungsintervall:"
 
-msgid "Startup"
-msgstr "Start"
-
-msgid "Start minimized to tray"
-msgstr "Minimiert im Infobereich starten"
-
-msgid "On: the GUI starts as an icon in the system tray. Off: it opens its window. The application menu entry and your startup applications that start Dudes Control Center are adjusted (option --minimized). Starting it again while it runs opens its window."
-msgstr "Ein: Die Oberfläche startet als Symbol im Infobereich. Aus: Sie öffnet ihr Fenster. Der Eintrag im Anwendungsmenü und Ihre Startprogramme, die Dudes Control Center starten, werden angepasst (Option --minimized). Ein erneuter Start, während sie läuft, öffnet ihr Fenster."
-
-msgid "Keyboard Layout"
-msgstr "Tastaturlayout"
-
-msgid "Switching asks for the administrator password and takes effect right away. The setting applies to the whole system and stays after reboots and updates."
-msgstr "Das Umschalten fragt nach dem Administratorpasswort und wirkt sofort. Die Einstellung gilt systemweit und bleibt nach Neustarts und Updates erhalten."
+msgid "How often the window shows new temperatures, fan speeds, frequencies and power. The daemons control fans and CPU on their own schedule."
+msgstr "Wie oft das Fenster neue Temperaturen, Lüfterdrehzahlen, Frequenzen und Leistungswerte zeigt. Die Dienste steuern Lüfter und CPU in ihrem eigenen Takt."
 
 msgid "Show Application"
 msgstr "Anwendung anzeigen"

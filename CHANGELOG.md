@@ -6,6 +6,11 @@ Programs and services were named `dudes-control-center-*` before 1.19.0 (for exa
 
 ## [Unreleased]
 
+## [1.40.1] - 2026-11-26
+
+### Changed
+- **Settings tab tidied up**: three sections instead of six. **Components** now holds its note about the administrator password (it was at the bottom of the page); **Language & Display** has language, keyboard layout and dark/light mode; **Behavior** has start minimized to tray and the refresh interval. Labels and controls are aligned in a grid, and each explanation is a smaller grey line under its control. Shorter notes for start minimized and the refresh interval; the option `--minimized` is shown in a monospace font, so its two hyphens no longer run together.
+
 ## [1.40.0] - 2026-11-26
 
 ### Added
@@ -1023,7 +1028,8 @@ Programs and services were named `dudes-control-center-*` before 1.19.0 (for exa
 - Unix socket IPC between GUI and daemon
 - Watchdog timer and fail-safe mode in daemon
 
-[Unreleased]: https://github.com/dudewayne/Dudes-Control-Center/compare/v1.40.0...HEAD
+[Unreleased]: https://github.com/dudewayne/Dudes-Control-Center/compare/v1.40.1...HEAD
+[1.40.1]: https://github.com/dudewayne/Dudes-Control-Center/compare/v1.40.0...v1.40.1
 [1.40.0]: https://github.com/dudewayne/Dudes-Control-Center/compare/v1.39.0...v1.40.0
 [1.39.0]: https://github.com/dudewayne/Dudes-Control-Center/compare/v1.38.1...v1.39.0
 [1.38.1]: https://github.com/dudewayne/Dudes-Control-Center/compare/v1.38.0...v1.38.1

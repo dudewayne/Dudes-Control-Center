@@ -91,12 +91,16 @@ dcc-gui --debug      # more output in GUI.log
 
 ### Settings
 
+Three sections:
+
 - **Components**: switch **CPU control, fan control or the keyboard backlight** off when it does not work on your laptop or causes problems, and on again. Asks for the administrator password, applies system wide and stays after reboots and updates; the tabs and tray submenus of a switched-off part are hidden. Fan control switched off: the fans run at 100% until the next reboot, then the firmware controls them.
-- **Language**: system default, English (US), English (UK), German, Spanish, Japanese or Korean, after a restart of the GUI (**Restart now**). Japanese and Korean are not reviewed by a native speaker yet. The command-line tools stay in English.
-- **Appearance**: follow the system, dark or light; the theme, the keyboard picture and the fan curve graph follow it.
-- **Start minimized to tray**: on (default), the GUI starts as a tray icon; off, it opens its window. The application menu entry (a per-user copy in `~/.local/share/applications`) and your startup applications that start `dcc-gui` get or lose the `--minimized` option to match.
-- **Refresh interval**: how often the window shows new temperatures, fan speeds, CPU frequencies, power and GPU values: every 1, 2 (default), 3, 5 or 10 seconds. The daemons control fans and CPU on their own schedule regardless.
-- **Keyboard layout**: German, English (UK), Spanish, Japanese or Korean picture and keys, preselected from the system's keyboard layout. The LED wizard mapping is kept per layout.
+- **Language & Display**:
+  - **Language**: system default, English (US), English (UK), German, Spanish, Japanese or Korean, after a restart of the GUI (**Restart now**). Japanese and Korean are not reviewed by a native speaker yet. The command-line tools stay in English.
+  - **Keyboard layout**: German, English (UK), Spanish, Japanese or Korean picture and keys, preselected from the system's keyboard layout. The LED wizard mapping is kept per layout.
+  - **Mode**: follow the system, dark or light; the theme, the keyboard picture and the fan curve graph follow it.
+- **Behavior**:
+  - **Start minimized to tray**: on (default), the GUI starts as a tray icon; off, it opens its window. The application menu entry (a per-user copy in `~/.local/share/applications`) and your startup applications that start `dcc-gui` get or lose the `--minimized` option to match.
+  - **Refresh interval**: how often the window shows new temperatures, fan speeds, CPU frequencies, power and GPU values: every 1, 2 (default), 3, 5 or 10 seconds. The daemons control fans and CPU on their own schedule regardless.
 
 ### CPU power modes
 

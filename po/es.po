@@ -1073,20 +1073,20 @@ msgstr "Daemon de CPU y temporizador del límite máximo, pestaña Perfiles de C
 msgid "Keyboard daemon, Keyboard Backlight tab, keyboard profiles in the tray menu. The LEDs keep their last colors."
 msgstr "Daemon del teclado, pestaña Retroiluminación del teclado, perfiles de teclado en el menú de la bandeja. Los LED conservan sus últimos colores."
 
-msgid "Language"
-msgstr "Idioma"
+msgid "Switching asks for the administrator password and takes effect right away. The setting applies to the whole system and stays after reboots and updates."
+msgstr "Al cambiar se pide la contraseña de administrador y el cambio se aplica de inmediato. El ajuste afecta a todo el sistema y se mantiene tras reinicios y actualizaciones."
 
-msgid "Language:"
-msgstr "Idioma:"
+msgid "Language & Display"
+msgstr "Idioma y pantalla"
 
 msgid "Restart now"
 msgstr "Reiniciar ahora"
 
-msgid "Appearance"
-msgstr "Apariencia"
+msgid "Language:"
+msgstr "Idioma:"
 
-msgid "Mode:"
-msgstr "Modo:"
+msgid "Keyboard layout:"
+msgstr "Distribución del teclado:"
 
 msgid "Follow the system"
 msgstr "Seguir al sistema"
@@ -1097,11 +1097,17 @@ msgstr "Oscuro"
 msgid "Light"
 msgstr "Claro"
 
-msgid "Refresh Interval"
-msgstr "Intervalo de actualización"
+msgid "Mode:"
+msgstr "Modo:"
 
-msgid "Update every:"
-msgstr "Actualizar cada:"
+msgid "Behavior"
+msgstr "Comportamiento"
+
+msgid "Start minimized to tray:"
+msgstr "Iniciar minimizado en la bandeja:"
+
+msgid "On: the GUI starts as a tray icon; off: it opens its window. The menu entry and your startup applications get the option <tt>--minimized</tt> to match. Starting it again while it runs opens its window."
+msgstr "Activado: la interfaz se inicia como icono en la bandeja; desactivado: abre su ventana. La entrada del menú y sus aplicaciones de inicio reciben la opción <tt>--minimized</tt> en consecuencia. Iniciarla de nuevo mientras se ejecuta abre su ventana."
 
 msgid "1 second"
 msgstr "1 segundo"
@@ -1110,26 +1116,11 @@ msgstr "1 segundo"
 msgid "%d seconds"
 msgstr "%d segundos"
 
-msgid "How often the window shows new temperatures, fan speeds, CPU frequencies, power and GPU values. Shorter intervals look more live but wake the CPU more often. The daemons keep controlling fans and CPU on their own schedule (fan curve every 5 seconds), whatever is set here."
-msgstr "Con qué frecuencia la ventana muestra nuevas temperaturas, velocidades de ventilador, frecuencias de CPU, potencia y valores de la GPU. Los intervalos más cortos se ven más en vivo, pero despiertan la CPU más a menudo. Los servicios siguen controlando ventiladores y CPU a su propio ritmo (curva de ventilador cada 5 segundos), sea cual sea este ajuste."
+msgid "Refresh interval:"
+msgstr "Intervalo de actualización:"
 
-msgid "Startup"
-msgstr "Inicio"
-
-msgid "Start minimized to tray"
-msgstr "Iniciar minimizado en la bandeja"
-
-msgid "On: the GUI starts as an icon in the system tray. Off: it opens its window. The application menu entry and your startup applications that start Dudes Control Center are adjusted (option --minimized). Starting it again while it runs opens its window."
-msgstr "Activado: la interfaz se inicia como icono en la bandeja del sistema. Desactivado: abre su ventana. La entrada del menú de aplicaciones y sus aplicaciones de inicio que arrancan Dudes Control Center se ajustan (opción --minimized). Iniciarla de nuevo mientras se ejecuta abre su ventana."
-
-msgid "Keyboard Layout"
-msgstr "Distribución del teclado"
-
-msgid "Layout:"
-msgstr "Distribución:"
-
-msgid "Switching asks for the administrator password and takes effect right away. The setting applies to the whole system and stays after reboots and updates."
-msgstr "Al cambiar se pide la contraseña de administrador y el cambio se aplica de inmediato. El ajuste afecta a todo el sistema y se mantiene tras reinicios y actualizaciones."
+msgid "How often the window shows new temperatures, fan speeds, frequencies and power. The daemons control fans and CPU on their own schedule."
+msgstr "Con qué frecuencia la ventana muestra nuevas temperaturas, velocidades de ventilador, frecuencias y potencia. Los servicios controlan ventiladores y CPU a su propio ritmo."
 
 msgid "Show Application"
 msgstr "Mostrar aplicación"

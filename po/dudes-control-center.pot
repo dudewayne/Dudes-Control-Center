@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: dudes-control-center\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-11-26 18:58+0100\n"
+"POT-Creation-Date: 2026-11-26 20:31+0100\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -341,8 +341,8 @@ msgstr ""
 msgid "Please select a curve point to delete"
 msgstr ""
 
-#: src/dcc-gui.c:3616 src/dcc-gui.c:10476 src/dcc-gui.c:10525
-#: src/dcc-gui.c:10574
+#: src/dcc-gui.c:3616 src/dcc-gui.c:10473 src/dcc-gui.c:10522
+#: src/dcc-gui.c:10571
 #, c-format
 msgid "%s (Active)"
 msgstr ""
@@ -432,7 +432,7 @@ msgstr ""
 msgid "%s"
 msgstr ""
 
-#: src/dcc-gui.c:4722 src/dcc-gui.c:5148 src/dcc-gui.c:9209 src/dcc-gui.c:11330
+#: src/dcc-gui.c:4722 src/dcc-gui.c:5148 src/dcc-gui.c:9209 src/dcc-gui.c:11327
 msgid "Keyboard daemon not connected"
 msgstr ""
 
@@ -958,7 +958,7 @@ msgstr ""
 msgid "Fan Daemon Status"
 msgstr ""
 
-#: src/dcc-gui.c:6823 src/dcc-gui.c:11299
+#: src/dcc-gui.c:6823 src/dcc-gui.c:11296
 msgid "Fan daemon not connected"
 msgstr ""
 
@@ -1158,7 +1158,7 @@ msgstr ""
 msgid "CPU Daemon Status"
 msgstr ""
 
-#: src/dcc-gui.c:8873 src/dcc-gui.c:11312 src/dcc-gui.c:11313
+#: src/dcc-gui.c:8873 src/dcc-gui.c:11309 src/dcc-gui.c:11310
 msgid "CPU daemon not connected"
 msgstr ""
 
@@ -1230,7 +1230,7 @@ msgstr ""
 msgid "Keyboard Daemon Status"
 msgstr ""
 
-#: src/dcc-gui.c:9220 src/dcc-gui.c:10559
+#: src/dcc-gui.c:9220 src/dcc-gui.c:10556
 msgid "Keyboard Profiles"
 msgstr ""
 
@@ -1407,11 +1407,11 @@ msgstr ""
 msgid "Status"
 msgstr ""
 
-#: src/dcc-gui.c:9573 src/dcc-gui.c:10515
+#: src/dcc-gui.c:9573 src/dcc-gui.c:10512
 msgid "Fan Profiles"
 msgstr ""
 
-#: src/dcc-gui.c:9574 src/dcc-gui.c:10455
+#: src/dcc-gui.c:9574 src/dcc-gui.c:10452
 msgid "CPU Profiles"
 msgstr ""
 
@@ -1545,23 +1545,23 @@ msgstr ""
 msgid "Keyboard layout changed"
 msgstr ""
 
-#: src/dcc-gui.c:10174
+#: src/dcc-gui.c:10226
 msgid "Components"
 msgstr ""
 
-#: src/dcc-gui.c:10179
+#: src/dcc-gui.c:10231
 msgid "Fan control"
 msgstr ""
 
-#: src/dcc-gui.c:10179
+#: src/dcc-gui.c:10231
 msgid "CPU control"
 msgstr ""
 
-#: src/dcc-gui.c:10179
+#: src/dcc-gui.c:10231
 msgid "Keyboard backlight"
 msgstr ""
 
-#: src/dcc-gui.c:10182
+#: src/dcc-gui.c:10234
 #, no-c-format
 msgid ""
 "Fan daemon, Status and Fan Profiles tabs, fan profiles in the tray menu. "
@@ -1569,166 +1569,151 @@ msgid ""
 "laptop's firmware controls them."
 msgstr ""
 
-#: src/dcc-gui.c:10184
+#: src/dcc-gui.c:10236
 msgid ""
 "CPU daemon and hard-limit timer, CPU Profiles tab, CPU profiles in the tray "
 "menu. Governor and frequencies stay as they were last set."
 msgstr ""
 
-#: src/dcc-gui.c:10186
+#: src/dcc-gui.c:10238
 msgid ""
 "Keyboard daemon, Keyboard Backlight tab, keyboard profiles in the tray menu. "
 "The LEDs keep their last colors."
 msgstr ""
 
-#: src/dcc-gui.c:10224
-msgid "Language"
-msgstr ""
-
-#: src/dcc-gui.c:10228
-msgid "Language:"
-msgstr ""
-
-#: src/dcc-gui.c:10244
-msgid "Restart now"
-msgstr ""
-
-#: src/dcc-gui.c:10259
-msgid "Appearance"
-msgstr ""
-
-#: src/dcc-gui.c:10263
-msgid "Mode:"
-msgstr ""
-
-#: src/dcc-gui.c:10265
-msgid "Follow the system"
-msgstr ""
-
-#: src/dcc-gui.c:10266
-msgid "Dark"
-msgstr ""
-
-#: src/dcc-gui.c:10267
-msgid "Light"
-msgstr ""
-
-#: src/dcc-gui.c:10283
-msgid "Refresh Interval"
-msgstr ""
-
-#: src/dcc-gui.c:10287
-msgid "Update every:"
-msgstr ""
-
-#: src/dcc-gui.c:10291
-msgid "1 second"
-msgstr ""
-
-#: src/dcc-gui.c:10292
-#, c-format
-msgid "%d seconds"
-msgstr ""
-
-#: src/dcc-gui.c:10301
-msgid ""
-"How often the window shows new temperatures, fan speeds, CPU frequencies, "
-"power and GPU values. Shorter intervals look more live but wake the CPU more "
-"often. The daemons keep controlling fans and CPU on their own schedule (fan "
-"curve every 5 seconds), whatever is set here."
-msgstr ""
-
-#: src/dcc-gui.c:10315
-msgid "Startup"
-msgstr ""
-
-#: src/dcc-gui.c:10323
-msgid "Start minimized to tray"
-msgstr ""
-
-#: src/dcc-gui.c:10325
-msgid ""
-"On: the GUI starts as an icon in the system tray. Off: it opens its window. "
-"The application menu entry and your startup applications that start Dudes "
-"Control Center are adjusted (option --minimized). Starting it again while it "
-"runs opens its window."
-msgstr ""
-
-#: src/dcc-gui.c:10339
-msgid "Keyboard Layout"
-msgstr ""
-
-#: src/dcc-gui.c:10343
-msgid "Layout:"
-msgstr ""
-
-#: src/dcc-gui.c:10361
+#: src/dcc-gui.c:10272
 msgid ""
 "Switching asks for the administrator password and takes effect right away. "
 "The setting applies to the whole system and stays after reboots and updates."
 msgstr ""
 
-#: src/dcc-gui.c:10443
+#: src/dcc-gui.c:10281
+msgid "Language & Display"
+msgstr ""
+
+#: src/dcc-gui.c:10301
+msgid "Restart now"
+msgstr ""
+
+#: src/dcc-gui.c:10305
+msgid "Language:"
+msgstr ""
+
+#: src/dcc-gui.c:10313
+msgid "Keyboard layout:"
+msgstr ""
+
+#: src/dcc-gui.c:10316
+msgid "Follow the system"
+msgstr ""
+
+#: src/dcc-gui.c:10317
+msgid "Dark"
+msgstr ""
+
+#: src/dcc-gui.c:10318
+msgid "Light"
+msgstr ""
+
+#: src/dcc-gui.c:10322
+msgid "Mode:"
+msgstr ""
+
+#: src/dcc-gui.c:10333
+msgid "Behavior"
+msgstr ""
+
+#: src/dcc-gui.c:10341
+msgid "Start minimized to tray:"
+msgstr ""
+
+#: src/dcc-gui.c:10342
+msgid ""
+"On: the GUI starts as a tray icon; off: it opens its window. The menu entry "
+"and your startup applications get the option <tt>--minimized</tt> to match. "
+"Starting it again while it runs opens its window."
+msgstr ""
+
+#: src/dcc-gui.c:10349
+msgid "1 second"
+msgstr ""
+
+#: src/dcc-gui.c:10350
+#, c-format
+msgid "%d seconds"
+msgstr ""
+
+#: src/dcc-gui.c:10357
+msgid "Refresh interval:"
+msgstr ""
+
+#: src/dcc-gui.c:10358
+msgid ""
+"How often the window shows new temperatures, fan speeds, frequencies and "
+"power. The daemons control fans and CPU on their own schedule."
+msgstr ""
+
+#: src/dcc-gui.c:10440
 msgid "Show Application"
 msgstr ""
 
-#: src/dcc-gui.c:10482
+#: src/dcc-gui.c:10479
 #, c-format
 msgid "Profile %d"
 msgstr ""
 
-#: src/dcc-gui.c:10598
+#: src/dcc-gui.c:10595
 #, c-format
 msgid "Version %s"
 msgstr ""
 
-#: src/dcc-gui.c:10611
+#: src/dcc-gui.c:10608
 msgid "Exit"
 msgstr ""
 
-#: src/dcc-gui.c:10772
+#: src/dcc-gui.c:10769
 #, c-format
 msgid "Profile '%s' activated"
 msgstr ""
 
-#: src/dcc-gui.c:10784
+#: src/dcc-gui.c:10781
 msgid "Failed to activate profile"
 msgstr ""
 
-#: src/dcc-gui.c:10815
+#: src/dcc-gui.c:10812
 msgid "Keyboard profile activated"
 msgstr ""
 
-#: src/dcc-gui.c:10815
+#: src/dcc-gui.c:10812
 msgid "Failed to activate keyboard profile"
 msgstr ""
 
-#: src/dcc-gui.c:10861
+#: src/dcc-gui.c:10858
 #, c-format
 msgid "CPU profile '%s' activated"
 msgstr ""
 
-#: src/dcc-gui.c:10861
+#: src/dcc-gui.c:10858
 msgid "Unknown"
 msgstr ""
 
-#: src/dcc-gui.c:10875
+#: src/dcc-gui.c:10872
 msgid "Failed to activate CPU profile"
 msgstr ""
 
-#: src/dcc-gui.c:11298
+#: src/dcc-gui.c:11295
 msgid "Fan control switched off"
 msgstr ""
 
-#: src/dcc-gui.c:11303
+#: src/dcc-gui.c:11300
 #, c-format
 msgid "%s (manual mode: %d%%)"
 msgstr ""
 
-#: src/dcc-gui.c:11309 src/dcc-gui.c:11310
+#: src/dcc-gui.c:11306 src/dcc-gui.c:11307
 msgid "CPU control switched off"
 msgstr ""
 
-#: src/dcc-gui.c:11329
+#: src/dcc-gui.c:11326
 msgid "Keyboard backlight switched off"
 msgstr ""

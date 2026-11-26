@@ -1079,20 +1079,20 @@ msgstr "CPU デーモンと上限タイマー、CPU プロファイルタブ、�
 msgid "Keyboard daemon, Keyboard Backlight tab, keyboard profiles in the tray menu. The LEDs keep their last colors."
 msgstr "キーボードデーモン、キーボードバックライトタブ、トレイメニューのキーボードプロファイル。LED は最後の色のままです。"
 
-msgid "Language"
-msgstr "言語"
+msgid "Switching asks for the administrator password and takes effect right away. The setting applies to the whole system and stays after reboots and updates."
+msgstr "切り替えには管理者パスワードが必要で、すぐに反映されます。この設定はシステム全体に適用され、再起動や更新後も保持されます。"
 
-msgid "Language:"
-msgstr "言語:"
+msgid "Language & Display"
+msgstr "言語と表示"
 
 msgid "Restart now"
 msgstr "今すぐ再起動"
 
-msgid "Appearance"
-msgstr "外観"
+msgid "Language:"
+msgstr "言語:"
 
-msgid "Mode:"
-msgstr "モード:"
+msgid "Keyboard layout:"
+msgstr "キーボードレイアウト:"
 
 msgid "Follow the system"
 msgstr "システムに従う"
@@ -1103,11 +1103,17 @@ msgstr "ダーク"
 msgid "Light"
 msgstr "ライト"
 
-msgid "Refresh Interval"
-msgstr "更新間隔"
+msgid "Mode:"
+msgstr "モード:"
 
-msgid "Update every:"
-msgstr "更新間隔:"
+msgid "Behavior"
+msgstr "動作"
+
+msgid "Start minimized to tray:"
+msgstr "トレイに最小化して起動:"
+
+msgid "On: the GUI starts as a tray icon; off: it opens its window. The menu entry and your startup applications get the option <tt>--minimized</tt> to match. Starting it again while it runs opens its window."
+msgstr "オン: GUI はトレイアイコンとして起動します。オフ: ウィンドウを開きます。メニュー項目とスタートアップアプリケーションには、それに合わせてオプション <tt>--minimized</tt> が付きます。実行中にもう一度起動するとウィンドウが開きます。"
 
 msgid "1 second"
 msgstr "1 秒"
@@ -1116,26 +1122,11 @@ msgstr "1 秒"
 msgid "%d seconds"
 msgstr "%d 秒"
 
-msgid "How often the window shows new temperatures, fan speeds, CPU frequencies, power and GPU values. Shorter intervals look more live but wake the CPU more often. The daemons keep controlling fans and CPU on their own schedule (fan curve every 5 seconds), whatever is set here."
-msgstr "ウィンドウが温度、ファン回転数、CPU 周波数、電力、GPU の値を更新する頻度です。間隔を短くするとよりリアルタイムに見えますが、CPU を起こす回数が増えます。ここでの設定にかかわらず、デーモンは独自の間隔でファンと CPU を制御します(ファンカーブは 5 秒ごと)。"
+msgid "Refresh interval:"
+msgstr "更新間隔:"
 
-msgid "Startup"
-msgstr "起動"
-
-msgid "Start minimized to tray"
-msgstr "トレイに最小化して起動"
-
-msgid "On: the GUI starts as an icon in the system tray. Off: it opens its window. The application menu entry and your startup applications that start Dudes Control Center are adjusted (option --minimized). Starting it again while it runs opens its window."
-msgstr "オン: GUI はシステムトレイのアイコンとして起動します。オフ: ウィンドウを開きます。アプリケーションメニューの項目と、Dudes Control Center を起動するスタートアップアプリケーションが調整されます(オプション --minimized)。実行中にもう一度起動するとウィンドウが開きます。"
-
-msgid "Keyboard Layout"
-msgstr "キーボード配列"
-
-msgid "Layout:"
-msgstr "配列:"
-
-msgid "Switching asks for the administrator password and takes effect right away. The setting applies to the whole system and stays after reboots and updates."
-msgstr "切り替えには管理者パスワードが必要で、すぐに反映されます。この設定はシステム全体に適用され、再起動や更新後も保持されます。"
+msgid "How often the window shows new temperatures, fan speeds, frequencies and power. The daemons control fans and CPU on their own schedule."
+msgstr "ウィンドウが新しい温度、ファン回転数、周波数、電力を表示する頻度です。デーモンは独自の間隔でファンと CPU を制御します。"
 
 msgid "Show Application"
 msgstr "アプリケーションを表示"

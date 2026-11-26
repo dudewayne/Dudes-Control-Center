@@ -68,3 +68,6 @@ msgstr "Colour"
 
 msgid "Keyboard daemon, Keyboard Backlight tab, keyboard profiles in the tray menu. The LEDs keep their last colors."
 msgstr "Keyboard daemon, Keyboard Backlight tab, keyboard profiles in the tray menu. The LEDs keep their last colours."
+
+msgid "Behavior"
+msgstr "Behaviour"
