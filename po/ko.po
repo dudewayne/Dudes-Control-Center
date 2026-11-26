@@ -1106,6 +1106,22 @@ msgstr "어둡게"
 msgid "Light"
 msgstr "밝게"
 
+msgid "Refresh Interval"
+msgstr "새로 고침 간격"
+
+msgid "Update every:"
+msgstr "업데이트 주기:"
+
+msgid "1 second"
+msgstr "1초"
+
+#, c-format
+msgid "%d seconds"
+msgstr "%d초"
+
+msgid "How often the window shows new temperatures, fan speeds, CPU frequencies, power and GPU values. Shorter intervals look more live but wake the CPU more often. The daemons keep controlling fans and CPU on their own schedule (fan curve every 5 seconds), whatever is set here."
+msgstr "창에 온도, 팬 속도, CPU 주파수, 전력 및 GPU 값을 새로 표시하는 주기입니다. 간격이 짧을수록 더 실시간으로 보이지만 CPU를 더 자주 깨웁니다. 이 설정과 관계없이 데몬은 자체 주기로 팬과 CPU를 제어합니다 (팬 곡선은 5초마다)."
+
 msgid "Keyboard Layout"
 msgstr "키보드 배열"
 

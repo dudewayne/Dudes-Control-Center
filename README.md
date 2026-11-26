@@ -69,7 +69,7 @@ dcc-gui --debug    # more output in GUI.log
 | **Fan Profiles** | One dropdown for all fan profiles (the one in use is marked "(Active)"): Create, Rename, Save, Delete, **Activate**, and the graphical temperature-to-fan-speed curve of the selected profile (add, edit, delete points; Save keeps them, unsaved changes are asked about before switching profiles or leaving the tab). Shows a warning with "Disable Manual Mode" while manual mode is on. |
 | **CPU Profiles** | The processor (name, P- and E-cores on hybrid Intel CPUs), power mode (**Performance / Balanced / Power Save**), per-core min/max frequency profiles (Create, Rename, Save, Delete, Activate; unsaved changes are asked about before switching profiles, leaving the tab or closing), the CPU hard limit. |
 | **Keyboard Backlight** | Keyboard profiles, **brightness slider**, backlight off switch, preset and custom colors, **effects** (Breathing, Rainbow, Wave), the **zone editor** (keyboard picture + zone list) for per-key lighting, the LED wizard. |
-| **Settings** | Components on/off, language, appearance, keyboard layout (see [Settings](#settings)). |
+| **Settings** | Components on/off, language, appearance, refresh interval, keyboard layout (see [Settings](#settings)). |
 | **Logs** | Live GUI, CPU daemon, fan daemon and keyboard daemon logs (newest on top). |
 | **Help** | This README, the changelog and the license, formatted, with clickable links and a search field. |
 | **About** | Version, credits, links. |
@@ -92,6 +92,7 @@ dcc-gui --debug    # more output in GUI.log
 - **Components**: switch **CPU control, fan control or the keyboard backlight** off when it does not work on your laptop or causes problems, and on again. Asks for the administrator password, applies system wide and stays after reboots and updates; the tabs and tray submenus of a switched-off part are hidden. Fan control switched off: the fans run at 100% until the next reboot, then the firmware controls them.
 - **Language**: system default, English (US), English (UK), German, Spanish, Japanese or Korean, after a restart of the GUI (**Restart now**). Japanese and Korean are not reviewed by a native speaker yet. The command-line tools stay in English.
 - **Appearance**: follow the system, dark or light; the theme, the keyboard picture and the fan curve graph follow it.
+- **Refresh interval**: how often the window shows new temperatures, fan speeds, CPU frequencies, power and GPU values: every 1, 2 (default), 3, 5 or 10 seconds. The daemons control fans and CPU on their own schedule regardless.
 - **Keyboard layout**: German, English (UK), Spanish, Japanese or Korean picture and keys, preselected from the system's keyboard layout. The LED wizard mapping is kept per layout.
 
 ### CPU power modes

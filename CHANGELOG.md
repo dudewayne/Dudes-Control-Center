@@ -6,6 +6,16 @@ Programs and services were named `dudes-control-center-*` before 1.19.0 (for exa
 
 ## [Unreleased]
 
+## [1.40.0] - 2026-11-26
+
+### Added
+- **Settings: refresh interval** for the live values in the window (temperatures, fan speeds, CPU frequencies, CPU and GPU power, GPU clocks): every 1, 2, 3, 5 or 10 seconds, stored as `refresh_interval` in `config.json` and applied right away. It used to be fixed: 2 seconds for the Status and Fan Profiles tabs, 5 seconds for the CPU values. Default 2 seconds for all. The daemons keep controlling fans and CPU on their own schedule.
+- Tests: the setting is stored and read back, values not offered fall back to 2 seconds, both timers are replaced on a change, the keyboard sync stays about every 6 seconds.
+
+### Changed
+- CPU frequencies and CPU power now refresh at the same interval as the rest of the Status tab (were every 5 seconds).
+- The fan daemon caches the NVIDIA values for 0.9 seconds instead of 3, so a 1-second interval shows fresh GPU values; `nvidia-smi` still runs only while the GPU is awake.
+
 ## [1.39.0] - 2026-11-26
 
 ### Added
@@ -1010,7 +1020,8 @@ Programs and services were named `dudes-control-center-*` before 1.19.0 (for exa
 - Unix socket IPC between GUI and daemon
 - Watchdog timer and fail-safe mode in daemon
 
-[Unreleased]: https://github.com/dudewayne/Dudes-Control-Center/compare/v1.39.0...HEAD
+[Unreleased]: https://github.com/dudewayne/Dudes-Control-Center/compare/v1.40.0...HEAD
+[1.40.0]: https://github.com/dudewayne/Dudes-Control-Center/compare/v1.39.0...v1.40.0
 [1.39.0]: https://github.com/dudewayne/Dudes-Control-Center/compare/v1.38.1...v1.39.0
 [1.38.1]: https://github.com/dudewayne/Dudes-Control-Center/compare/v1.38.0...v1.38.1
 [1.38.0]: https://github.com/dudewayne/Dudes-Control-Center/compare/v1.37.0...v1.38.0

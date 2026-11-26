@@ -1074,6 +1074,22 @@ msgstr "Dunkel"
 msgid "Light"
 msgstr "Hell"
 
+msgid "Refresh Interval"
+msgstr "Aktualisierungsintervall"
+
+msgid "Update every:"
+msgstr "Aktualisieren alle:"
+
+msgid "1 second"
+msgstr "1 Sekunde"
+
+#, c-format
+msgid "%d seconds"
+msgstr "%d Sekunden"
+
+msgid "How often the window shows new temperatures, fan speeds, CPU frequencies, power and GPU values. Shorter intervals look more live but wake the CPU more often. The daemons keep controlling fans and CPU on their own schedule (fan curve every 5 seconds), whatever is set here."
+msgstr "Wie oft das Fenster neue Temperaturen, Lüfterdrehzahlen, CPU-Frequenzen, Leistungs- und GPU-Werte zeigt. Kürzere Intervalle wirken lebendiger, wecken die CPU aber öfter auf. Die Dienste steuern Lüfter und CPU unabhängig davon in ihrem eigenen Takt (Lüfterkurve alle 5 Sekunden)."
+
 msgid "Keyboard Layout"
 msgstr "Tastaturlayout"
 

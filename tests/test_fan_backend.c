@@ -107,11 +107,11 @@ int main(void) {
     put_abs("nvidia-smi", "#!/bin/sh\necho x >> calls\n"
             "echo 'NVIDIA GeForce RTX 5090 Laptop GPU, 43, 26.26, 502, 14001, 2, 2487, 24463, P0'\n");
     chmod("nvidia-smi", 0755);
-    sleep(4);                                        /* past the 3 s cache */
+    usleep(1200000);                                 /* past the 0.9 s cache */
     CHECK(gpu_info_get(&g) == GPU_SLEEPING && access("calls", F_OK) != 0,
           "sleeping GPU: nvidia-smi is not run (it would wake the GPU)");
     put_abs("pci/0000:02:00.0/power/runtime_status", "active\n");
-    sleep(4);
+    usleep(1200000);
     CHECK(gpu_info_get(&g) == GPU_AWAKE && g.temp == 43 && g.power_w > 26.2 && g.power_w < 26.3 &&
           g.clock_mhz == 502 && g.mem_clock_mhz == 14001 && g.util == 2 && g.vram_used_mb == 2487 &&
           g.vram_total_mb == 24463 && !strcmp(g.pstate, "P0") && !strcmp(g.name, "NVIDIA GeForce RTX 5090 Laptop GPU"),
@@ -122,9 +122,9 @@ int main(void) {
     FILE *cf = fopen("calls", "r");
     for (int ch; cf && (ch = fgetc(cf)) != EOF;) calls += ch == '\n';
     if (cf) fclose(cf);
-    CHECK(calls == 1, "values are cached: further requests within 3 s run nvidia-smi no more");
+    CHECK(calls == 1, "values are cached: further requests within 0.9 s run nvidia-smi no more");
     put_abs("nvidia-smi", "#!/bin/sh\necho 'GPU, [N/A], [N/A], 300, 405, 0, 10, 8000, P8'\n");
-    sleep(4);
+    usleep(1200000);
     CHECK(gpu_info_get(&g) == GPU_AWAKE && g.temp == -1 && g.power_w < 0 && g.clock_mhz == 300,
           "[N/A] fields read as unknown");
 

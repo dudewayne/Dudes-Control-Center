@@ -266,7 +266,7 @@ static int gpu_temp_sysfs(void) {
 #ifndef DCC_NVIDIA_SMI
 #define DCC_NVIDIA_SMI "/usr/bin/nvidia-smi"
 #endif
-#define GPU_CACHE_SEC 3.0
+#define GPU_CACHE_SEC 0.9   /* below the shortest GUI refresh interval (1 s, 1.40.0) */
 
 /* GPU_NONE: no NVIDIA GPU; GPU_SLEEPING: powered down; GPU_AWAKE */
 static int gpu_power_state(void) {

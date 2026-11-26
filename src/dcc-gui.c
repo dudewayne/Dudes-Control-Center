@@ -742,6 +742,8 @@ typedef struct {
     GtkWidget *settings_restart_btn;
     GtkWidget *settings_appearance_note;
     GtkWidget *settings_layout_note;
+    int refresh_sec;                   /* refresh interval of the live values (1.40.0) */
+    GtkWidget *settings_refresh_combo;
     /* Zone editor (1.24.0) */
     KbdProfileEdit kbd_edit;           /* profile being edited (shown as a preview) */
     KbdProfileEdit kbd_saved;          /* the same profile as saved */
@@ -904,6 +906,8 @@ static GtkWidget* create_tray_menu(AppData *app);
 static GtkWidget *create_settings_page(AppData *app);
 static void on_settings_layout_changed(GtkComboBox *combo, gpointer user_data);
 static void on_settings_appearance_changed(GtkComboBox *combo, gpointer user_data);
+static gboolean refresh_timer_callback(gpointer user_data);
+static void refresh_timers_start(AppData *app);
 static void appearance_refresh(AppData *app);
 static void appearance_apply_theme(int mode);
 static void appearance_save_choice(int mode);
@@ -9861,6 +9865,65 @@ static void on_settings_layout_changed(GtkComboBox *combo, gpointer user_data) {
     show_status(app, _("Keyboard layout changed"));
 }
 
+/* ============================================================
+ * Refresh interval (1.40.0): how often the GUI asks the daemons for
+ * temperatures, fan speeds, CPU frequencies, power and GPU values. It used
+ * to be fixed (fan/Status 2 s, CPU 5 s); now one setting for both timers,
+ * stored as "refresh_interval" (seconds) in config.json.
+ * ============================================================ */
+static const int refresh_choices[] = { 1, 2, 3, 5, 10 };
+#define REFRESH_NUM_CHOICES ((int)(sizeof refresh_choices / sizeof refresh_choices[0]))
+#define REFRESH_DEFAULT_SEC 2
+
+/* A stored value if it is one of the choices, else the default */
+static int refresh_sec_valid(int sec) {
+    for (int i = 0; i < REFRESH_NUM_CHOICES; i++)
+        if (refresh_choices[i] == sec) return sec;
+    return REFRESH_DEFAULT_SEC;
+}
+
+static int refresh_sec_load(void) {
+    cJSON *json = config_read();
+    cJSON *v = cJSON_GetObjectItem(json, "refresh_interval");
+    int sec = cJSON_IsNumber(v) ? refresh_sec_valid(v->valueint) : REFRESH_DEFAULT_SEC;
+    cJSON_Delete(json);
+    return sec;
+}
+
+static void refresh_sec_save(int sec) {
+    cJSON *json = config_read();
+    cJSON_DeleteItemFromObject(json, "refresh_interval");
+    cJSON_AddNumberToObject(json, "refresh_interval", sec);
+    config_write(json);
+    cJSON_Delete(json);
+}
+
+/* Timer ticks between keyboard syncs, so they stay about 6 s apart */
+static int refresh_kbd_ticks(int sec) {
+    if (sec <= 0) sec = REFRESH_DEFAULT_SEC;
+    int t = (6 + sec - 1) / sec;
+    return t < 1 ? 1 : t;
+}
+
+/* (Re)start both refresh timers with app->refresh_sec */
+static void refresh_timers_start(AppData *app) {
+    if (app->refresh_sec <= 0) app->refresh_sec = refresh_sec_load();
+    if (app->refresh_timer_id > 0) g_source_remove(app->refresh_timer_id);
+    if (app->cpu_refresh_timer_id > 0) g_source_remove(app->cpu_refresh_timer_id);
+    app->refresh_timer_id = g_timeout_add_seconds((guint)app->refresh_sec, refresh_timer_callback, app);
+    app->cpu_refresh_timer_id = g_timeout_add_seconds((guint)app->refresh_sec, cpu_refresh_timer_callback, app);
+}
+
+static void on_settings_refresh_changed(GtkComboBox *combo, gpointer user_data) {
+    AppData *app = (AppData *)user_data;
+    int i = gtk_combo_box_get_active(combo);
+    if (i < 0 || i >= REFRESH_NUM_CHOICES || refresh_choices[i] == app->refresh_sec) return;
+    app->refresh_sec = refresh_choices[i];
+    refresh_sec_save(app->refresh_sec);
+    refresh_timers_start(app);
+    gui_event("[GUI] Refresh interval set to %d s\n", app->refresh_sec);
+}
+
 static GtkWidget *create_settings_page(AppData *app) {
     GtkWidget *vbox = gtk_box_new(GTK_ORIENTATION_VERTICAL, 10);
     gtk_container_set_border_width(GTK_CONTAINER(vbox), 12);
@@ -9970,6 +10033,38 @@ static GtkWidget *create_settings_page(AppData *app) {
         gtk_container_add(GTK_CONTAINER(aframe), abox);
         gtk_box_pack_start(GTK_BOX(vbox), aframe, FALSE, FALSE, 0);
         settings_update_appearance_note(app);
+    }
+
+    /* Refresh interval (1.40.0) */
+    {
+        GtkWidget *rframe = gtk_frame_new(_("Refresh Interval"));
+        GtkWidget *rbox = gtk_box_new(GTK_ORIENTATION_VERTICAL, 6);
+        gtk_container_set_border_width(GTK_CONTAINER(rbox), 10);
+        GtkWidget *row = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 10);
+        gtk_box_pack_start(GTK_BOX(row), gtk_label_new(_("Update every:")), FALSE, FALSE, 0);
+        app->settings_refresh_combo = gtk_combo_box_text_new();
+        if (app->refresh_sec <= 0) app->refresh_sec = refresh_sec_load();
+        for (int i = 0; i < REFRESH_NUM_CHOICES; i++) {
+            gchar *t = refresh_choices[i] == 1 ? g_strdup(_("1 second"))
+                                               : g_strdup_printf(_("%d seconds"), refresh_choices[i]);
+            gtk_combo_box_text_append_text(GTK_COMBO_BOX_TEXT(app->settings_refresh_combo), t);
+            g_free(t);
+            if (refresh_choices[i] == app->refresh_sec)
+                gtk_combo_box_set_active(GTK_COMBO_BOX(app->settings_refresh_combo), i);
+        }
+        g_signal_connect(app->settings_refresh_combo, "changed", G_CALLBACK(on_settings_refresh_changed), app);
+        gtk_box_pack_start(GTK_BOX(row), app->settings_refresh_combo, FALSE, FALSE, 0);
+        gtk_box_pack_start(GTK_BOX(rbox), row, FALSE, FALSE, 0);
+        GtkWidget *rnote = gtk_label_new(_("How often the window shows new temperatures, fan speeds, CPU frequencies, "
+                                           "power and GPU values. Shorter intervals look more live but wake the "
+                                           "CPU more often. The daemons keep controlling fans and CPU on their own "
+                                           "schedule (fan curve every 5 seconds), whatever is set here."));
+        gtk_label_set_xalign(GTK_LABEL(rnote), 0.0);
+        gtk_label_set_line_wrap(GTK_LABEL(rnote), TRUE);
+        gtk_label_set_max_width_chars(GTK_LABEL(rnote), 110);
+        gtk_box_pack_start(GTK_BOX(rbox), rnote, FALSE, FALSE, 0);
+        gtk_container_add(GTK_CONTAINER(rframe), rbox);
+        gtk_box_pack_start(GTK_BOX(vbox), rframe, FALSE, FALSE, 0);
     }
 
     /* Keyboard layout (1.28.0) */
@@ -10991,7 +11086,7 @@ static gboolean refresh_timer_callback(gpointer user_data) {
     /* Every 6 s: keep the keyboard connection alive (reconnects after a
      * daemon restart) and the Backlight Off switch in sync with the daemon */
     static int kbd_tick = 0;
-    if (++kbd_tick >= 3 && !dcc_component_disabled(COMP_KEYBOARD)) {
+    if (++kbd_tick >= refresh_kbd_ticks(app->refresh_sec) && !dcc_component_disabled(COMP_KEYBOARD)) {
         kbd_tick = 0;
         kbd_sync_power_switch(app);
     }
@@ -11212,12 +11307,10 @@ int main(int argc, char *argv[]) {
         }
     }
 
-    /* Start refresh timer (every 2 seconds) */
-    app.refresh_timer_id = g_timeout_add_seconds(2, refresh_timer_callback, &app);
-
-    /* CPU refresh timer (every 5 seconds); it also reconnects, so it runs
-     * even if the CPU daemon is not reachable at startup */
-    app.cpu_refresh_timer_id = g_timeout_add_seconds(5, cpu_refresh_timer_callback, &app);
+    /* Refresh timers for the live values, interval from Settings (1.40.0);
+     * the CPU timer also reconnects, so it runs even if the CPU daemon is
+     * not reachable at startup */
+    refresh_timers_start(&app);
     if (app.cpu_connected) cpu_load_initial_data(&app);
 
     /* Load CPU custom profiles at startup so they appear in the tray menu immediately.

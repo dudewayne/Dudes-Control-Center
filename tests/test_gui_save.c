@@ -633,6 +633,37 @@ int main(int argc, char **argv) {
         CHECK(!other_seen && !gui_pid_alive(999999), "Q: another program with that PID or no process: not running");
     }
 
+    /* V: refresh interval setting (v1.40.0) */
+    {
+        CHECK(refresh_sec_load() == 2, "V: no setting -> 2 s (the old Status interval)");
+        refresh_sec_save(5);
+        CHECK(refresh_sec_load() == 5, "V: saved interval read back");
+        cJSON *cj = config_read();
+        CHECK(cJSON_GetObjectItem(cj, "refresh_interval") && cJSON_GetObjectItem(cj, "refresh_interval")->valueint == 5,
+              "V: stored as refresh_interval in config.json");
+        cJSON_Delete(cj);
+        refresh_sec_save(7);
+        CHECK(refresh_sec_load() == 2, "V: a value that is not offered -> 2 s");
+        CHECK(refresh_kbd_ticks(1) == 6 && refresh_kbd_ticks(2) == 3 && refresh_kbd_ticks(3) == 2 &&
+              refresh_kbd_ticks(5) == 2 && refresh_kbd_ticks(10) == 1,
+              "V: keyboard sync stays about every 6 s (at least once per refresh)");
+        static AppData ra;
+        ra.refresh_sec = 3;
+        refresh_timers_start(&ra);
+        guint t1 = ra.refresh_timer_id, c1 = ra.cpu_refresh_timer_id;
+        ra.refresh_sec = 1;
+        refresh_timers_start(&ra);
+        CHECK(t1 && c1 && ra.refresh_timer_id && ra.cpu_refresh_timer_id &&
+              !g_main_context_find_source_by_id(NULL, t1) && !g_main_context_find_source_by_id(NULL, c1),
+              "V: changing the interval replaces both timers (old ones removed)");
+        g_source_remove(ra.refresh_timer_id);
+        g_source_remove(ra.cpu_refresh_timer_id);
+        cj = config_read();
+        cJSON_DeleteItemFromObject(cj, "refresh_interval");
+        config_write(cj);
+        cJSON_Delete(cj);
+    }
+
     /* Y: System section (v1.39.0) */
     {
         g_mkdir_with_parents("si/dmi", 0755);

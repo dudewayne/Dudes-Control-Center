@@ -1103,6 +1103,22 @@ msgstr "ダーク"
 msgid "Light"
 msgstr "ライト"
 
+msgid "Refresh Interval"
+msgstr "更新間隔"
+
+msgid "Update every:"
+msgstr "更新間隔:"
+
+msgid "1 second"
+msgstr "1 秒"
+
+#, c-format
+msgid "%d seconds"
+msgstr "%d 秒"
+
+msgid "How often the window shows new temperatures, fan speeds, CPU frequencies, power and GPU values. Shorter intervals look more live but wake the CPU more often. The daemons keep controlling fans and CPU on their own schedule (fan curve every 5 seconds), whatever is set here."
+msgstr "ウィンドウが温度、ファン回転数、CPU 周波数、電力、GPU の値を更新する頻度です。間隔を短くするとよりリアルタイムに見えますが、CPU を起こす回数が増えます。ここでの設定にかかわらず、デーモンは独自の間隔でファンと CPU を制御します(ファンカーブは 5 秒ごと)。"
+
 msgid "Keyboard Layout"
 msgstr "キーボード配列"
 
