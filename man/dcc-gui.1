@@ -6,14 +6,17 @@ dcc-gui \- desktop application of Dudes Control Center
 .SH SYNOPSIS
 .B dcc-gui
 .RB [ \-\-debug ]
+.RB [ \-\-minimized | \-\-show ]
 .SH DESCRIPTION
 .B dcc-gui
 is the GTK3 front end for the fan, CPU and keyboard daemons.
 It runs as the desktop user and talks to the daemons over their sockets, so
 the user must be a member of the group
 .BR dudes-control-center .
-Only one instance runs at a time; a second start exits with status 1 (open the
-running one from its tray icon).
+Only one instance runs at a time; a second start opens the running one's
+window (with
+.B \-\-minimized
+it leaves it in the tray) and exits.
 Closing the window hides it; the application keeps running in the tray until
 .B Exit
 is chosen in the tray menu.
@@ -43,7 +46,8 @@ that maps keys to LEDs.
 .TP
 .B Settings
 Language, appearance (system, dark, light), refresh interval of the live
-values (1, 2, 3, 5 or 10 seconds), keyboard layout, and switching
+values (1, 2, 3, 5 or 10 seconds), start minimized to the tray or with the
+window open, keyboard layout, and switching
 the fan, CPU or keyboard part on or off (asks for the administrator password,
 see
 .BR dcc-component (8)).
@@ -63,10 +67,28 @@ Version and credits.
 .B \-\-debug
 Also write routine messages to the GUI log (every refresh and daemon reply);
 by default it records events only.
+.TP
+.B \-\-minimized
+Start as an icon in the system tray.
+.TP
+.B \-\-show
+Start with the window open.
+.PP
+Without either option the setting
+.I Start minimized to tray
+in the Settings tab decides (on by default). Switching it writes
+.B \-\-minimized
+into the Exec line of the application menu entry (a copy in
+.IR ~/.local/share/applications )
+and of the user's startup applications in
+.I ~/.config/autostart
+that start
+.BR dcc-gui ,
+or removes it.
 .SH EXIT STATUS
 0 after
 .B Exit
-in the tray menu, 1 if another instance is already running.
+in the tray menu, and when another instance is already running.
 .SH ENVIRONMENT
 .TP
 .B LANGUAGE ", " LANG

@@ -664,6 +664,98 @@ int main(int argc, char **argv) {
         cJSON_Delete(cj);
     }
 
+    /* X: start minimized to tray, desktop entries, second start (v1.40.0) */
+    {
+        CHECK(start_minimized_load() == 1 && !start_minimized_is_set(), "X: not set -> start minimized (as before)");
+        start_minimized_save(0);
+        CHECK(start_minimized_load() == 0 && start_minimized_is_set(), "X: off saved and read back");
+        start_minimized_save(1);
+        CHECK(start_minimized_load() == 1, "X: on saved and read back");
+
+        int ch = 0;
+        gchar *r = desktop_exec_rewrite("[Desktop Entry]\nName=DCC\nExec=/usr/local/bin/dcc-gui\nIcon=x\n", 1, &ch);
+        CHECK(ch && !strcmp(r, "[Desktop Entry]\nName=DCC\nExec=/usr/local/bin/dcc-gui --minimized\nIcon=x\n"),
+              "X: on adds --minimized to the Exec line");
+        g_free(r);
+        r = desktop_exec_rewrite("[Desktop Entry]\nExec=dcc-gui --debug --minimized\n", 0, &ch);
+        CHECK(ch && !strcmp(r, "[Desktop Entry]\nExec=dcc-gui --debug\n"), "X: off removes it, other options kept");
+        g_free(r);
+        r = desktop_exec_rewrite("[Desktop Entry]\nExec=dcc-gui --show\n", 1, &ch);
+        CHECK(ch && !strcmp(r, "[Desktop Entry]\nExec=dcc-gui --minimized\n"), "X: --show replaced");
+        g_free(r);
+        r = desktop_exec_rewrite("[Desktop Entry]\nExec=/usr/bin/plank\n", 1, &ch);
+        CHECK(!ch && !strcmp(r, "[Desktop Entry]\nExec=/usr/bin/plank\n"), "X: other programs untouched");
+        g_free(r);
+        r = desktop_exec_rewrite("[Desktop Entry]\nExec=dcc-gui --minimized\n[Desktop Action x]\nExec=dcc-gui --show\n", 1, &ch);
+        CHECK(!ch && strstr(r, "Action x]\nExec=dcc-gui --show"), "X: only [Desktop Entry] changes; unchanged -> not changed");
+        g_free(r);
+        r = desktop_exec_rewrite("[Desktop Entry]\nExec=dcc-gui-other\n", 1, &ch);
+        CHECK(!ch, "X: a program that only starts with dcc-gui is untouched");
+        g_free(r);
+
+        char dx[1100], sysf[1200], apps[1200], aut[1200], uf[1300], af[1300], of[1300], lf[1300];
+        snprintf(dx, sizeof dx, "%s/desk", home);
+        snprintf(sysf, sizeof sysf, "%s/sys.desktop", dx);
+        snprintf(apps, sizeof apps, "%s/applications", dx);
+        snprintf(aut, sizeof aut, "%s/autostart", dx);
+        snprintf(uf, sizeof uf, "%s/" DESKTOP_FILE_NAME, apps);
+        snprintf(af, sizeof af, "%s/dudes-control-center-1.desktop", aut);
+        snprintf(of, sizeof of, "%s/plank.desktop", aut);
+        snprintf(lf, sizeof lf, "%s/link.desktop", aut);
+        g_mkdir_with_parents(aut, 0755);
+        g_file_set_contents(sysf, "[Desktop Entry]\nName=Dudes Control Center\nExec=/usr/local/bin/dcc-gui\n", -1, NULL);
+        g_file_set_contents(af, "[Desktop Entry]\nExec=/usr/local/bin/dcc-gui\nX-GNOME-Autostart-enabled=true\n", -1, NULL);
+        g_file_set_contents(of, "[Desktop Entry]\nExec=plank\n", -1, NULL);
+        symlink(sysf, lf);
+        desktop_entries_apply(1, sysf, apps, aut);
+        gchar *c = NULL;
+        g_file_get_contents(uf, &c, NULL, NULL);
+        CHECK(c && strstr(c, "Exec=/usr/local/bin/dcc-gui --minimized\n") && strstr(c, DESKTOP_MARKER) &&
+              strstr(c, "Name=Dudes Control Center"), "X: on -> menu entry copy with --minimized in the user's applications");
+        g_free(c); c = NULL;
+        g_file_get_contents(af, &c, NULL, NULL);
+        CHECK(c && !strcmp(c, "[Desktop Entry]\nExec=/usr/local/bin/dcc-gui --minimized\nX-GNOME-Autostart-enabled=true\n"),
+              "X: on -> autostart entry gets --minimized, rest unchanged");
+        g_free(c); c = NULL;
+        g_file_get_contents(of, &c, NULL, NULL);
+        CHECK(c && !strcmp(c, "[Desktop Entry]\nExec=plank\n"), "X: other autostart entries untouched");
+        g_free(c); c = NULL;
+        struct stat lst;
+        g_file_get_contents(sysf, &c, NULL, NULL);
+        CHECK(lstat(lf, &lst) == 0 && S_ISLNK(lst.st_mode) && c && !strstr(c, "--minimized"),
+              "X: symlinked entries are not followed");
+        g_free(c); c = NULL;
+        desktop_entries_apply(0, sysf, apps, aut);
+        g_file_get_contents(af, &c, NULL, NULL);
+        CHECK(access(uf, F_OK) != 0 && c && !strstr(c, "--minimized"),
+              "X: off -> our menu copy removed (system entry starts without options), autostart without --minimized");
+        g_free(c); c = NULL;
+        g_file_set_contents(uf, "[Desktop Entry]\nName=Mine\nExec=dcc-gui\n", -1, NULL);
+        desktop_entries_apply(1, sysf, apps, aut);
+        g_file_get_contents(uf, &c, NULL, NULL);
+        CHECK(c && !strcmp(c, "[Desktop Entry]\nName=Mine\nExec=dcc-gui --minimized\n"),
+              "X: the user's own menu copy keeps everything but the Exec option");
+        g_free(c); c = NULL;
+        desktop_entries_apply(0, sysf, apps, aut);
+        CHECK(access(uf, F_OK) == 0, "X: ... and is never removed");
+
+        char rt[1100];
+        snprintf(rt, sizeof rt, "%s/run", home);
+        g_mkdir_with_parents(rt, 0700);
+        setenv("XDG_RUNTIME_DIR", rt, 1);
+        CHECK(!instance_send_show(), "X: no running GUI -> second start just quits");
+        static AppData ia;   /* no window: the request is read but shows nothing */
+        instance_listen(&ia);
+        CHECK(ia.instance_watch && instance_send_show(), "X: running GUI -> second start reaches it");
+        for (int k = 0; k < 5; k++) while (g_main_context_iteration(NULL, FALSE)) {}
+        g_source_remove(ia.instance_watch);
+        start_minimized_save(1);
+        cJSON *cj = config_read();
+        cJSON_DeleteItemFromObject(cj, "start_minimized");
+        config_write(cj);
+        cJSON_Delete(cj);
+    }
+
     /* Y: System section (v1.39.0) */
     {
         g_mkdir_with_parents("si/dmi", 0755);

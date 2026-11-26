@@ -1113,6 +1113,15 @@ msgstr "%d segundos"
 msgid "How often the window shows new temperatures, fan speeds, CPU frequencies, power and GPU values. Shorter intervals look more live but wake the CPU more often. The daemons keep controlling fans and CPU on their own schedule (fan curve every 5 seconds), whatever is set here."
 msgstr "Con qué frecuencia la ventana muestra nuevas temperaturas, velocidades de ventilador, frecuencias de CPU, potencia y valores de la GPU. Los intervalos más cortos se ven más en vivo, pero despiertan la CPU más a menudo. Los servicios siguen controlando ventiladores y CPU a su propio ritmo (curva de ventilador cada 5 segundos), sea cual sea este ajuste."
 
+msgid "Startup"
+msgstr "Inicio"
+
+msgid "Start minimized to tray"
+msgstr "Iniciar minimizado en la bandeja"
+
+msgid "On: the GUI starts as an icon in the system tray. Off: it opens its window. The application menu entry and your startup applications that start Dudes Control Center are adjusted (option --minimized). Starting it again while it runs opens its window."
+msgstr "Activado: la interfaz se inicia como icono en la bandeja del sistema. Desactivado: abre su ventana. La entrada del menú de aplicaciones y sus aplicaciones de inicio que arrancan Dudes Control Center se ajustan (opción --minimized). Iniciarla de nuevo mientras se ejecuta abre su ventana."
+
 msgid "Keyboard Layout"
 msgstr "Distribución del teclado"
 

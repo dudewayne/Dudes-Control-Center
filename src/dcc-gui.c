@@ -25,6 +25,7 @@
 #include <poll.h>
 #include <locale.h>
 #include <libintl.h>
+#include <dirent.h>
 
 /* UI languages (1.31.0): gettext catalogs dudes-control-center.mo */
 #define DCC_TEXT_DOMAIN "dudes-control-center"
@@ -54,6 +55,7 @@ static const UiLanguage ui_languages[] = {
 #define UI_NUM_LANGUAGES ((int)(sizeof ui_languages / sizeof ui_languages[0]))
 static char ui_language_code[16] = "system";   /* as chosen (and running) */
 static char **gui_argv;   /* for "Restart now" in Settings */
+static int gui_debug_flag;   /* started with --debug (kept by "Restart now") */
 
 /* Define M_PI if not already defined */
 #ifndef M_PI
@@ -744,6 +746,8 @@ typedef struct {
     GtkWidget *settings_layout_note;
     int refresh_sec;                   /* refresh interval of the live values (1.40.0) */
     GtkWidget *settings_refresh_combo;
+    GtkWidget *settings_minimized_switch;   /* start minimized to tray (1.40.0) */
+    guint instance_watch;              /* second start -> show window (1.40.0) */
     /* Zone editor (1.24.0) */
     KbdProfileEdit kbd_edit;           /* profile being edited (shown as a preview) */
     KbdProfileEdit kbd_saved;          /* the same profile as saved */
@@ -907,6 +911,7 @@ static GtkWidget *create_settings_page(AppData *app);
 static void on_settings_layout_changed(GtkComboBox *combo, gpointer user_data);
 static void on_settings_appearance_changed(GtkComboBox *combo, gpointer user_data);
 static gboolean refresh_timer_callback(gpointer user_data);
+static void on_tray_show_app(GtkMenuItem *menuitem, gpointer user_data);
 static void refresh_timers_start(AppData *app);
 static void appearance_refresh(AppData *app);
 static void appearance_apply_theme(int mode);
@@ -9792,7 +9797,15 @@ static void on_settings_restart_clicked(GtkWidget *widget, gpointer user_data) {
     disconnect_from_daemon(app);
     disconnect_from_cpu_daemon(app);
     if (app->kbd_socket_fd >= 0) { close(app->kbd_socket_fd); app->kbd_socket_fd = -1; }
-    execv("/proc/self/exe", gui_argv);
+    /* The restarted GUI opens its window again, whatever "Start minimized"
+     * says (1.40.0) */
+    char *rargv[4];
+    int rn = 0;
+    rargv[rn++] = gui_argv[0];
+    if (gui_debug_flag) rargv[rn++] = "--debug";
+    rargv[rn++] = gtk_widget_get_visible(app->window) ? "--show" : "--minimized";
+    rargv[rn] = NULL;
+    execv("/proc/self/exe", rargv);
     g_print("[GUI] Restart failed: %s\n", strerror(errno));
     show_status(app, _("Restart failed - please quit and start the GUI again"));
 }
@@ -9863,6 +9876,236 @@ static void on_settings_layout_changed(GtkComboBox *combo, gpointer user_data) {
     kbd_redraw_canvas(app);
     settings_update_layout_note(app);
     show_status(app, _("Keyboard layout changed"));
+}
+
+/* ============================================================
+ * Start minimized to tray (1.40.0). "start_minimized" in config.json
+ * (default on: the GUI always started in the tray before). The command line
+ * wins: --minimized or --show. The setting also sets the Exec line of the
+ * desktop's entries, so the menu and the startup applications show what
+ * they do: a per-user copy of the menu entry in ~/.local/share/applications
+ * (the system one in /usr/share is root's) and the user's autostart entries
+ * that start dcc-gui. Only the Exec line in [Desktop Entry] is changed.
+ * ============================================================ */
+#define DESKTOP_FILE_NAME "dudes-control-center.desktop"
+#define DESKTOP_SYSTEM_FILE "/usr/share/applications/" DESKTOP_FILE_NAME
+#define DESKTOP_MARKER "X-DCC-Generated=true"
+
+static int start_minimized_load(void) {
+    cJSON *json = config_read();
+    cJSON *v = cJSON_GetObjectItem(json, "start_minimized");
+    int on = cJSON_IsBool(v) ? cJSON_IsTrue(v) : 1;
+    cJSON_Delete(json);
+    return on;
+}
+
+static int start_minimized_is_set(void) {
+    cJSON *json = config_read();
+    int set = cJSON_IsBool(cJSON_GetObjectItem(json, "start_minimized"));
+    cJSON_Delete(json);
+    return set;
+}
+
+static void start_minimized_save(int on) {
+    cJSON *json = config_read();
+    cJSON_DeleteItemFromObject(json, "start_minimized");
+    cJSON_AddBoolToObject(json, "start_minimized", on ? 1 : 0);
+    config_write(json);
+    cJSON_Delete(json);
+}
+
+/* Does an Exec value start dcc-gui (any path)? */
+static int desktop_exec_is_gui(const char *val) {
+    while (*val == ' ' || *val == '\t') val++;
+    size_t n = strcspn(val, " \t");
+    const char *slash = NULL;
+    for (const char *c = val; c < val + n; c++) if (*c == '/') slash = c;
+    const char *base = slash ? slash + 1 : val;
+    return (size_t)(val + n - base) == 7 && strncmp(base, "dcc-gui", 7) == 0;
+}
+
+/* The content with every dcc-gui Exec= line of [Desktop Entry] ending in
+ * " --minimized" (on) or without it; --show and --minimized are dropped
+ * first, other arguments kept. *changed tells whether anything differs. */
+static gchar *desktop_exec_rewrite(const char *content, int minimized, int *changed) {
+    GString *out = g_string_new(NULL);
+    gchar **lines = g_strsplit(content, "\n", -1);
+    int in_entry = 0;
+    *changed = 0;
+    for (int i = 0; lines[i]; i++) {
+        const char *l = lines[i];
+        if (l[0] == '[') in_entry = strncmp(l, "[Desktop Entry]", 15) == 0;
+        if (in_entry && strncmp(l, "Exec=", 5) == 0 && desktop_exec_is_gui(l + 5)) {
+            GString *e = g_string_new("Exec=");
+            gchar **tok = g_strsplit_set(l + 5, " \t", -1);
+            int first = 1;
+            for (int t = 0; tok[t]; t++) {
+                if (!*tok[t] || !strcmp(tok[t], "--minimized") || !strcmp(tok[t], "--show")) continue;
+                if (!first) g_string_append_c(e, ' ');
+                g_string_append(e, tok[t]);
+                first = 0;
+            }
+            g_strfreev(tok);
+            if (minimized) g_string_append(e, " --minimized");
+            if (strcmp(e->str, l) != 0) *changed = 1;
+            g_string_append(out, e->str);
+            g_string_free(e, TRUE);
+        } else {
+            g_string_append(out, l);
+        }
+        if (lines[i + 1]) g_string_append_c(out, '\n');
+    }
+    g_strfreev(lines);
+    return g_string_free(out, FALSE);
+}
+
+/* Rewrite one file's Exec line; not through symlinks, only regular files */
+static int desktop_file_update(const char *path, int minimized) {
+    struct stat st;
+    if (lstat(path, &st) != 0 || !S_ISREG(st.st_mode)) return 0;
+    gchar *data = NULL;
+    if (!g_file_get_contents(path, &data, NULL, NULL)) return 0;
+    int changed = 0;
+    gchar *nd = desktop_exec_rewrite(data, minimized, &changed);
+    int ok = 1;
+    if (changed) {
+        ok = g_file_set_contents(path, nd, -1, NULL);
+        gui_event("[GUI] %s %s\n", ok ? "Updated start option in" : "WARNING: cannot update", path);
+    }
+    g_free(nd);
+    g_free(data);
+    return ok;
+}
+
+/* Menu entry and autostart entries for the setting. sys_file: the
+ * package's menu entry; apps_dir: ~/.local/share/applications;
+ * autostart_dir: ~/.config/autostart. */
+static void desktop_entries_apply(int minimized, const char *sys_file, const char *apps_dir,
+                                  const char *autostart_dir) {
+    gchar *user_file = g_build_filename(apps_dir, DESKTOP_FILE_NAME, NULL);
+    struct stat st;
+    int exists = lstat(user_file, &st) == 0;
+    gchar *data = NULL;
+    int ours = exists && S_ISREG(st.st_mode) && g_file_get_contents(user_file, &data, NULL, NULL) &&
+               strstr(data, DESKTOP_MARKER) != NULL;
+    g_free(data);
+    if (ours && !minimized) {
+        /* our copy is not needed: the system entry starts without options */
+        if (unlink(user_file) == 0) gui_event("[GUI] Removed %s\n", user_file);
+    } else if (ours || (minimized && !exists)) {
+        /* (re)create from the package's entry, so it follows updates */
+        gchar *sys = NULL;
+        if (g_file_get_contents(sys_file, &sys, NULL, NULL)) {
+            int changed = 0;
+            gchar *nd = desktop_exec_rewrite(sys, minimized, &changed);
+            GString *g = g_string_new(nd);
+            if (g->len && g->str[g->len - 1] != '\n') g_string_append_c(g, '\n');
+            /* the marker goes into [Desktop Entry]: right after its header */
+            char *hdr = strstr(g->str, "[Desktop Entry]\n");
+            if (hdr) g_string_insert(g, (hdr - g->str) + 16, DESKTOP_MARKER "\n");
+            else g_string_append(g, DESKTOP_MARKER "\n");
+            g_mkdir_with_parents(apps_dir, 0755);
+            gchar *old = NULL;
+            if (!(ours && g_file_get_contents(user_file, &old, NULL, NULL) && !strcmp(old, g->str))) {
+                if (g_file_set_contents(user_file, g->str, -1, NULL))
+                    gui_event("[GUI] Wrote menu entry %s\n", user_file);
+                else
+                    gui_event("[GUI] WARNING: cannot write %s\n", user_file);
+            }
+            g_free(old);
+            g_string_free(g, TRUE);
+            g_free(nd);
+            g_free(sys);
+        }
+    } else if (exists) {
+        desktop_file_update(user_file, minimized);   /* the user's own copy: only Exec */
+    }
+    g_free(user_file);
+
+    DIR *d = opendir(autostart_dir);
+    if (d) {
+        struct dirent *e;
+        while ((e = readdir(d))) {
+            if (!g_str_has_suffix(e->d_name, ".desktop")) continue;
+            gchar *f = g_build_filename(autostart_dir, e->d_name, NULL);
+            desktop_file_update(f, minimized);
+            g_free(f);
+        }
+        closedir(d);
+    }
+}
+
+static void desktop_entries_update(int minimized) {
+    gchar *apps = g_build_filename(g_get_user_data_dir(), "applications", NULL);
+    gchar *autostart = g_build_filename(g_get_user_config_dir(), "autostart", NULL);
+    desktop_entries_apply(minimized, DESKTOP_SYSTEM_FILE, apps, autostart);
+    g_free(apps);
+    g_free(autostart);
+}
+
+static gboolean on_settings_minimized_set(GtkSwitch *sw, gboolean state, gpointer user_data) {
+    (void)sw; (void)user_data;
+    start_minimized_save(state);
+    desktop_entries_update(state);
+    gui_event("[GUI] Start minimized to tray: %s\n", state ? "on" : "off");
+    return FALSE;
+}
+
+/* Second start (1.40.0): a running GUI listens on a socket in the user's
+ * runtime directory; a new start that finds it asks it to show its window
+ * and quits. Without the socket (older GUI) the new start only quits. */
+static void instance_socket_path(char *buf, size_t size) {
+    const char *rt = g_getenv("XDG_RUNTIME_DIR");
+    if (rt && *rt) snprintf(buf, size, "%s/dcc-gui.sock", rt);
+    else snprintf(buf, size, "%s/dudes-control-center/gui.sock", g_get_user_config_dir());
+}
+
+static gboolean instance_on_accept(GIOChannel *ch, GIOCondition cond, gpointer user_data) {
+    (void)cond;
+    AppData *app = (AppData *)user_data;
+    int fd = accept(g_io_channel_unix_get_fd(ch), NULL, NULL);
+    if (fd < 0) return G_SOURCE_CONTINUE;
+    char buf[16] = "";
+    struct pollfd pfd = { .fd = fd, .events = POLLIN };
+    if (poll(&pfd, 1, 500) > 0) {
+        ssize_t n = read(fd, buf, sizeof buf - 1);
+        if (n > 0) buf[n] = '\0';
+    }
+    close(fd);
+    if (strncmp(buf, "SHOW", 4) == 0 && app->window) {
+        gui_event("[GUI] Started again: showing the window\n");
+        on_tray_show_app(NULL, app);
+    }
+    return G_SOURCE_CONTINUE;
+}
+
+static void instance_listen(AppData *app) {
+    struct sockaddr_un a = { .sun_family = AF_UNIX };
+    instance_socket_path(a.sun_path, sizeof a.sun_path);
+    int fd = socket(AF_UNIX, SOCK_STREAM | SOCK_CLOEXEC, 0);
+    if (fd < 0) return;
+    unlink(a.sun_path);   /* left over from a GUI that did not quit cleanly */
+    if (bind(fd, (struct sockaddr *)&a, sizeof a) != 0 || listen(fd, 4) != 0) {
+        g_print("[GUI] WARNING: no instance socket %s: %s\n", a.sun_path, strerror(errno));
+        close(fd);
+        return;
+    }
+    chmod(a.sun_path, 0600);
+    GIOChannel *ch = g_io_channel_unix_new(fd);
+    g_io_channel_set_close_on_unref(ch, TRUE);
+    app->instance_watch = g_io_add_watch(ch, G_IO_IN, instance_on_accept, app);
+    g_io_channel_unref(ch);
+}
+
+/* 1 if a running GUI took the request */
+static int instance_send_show(void) {
+    struct sockaddr_un a = { .sun_family = AF_UNIX };
+    instance_socket_path(a.sun_path, sizeof a.sun_path);
+    int fd = socket(AF_UNIX, SOCK_STREAM | SOCK_CLOEXEC, 0);
+    if (fd < 0) return 0;
+    int ok = connect(fd, (struct sockaddr *)&a, sizeof a) == 0 && write(fd, "SHOW\n", 5) == 5;
+    close(fd);
+    return ok;
 }
 
 /* ============================================================
@@ -10065,6 +10308,30 @@ static GtkWidget *create_settings_page(AppData *app) {
         gtk_box_pack_start(GTK_BOX(rbox), rnote, FALSE, FALSE, 0);
         gtk_container_add(GTK_CONTAINER(rframe), rbox);
         gtk_box_pack_start(GTK_BOX(vbox), rframe, FALSE, FALSE, 0);
+    }
+
+    /* Start minimized to tray (1.40.0) */
+    {
+        GtkWidget *sframe = gtk_frame_new(_("Startup"));
+        GtkWidget *sbox = gtk_box_new(GTK_ORIENTATION_VERTICAL, 6);
+        gtk_container_set_border_width(GTK_CONTAINER(sbox), 10);
+        GtkWidget *row = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 10);
+        app->settings_minimized_switch = gtk_switch_new();
+        gtk_switch_set_active(GTK_SWITCH(app->settings_minimized_switch), start_minimized_load());
+        g_signal_connect(app->settings_minimized_switch, "state-set", G_CALLBACK(on_settings_minimized_set), app);
+        gtk_box_pack_start(GTK_BOX(row), app->settings_minimized_switch, FALSE, FALSE, 0);
+        gtk_box_pack_start(GTK_BOX(row), gtk_label_new(_("Start minimized to tray")), FALSE, FALSE, 0);
+        gtk_box_pack_start(GTK_BOX(sbox), row, FALSE, FALSE, 0);
+        GtkWidget *snote = gtk_label_new(_("On: the GUI starts as an icon in the system tray. Off: it opens its "
+                                           "window. The application menu entry and your startup applications "
+                                           "that start Dudes Control Center are adjusted (option --minimized). "
+                                           "Starting it again while it runs opens its window."));
+        gtk_label_set_xalign(GTK_LABEL(snote), 0.0);
+        gtk_label_set_line_wrap(GTK_LABEL(snote), TRUE);
+        gtk_label_set_max_width_chars(GTK_LABEL(snote), 110);
+        gtk_box_pack_start(GTK_BOX(sbox), snote, FALSE, FALSE, 0);
+        gtk_container_add(GTK_CONTAINER(sframe), sbox);
+        gtk_box_pack_start(GTK_BOX(vbox), sframe, FALSE, FALSE, 0);
     }
 
     /* Keyboard layout (1.28.0) */
@@ -11234,8 +11501,11 @@ int main(int argc, char *argv[]) {
     gui_argv = argv;
     /* --debug: include DEBUG-level detail in GUI.log */
     LogLevel gui_log_level = LOG_LEVEL_INFO;
+    int start_flag = -1;   /* --minimized: 1, --show: 0, none: the setting (1.40.0) */
     for (int i = 1; i < argc; i++) {
-        if (strcmp(argv[i], "--debug") == 0) gui_log_level = LOG_LEVEL_DEBUG;
+        if (strcmp(argv[i], "--debug") == 0) { gui_log_level = LOG_LEVEL_DEBUG; gui_debug_flag = 1; }
+        else if (strcmp(argv[i], "--minimized") == 0) start_flag = 1;
+        else if (strcmp(argv[i], "--show") == 0) start_flag = 0;
     }
 
     /* Initialize logging first (NULL = use default user directory) */
@@ -11249,9 +11519,14 @@ int main(int argc, char *argv[]) {
     /* Check for another running instance before initializing GTK */
     int existing_pid = check_single_instance();
     if (existing_pid > 0) {
-        LOG_ERROR("Another instance already running (PID: %d)", existing_pid);
+        /* Started again from the menu: show the running GUI's window (1.40.0);
+         * a start with --minimized (autostart) leaves it in the tray */
+        if (start_flag != 1 && instance_send_show())
+            LOG_INFO("Already running (PID: %d): asked it to show its window", existing_pid);
+        else
+            LOG_INFO("Another instance already running (PID: %d)", existing_pid);
         log_cleanup();
-        return 1;
+        return 0;
     }
 
     /* Write PID file BEFORE GTK init to avoid memory issues */
@@ -11324,11 +11599,23 @@ int main(int argc, char *argv[]) {
 
     gui_event("[GUI] System tray icon created\n");
 
-    /* Start minimized - hide window initially, show only when user clicks tray icon */
-    gui_event("[GUI] Starting minimized to system tray\n");
-    gtk_widget_hide(window);
+    /* Second starts show this window (1.40.0) */
+    instance_listen(&app);
 
-    g_print("[GUI] Window hidden, ready for tray activation\n");
+    /* Keep the desktop entries in step with the setting (the package's
+     * menu entry may have changed); only once the user has chosen */
+    if (start_minimized_is_set()) desktop_entries_update(start_minimized_load());
+
+    /* Start minimized to the tray, or with the window open (1.40.0) */
+    int minimized = start_flag >= 0 ? start_flag : start_minimized_load();
+    gtk_widget_hide(window);
+    if (minimized) {
+        gui_event("[GUI] Starting minimized to system tray\n");
+        g_print("[GUI] Window hidden, ready for tray activation\n");
+    } else {
+        gui_event("[GUI] Starting with the window open\n");
+        on_tray_show_app(NULL, &app);
+    }
 
     /* Run main loop */
     gtk_main();

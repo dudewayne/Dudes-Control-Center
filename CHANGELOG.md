@@ -10,7 +10,10 @@ Programs and services were named `dudes-control-center-*` before 1.19.0 (for exa
 
 ### Added
 - **Settings: refresh interval** for the live values in the window (temperatures, fan speeds, CPU frequencies, CPU and GPU power, GPU clocks): every 1, 2, 3, 5 or 10 seconds, stored as `refresh_interval` in `config.json` and applied right away. It used to be fixed: 2 seconds for the Status and Fan Profiles tabs, 5 seconds for the CPU values. Default 2 seconds for all. The daemons keep controlling fans and CPU on their own schedule.
-- Tests: the setting is stored and read back, values not offered fall back to 2 seconds, both timers are replaced on a change, the keyboard sync stays about every 6 seconds.
+- **Settings: start minimized to tray** (on by default, as before) or with the window open. Switching it adds or removes `--minimized` in the Exec line of the application menu entry (a per-user copy in `~/.local/share/applications`, removed again when it is not needed) and of the user's startup applications that start `dcc-gui` (only the Exec line changes; symlinks are not followed).
+- `dcc-gui --minimized` and `--show` override the setting; **Restart now** (language) keeps `--debug` and opens the window again.
+- **Starting the GUI again opens the running one's window** (it used to exit without doing anything); a start with `--minimized`, as from the startup applications, leaves it in the tray. The running GUI listens on `$XDG_RUNTIME_DIR/dcc-gui.sock` (mode 0600). A second start exits with status 0 instead of 1.
+- Tests: the refresh interval is stored and read back, values not offered fall back to 2 seconds, both timers are replaced on a change, the keyboard sync stays about every 6 seconds; the start setting, the Exec rewriting (other options and programs, other groups, symlinks, the user's own menu copy) and the second-start request.
 
 ### Changed
 - CPU frequencies and CPU power now refresh at the same interval as the rest of the Status tab (were every 5 seconds).

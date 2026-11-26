@@ -1119,6 +1119,15 @@ msgstr "%d 秒"
 msgid "How often the window shows new temperatures, fan speeds, CPU frequencies, power and GPU values. Shorter intervals look more live but wake the CPU more often. The daemons keep controlling fans and CPU on their own schedule (fan curve every 5 seconds), whatever is set here."
 msgstr "ウィンドウが温度、ファン回転数、CPU 周波数、電力、GPU の値を更新する頻度です。間隔を短くするとよりリアルタイムに見えますが、CPU を起こす回数が増えます。ここでの設定にかかわらず、デーモンは独自の間隔でファンと CPU を制御します(ファンカーブは 5 秒ごと)。"
 
+msgid "Startup"
+msgstr "起動"
+
+msgid "Start minimized to tray"
+msgstr "トレイに最小化して起動"
+
+msgid "On: the GUI starts as an icon in the system tray. Off: it opens its window. The application menu entry and your startup applications that start Dudes Control Center are adjusted (option --minimized). Starting it again while it runs opens its window."
+msgstr "オン: GUI はシステムトレイのアイコンとして起動します。オフ: ウィンドウを開きます。アプリケーションメニューの項目と、Dudes Control Center を起動するスタートアップアプリケーションが調整されます(オプション --minimized)。実行中にもう一度起動するとウィンドウが開きます。"
+
 msgid "Keyboard Layout"
 msgstr "キーボード配列"
 

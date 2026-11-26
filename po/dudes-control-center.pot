@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: dudes-control-center\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-11-26 18:45+0100\n"
+"POT-Creation-Date: 2026-11-26 18:58+0100\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -17,31 +17,31 @@ msgstr ""
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
 
-#: src/dcc-gui.c:46
+#: src/dcc-gui.c:47
 msgid "System default"
 msgstr ""
 
-#: src/dcc-gui.c:156
+#: src/dcc-gui.c:158
 msgid "German (DE)"
 msgstr ""
 
-#: src/dcc-gui.c:157
+#: src/dcc-gui.c:159
 msgid "English (UK)"
 msgstr ""
 
-#: src/dcc-gui.c:158
+#: src/dcc-gui.c:160
 msgid "Spanish (ES)"
 msgstr ""
 
-#: src/dcc-gui.c:159
+#: src/dcc-gui.c:161
 msgid "Japanese (JP)"
 msgstr ""
 
-#: src/dcc-gui.c:160
+#: src/dcc-gui.c:162
 msgid "Korean (KR)"
 msgstr ""
 
-#: src/dcc-gui.c:799
+#: src/dcc-gui.c:803
 msgid ""
 "A maximum frequency is a ceiling, not a target: the CPU picks its own speed "
 "below it. Many CPUs do not go below a certain speed once they have work to "
@@ -50,344 +50,344 @@ msgid ""
 "little; higher ones are kept exactly."
 msgstr ""
 
-#: src/dcc-gui.c:1016
+#: src/dcc-gui.c:1021
 msgid ""
 "<b>Warning:</b> You have unsaved changes to the curve points.\n"
 "\n"
 "What would you like to do?"
 msgstr ""
 
-#: src/dcc-gui.c:1019 src/dcc-gui.c:1977 src/dcc-gui.c:2217 src/dcc-gui.c:2406
-#: src/dcc-gui.c:4580 src/dcc-gui.c:4860
+#: src/dcc-gui.c:1024 src/dcc-gui.c:1982 src/dcc-gui.c:2222 src/dcc-gui.c:2411
+#: src/dcc-gui.c:4585 src/dcc-gui.c:4865
 msgid "_Cancel"
 msgstr ""
 
-#: src/dcc-gui.c:1020 src/dcc-gui.c:2407 src/dcc-gui.c:4861
+#: src/dcc-gui.c:1025 src/dcc-gui.c:2412 src/dcc-gui.c:4866
 msgid "_Discard Changes"
 msgstr ""
 
-#: src/dcc-gui.c:1021 src/dcc-gui.c:2408 src/dcc-gui.c:4862
+#: src/dcc-gui.c:1026 src/dcc-gui.c:2413 src/dcc-gui.c:4867
 msgid "_Save Changes"
 msgstr ""
 
-#: src/dcc-gui.c:1317 src/dcc-gui.c:8912 src/dcc-gui.c:8925 src/dcc-gui.c:8938
-#: src/dcc-gui.c:8951 src/dcc-gui.c:8964 src/dcc-gui.c:8977
+#: src/dcc-gui.c:1322 src/dcc-gui.c:8917 src/dcc-gui.c:8930 src/dcc-gui.c:8943
+#: src/dcc-gui.c:8956 src/dcc-gui.c:8969 src/dcc-gui.c:8982
 msgid "N/A"
 msgstr ""
 
-#: src/dcc-gui.c:1319
+#: src/dcc-gui.c:1324
 #, c-format
 msgid "%s (%d P-cores, %d E-cores)"
 msgstr ""
 
-#: src/dcc-gui.c:1409
+#: src/dcc-gui.c:1414
 #, c-format
 msgid "CPU: %.1f W (sustained limit %d W)"
 msgstr ""
 
-#: src/dcc-gui.c:1411
+#: src/dcc-gui.c:1416
 #, c-format
 msgid "CPU: %.1f W"
 msgstr ""
 
-#: src/dcc-gui.c:1413 src/dcc-gui.c:6723
+#: src/dcc-gui.c:1418 src/dcc-gui.c:6728
 msgid "CPU: -- W"
 msgstr ""
 
-#: src/dcc-gui.c:1434 src/dcc-gui.c:1452
+#: src/dcc-gui.c:1439 src/dcc-gui.c:1457
 #, c-format
 msgid "Core %d%s: %s"
 msgstr ""
 
-#: src/dcc-gui.c:1696
+#: src/dcc-gui.c:1701
 msgid "Power mode applied - click Save to keep it in the profile"
 msgstr ""
 
-#: src/dcc-gui.c:1697
+#: src/dcc-gui.c:1702
 msgid "Failed to apply the power mode"
 msgstr ""
 
-#: src/dcc-gui.c:1701
+#: src/dcc-gui.c:1706
 msgid ""
 "Power mode changed - click Save to store it in the profile, Activate to "
 "apply it"
 msgstr ""
 
-#: src/dcc-gui.c:1715
+#: src/dcc-gui.c:1720
 msgid "Governor applied successfully"
 msgstr ""
 
-#: src/dcc-gui.c:1718
+#: src/dcc-gui.c:1723
 msgid "Failed to apply governor"
 msgstr ""
 
-#: src/dcc-gui.c:1920
+#: src/dcc-gui.c:1925
 msgid "Profile selected - click Activate to use it"
 msgstr ""
 
-#: src/dcc-gui.c:1974
+#: src/dcc-gui.c:1979
 msgid "Create CPU Frequency Profile"
 msgstr ""
 
-#: src/dcc-gui.c:1978 src/dcc-gui.c:4935 src/dcc-gui.c:5085
+#: src/dcc-gui.c:1983 src/dcc-gui.c:4940 src/dcc-gui.c:5090
 msgid "_Create"
 msgstr ""
 
-#: src/dcc-gui.c:1986 src/dcc-gui.c:4935
+#: src/dcc-gui.c:1991 src/dcc-gui.c:4940
 msgid "Enter profile name:"
 msgstr ""
 
-#: src/dcc-gui.c:2023
+#: src/dcc-gui.c:2028
 #, c-format
 msgid "A CPU frequency profile with the name '%s' already exists."
 msgstr ""
 
-#: src/dcc-gui.c:2111
+#: src/dcc-gui.c:2116
 msgid "Created profile: "
 msgstr ""
 
-#: src/dcc-gui.c:2126 src/dcc-gui.c:2194 src/dcc-gui.c:2451 src/dcc-gui.c:2515
-#: src/dcc-gui.c:4964 src/dcc-gui.c:4992 src/dcc-gui.c:5023 src/dcc-gui.c:5033
-#: src/dcc-gui.c:6791 src/dcc-gui.c:7178
+#: src/dcc-gui.c:2131 src/dcc-gui.c:2199 src/dcc-gui.c:2456 src/dcc-gui.c:2520
+#: src/dcc-gui.c:4969 src/dcc-gui.c:4997 src/dcc-gui.c:5028 src/dcc-gui.c:5038
+#: src/dcc-gui.c:6796 src/dcc-gui.c:7183
 msgid "No profile selected"
 msgstr ""
 
-#: src/dcc-gui.c:2138 src/dcc-gui.c:2206
+#: src/dcc-gui.c:2143 src/dcc-gui.c:2211
 msgid "Could not read profile name"
 msgstr ""
 
-#: src/dcc-gui.c:2147
+#: src/dcc-gui.c:2152
 #, c-format
 msgid "Are you sure you want to delete the CPU frequency profile '%s'?"
 msgstr ""
 
-#: src/dcc-gui.c:2179
+#: src/dcc-gui.c:2184
 msgid "Deleted profile: "
 msgstr ""
 
-#: src/dcc-gui.c:2214
+#: src/dcc-gui.c:2219
 msgid "Rename CPU Frequency Profile"
 msgstr ""
 
-#: src/dcc-gui.c:2218 src/dcc-gui.c:4995 src/dcc-gui.c:5106
+#: src/dcc-gui.c:2223 src/dcc-gui.c:5000 src/dcc-gui.c:5111
 msgid "_Rename"
 msgstr ""
 
-#: src/dcc-gui.c:2226 src/dcc-gui.c:4995
+#: src/dcc-gui.c:2231 src/dcc-gui.c:5000
 msgid "Enter new profile name:"
 msgstr ""
 
-#: src/dcc-gui.c:2261
+#: src/dcc-gui.c:2266
 msgid "Renamed profile to: "
 msgstr ""
 
-#: src/dcc-gui.c:2263
+#: src/dcc-gui.c:2268
 msgid "Name cannot be empty"
 msgstr ""
 
-#: src/dcc-gui.c:2325
+#: src/dcc-gui.c:2330
 #, c-format
 msgid "Saved profile"
 msgstr ""
 
-#: src/dcc-gui.c:2405
+#: src/dcc-gui.c:2410
 msgid ""
 "<b>Warning:</b> You have unsaved changes to the CPU profile.\n"
 "\n"
 "What would you like to do?"
 msgstr ""
 
-#: src/dcc-gui.c:2458
+#: src/dcc-gui.c:2463
 msgid "Core count not available"
 msgstr ""
 
-#: src/dcc-gui.c:2468
+#: src/dcc-gui.c:2473
 msgid "Saving..."
 msgstr ""
 
-#: src/dcc-gui.c:2500
+#: src/dcc-gui.c:2505
 #, c-format
 msgid "Activated profile"
 msgstr ""
 
-#: src/dcc-gui.c:2526
+#: src/dcc-gui.c:2531
 msgid "Activating..."
 msgstr ""
 
-#: src/dcc-gui.c:2546
+#: src/dcc-gui.c:2551
 #, c-format
 msgid "Hard limit applied: %.2f GHz"
 msgstr ""
 
-#: src/dcc-gui.c:2561
+#: src/dcc-gui.c:2566
 msgid "Failed to apply hard limit"
 msgstr ""
 
-#: src/dcc-gui.c:2695
+#: src/dcc-gui.c:2700
 #, c-format
 msgid "Core %d%s"
 msgstr ""
 
-#: src/dcc-gui.c:2740
+#: src/dcc-gui.c:2745
 msgid "Min (MHz)"
 msgstr ""
 
-#: src/dcc-gui.c:2745
+#: src/dcc-gui.c:2750
 msgid "Max (MHz)"
 msgstr ""
 
-#: src/dcc-gui.c:2941
+#: src/dcc-gui.c:2946
 msgid ""
 "Fans stopped (0%) - they switch to 100% automatically at 95°C or on a sensor "
 "error"
 msgstr ""
 
-#: src/dcc-gui.c:2967 src/dcc-gui.c:3110 src/dcc-gui.c:3168
+#: src/dcc-gui.c:2972 src/dcc-gui.c:3115 src/dcc-gui.c:3173
 msgid "ERROR No profile selected"
 msgstr ""
 
-#: src/dcc-gui.c:3031
+#: src/dcc-gui.c:3036
 msgid "Create New Profile"
 msgstr ""
 
-#: src/dcc-gui.c:3034 src/dcc-gui.c:3183 src/dcc-gui.c:3262 src/dcc-gui.c:9424
+#: src/dcc-gui.c:3039 src/dcc-gui.c:3188 src/dcc-gui.c:3267 src/dcc-gui.c:9429
 msgid "Cancel"
 msgstr ""
 
-#: src/dcc-gui.c:3035 src/dcc-gui.c:6857 src/dcc-gui.c:9082 src/dcc-gui.c:9241
-#: src/dcc-gui.c:9482
+#: src/dcc-gui.c:3040 src/dcc-gui.c:6862 src/dcc-gui.c:9087 src/dcc-gui.c:9246
+#: src/dcc-gui.c:9487
 msgid "Create"
 msgstr ""
 
-#: src/dcc-gui.c:3039
+#: src/dcc-gui.c:3044
 msgid "Profile name"
 msgstr ""
 
-#: src/dcc-gui.c:3065
+#: src/dcc-gui.c:3070
 #, c-format
 msgid "A profile with the name '%s' already exists."
 msgstr ""
 
-#: src/dcc-gui.c:3096 src/dcc-gui.c:3220
+#: src/dcc-gui.c:3101 src/dcc-gui.c:3225
 msgid "ERROR Profile name cannot be empty"
 msgstr ""
 
-#: src/dcc-gui.c:3118
+#: src/dcc-gui.c:3123
 msgid "ERROR Cannot delete Default profile"
 msgstr ""
 
-#: src/dcc-gui.c:3126
+#: src/dcc-gui.c:3131
 #, c-format
 msgid "Are you sure you want to delete the profile '%s'?"
 msgstr ""
 
-#: src/dcc-gui.c:3176
+#: src/dcc-gui.c:3181
 msgid "ERROR Cannot rename Default profile"
 msgstr ""
 
-#: src/dcc-gui.c:3180
+#: src/dcc-gui.c:3185
 msgid "Rename Profile"
 msgstr ""
 
-#: src/dcc-gui.c:3184 src/dcc-gui.c:6861 src/dcc-gui.c:9086 src/dcc-gui.c:9245
-#: src/dcc-gui.c:9484
+#: src/dcc-gui.c:3189 src/dcc-gui.c:6866 src/dcc-gui.c:9091 src/dcc-gui.c:9250
+#: src/dcc-gui.c:9489
 msgid "Rename"
 msgstr ""
 
-#: src/dcc-gui.c:3259
+#: src/dcc-gui.c:3264
 msgid "Edit Curve Point"
 msgstr ""
 
-#: src/dcc-gui.c:3259
+#: src/dcc-gui.c:3264
 msgid "Add Curve Point"
 msgstr ""
 
-#: src/dcc-gui.c:3263
+#: src/dcc-gui.c:3268
 msgid "Update"
 msgstr ""
 
-#: src/dcc-gui.c:3263
+#: src/dcc-gui.c:3268
 msgid "Add"
 msgstr ""
 
-#: src/dcc-gui.c:3272
+#: src/dcc-gui.c:3277
 msgid "Temperature (°C):"
 msgstr ""
 
-#: src/dcc-gui.c:3276 src/dcc-gui.c:6910 src/dcc-gui.c:7070
+#: src/dcc-gui.c:3281 src/dcc-gui.c:6915 src/dcc-gui.c:7075
 msgid "Fan Speed (%)"
 msgstr ""
 
-#: src/dcc-gui.c:3326
+#: src/dcc-gui.c:3331
 #, c-format
 msgid ""
 "A curve point with temperature %d°C already exists. Please use a different "
 "temperature."
 msgstr ""
 
-#: src/dcc-gui.c:3390
+#: src/dcc-gui.c:3395
 msgid "Curve point updated (click Save to keep it)"
 msgstr ""
 
-#: src/dcc-gui.c:3392
+#: src/dcc-gui.c:3397
 msgid "Curve point added (click Save to keep it)"
 msgstr ""
 
-#: src/dcc-gui.c:3462
+#: src/dcc-gui.c:3467
 msgid "Curve point deleted (click Save to keep it)"
 msgstr ""
 
-#: src/dcc-gui.c:3470
+#: src/dcc-gui.c:3475
 msgid "Please select a curve point to delete"
 msgstr ""
 
-#: src/dcc-gui.c:3611 src/dcc-gui.c:10209 src/dcc-gui.c:10258
-#: src/dcc-gui.c:10307
+#: src/dcc-gui.c:3616 src/dcc-gui.c:10476 src/dcc-gui.c:10525
+#: src/dcc-gui.c:10574
 #, c-format
 msgid "%s (Active)"
 msgstr ""
 
-#: src/dcc-gui.c:4020
+#: src/dcc-gui.c:4025
 #, c-format
 msgid "%s daemon connected"
 msgstr ""
 
-#: src/dcc-gui.c:4021
+#: src/dcc-gui.c:4026
 #, c-format
 msgid "<span foreground='#d9534f' weight='bold'>%s daemon not connected</span>"
 msgstr ""
 
-#: src/dcc-gui.c:4028 src/dcc-gui.c:4033
+#: src/dcc-gui.c:4033 src/dcc-gui.c:4038
 msgid "Fan"
 msgstr ""
 
-#: src/dcc-gui.c:4029 src/dcc-gui.c:4033
+#: src/dcc-gui.c:4034 src/dcc-gui.c:4038
 msgid "CPU"
 msgstr ""
 
-#: src/dcc-gui.c:4030 src/dcc-gui.c:4033
+#: src/dcc-gui.c:4035 src/dcc-gui.c:4038
 msgid "Keyboard"
 msgstr ""
 
-#: src/dcc-gui.c:4036
+#: src/dcc-gui.c:4041
 #, c-format
 msgid ""
 "<span foreground='#888888'>%s control is switched off (Settings tab)</span>"
 msgstr ""
 
-#: src/dcc-gui.c:4044
+#: src/dcc-gui.c:4049
 msgid "<span foreground='#888888'>Switched off</span>"
 msgstr ""
 
-#: src/dcc-gui.c:4045
+#: src/dcc-gui.c:4050
 msgid "Running (daemon connected)"
 msgstr ""
 
-#: src/dcc-gui.c:4046
+#: src/dcc-gui.c:4051
 msgid "<span foreground='#d9534f'>On, daemon not connected</span>"
 msgstr ""
 
-#: src/dcc-gui.c:4066
+#: src/dcc-gui.c:4071
 #, c-format
 msgid ""
 "Daemon is not running!\n"
@@ -401,84 +401,84 @@ msgid ""
 "  sudo systemctl enable --now dcc-fan-daemon"
 msgstr ""
 
-#: src/dcc-gui.c:4091
+#: src/dcc-gui.c:4096
 #, c-format
 msgid "Failed to create socket: %s"
 msgstr ""
 
-#: src/dcc-gui.c:4108
+#: src/dcc-gui.c:4113
 #, c-format
 msgid "Failed to connect to daemon: %s"
 msgstr ""
 
-#: src/dcc-gui.c:4567
+#: src/dcc-gui.c:4572
 msgid "The name is empty."
 msgstr ""
 
-#: src/dcc-gui.c:4568
+#: src/dcc-gui.c:4573
 msgid "The name is too long."
 msgstr ""
 
-#: src/dcc-gui.c:4569
+#: src/dcc-gui.c:4574
 msgid "The name must not contain | ; or ::"
 msgstr ""
 
-#: src/dcc-gui.c:4571
+#: src/dcc-gui.c:4576
 msgid "A zone with this name already exists."
 msgstr ""
 
-#: src/dcc-gui.c:4602 src/dcc-gui.c:4609
+#: src/dcc-gui.c:4607 src/dcc-gui.c:4614
 #, c-format
 msgid "%s"
 msgstr ""
 
-#: src/dcc-gui.c:4717 src/dcc-gui.c:5143 src/dcc-gui.c:9204 src/dcc-gui.c:11063
+#: src/dcc-gui.c:4722 src/dcc-gui.c:5148 src/dcc-gui.c:9209 src/dcc-gui.c:11330
 msgid "Keyboard daemon not connected"
 msgstr ""
 
-#: src/dcc-gui.c:4719 src/dcc-gui.c:5144
+#: src/dcc-gui.c:4724 src/dcc-gui.c:5149
 msgid "Select or create a profile first"
 msgstr ""
 
-#: src/dcc-gui.c:4735
+#: src/dcc-gui.c:4740
 #, c-format
 msgid "Effect %s"
 msgstr ""
 
-#: src/dcc-gui.c:4736 src/dcc-gui.c:5155
+#: src/dcc-gui.c:4741 src/dcc-gui.c:5160
 #, c-format
 msgid "%s: zone '%s' - click Save to keep it"
 msgstr ""
 
-#: src/dcc-gui.c:4737 src/dcc-gui.c:5157
+#: src/dcc-gui.c:4742 src/dcc-gui.c:5162
 #, c-format
 msgid "%s: whole keyboard - click Save to keep it"
 msgstr ""
 
-#: src/dcc-gui.c:4747
+#: src/dcc-gui.c:4752
 #, c-format
 msgid ""
 "Coloring zone '%s' (%d LEDs): click keys on the picture or drag over an area "
 "to add or remove them."
 msgstr ""
 
-#: src/dcc-gui.c:4750
+#: src/dcc-gui.c:4755
 msgid ""
 "Coloring the whole keyboard (base color; zones keep their colors). Select a "
 "zone in the list to color its keys."
 msgstr ""
 
-#: src/dcc-gui.c:4840
+#: src/dcc-gui.c:4845
 #, c-format
 msgid "Could not save '%s': %s"
 msgstr ""
 
-#: src/dcc-gui.c:4847
+#: src/dcc-gui.c:4852
 #, c-format
 msgid "Profile saved: %s"
 msgstr ""
 
-#: src/dcc-gui.c:4856
+#: src/dcc-gui.c:4861
 #, c-format
 msgid ""
 "<b>Warning:</b> You have unsaved changes to the keyboard profile '%s'.\n"
@@ -486,731 +486,731 @@ msgid ""
 "What would you like to do?"
 msgstr ""
 
-#: src/dcc-gui.c:4871
+#: src/dcc-gui.c:4876
 msgid "Changes discarded"
 msgstr ""
 
-#: src/dcc-gui.c:4925
+#: src/dcc-gui.c:4930
 #, c-format
 msgid "Active profile: %s"
 msgstr ""
 
-#: src/dcc-gui.c:4926
+#: src/dcc-gui.c:4931
 #, c-format
 msgid "Preview: %s - Activate to use it, Save to keep changes"
 msgstr ""
 
-#: src/dcc-gui.c:4935
+#: src/dcc-gui.c:4940
 msgid "Create Keyboard Profile"
 msgstr ""
 
-#: src/dcc-gui.c:4938 src/dcc-gui.c:4998
+#: src/dcc-gui.c:4943 src/dcc-gui.c:5003
 msgid "Please enter a name (without ::)."
 msgstr ""
 
-#: src/dcc-gui.c:4940 src/dcc-gui.c:5000
+#: src/dcc-gui.c:4945 src/dcc-gui.c:5005
 #, c-format
 msgid "A keyboard profile with the name '%s' already exists."
 msgstr ""
 
-#: src/dcc-gui.c:4950
+#: src/dcc-gui.c:4955
 #, c-format
 msgid ""
 "Profile '%s' created: pick a color for the whole keyboard or create zones"
 msgstr ""
 
-#: src/dcc-gui.c:4952
+#: src/dcc-gui.c:4957
 #, c-format
 msgid "Could not create '%s': %s"
 msgstr ""
 
-#: src/dcc-gui.c:4967
+#: src/dcc-gui.c:4972
 #, c-format
 msgid "Are you sure you want to delete keyboard profile '%s'?"
 msgstr ""
 
-#: src/dcc-gui.c:4968
+#: src/dcc-gui.c:4973
 msgid "Delete Profile"
 msgstr ""
 
-#: src/dcc-gui.c:4975
+#: src/dcc-gui.c:4980
 #, c-format
 msgid "Could not delete '%s': %s"
 msgstr ""
 
-#: src/dcc-gui.c:4983
+#: src/dcc-gui.c:4988
 #, c-format
 msgid "Profile deleted: %s"
 msgstr ""
 
-#: src/dcc-gui.c:4995
+#: src/dcc-gui.c:5000
 msgid "Rename Keyboard Profile"
 msgstr ""
 
-#: src/dcc-gui.c:5011
+#: src/dcc-gui.c:5016
 #, c-format
 msgid "Profile renamed: %s"
 msgstr ""
 
-#: src/dcc-gui.c:5013
+#: src/dcc-gui.c:5018
 #, c-format
 msgid "Could not rename '%s': %s"
 msgstr ""
 
-#: src/dcc-gui.c:5041
+#: src/dcc-gui.c:5046
 #, c-format
 msgid "Could not activate '%s': %s"
 msgstr ""
 
-#: src/dcc-gui.c:5047
+#: src/dcc-gui.c:5052
 #, c-format
 msgid "Activated profile: %s"
 msgstr ""
 
-#: src/dcc-gui.c:5076
+#: src/dcc-gui.c:5081
 msgid "Select a profile first"
 msgstr ""
 
-#: src/dcc-gui.c:5079
+#: src/dcc-gui.c:5084
 msgid "A profile can have at most 32 zones."
 msgstr ""
 
-#: src/dcc-gui.c:5084
+#: src/dcc-gui.c:5089
 #, c-format
 msgid "Zone %d"
 msgstr ""
 
-#: src/dcc-gui.c:5085
+#: src/dcc-gui.c:5090
 msgid "Create Zone"
 msgstr ""
 
-#: src/dcc-gui.c:5085
+#: src/dcc-gui.c:5090
 msgid "Enter zone name:"
 msgstr ""
 
-#: src/dcc-gui.c:5097
+#: src/dcc-gui.c:5102
 #, c-format
 msgid "Zone '%s' created: click keys to add them, then choose its color"
 msgstr ""
 
-#: src/dcc-gui.c:5106
+#: src/dcc-gui.c:5111
 msgid "Rename Zone"
 msgstr ""
 
-#: src/dcc-gui.c:5106
+#: src/dcc-gui.c:5111
 msgid "Enter new zone name:"
 msgstr ""
 
-#: src/dcc-gui.c:5113
+#: src/dcc-gui.c:5118
 #, c-format
 msgid "Zone renamed: %s - click Save to keep it"
 msgstr ""
 
-#: src/dcc-gui.c:5123
+#: src/dcc-gui.c:5128
 #, c-format
 msgid "Delete zone '%s'? Its keys get the base color."
 msgstr ""
 
-#: src/dcc-gui.c:5124
+#: src/dcc-gui.c:5129
 msgid "Delete Zone"
 msgstr ""
 
-#: src/dcc-gui.c:5133
+#: src/dcc-gui.c:5138
 #, c-format
 msgid "Zone deleted: %s - click Save to keep it"
 msgstr ""
 
-#: src/dcc-gui.c:5176
+#: src/dcc-gui.c:5181
 msgid "Backlight turned OFF"
 msgstr ""
 
-#: src/dcc-gui.c:5183
+#: src/dcc-gui.c:5188
 msgid "Backlight turned ON"
 msgstr ""
 
-#: src/dcc-gui.c:5249 src/dcc-gui.c:5313
+#: src/dcc-gui.c:5254 src/dcc-gui.c:5318
 msgid "no key"
 msgstr ""
 
-#: src/dcc-gui.c:5273
+#: src/dcc-gui.c:5278
 msgid "LED Wizard saved!"
 msgstr ""
 
-#: src/dcc-gui.c:5300
+#: src/dcc-gui.c:5305
 msgid "LED Wizard cancelled"
 msgstr ""
 
-#: src/dcc-gui.c:5317
+#: src/dcc-gui.c:5322
 #, c-format
 msgid "LED %d -> %s | Click the key for LED %d / 119 (now: %s)"
 msgstr ""
 
-#: src/dcc-gui.c:5320
+#: src/dcc-gui.c:5325
 #, c-format
 msgid "LED Wizard: Click the key for LED %d / 119 (now: %s)"
 msgstr ""
 
-#: src/dcc-gui.c:5350
+#: src/dcc-gui.c:5355
 msgid "LED Wizard completed!"
 msgstr ""
 
-#: src/dcc-gui.c:5815
+#: src/dcc-gui.c:5820
 msgid "Keyboard schematic loading..."
 msgstr ""
 
-#: src/dcc-gui.c:5881
+#: src/dcc-gui.c:5886
 #, c-format
 msgid "Key '%s' has no LED in the mapping (run the LED wizard)"
 msgstr ""
 
-#: src/dcc-gui.c:5889
+#: src/dcc-gui.c:5894
 #, c-format
 msgid "'%s' added to zone '%s' - click Save to keep it"
 msgstr ""
 
-#: src/dcc-gui.c:5890
+#: src/dcc-gui.c:5895
 #, c-format
 msgid "'%s' removed from zone '%s' - click Save to keep it"
 msgstr ""
 
-#: src/dcc-gui.c:5897
+#: src/dcc-gui.c:5902
 #, c-format
 msgid "Zone '%s' selected"
 msgstr ""
 
-#: src/dcc-gui.c:5899
+#: src/dcc-gui.c:5904
 #, c-format
 msgid "'%s' has the base color - select or create a zone to color single keys"
 msgstr ""
 
-#: src/dcc-gui.c:5959
+#: src/dcc-gui.c:5964
 msgid "No keys with an LED in the marked area"
 msgstr ""
 
-#: src/dcc-gui.c:5964
+#: src/dcc-gui.c:5969
 #, c-format
 msgid "%d key(s) added to zone '%s' - click Save to keep it"
 msgstr ""
 
-#: src/dcc-gui.c:5965
+#: src/dcc-gui.c:5970
 #, c-format
 msgid "%d key(s) removed from zone '%s' - click Save to keep it"
 msgstr ""
 
-#: src/dcc-gui.c:6024
+#: src/dcc-gui.c:6029
 msgid "Zone Color"
 msgstr ""
 
-#: src/dcc-gui.c:6024
+#: src/dcc-gui.c:6029
 msgid "Keyboard Color"
 msgstr ""
 
-#: src/dcc-gui.c:6031
+#: src/dcc-gui.c:6036
 msgid "Custom color"
-msgstr ""
-
-#: src/dcc-gui.c:6067
-#, c-format
-msgid "Clock: %d MHz, memory %d MHz"
-msgstr ""
-
-#: src/dcc-gui.c:6069
-#, c-format
-msgid "Load: %d %% (power state %s)"
-msgstr ""
-
-#: src/dcc-gui.c:6069
-#, c-format
-msgid "Load: %d %%"
-msgstr ""
-
-#: src/dcc-gui.c:6071
-#, c-format
-msgid "Video memory: %.1f / %.1f GB"
 msgstr ""
 
 #: src/dcc-gui.c:6072
 #, c-format
-msgid "GPU: %.1f W"
+msgid "Clock: %d MHz, memory %d MHz"
 msgstr ""
 
-#: src/dcc-gui.c:6073 src/dcc-gui.c:6080 src/dcc-gui.c:6724
-msgid "GPU: -- W"
+#: src/dcc-gui.c:6074
+#, c-format
+msgid "Load: %d %% (power state %s)"
 msgstr ""
 
-#: src/dcc-gui.c:6075
-msgid "Sleeping (powered down)"
+#: src/dcc-gui.c:6074
+#, c-format
+msgid "Load: %d %%"
 msgstr ""
 
 #: src/dcc-gui.c:6076
-msgid "Not woken up for readings"
+#, c-format
+msgid "Video memory: %.1f / %.1f GB"
 msgstr ""
 
 #: src/dcc-gui.c:6077
+#, c-format
+msgid "GPU: %.1f W"
+msgstr ""
+
+#: src/dcc-gui.c:6078 src/dcc-gui.c:6085 src/dcc-gui.c:6729
+msgid "GPU: -- W"
+msgstr ""
+
+#: src/dcc-gui.c:6080
+msgid "Sleeping (powered down)"
+msgstr ""
+
+#: src/dcc-gui.c:6081
+msgid "Not woken up for readings"
+msgstr ""
+
+#: src/dcc-gui.c:6082
 msgid "GPU: sleeping"
 msgstr ""
 
-#: src/dcc-gui.c:6079
+#: src/dcc-gui.c:6084
 msgid "No NVIDIA GPU"
 msgstr ""
 
-#: src/dcc-gui.c:6133
+#: src/dcc-gui.c:6138
 #, c-format
 msgid "CPU: %d°C"
 msgstr ""
 
-#: src/dcc-gui.c:6134
+#: src/dcc-gui.c:6139
 #, c-format
 msgid "GPU: %d°C"
 msgstr ""
 
-#: src/dcc-gui.c:6136
+#: src/dcc-gui.c:6141
 msgid "CPU Fan"
 msgstr ""
 
-#: src/dcc-gui.c:6137
+#: src/dcc-gui.c:6142
 msgid "GPU Fan"
 msgstr ""
 
-#: src/dcc-gui.c:6179
+#: src/dcc-gui.c:6184
 #, no-c-format
 msgid ""
 "Manual fan mode ended: the CPU/GPU reached 95°C - fans at 100% until it "
 "cools down, then the fan curve (auto mode)"
 msgstr ""
 
-#: src/dcc-gui.c:6303
+#: src/dcc-gui.c:6308
 msgid "No battery"
 msgstr ""
 
-#: src/dcc-gui.c:6307
+#: src/dcc-gui.c:6312
 #, c-format
 msgid "Charge: %d %%"
 msgstr ""
 
-#: src/dcc-gui.c:6311
+#: src/dcc-gui.c:6316
 #, c-format
 msgid "Discharging: %.1f W, %s left"
 msgstr ""
 
-#: src/dcc-gui.c:6312
+#: src/dcc-gui.c:6317
 msgid "Discharging"
 msgstr ""
 
-#: src/dcc-gui.c:6314
+#: src/dcc-gui.c:6319
 #, c-format
 msgid "Charging: %.1f W, full in %s"
 msgstr ""
 
-#: src/dcc-gui.c:6315
+#: src/dcc-gui.c:6320
 msgid "Charging"
 msgstr ""
 
-#: src/dcc-gui.c:6317
+#: src/dcc-gui.c:6322
 msgid "Full, on AC power"
 msgstr ""
 
-#: src/dcc-gui.c:6319
+#: src/dcc-gui.c:6324
 msgid "Not charging, on AC power"
 msgstr ""
 
-#: src/dcc-gui.c:6322
+#: src/dcc-gui.c:6327
 #, c-format
 msgid "Health: %d %% of design, %d cycles"
 msgstr ""
 
-#: src/dcc-gui.c:6324
+#: src/dcc-gui.c:6329
 #, c-format
 msgid "Health: %d %% of design"
 msgstr ""
 
-#: src/dcc-gui.c:6388
+#: src/dcc-gui.c:6393
 #, c-format
 msgid "Laptop (battery): %.1f W"
 msgstr ""
 
-#: src/dcc-gui.c:6390
+#: src/dcc-gui.c:6395
 msgid "Laptop: on AC power"
 msgstr ""
 
-#: src/dcc-gui.c:6456
+#: src/dcc-gui.c:6461
 #, c-format
 msgid "SSD %d"
 msgstr ""
 
-#: src/dcc-gui.c:6518
+#: src/dcc-gui.c:6523
 #, c-format
 msgid " (board %s)"
 msgstr ""
 
-#: src/dcc-gui.c:6540
+#: src/dcc-gui.c:6545
 #, c-format
 msgid "%d GB (%.1f GB usable)"
 msgstr ""
 
-#: src/dcc-gui.c:6675
+#: src/dcc-gui.c:6680
 msgid "Temperatures"
 msgstr ""
 
-#: src/dcc-gui.c:6676
+#: src/dcc-gui.c:6681
 msgid "CPU: --°C"
 msgstr ""
 
-#: src/dcc-gui.c:6677
+#: src/dcc-gui.c:6682
 msgid "GPU: --°C"
 msgstr ""
 
-#: src/dcc-gui.c:6682
+#: src/dcc-gui.c:6687
 msgid "Fan Speed"
 msgstr ""
 
-#: src/dcc-gui.c:6683
+#: src/dcc-gui.c:6688
 msgid "CPU Fan: -- RPM (--%)"
 msgstr ""
 
-#: src/dcc-gui.c:6684
+#: src/dcc-gui.c:6689
 msgid "GPU Fan: -- RPM (--%)"
 msgstr ""
 
-#: src/dcc-gui.c:6687
+#: src/dcc-gui.c:6692
 msgid ""
 "Note: Enable Manual Mode to override automatic fan control. Changes take "
 "effect immediately."
 msgstr ""
 
-#: src/dcc-gui.c:6688
+#: src/dcc-gui.c:6693
 msgid "Manual Mode:"
 msgstr ""
 
-#: src/dcc-gui.c:6713
+#: src/dcc-gui.c:6718
 msgid "GPU"
 msgstr ""
 
-#: src/dcc-gui.c:6722
+#: src/dcc-gui.c:6727
 msgid "Power"
 msgstr ""
 
-#: src/dcc-gui.c:6729
+#: src/dcc-gui.c:6734
 msgid "Battery"
 msgstr ""
 
-#: src/dcc-gui.c:6736
+#: src/dcc-gui.c:6741
 msgid "Active Profiles"
 msgstr ""
 
-#: src/dcc-gui.c:6739
+#: src/dcc-gui.c:6744
 msgid "Fan profile:"
 msgstr ""
 
-#: src/dcc-gui.c:6739
+#: src/dcc-gui.c:6744
 msgid "CPU profile:"
 msgstr ""
 
-#: src/dcc-gui.c:6739 src/dcc-gui.c:8993
+#: src/dcc-gui.c:6744 src/dcc-gui.c:8998
 msgid "Power mode:"
 msgstr ""
 
-#: src/dcc-gui.c:6739
+#: src/dcc-gui.c:6744
 msgid "Keyboard profile:"
 msgstr ""
 
-#: src/dcc-gui.c:6750
+#: src/dcc-gui.c:6755
 msgid "Per-Core CPU Frequencies"
 msgstr ""
 
-#: src/dcc-gui.c:6766
+#: src/dcc-gui.c:6771
 msgid "System"
 msgstr ""
 
-#: src/dcc-gui.c:6771
+#: src/dcc-gui.c:6776
 msgid "Model:"
 msgstr ""
 
-#: src/dcc-gui.c:6772
+#: src/dcc-gui.c:6777
 msgid "BIOS:"
 msgstr ""
 
-#: src/dcc-gui.c:6773 src/dcc-gui.c:8892
+#: src/dcc-gui.c:6778 src/dcc-gui.c:8897
 msgid "Processor:"
 msgstr ""
 
-#: src/dcc-gui.c:6774
+#: src/dcc-gui.c:6779
 msgid "Graphics:"
 msgstr ""
 
-#: src/dcc-gui.c:6775
+#: src/dcc-gui.c:6780
 msgid "Memory:"
 msgstr ""
 
-#: src/dcc-gui.c:6776
+#: src/dcc-gui.c:6781
 msgid "Drives:"
 msgstr ""
 
-#: src/dcc-gui.c:6777
+#: src/dcc-gui.c:6782
 msgid "Operating system:"
 msgstr ""
 
-#: src/dcc-gui.c:6778
+#: src/dcc-gui.c:6783
 msgid "Kernel:"
 msgstr ""
 
-#: src/dcc-gui.c:6816
+#: src/dcc-gui.c:6821
 msgid "Fan Daemon Status"
 msgstr ""
 
-#: src/dcc-gui.c:6818 src/dcc-gui.c:11032
+#: src/dcc-gui.c:6823 src/dcc-gui.c:11299
 msgid "Fan daemon not connected"
 msgstr ""
 
-#: src/dcc-gui.c:6826
+#: src/dcc-gui.c:6831
 msgid ""
 "Choose a profile to edit its curve. Activate makes it control the fans; "
 "\"(Active)\" marks the profile in use."
 msgstr ""
 
-#: src/dcc-gui.c:6834
+#: src/dcc-gui.c:6839
 msgid ""
 "<span size='x-large' weight='bold' foreground='#d9534f'>Manual Mode Active!</"
 "span>"
 msgstr ""
 
-#: src/dcc-gui.c:6838
+#: src/dcc-gui.c:6843
 msgid "Disable Manual Mode"
 msgstr ""
 
-#: src/dcc-gui.c:6846 src/dcc-gui.c:9221 src/dcc-gui.c:9222
+#: src/dcc-gui.c:6851 src/dcc-gui.c:9226 src/dcc-gui.c:9227
 msgid "Profile:"
 msgstr ""
 
-#: src/dcc-gui.c:6867 src/dcc-gui.c:9091 src/dcc-gui.c:9247 src/dcc-gui.c:9486
+#: src/dcc-gui.c:6872 src/dcc-gui.c:9096 src/dcc-gui.c:9252 src/dcc-gui.c:9491
 msgid "Save"
 msgstr ""
 
-#: src/dcc-gui.c:6868
+#: src/dcc-gui.c:6873
 msgid "Save the curve points of the selected profile"
 msgstr ""
 
-#: src/dcc-gui.c:6872 src/dcc-gui.c:9096 src/dcc-gui.c:9243 src/dcc-gui.c:9489
+#: src/dcc-gui.c:6877 src/dcc-gui.c:9101 src/dcc-gui.c:9248 src/dcc-gui.c:9494
 msgid "Delete"
 msgstr ""
 
-#: src/dcc-gui.c:6877 src/dcc-gui.c:9101 src/dcc-gui.c:9249
+#: src/dcc-gui.c:6882 src/dcc-gui.c:9106 src/dcc-gui.c:9254
 msgid "Activate"
 msgstr ""
 
-#: src/dcc-gui.c:6887
+#: src/dcc-gui.c:6892
 msgid "Temperature Curve Points"
 msgstr ""
 
-#: src/dcc-gui.c:6902
+#: src/dcc-gui.c:6907
 msgid "Temperature"
 msgstr ""
 
-#: src/dcc-gui.c:6923
+#: src/dcc-gui.c:6928
 msgid "Temperature Curve Graph"
 msgstr ""
 
-#: src/dcc-gui.c:6938
+#: src/dcc-gui.c:6943
 msgid "Add Point"
 msgstr ""
 
-#: src/dcc-gui.c:6942
+#: src/dcc-gui.c:6947
 msgid "Delete Point"
 msgstr ""
 
-#: src/dcc-gui.c:6946
+#: src/dcc-gui.c:6951
 msgid "  (Double-click to edit, points are auto-sorted by temperature)"
 msgstr ""
 
-#: src/dcc-gui.c:7069
+#: src/dcc-gui.c:7074
 msgid "Temperature (°C)"
 msgstr ""
 
-#: src/dcc-gui.c:7247
+#: src/dcc-gui.c:7252
 msgid "Manual mode disabled - returned to auto mode"
 msgstr ""
 
-#: src/dcc-gui.c:7249
+#: src/dcc-gui.c:7254
 msgid "Failed to reactivate previous profile"
 msgstr ""
 
-#: src/dcc-gui.c:7256
+#: src/dcc-gui.c:7261
 msgid "Failed to disable manual mode"
 msgstr ""
 
-#: src/dcc-gui.c:7508
+#: src/dcc-gui.c:7513
 msgid "GUI Log"
 msgstr ""
 
-#: src/dcc-gui.c:7526
+#: src/dcc-gui.c:7531
 msgid "CPU Daemon Log"
 msgstr ""
 
-#: src/dcc-gui.c:7544
+#: src/dcc-gui.c:7549
 msgid "Fan Daemon Log"
 msgstr ""
 
-#: src/dcc-gui.c:7562
+#: src/dcc-gui.c:7567
 msgid "Keyboard Backlight Daemon Log"
 msgstr ""
 
-#: src/dcc-gui.c:7731
+#: src/dcc-gui.c:7736
 msgid ""
 "<span foreground='#e74c3c'>Unable to read daemon log. Check permissions or "
 "ensure the daemon is running.</span>\n"
 msgstr ""
 
-#: src/dcc-gui.c:7860
+#: src/dcc-gui.c:7865
 msgid ""
 "<span foreground='#e74c3c'>Unable to read CPU daemon log. Check permissions "
 "or ensure the daemon is running.</span>\n"
 msgstr ""
 
-#: src/dcc-gui.c:7977
+#: src/dcc-gui.c:7982
 msgid ""
 "<span foreground='#e74c3c'>Unable to read Keyboard daemon log. Check "
 "permissions or ensure the daemon is running.</span>\n"
 msgstr ""
 
-#: src/dcc-gui.c:8619
+#: src/dcc-gui.c:8624
 #, c-format
 msgid "File not found: %s"
 msgstr ""
 
-#: src/dcc-gui.c:8667
+#: src/dcc-gui.c:8672
 msgid "Not found"
 msgstr ""
 
-#: src/dcc-gui.c:8700
+#: src/dcc-gui.c:8705
 msgid "Search"
 msgstr ""
 
-#: src/dcc-gui.c:8701
+#: src/dcc-gui.c:8706
 msgid "Enter: next match, Shift+Enter: previous match"
 msgstr ""
 
-#: src/dcc-gui.c:8714
+#: src/dcc-gui.c:8719
 msgid "README"
 msgstr ""
 
-#: src/dcc-gui.c:8714
+#: src/dcc-gui.c:8719
 msgid "Changelog"
 msgstr ""
 
-#: src/dcc-gui.c:8714
+#: src/dcc-gui.c:8719
 msgid "License"
 msgstr ""
 
-#: src/dcc-gui.c:8780
+#: src/dcc-gui.c:8785
 #, c-format
 msgid ""
 "<span size='xx-large' weight='bold'>Dudes Control Center</span>\n"
 "<span size='large' foreground='#7f8c8d'>Version %s</span>"
 msgstr ""
 
-#: src/dcc-gui.c:8795
+#: src/dcc-gui.c:8800
 msgid "Coded with <b>Claude</b> (Claude Code) by <b>Anthropic</b>"
 msgstr ""
 
-#: src/dcc-gui.c:8797
+#: src/dcc-gui.c:8802
 msgid ""
 "Fan control code based on <b>fan-control</b> by steiiin, a fork of <b>clevo-"
 "fan-control</b> by agramian (GPL-2.0)"
 msgstr ""
 
-#: src/dcc-gui.c:8800
+#: src/dcc-gui.c:8805
 msgid ""
 "Keyboard backlight driver <b>ite_829x</b> by <b>TUXEDO Computers</b> (tuxedo-"
 "drivers, GPL-2.0-or-later)"
 msgstr ""
 
-#: src/dcc-gui.c:8815
+#: src/dcc-gui.c:8820
 msgid "Special thanks to the creators of <b>Bionic AI Agent</b>"
 msgstr ""
 
-#: src/dcc-gui.c:8817
+#: src/dcc-gui.c:8822
 msgid "Honoring <b>Linus Torvalds</b>, the visionary founder of Linux"
 msgstr ""
 
-#: src/dcc-gui.c:8820
+#: src/dcc-gui.c:8825
 msgid "Appreciation for the <b>Great Linux Community</b>"
 msgstr ""
 
-#: src/dcc-gui.c:8822
+#: src/dcc-gui.c:8827
 msgid "Thanks to <b>Clevo</b> for producing &amp; selling awesome Laptops"
 msgstr ""
 
-#: src/dcc-gui.c:8830
+#: src/dcc-gui.c:8835
 msgid "<span weight='bold'>This application was completely coded by AI</span>"
 msgstr ""
 
-#: src/dcc-gui.c:8837
+#: src/dcc-gui.c:8842
 msgid "<b>Contact:</b> <b>Dudemeister</b>  GitHub:"
 msgstr ""
 
-#: src/dcc-gui.c:8846
+#: src/dcc-gui.c:8851
 msgid ""
 "<span size='small'>Licensed under the GNU General Public License version 2. "
 "The keyboard driver is GPL-2.0-or-later (TUXEDO Computers).</span>"
 msgstr ""
 
-#: src/dcc-gui.c:8866
+#: src/dcc-gui.c:8871
 msgid "CPU Daemon Status"
 msgstr ""
 
-#: src/dcc-gui.c:8868 src/dcc-gui.c:11045 src/dcc-gui.c:11046
+#: src/dcc-gui.c:8873 src/dcc-gui.c:11312 src/dcc-gui.c:11313
 msgid "CPU daemon not connected"
 msgstr ""
 
-#: src/dcc-gui.c:8877
+#: src/dcc-gui.c:8882
 msgid "CPU Information"
 msgstr ""
 
-#: src/dcc-gui.c:8908
+#: src/dcc-gui.c:8913
 msgid "CPU Temperature:"
 msgstr ""
 
-#: src/dcc-gui.c:8921
+#: src/dcc-gui.c:8926
 msgid "CPU Load:"
 msgstr ""
 
-#: src/dcc-gui.c:8934
+#: src/dcc-gui.c:8939
 msgid "Number of CPUs:"
 msgstr ""
 
-#: src/dcc-gui.c:8947
+#: src/dcc-gui.c:8952
 msgid "Current Frequency:"
 msgstr ""
 
-#: src/dcc-gui.c:8960
+#: src/dcc-gui.c:8965
 msgid "Min / Max Frequency:"
 msgstr ""
 
-#: src/dcc-gui.c:8973
+#: src/dcc-gui.c:8978
 msgid "Active Power Mode:"
 msgstr ""
 
-#: src/dcc-gui.c:8984
+#: src/dcc-gui.c:8989
 msgid "Governor Profiles"
 msgstr ""
 
-#: src/dcc-gui.c:9014
+#: src/dcc-gui.c:9019
 msgid "Per-Core Frequency Profiles"
 msgstr ""
 
-#: src/dcc-gui.c:9023
+#: src/dcc-gui.c:9028
 msgid "Frequency Profile:"
 msgstr ""
 
-#: src/dcc-gui.c:9043
+#: src/dcc-gui.c:9048
 msgid "Apply values to all cores"
 msgstr ""
 
-#: src/dcc-gui.c:9117
+#: src/dcc-gui.c:9122
 msgid "Hard Frequency Limit"
 msgstr ""
 
-#: src/dcc-gui.c:9127
+#: src/dcc-gui.c:9132
 msgid ""
 "<span foreground='#e74c3c' weight='bold'>WARNING:</span> This is a safety "
 "limit to protect your hardware. Setting it too high may cause CPU "
@@ -1218,244 +1218,244 @@ msgid ""
 "know your CPU's safe operating limits."
 msgstr ""
 
-#: src/dcc-gui.c:9139
+#: src/dcc-gui.c:9144
 msgid "Hard Limit (GHz):"
 msgstr ""
 
-#: src/dcc-gui.c:9150
+#: src/dcc-gui.c:9155
 msgid "Apply"
 msgstr ""
 
-#: src/dcc-gui.c:9209
+#: src/dcc-gui.c:9214
 msgid "Keyboard Daemon Status"
 msgstr ""
 
-#: src/dcc-gui.c:9215 src/dcc-gui.c:10292
+#: src/dcc-gui.c:9220 src/dcc-gui.c:10559
 msgid "Keyboard Profiles"
 msgstr ""
 
-#: src/dcc-gui.c:9268
+#: src/dcc-gui.c:9273
 msgid "Backlight"
 msgstr ""
 
-#: src/dcc-gui.c:9273
+#: src/dcc-gui.c:9278
 msgid "Backlight Off:"
 msgstr ""
 
-#: src/dcc-gui.c:9286
+#: src/dcc-gui.c:9291
 msgid "Brightness:"
 msgstr ""
 
-#: src/dcc-gui.c:9300
+#: src/dcc-gui.c:9305
 msgid "When ON, overrides all profile settings until disabled."
 msgstr ""
 
-#: src/dcc-gui.c:9313
+#: src/dcc-gui.c:9318
 msgid "<b>LED Wizard</b>"
 msgstr ""
 
-#: src/dcc-gui.c:9316
+#: src/dcc-gui.c:9321
 msgid ""
 "Lights one LED after the other; click the matching key on the picture below. "
 "Needed once for per-key colors."
 msgstr ""
 
-#: src/dcc-gui.c:9328
+#: src/dcc-gui.c:9333
 msgid "Preset Colors"
 msgstr ""
 
-#: src/dcc-gui.c:9339
+#: src/dcc-gui.c:9344
 msgid "White"
 msgstr ""
 
-#: src/dcc-gui.c:9339
+#: src/dcc-gui.c:9344
 msgid "Red"
 msgstr ""
 
-#: src/dcc-gui.c:9339
+#: src/dcc-gui.c:9344
 msgid "Green"
 msgstr ""
 
-#: src/dcc-gui.c:9339
+#: src/dcc-gui.c:9344
 msgid "Blue"
 msgstr ""
 
-#: src/dcc-gui.c:9339
+#: src/dcc-gui.c:9344
 msgid "Yellow"
 msgstr ""
 
-#: src/dcc-gui.c:9339
+#: src/dcc-gui.c:9344
 msgid "Cyan"
 msgstr ""
 
-#: src/dcc-gui.c:9339
+#: src/dcc-gui.c:9344
 msgid "Magenta"
 msgstr ""
 
-#: src/dcc-gui.c:9339
+#: src/dcc-gui.c:9344
 msgid "Orange"
 msgstr ""
 
-#: src/dcc-gui.c:9339
+#: src/dcc-gui.c:9344
 msgid "Purple"
 msgstr ""
 
-#: src/dcc-gui.c:9359
+#: src/dcc-gui.c:9364
 msgid "Custom…"
 msgstr ""
 
-#: src/dcc-gui.c:9360
+#: src/dcc-gui.c:9365
 msgid "Choose any color"
 msgstr ""
 
-#: src/dcc-gui.c:9367
+#: src/dcc-gui.c:9372
 msgid "Effect:"
 msgstr ""
 
-#: src/dcc-gui.c:9369
+#: src/dcc-gui.c:9374
 msgid "Static"
 msgstr ""
 
-#: src/dcc-gui.c:9369
+#: src/dcc-gui.c:9374
 msgid "Breathing"
 msgstr ""
 
-#: src/dcc-gui.c:9369
+#: src/dcc-gui.c:9374
 msgid "Rainbow"
 msgstr ""
 
-#: src/dcc-gui.c:9369
+#: src/dcc-gui.c:9374
 msgid "Wave"
 msgstr ""
 
-#: src/dcc-gui.c:9374
+#: src/dcc-gui.c:9379
 msgid ""
 "Animated effect of the selected zone, or of the base color when no zone is "
 "selected. Breathing fades the color in and out; Rainbow and Wave use all "
 "colors. Runs in the keyboard daemon, also when this window is closed."
 msgstr ""
 
-#: src/dcc-gui.c:9382
+#: src/dcc-gui.c:9387
 msgid "Speed: slow (left) to fast (right)"
 msgstr ""
 
-#: src/dcc-gui.c:9389
+#: src/dcc-gui.c:9394
 msgid "Direction of the wave"
 msgstr ""
 
-#: src/dcc-gui.c:9396
+#: src/dcc-gui.c:9401
 msgid "Whole Keyboard"
 msgstr ""
 
-#: src/dcc-gui.c:9397
+#: src/dcc-gui.c:9402
 msgid "Stop editing a zone: colors go to the whole keyboard (base color)"
 msgstr ""
 
-#: src/dcc-gui.c:9406
+#: src/dcc-gui.c:9411
 msgid "Visual Zone Editor"
 msgstr ""
 
-#: src/dcc-gui.c:9413
+#: src/dcc-gui.c:9418
 msgid "LED Wizard"
 msgstr ""
 
-#: src/dcc-gui.c:9415
+#: src/dcc-gui.c:9420
 msgid "Skip"
 msgstr ""
 
-#: src/dcc-gui.c:9416
+#: src/dcc-gui.c:9421
 msgid "Keep this LED's current key and go to the next LED"
 msgstr ""
 
-#: src/dcc-gui.c:9419
+#: src/dcc-gui.c:9424
 msgid "No Key"
 msgstr ""
 
-#: src/dcc-gui.c:9420
+#: src/dcc-gui.c:9425
 msgid "This LED lights no key: remove its key and go to the next LED"
 msgstr ""
 
-#: src/dcc-gui.c:9427
+#: src/dcc-gui.c:9432
 msgid "Save & Finish"
 msgstr ""
 
-#: src/dcc-gui.c:9458
+#: src/dcc-gui.c:9463
 msgid "Zones"
 msgstr ""
 
-#: src/dcc-gui.c:9465
+#: src/dcc-gui.c:9470
 msgid "Color"
 msgstr ""
 
-#: src/dcc-gui.c:9468
+#: src/dcc-gui.c:9473
 msgid "Zone"
 msgstr ""
 
-#: src/dcc-gui.c:9472
+#: src/dcc-gui.c:9477
 msgid "LEDs"
 msgstr ""
 
-#: src/dcc-gui.c:9487
+#: src/dcc-gui.c:9492
 msgid "Save the profile with its zones"
 msgstr ""
 
-#: src/dcc-gui.c:9517
+#: src/dcc-gui.c:9522
 msgid "Dudes Control Center"
 msgstr ""
 
-#: src/dcc-gui.c:9567
+#: src/dcc-gui.c:9572
 msgid "Status"
 msgstr ""
 
-#: src/dcc-gui.c:9568 src/dcc-gui.c:10248
+#: src/dcc-gui.c:9573 src/dcc-gui.c:10515
 msgid "Fan Profiles"
 msgstr ""
 
-#: src/dcc-gui.c:9569 src/dcc-gui.c:10188
+#: src/dcc-gui.c:9574 src/dcc-gui.c:10455
 msgid "CPU Profiles"
 msgstr ""
 
-#: src/dcc-gui.c:9570
+#: src/dcc-gui.c:9575
 msgid "Keyboard Backlight"
 msgstr ""
 
-#: src/dcc-gui.c:9571
+#: src/dcc-gui.c:9576
 msgid "Settings"
 msgstr ""
 
-#: src/dcc-gui.c:9572
+#: src/dcc-gui.c:9577
 msgid "Logs"
 msgstr ""
 
-#: src/dcc-gui.c:9573
+#: src/dcc-gui.c:9578
 msgid "Help"
 msgstr ""
 
-#: src/dcc-gui.c:9574
+#: src/dcc-gui.c:9579
 msgid "About"
 msgstr ""
 
-#: src/dcc-gui.c:9673
+#: src/dcc-gui.c:9678
 msgid "Component switched on"
 msgstr ""
 
-#: src/dcc-gui.c:9673
+#: src/dcc-gui.c:9678
 msgid "Component switched off"
 msgstr ""
 
-#: src/dcc-gui.c:9690
+#: src/dcc-gui.c:9695
 msgid "Not changed: authentication was cancelled or failed"
 msgstr ""
 
-#: src/dcc-gui.c:9691
+#: src/dcc-gui.c:9696
 msgid "Could not change the component (see the GUI log)"
 msgstr ""
 
-#: src/dcc-gui.c:9708
+#: src/dcc-gui.c:9713
 msgid "Switch fan control off?"
 msgstr ""
 
-#: src/dcc-gui.c:9710
+#: src/dcc-gui.c:9715
 #, c-format
 msgid ""
 "The fans will run at 100%% until the next reboot. After the reboot the "
@@ -1463,105 +1463,105 @@ msgid ""
 "back to it earlier)."
 msgstr ""
 
-#: src/dcc-gui.c:9724
+#: src/dcc-gui.c:9729
 msgid "Could not run pkexec"
 msgstr ""
 
-#: src/dcc-gui.c:9735
+#: src/dcc-gui.c:9740
 msgid "Waiting for authentication..."
 msgstr ""
 
-#: src/dcc-gui.c:9754
+#: src/dcc-gui.c:9759
 msgid "Restart the GUI to use the new language."
 msgstr ""
 
-#: src/dcc-gui.c:9755
+#: src/dcc-gui.c:9760
 msgid ""
 "Japanese and Korean translations were made without a native speaker's review."
 msgstr ""
 
-#: src/dcc-gui.c:9797
+#: src/dcc-gui.c:9810
 msgid "Restart failed - please quit and start the GUI again"
 msgstr ""
 
-#: src/dcc-gui.c:9805
+#: src/dcc-gui.c:9818
 #, c-format
 msgid ""
 "%sTheme in use: %s (%s). The keyboard picture and the fan curve graph follow "
 "it."
 msgstr ""
 
-#: src/dcc-gui.c:9806
+#: src/dcc-gui.c:9819
 msgid "Uses the desktop's theme and follows its changes. "
 msgstr ""
 
-#: src/dcc-gui.c:9807
+#: src/dcc-gui.c:9820
 msgid "dark"
 msgstr ""
 
-#: src/dcc-gui.c:9807
+#: src/dcc-gui.c:9820
 msgid "light"
 msgstr ""
 
-#: src/dcc-gui.c:9821
+#: src/dcc-gui.c:9834
 msgid "Appearance changed"
 msgstr ""
 
-#: src/dcc-gui.c:9831
+#: src/dcc-gui.c:9844
 msgid ""
 "The picture shows this layout. LED mapping: saved by the LED Wizard for this "
 "layout."
 msgstr ""
 
-#: src/dcc-gui.c:9833
+#: src/dcc-gui.c:9846
 msgid ""
 "The picture shows this layout. LED mapping: built in, checked on a German "
 "keyboard."
 msgstr ""
 
-#: src/dcc-gui.c:9835
+#: src/dcc-gui.c:9848
 msgid ""
 "The picture shows this layout. LED mapping: derived from the German layout "
 "by key position (not checked) - run the LED Wizard once (Keyboard Backlight "
 "tab) to make sure every key is right."
 msgstr ""
 
-#: src/dcc-gui.c:9838
+#: src/dcc-gui.c:9851
 msgid ""
 "The picture shows this layout. LED mapping: derived from the German layout "
 "where the keys match; keys this layout has in addition have no LED yet - run "
 "the LED Wizard once (Keyboard Backlight tab)."
 msgstr ""
 
-#: src/dcc-gui.c:9850
+#: src/dcc-gui.c:9863
 msgid "Finish or cancel the LED Wizard first"
 msgstr ""
 
-#: src/dcc-gui.c:9855
+#: src/dcc-gui.c:9868
 msgid "Could not load this keyboard layout"
 msgstr ""
 
-#: src/dcc-gui.c:9865
+#: src/dcc-gui.c:9878
 msgid "Keyboard layout changed"
 msgstr ""
 
-#: src/dcc-gui.c:9931
+#: src/dcc-gui.c:10174
 msgid "Components"
 msgstr ""
 
-#: src/dcc-gui.c:9936
+#: src/dcc-gui.c:10179
 msgid "Fan control"
 msgstr ""
 
-#: src/dcc-gui.c:9936
+#: src/dcc-gui.c:10179
 msgid "CPU control"
 msgstr ""
 
-#: src/dcc-gui.c:9936
+#: src/dcc-gui.c:10179
 msgid "Keyboard backlight"
 msgstr ""
 
-#: src/dcc-gui.c:9939
+#: src/dcc-gui.c:10182
 #, no-c-format
 msgid ""
 "Fan daemon, Status and Fan Profiles tabs, fan profiles in the tray menu. "
@@ -1569,68 +1569,68 @@ msgid ""
 "laptop's firmware controls them."
 msgstr ""
 
-#: src/dcc-gui.c:9941
+#: src/dcc-gui.c:10184
 msgid ""
 "CPU daemon and hard-limit timer, CPU Profiles tab, CPU profiles in the tray "
 "menu. Governor and frequencies stay as they were last set."
 msgstr ""
 
-#: src/dcc-gui.c:9943
+#: src/dcc-gui.c:10186
 msgid ""
 "Keyboard daemon, Keyboard Backlight tab, keyboard profiles in the tray menu. "
 "The LEDs keep their last colors."
 msgstr ""
 
-#: src/dcc-gui.c:9981
+#: src/dcc-gui.c:10224
 msgid "Language"
 msgstr ""
 
-#: src/dcc-gui.c:9985
+#: src/dcc-gui.c:10228
 msgid "Language:"
 msgstr ""
 
-#: src/dcc-gui.c:10001
+#: src/dcc-gui.c:10244
 msgid "Restart now"
 msgstr ""
 
-#: src/dcc-gui.c:10016
+#: src/dcc-gui.c:10259
 msgid "Appearance"
 msgstr ""
 
-#: src/dcc-gui.c:10020
+#: src/dcc-gui.c:10263
 msgid "Mode:"
 msgstr ""
 
-#: src/dcc-gui.c:10022
+#: src/dcc-gui.c:10265
 msgid "Follow the system"
 msgstr ""
 
-#: src/dcc-gui.c:10023
+#: src/dcc-gui.c:10266
 msgid "Dark"
 msgstr ""
 
-#: src/dcc-gui.c:10024
+#: src/dcc-gui.c:10267
 msgid "Light"
 msgstr ""
 
-#: src/dcc-gui.c:10040
+#: src/dcc-gui.c:10283
 msgid "Refresh Interval"
 msgstr ""
 
-#: src/dcc-gui.c:10044
+#: src/dcc-gui.c:10287
 msgid "Update every:"
 msgstr ""
 
-#: src/dcc-gui.c:10048
+#: src/dcc-gui.c:10291
 msgid "1 second"
 msgstr ""
 
-#: src/dcc-gui.c:10049
+#: src/dcc-gui.c:10292
 #, c-format
 msgid "%d seconds"
 msgstr ""
 
-#: src/dcc-gui.c:10058
+#: src/dcc-gui.c:10301
 msgid ""
 "How often the window shows new temperatures, fan speeds, CPU frequencies, "
 "power and GPU values. Shorter intervals look more live but wake the CPU more "
@@ -1638,81 +1638,97 @@ msgid ""
 "curve every 5 seconds), whatever is set here."
 msgstr ""
 
-#: src/dcc-gui.c:10072
+#: src/dcc-gui.c:10315
+msgid "Startup"
+msgstr ""
+
+#: src/dcc-gui.c:10323
+msgid "Start minimized to tray"
+msgstr ""
+
+#: src/dcc-gui.c:10325
+msgid ""
+"On: the GUI starts as an icon in the system tray. Off: it opens its window. "
+"The application menu entry and your startup applications that start Dudes "
+"Control Center are adjusted (option --minimized). Starting it again while it "
+"runs opens its window."
+msgstr ""
+
+#: src/dcc-gui.c:10339
 msgid "Keyboard Layout"
 msgstr ""
 
-#: src/dcc-gui.c:10076
+#: src/dcc-gui.c:10343
 msgid "Layout:"
 msgstr ""
 
-#: src/dcc-gui.c:10094
+#: src/dcc-gui.c:10361
 msgid ""
 "Switching asks for the administrator password and takes effect right away. "
 "The setting applies to the whole system and stays after reboots and updates."
 msgstr ""
 
-#: src/dcc-gui.c:10176
+#: src/dcc-gui.c:10443
 msgid "Show Application"
 msgstr ""
 
-#: src/dcc-gui.c:10215
+#: src/dcc-gui.c:10482
 #, c-format
 msgid "Profile %d"
 msgstr ""
 
-#: src/dcc-gui.c:10331
+#: src/dcc-gui.c:10598
 #, c-format
 msgid "Version %s"
 msgstr ""
 
-#: src/dcc-gui.c:10344
+#: src/dcc-gui.c:10611
 msgid "Exit"
 msgstr ""
 
-#: src/dcc-gui.c:10505
+#: src/dcc-gui.c:10772
 #, c-format
 msgid "Profile '%s' activated"
 msgstr ""
 
-#: src/dcc-gui.c:10517
+#: src/dcc-gui.c:10784
 msgid "Failed to activate profile"
 msgstr ""
 
-#: src/dcc-gui.c:10548
+#: src/dcc-gui.c:10815
 msgid "Keyboard profile activated"
 msgstr ""
 
-#: src/dcc-gui.c:10548
+#: src/dcc-gui.c:10815
 msgid "Failed to activate keyboard profile"
 msgstr ""
 
-#: src/dcc-gui.c:10594
+#: src/dcc-gui.c:10861
 #, c-format
 msgid "CPU profile '%s' activated"
 msgstr ""
 
-#: src/dcc-gui.c:10594
+#: src/dcc-gui.c:10861
 msgid "Unknown"
 msgstr ""
 
-#: src/dcc-gui.c:10608
+#: src/dcc-gui.c:10875
 msgid "Failed to activate CPU profile"
 msgstr ""
 
-#: src/dcc-gui.c:11031
+#: src/dcc-gui.c:11298
 msgid "Fan control switched off"
 msgstr ""
 
-#: src/dcc-gui.c:11036
+#: src/dcc-gui.c:11303
 #, c-format
 msgid "%s (manual mode: %d%%)"
 msgstr ""
 
-#: src/dcc-gui.c:11042 src/dcc-gui.c:11043
+#: src/dcc-gui.c:11309 src/dcc-gui.c:11310
 msgid "CPU control switched off"
 msgstr ""
 
-#: src/dcc-gui.c:11062
+#: src/dcc-gui.c:11329
 msgid "Keyboard backlight switched off"
 msgstr ""
