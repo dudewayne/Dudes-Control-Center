@@ -6,6 +6,16 @@ Programs and services were named `dudes-control-center-*` before 1.19.0 (for exa
 
 ## [Unreleased]
 
+## [1.39.0] - 2026-11-26
+
+### Added
+- **Status tab: System section** with what does not change: model and mainboard, BIOS version and date, processor (with P- and E-cores), graphics (the NVIDIA name from its driver, which does not wake a sleeping GPU; other GPUs from the PCI name list), memory ("64 GB (62.5 GB usable)"), the drives with model and size ("SSD 1: Samsung SSD 990 PRO 4TB, 4 TB"), operating system and kernel. All readable without root; the serial number and RAM type/speed (root only) and the host name (it would show in screenshots) are left out.
+- Tests: the System section from fake firmware, memory, drive, OS and PCI data (placeholder vendor names, drive order and sizes, graphics names, loop devices and non-graphics devices left out); NVMe temperatures numbered like the drives.
+
+### Changed
+- **New Status layout**: three columns of two sections each (Temperatures and Fan Speed | GPU and Power | Battery and Active Profiles), then Per-Core CPU Frequencies next to System. Manual fan control is one row in the Fan Speed section (switch, -, speed, +; the note is its tooltip) instead of a section of its own.
+- **Names only once**: the processor and GPU names are in the System section; the per-core frequencies and the GPU section show only live values. NVMe temperatures are "SSD 1", "SSD 2", ... in the order of the drive list, not the long model names.
+
 ## [1.38.1] - 2026-11-26
 
 ### Fixed
@@ -1000,7 +1010,8 @@ Programs and services were named `dudes-control-center-*` before 1.19.0 (for exa
 - Unix socket IPC between GUI and daemon
 - Watchdog timer and fail-safe mode in daemon
 
-[Unreleased]: https://github.com/dudewayne/Dudes-Control-Center/compare/v1.38.1...HEAD
+[Unreleased]: https://github.com/dudewayne/Dudes-Control-Center/compare/v1.39.0...HEAD
+[1.39.0]: https://github.com/dudewayne/Dudes-Control-Center/compare/v1.38.1...v1.39.0
 [1.38.1]: https://github.com/dudewayne/Dudes-Control-Center/compare/v1.38.0...v1.38.1
 [1.38.0]: https://github.com/dudewayne/Dudes-Control-Center/compare/v1.37.0...v1.38.0
 [1.37.0]: https://github.com/dudewayne/Dudes-Control-Center/compare/v1.36.1...v1.37.0

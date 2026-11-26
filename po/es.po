@@ -580,6 +580,14 @@ msgstr "Portátil (batería): %.1f W"
 msgid "Laptop: on AC power"
 msgstr "Portátil: con corriente"
 
+#, c-format
+msgid " (board %s)"
+msgstr " (placa %s)"
+
+#, c-format
+msgid "%d GB (%.1f GB usable)"
+msgstr "%d GB (%.1f GB utilizables)"
+
 msgid "Temperatures"
 msgstr "Temperaturas"
 
@@ -592,23 +600,17 @@ msgstr "Ventilador de CPU: -- RPM (--%)"
 msgid "GPU Fan: -- RPM (--%)"
 msgstr "Ventilador de GPU: -- RPM (--%)"
 
-msgid "Power"
-msgstr "Potencia"
-
-msgid "Manual Fan Control"
-msgstr "Control manual de ventiladores"
+msgid "Note: Enable Manual Mode to override automatic fan control. Changes take effect immediately."
+msgstr "Nota: active el modo manual para anular el control automático de los ventiladores. Los cambios se aplican de inmediato."
 
 msgid "Manual Mode:"
 msgstr "Modo manual:"
 
-msgid "Note: Enable Manual Mode to override automatic fan control. Changes take effect immediately."
-msgstr "Nota: active el modo manual para anular el control automático de los ventiladores. Los cambios se aplican de inmediato."
+msgid "Power"
+msgstr "Potencia"
 
 msgid "Battery"
 msgstr "Batería"
-
-msgid "Per-Core CPU Frequencies"
-msgstr "Frecuencias de CPU por núcleo"
 
 msgid "Active Profiles"
 msgstr "Perfiles activos"
@@ -624,6 +626,30 @@ msgstr "Modo de energía:"
 
 msgid "Keyboard profile:"
 msgstr "Perfil de teclado:"
+
+msgid "Per-Core CPU Frequencies"
+msgstr "Frecuencias de CPU por núcleo"
+
+msgid "System"
+msgstr "Sistema"
+
+msgid "Model:"
+msgstr "Modelo:"
+
+msgid "Processor:"
+msgstr "Procesador:"
+
+msgid "Graphics:"
+msgstr "Gráficos:"
+
+msgid "Memory:"
+msgstr "Memoria:"
+
+msgid "Drives:"
+msgstr "Unidades:"
+
+msgid "Operating system:"
+msgstr "Sistema operativo:"
 
 msgid "Fan Daemon Status"
 msgstr "Estado del daemon de ventiladores"
@@ -767,9 +793,6 @@ msgstr "Daemon de CPU no conectado"
 
 msgid "CPU Information"
 msgstr "Información de la CPU"
-
-msgid "Processor:"
-msgstr "Procesador:"
 
 msgid "CPU Temperature:"
 msgstr "Temperatura de la CPU:"

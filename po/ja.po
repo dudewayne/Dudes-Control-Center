@@ -577,6 +577,14 @@ msgstr "ノート PC (バッテリー): %.1f W"
 msgid "Laptop: on AC power"
 msgstr "ノート PC: AC 電源"
 
+#, c-format
+msgid " (board %s)"
+msgstr " (マザーボード %s)"
+
+#, c-format
+msgid "%d GB (%.1f GB usable)"
+msgstr "%d GB (使用可能 %.1f GB)"
+
 msgid "Temperatures"
 msgstr "温度"
 
@@ -589,23 +597,17 @@ msgstr "CPU ファン: -- RPM (--%)"
 msgid "GPU Fan: -- RPM (--%)"
 msgstr "GPU ファン: -- RPM (--%)"
 
-msgid "Power"
-msgstr "電力"
-
-msgid "Manual Fan Control"
-msgstr "手動ファン制御"
+msgid "Note: Enable Manual Mode to override automatic fan control. Changes take effect immediately."
+msgstr "注: 手動モードを有効にすると自動ファン制御より優先されます。変更はすぐに反映されます。"
 
 msgid "Manual Mode:"
 msgstr "手動モード:"
 
-msgid "Note: Enable Manual Mode to override automatic fan control. Changes take effect immediately."
-msgstr "注: 手動モードを有効にすると自動ファン制御より優先されます。変更はすぐに反映されます。"
+msgid "Power"
+msgstr "電力"
 
 msgid "Battery"
 msgstr "バッテリー"
-
-msgid "Per-Core CPU Frequencies"
-msgstr "コアごとの CPU 周波数"
 
 msgid "Active Profiles"
 msgstr "有効なプロファイル"
@@ -621,6 +623,33 @@ msgstr "電源モード:"
 
 msgid "Keyboard profile:"
 msgstr "キーボードプロファイル:"
+
+msgid "Per-Core CPU Frequencies"
+msgstr "コアごとの CPU 周波数"
+
+msgid "System"
+msgstr "システム"
+
+msgid "Model:"
+msgstr "モデル:"
+
+msgid "Processor:"
+msgstr "プロセッサ:"
+
+msgid "Graphics:"
+msgstr "グラフィックス:"
+
+msgid "Memory:"
+msgstr "メモリ:"
+
+msgid "Drives:"
+msgstr "ドライブ:"
+
+msgid "Operating system:"
+msgstr "オペレーティングシステム:"
+
+msgid "Kernel:"
+msgstr "カーネル:"
 
 msgid "Fan Daemon Status"
 msgstr "ファンデーモンの状態"
@@ -764,9 +793,6 @@ msgstr "CPU デーモン未接続"
 
 msgid "CPU Information"
 msgstr "CPU 情報"
-
-msgid "Processor:"
-msgstr "プロセッサ:"
 
 msgid "CPU Temperature:"
 msgstr "CPU 温度:"

@@ -580,6 +580,14 @@ msgstr "노트북 (배터리): %.1f W"
 msgid "Laptop: on AC power"
 msgstr "노트북: AC 전원"
 
+#, c-format
+msgid " (board %s)"
+msgstr " (메인보드 %s)"
+
+#, c-format
+msgid "%d GB (%.1f GB usable)"
+msgstr "%d GB (사용 가능 %.1f GB)"
+
 msgid "Temperatures"
 msgstr "온도"
 
@@ -592,23 +600,17 @@ msgstr "CPU 팬: -- RPM (--%)"
 msgid "GPU Fan: -- RPM (--%)"
 msgstr "GPU 팬: -- RPM (--%)"
 
-msgid "Power"
-msgstr "전력"
-
-msgid "Manual Fan Control"
-msgstr "수동 팬 제어"
+msgid "Note: Enable Manual Mode to override automatic fan control. Changes take effect immediately."
+msgstr "참고: 수동 모드를 켜면 자동 팬 제어보다 우선합니다. 변경 사항은 즉시 적용됩니다."
 
 msgid "Manual Mode:"
 msgstr "수동 모드:"
 
-msgid "Note: Enable Manual Mode to override automatic fan control. Changes take effect immediately."
-msgstr "참고: 수동 모드를 켜면 자동 팬 제어보다 우선합니다. 변경 사항은 즉시 적용됩니다."
+msgid "Power"
+msgstr "전력"
 
 msgid "Battery"
 msgstr "배터리"
-
-msgid "Per-Core CPU Frequencies"
-msgstr "코어별 CPU 주파수"
 
 msgid "Active Profiles"
 msgstr "활성 프로필"
@@ -624,6 +626,33 @@ msgstr "전원 모드:"
 
 msgid "Keyboard profile:"
 msgstr "키보드 프로필:"
+
+msgid "Per-Core CPU Frequencies"
+msgstr "코어별 CPU 주파수"
+
+msgid "System"
+msgstr "시스템"
+
+msgid "Model:"
+msgstr "모델:"
+
+msgid "Processor:"
+msgstr "프로세서:"
+
+msgid "Graphics:"
+msgstr "그래픽:"
+
+msgid "Memory:"
+msgstr "메모리:"
+
+msgid "Drives:"
+msgstr "드라이브:"
+
+msgid "Operating system:"
+msgstr "운영 체제:"
+
+msgid "Kernel:"
+msgstr "커널:"
 
 msgid "Fan Daemon Status"
 msgstr "팬 데몬 상태"
@@ -767,9 +796,6 @@ msgstr "CPU 데몬 연결 안 됨"
 
 msgid "CPU Information"
 msgstr "CPU 정보"
-
-msgid "Processor:"
-msgstr "프로세서:"
 
 msgid "CPU Temperature:"
 msgstr "CPU 온도:"

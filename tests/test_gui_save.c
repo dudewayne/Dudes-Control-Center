@@ -633,6 +633,65 @@ int main(int argc, char **argv) {
         CHECK(!other_seen && !gui_pid_alive(999999), "Q: another program with that PID or no process: not running");
     }
 
+    /* Y: System section (v1.39.0) */
+    {
+        g_mkdir_with_parents("si/dmi", 0755);
+        g_file_set_contents("si/dmi/sys_vendor", "Notebook\n", -1, NULL);
+        g_file_set_contents("si/dmi/product_name", "X58xWNx\n", -1, NULL);
+        g_file_set_contents("si/dmi/board_name", "X58xWNx\n", -1, NULL);
+        g_file_set_contents("si/dmi/bios_vendor", "INSYDE Corp.\n", -1, NULL);
+        g_file_set_contents("si/dmi/bios_version", "1.07.05\n", -1, NULL);
+        g_file_set_contents("si/dmi/bios_date", "04/25/2025\n", -1, NULL);
+        g_file_set_contents("si/meminfo", "MemTotal:       65506112 kB\nMemFree: 1 kB\n", -1, NULL);
+        const char *bl[][3] = { { "nvme1n1", "Samsung SSD 980 PRO 2TB   ", "3907029168" },
+                                { "nvme0n1", "Samsung SSD 990 PRO 4TB", "7814037168" },
+                                { "nvme10n1", "Big", "1000215216" }, { "loop0", "", "100" } };
+        for (int i = 0; i < 4; i++) {
+            char d[96], f[128];
+            snprintf(d, sizeof d, "si/block/%s/device", bl[i][0]);
+            g_mkdir_with_parents(d, 0755);
+            snprintf(f, sizeof f, "si/block/%s/size", bl[i][0]);
+            g_file_set_contents(f, bl[i][2], -1, NULL);
+            if (bl[i][1][0]) { snprintf(f, sizeof f, "%s/model", d); g_file_set_contents(f, bl[i][1], -1, NULL); }
+        }
+        g_file_set_contents("si/os-release", "NAME=\"Linux Mint\"\nPRETTY_NAME=\"Linux Mint 22.3\"\n", -1, NULL);
+        g_mkdir_with_parents("si/pci/0000:02:00.0", 0755);
+        g_file_set_contents("si/pci/0000:02:00.0/class", "0x030000\n", -1, NULL);
+        g_file_set_contents("si/pci/0000:02:00.0/vendor", "0x10de\n", -1, NULL);
+        g_file_set_contents("si/pci/0000:02:00.0/device", "0x2c58\n", -1, NULL);
+        g_mkdir_with_parents("si/nv/0000:02:00.0", 0755);
+        g_file_set_contents("si/nv/0000:02:00.0/information", "Model: \t\t NVIDIA GeForce RTX 5090 Laptop GPU\nIRQ: 16\n", -1, NULL);
+        g_mkdir_with_parents("si/pci/0000:00:02.0", 0755);
+        g_file_set_contents("si/pci/0000:00:02.0/class", "0x030000\n", -1, NULL);
+        g_file_set_contents("si/pci/0000:00:02.0/vendor", "0x8086\n", -1, NULL);
+        g_file_set_contents("si/pci/0000:00:02.0/device", "0x7d67\n", -1, NULL);
+        g_mkdir_with_parents("si/pci/0000:00:1f.3", 0755);                  /* audio: not graphics */
+        g_file_set_contents("si/pci/0000:00:1f.3/class", "0x040300\n", -1, NULL);
+        g_file_set_contents("si/pci.ids", "# test\n8086  Intel Corporation\n\t7d67  Arrow Lake-S [Intel Graphics]\n"
+                            "10de  NVIDIA Corporation\n\t2c58  GB203M [GeForce RTX 5090 Max-Q / Mobile]\n", -1, NULL);
+        SysPaths sp = { "si/dmi", "si/meminfo", "si/block", "si/os-release", "si/pci", "si/nv", "si/pci.ids" };
+        SysInfo si;
+        sysinfo_read(&sp, &si);
+        CHECK(!strcmp(si.model, "X58xWNx"), "Y: model without the placeholder vendor 'Notebook'");
+        CHECK(!strcmp(si.bios, "1.07.05 (04/25/2025, INSYDE Corp.)"), "Y: BIOS version, date and vendor");
+        CHECK(strstr(si.ram, "64") && (strstr(si.ram, "62.5") || strstr(si.ram, "62,5")), "Y: 64 GB installed, 62.5 GB usable");
+        CHECK(!strcmp(si.drives, "SSD 1: Samsung SSD 990 PRO 4TB, 4 TB\nSSD 2: Samsung SSD 980 PRO 2TB, 2 TB\nSSD 11: Big, 512 GB"),
+              "Y: drives in controller order (nvme10 after nvme1), size in TB/GB, loop devices left out");
+        CHECK(!strcmp(si.os, "Linux Mint 22.3") && si.kernel[0], "Y: operating system and kernel");
+        CHECK(strstr(si.gpus, "NVIDIA GeForce RTX 5090 Laptop GPU") && strstr(si.gpus, "Intel Graphics") &&
+              strstr(si.gpus, " + ") && !strstr(si.gpus, "040300"),
+              "Y: graphics: NVIDIA from its driver, Intel from pci.ids, audio left out");
+        /* placeholder vendor and differing board name */
+        g_file_set_contents("si/dmi/sys_vendor", "ASUSTeK COMPUTER INC.\n", -1, NULL);
+        g_file_set_contents("si/dmi/product_name", "ROG Strix\n", -1, NULL);
+        g_file_set_contents("si/dmi/board_name", "G834JY\n", -1, NULL);
+        sysinfo_read(&sp, &si);
+        CHECK(strstr(si.model, "ASUSTeK COMPUTER INC. ROG Strix") && strstr(si.model, "G834JY"), "Y: real vendor and board shown");
+        char b[32];
+        fmt_bytes(1920383410176ULL, b, sizeof b);
+        CHECK(!strcmp(b, "1.9 TB") || !strcmp(b, "1,9 TB"), "Y: 1.9 TB keeps its decimal");
+    }
+
     /* N: processor name and P/E cores (v1.38.0) */
     {
         char n[96];
@@ -713,15 +772,22 @@ int main(int argc, char **argv) {
         status_battery_texts(&b, c, st, h, sizeof c);
         CHECK(!b.present && !strcmp(c, _("No battery")), "P: no battery");
         /* NVMe drives from hwmon */
-        g_mkdir_with_parents("hw/hwmon2/device", 0755);
+        /* sensors in hwmon order nvme1, nvme0 (like on the X58xWNx); device -> controller */
+        g_mkdir_with_parents("ctrl/nvme0", 0755);
+        g_mkdir_with_parents("ctrl/nvme1", 0755);
         g_mkdir_with_parents("hw/hwmon1", 0755);
+        g_mkdir_with_parents("hw/hwmon2", 0755);
+        g_mkdir_with_parents("hw/hwmon3", 0755);
         g_file_set_contents("hw/hwmon1/name", "coretemp\n", -1, NULL);
         g_file_set_contents("hw/hwmon2/name", "nvme\n", -1, NULL);
-        g_file_set_contents("hw/hwmon2/temp1_input", "35850\n", -1, NULL);
-        g_file_set_contents("hw/hwmon2/device/model", "Samsung SSD 990 PRO 4TB                 \n", -1, NULL);
+        g_file_set_contents("hw/hwmon2/temp1_input", "32150\n", -1, NULL);
+        symlink("../../ctrl/nvme1", "hw/hwmon2/device");
+        g_file_set_contents("hw/hwmon3/name", "nvme\n", -1, NULL);
+        g_file_set_contents("hw/hwmon3/temp1_input", "35850\n", -1, NULL);
+        symlink("../../ctrl/nvme0", "hw/hwmon3/device");
         char nv[256];
         status_nvme_text("hw", nv, sizeof nv);
-        CHECK(!strcmp(nv, "Samsung SSD 990 PRO 4TB: 36°C"), "P: NVMe drive with model name, other sensors ignored");
+        CHECK(!strcmp(nv, "SSD 1: 36°C\nSSD 2: 32°C"), "P: NVMe temperatures as SSD n by controller, sorted, other sensors ignored");
         /* GPU fields of the fan daemon's STATUS */
         StatusGpu g = { "", "", -1, -1, -1, -1, -1, -1, "" };
         status_gpu_field(&g, "STATE=awake");
