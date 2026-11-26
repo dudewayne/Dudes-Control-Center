@@ -84,6 +84,13 @@ int main(int argc, char **argv) {
     g_mkdir_with_parents(cfg, 0755);
     snprintf(path, sizeof path, "%s/profiles.json", cfg);
     setenv("HOME", home, 1);
+    /* GLib takes XDG_CONFIG_HOME over HOME (set on CI runners): keep all
+     * config and data writes inside the test home (v1.40.0) */
+    char xdg[1100];
+    snprintf(xdg, sizeof xdg, "%s/.config", home);
+    setenv("XDG_CONFIG_HOME", xdg, 1);
+    snprintf(xdg, sizeof xdg, "%s/.local/share", home);
+    setenv("XDG_DATA_HOME", xdg, 1);
 
     char logdir[1024]; snprintf(logdir, sizeof logdir, "%s/logs", home);
     log_init("GUI", LOG_LEVEL_INFO, logdir);
