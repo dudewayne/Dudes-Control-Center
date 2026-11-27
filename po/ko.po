@@ -480,6 +480,9 @@ msgstr "키보드 백라이트를 찾지 못했습니다. 키보드 데몬이 10
 msgid "%s (%s driver)"
 msgstr "%s (%s 드라이버)"
 
+msgid "Wave"
+msgstr "웨이브"
+
 msgid "Keyboard schematic loading..."
 msgstr "키보드 그림 불러오는 중..."
 
@@ -769,11 +772,41 @@ msgstr "파일을 찾을 수 없습니다: %s"
 msgid "Not found"
 msgstr "찾을 수 없음"
 
+msgid "Copied. Paste the report into the new issue that opened in your browser."
+msgstr "복사했습니다. 브라우저에 열린 새 이슈에 보고서를 붙여 넣으세요."
+
+msgid "Copied to the clipboard."
+msgstr "클립보드에 복사했습니다."
+
+msgid "System Report"
+msgstr "시스템 보고서"
+
+msgid "Copy"
+msgstr "복사"
+
+msgid "Copy and Open GitHub Issues"
+msgstr "복사하고 GitHub 이슈 열기"
+
+msgid "Close"
+msgstr "닫기"
+
+msgid "What Dudes Control Center detected on this computer, for a bug report from a laptop it was not tested on. It contains no user names, host names, serial numbers or home folder paths. Please read it before you share it."
+msgstr "Dudes Control Center가 이 컴퓨터에서 감지한 내용으로, 테스트되지 않은 노트북의 버그 보고용입니다. 사용자 이름, 호스트 이름, 일련 번호, 홈 폴더 경로는 포함되지 않습니다. 공유하기 전에 읽어 보세요."
+
+msgid "The report could not be made (out of memory)."
+msgstr "보고서를 만들 수 없습니다 (메모리 부족)."
+
 msgid "Search"
 msgstr "검색"
 
 msgid "Enter: next match, Shift+Enter: previous match"
 msgstr "Enter: 다음 항목, Shift+Enter: 이전 항목"
+
+msgid "System Report…"
+msgstr "시스템 보고서…"
+
+msgid "What was detected on this computer, to copy into a GitHub issue (no user names, host names, serial numbers or home folder paths)"
+msgstr "이 컴퓨터에서 감지한 내용, GitHub 이슈에 복사용 (사용자 이름, 호스트 이름, 일련 번호, 홈 폴더 경로 없음)"
 
 msgid "Changelog"
 msgstr "변경 내역"
@@ -943,9 +976,6 @@ msgstr "숨쉬기"
 
 msgid "Rainbow"
 msgstr "무지개"
-
-msgid "Wave"
-msgstr "웨이브"
 
 msgid "Animated effect of the selected zone, or of the base color when no zone is selected. Breathing fades the color in and out; Rainbow and Wave use all colors. Runs in the keyboard daemon, also when this window is closed."
 msgstr "선택한 영역의 애니메이션 효과이며, 영역을 선택하지 않으면 기본 색상에 적용됩니다. 숨쉬기는 색을 서서히 밝혔다 어둡게 하고, 무지개와 웨이브는 모든 색을 사용합니다. 이 창을 닫아도 키보드 데몬에서 계속 실행됩니다."

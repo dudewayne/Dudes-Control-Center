@@ -16,6 +16,9 @@ R="$TMP/root"
 for b in dcc-gui dcc-fan-cli dcc-cpu-cli dcc-kbd-cli dcc-fan-daemon dcc-cpu-daemon dcc-kbd-daemon dcc-hard-limit-enforce; do
     check "[ -x '$R/usr/local/bin/$b' ] && [ ! -L '$R/usr/local/bin/$b' ]" "program $b installed"
 done
+# system report (1.45.0): the packaged CLI offers it and prints it without root
+check "'$R/usr/local/bin/dcc-fan-cli' --help | grep -q -- '--report'" "dcc-fan-cli --help lists --report"
+check "'$R/usr/local/bin/dcc-fan-cli' --report | head -1 | grep -q 'Dudes Control Center system report'" "dcc-fan-cli --report prints the report"
 for u in dcc-fan-daemon.service dcc-cpu-daemon.service dcc-kbd-daemon.service dcc-hard-limit-enforcer.service dcc-hard-limit-enforcer.timer; do
     check "[ -f '$R/etc/systemd/system/$u' ]" "unit $u installed"
 done

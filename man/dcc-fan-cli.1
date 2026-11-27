@@ -11,6 +11,8 @@ dcc-fan-cli \- show and set the notebook fan speed
 .br
 .B dcc-fan-cli \-\-auto
 .br
+.B dcc-fan-cli \-\-report
+.br
 .B dcc-fan-cli \-\-log\-level
 .I level
 .br
@@ -74,6 +76,21 @@ Hand the fans of generic fan control (hwmon, see
 back to the driver's automatic mode.
 .BR "dcc-component hwmon-fans disable"
 runs it; it needs root but no opt-in.
+.TP
+.B \-\-report
+Print a system report for bug reports from laptops Dudes Control Center
+was not tested on: model and BIOS, distribution, kernel, CPU, loaded
+kernel modules, the opt-ins, the three daemons' STATUS, hwmon devices with
+their fans and pwm modes, keyboard LEDs, the firmware power profile,
+graphics cards and power supplies.
+It needs no root.
+DMI serial numbers and UUIDs are never read; the user name, the home folder
+and the host name are replaced by
+.BR <user> ,
+.B <home>
+and
+.BR <host> .
+The GUI's Help tab shows the same report (System Report).
 .TP
 .B \-\-auto
 Run a simple built-in temperature control in the foreground until

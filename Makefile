@@ -20,6 +20,9 @@ CJSON_LIBS = $(shell pkg-config --libs libcjson 2>/dev/null || echo "-lcjson")
 # Source files
 COMMON_SRC = src/dcc-common.c
 COMMON_HDR = src/dcc-common.h src/dcc-hwmon.h
+# System report (1.45.0): dcc-fan-cli --report and the GUI
+REPORT_SRC = src/dcc-report.c
+REPORT_HDR = src/dcc-report.h
 LOG_SRC = src/dcc-log.c
 LOG_HDR = src/dcc-log.h
 # Socket authorization + safe user-file I/O for the root daemons
@@ -57,8 +60,8 @@ DKMS_MODULE_VERSION = $(VERSION)
 
 all: $(CLI_TARGET) $(CPU_CLI_TARGET) $(KBD_CLI_TARGET) $(DAEMON_TARGET) $(CPU_DAEMON_TARGET) $(KBD_DAEMON_TARGET) $(GUI_TARGET)
 
-$(CLI_TARGET): $(COMMON_SRC) src/dcc-fan-cli.c $(COMMON_HDR)
-	$(CC) $(CFLAGS) -o $@ $(COMMON_SRC) src/dcc-fan-cli.c $(LDFLAGS_COMMON)
+$(CLI_TARGET): $(COMMON_SRC) $(REPORT_SRC) src/dcc-fan-cli.c $(COMMON_HDR) $(REPORT_HDR) VERSION
+	$(CC) $(CFLAGS) -DAPP_VERSION="\"$(VERSION)\"" -o $@ $(COMMON_SRC) $(REPORT_SRC) src/dcc-fan-cli.c $(LDFLAGS_COMMON)
 
 $(DAEMON_TARGET): $(COMMON_SRC) $(LOG_SRC) $(SECURE_SRC) src/dcc-fan-daemon.c $(COMMON_HDR) $(LOG_HDR) $(SECURE_HDR) VERSION
 	$(CC) $(CFLAGS) $(CJSON_CFLAGS) -o $@ $(COMMON_SRC) $(LOG_SRC) $(SECURE_SRC) src/dcc-fan-daemon.c $(LDFLAGS_COMMON) $(CJSON_LIBS)
@@ -66,8 +69,8 @@ $(DAEMON_TARGET): $(COMMON_SRC) $(LOG_SRC) $(SECURE_SRC) src/dcc-fan-daemon.c $(
 $(CPU_DAEMON_TARGET): src/dcc-cpu-common.c $(LOG_SRC) $(SECURE_SRC) src/dcc-cpu-daemon.c src/dcc-cpu-common.h src/dcc-hwmon.h $(LOG_HDR) $(SECURE_HDR) VERSION
 	$(CC) $(CFLAGS) $(CJSON_CFLAGS) -o $@ src/dcc-cpu-common.c $(LOG_SRC) $(SECURE_SRC) src/dcc-cpu-daemon.c $(LDFLAGS_COMMON) $(CJSON_LIBS)
 
-$(GUI_TARGET): $(COMMON_SRC) $(LOG_SRC) src/dcc-gui.c $(COMMON_HDR) $(LOG_HDR) src/dcc-kbd-common.h src/dcc-cpu-common.h VERSION
-	$(CC) $(CFLAGS) $(GTK_CFLAGS) $(CJSON_CFLAGS) -DAPP_VERSION="\"$(VERSION)\"" -o $@ $(COMMON_SRC) src/dcc-log.c src/dcc-gui.c $(LDFLAGS_COMMON) $(GTK_LIBS) $(CJSON_LIBS)
+$(GUI_TARGET): $(COMMON_SRC) $(REPORT_SRC) $(LOG_SRC) src/dcc-gui.c $(COMMON_HDR) $(REPORT_HDR) $(LOG_HDR) src/dcc-kbd-common.h src/dcc-cpu-common.h VERSION
+	$(CC) $(CFLAGS) $(GTK_CFLAGS) $(CJSON_CFLAGS) -DAPP_VERSION="\"$(VERSION)\"" -o $@ $(COMMON_SRC) $(REPORT_SRC) src/dcc-log.c src/dcc-gui.c $(LDFLAGS_COMMON) $(GTK_LIBS) $(CJSON_LIBS)
 
 cli: $(CLI_TARGET)
 
@@ -302,7 +305,7 @@ CPU_DAEMON_DEPS = src/dcc-cpu-daemon.c src/dcc-cpu-common.c src/dcc-cpu-common.h
 TEST_BINS = $(TEST_BUILD)/test_fan_responses $(TEST_BUILD)/test_fan_safety \
             $(TEST_BUILD)/test_secure_allow $(TEST_BUILD)/test_secure_deny \
             $(TEST_BUILD)/cpud_test $(TEST_BUILD)/test_gui_save $(TEST_BUILD)/kbdd_test $(TEST_BUILD)/kbdcli_test \
-            $(TEST_BUILD)/test_paths $(TEST_BUILD)/test_fan_backend
+            $(TEST_BUILD)/test_paths $(TEST_BUILD)/test_fan_backend $(TEST_BUILD)/report_test
 
 test: $(TEST_BINS) test-locale
 	bash tests/run_tests.sh $(TEST_BUILD)
@@ -350,12 +353,20 @@ $(TEST_BUILD)/kbdd_test: $(KBD_DAEMON_DEPS) | $(TEST_BUILD)
 	  -DKBD_LEDS_DIR='"leds"' -DKBD_STATE_DIR='"state"' -DMAIN_PROFILES_PATH='"cfg/profiles.json"' -DDCC_AUTH_GROUP='"$(TEST_GROUP)"' \
 	  -o $@ src/dcc-kbd-daemon.c src/dcc-kbd-common.c $(LOG_SRC) $(SECURE_SRC) $(CJSON_LIBS)
 
-$(TEST_BUILD)/test_gui_save: tests/test_gui_save.c src/dcc-gui.c $(COMMON_SRC) $(LOG_SRC) $(LOG_HDR) | $(TEST_BUILD)
+$(TEST_BUILD)/test_gui_save: tests/test_gui_save.c src/dcc-gui.c $(COMMON_SRC) $(REPORT_SRC) $(REPORT_HDR) $(LOG_SRC) $(LOG_HDR) | $(TEST_BUILD)
 	$(CC) $(TEST_CFLAGS) -w $(GTK_CFLAGS) $(CJSON_CFLAGS) -DAPP_VERSION='"$(VERSION)"' \
 	  -DSOCKET_PATH='"fan.sock"' -DCPU_SOCKET_PATH='"cpu.sock"' -DKBD_SOCKET_PATH='"kbd.sock"' \
+	  -DREPORT_FAN_SOCKET='"fan.sock"' -DREPORT_CPU_SOCKET='"cpu.sock"' -DREPORT_KBD_SOCKET='"kbd.sock"' -DDCC_SYSROOT='"reportroot"' \
 	  -DDCC_COMPONENT_DIR='"components"' -DDCC_LAYOUT_DIR='"$(CURDIR)/resources/layouts"' -DDCC_DOC_DIR='"$(CURDIR)"' -DDCC_LOGO_DIR='"$(CURDIR)/resources"' \
 	  -DDCC_LOCALE_DIR='"$(CURDIR)/$(TEST_BUILD)/locale"' \
-	  -o $@ tests/test_gui_save.c $(COMMON_SRC) $(LOG_SRC) $(GTK_LIBS) $(CJSON_LIBS) -lm
+	  -o $@ tests/test_gui_save.c $(COMMON_SRC) $(REPORT_SRC) $(LOG_SRC) $(GTK_LIBS) $(CJSON_LIBS) -lm
+
+# dcc-fan-cli --report against a fake /sys, /proc and /etc ("root") and test sockets (1.45.0)
+$(TEST_BUILD)/report_test: src/dcc-fan-cli.c $(COMMON_SRC) $(REPORT_SRC) $(COMMON_HDR) $(REPORT_HDR) | $(TEST_BUILD)
+	$(CC) $(TEST_CFLAGS) -DAPP_VERSION='"9.9.9"' -DDCC_SYSROOT='"root"' \
+	  -DREPORT_FAN_SOCKET='"fan.sock"' -DREPORT_CPU_SOCKET='"cpu.sock"' -DREPORT_KBD_SOCKET='"kbd.sock"' \
+	  -DDCC_HWMON_FANS_FILE='"root/etc/dudes-control-center/hwmon-fans"' -DDCC_EC_DIRECT_FILE='"root/etc/dudes-control-center/ec-direct-access"' \
+	  -o $@ src/dcc-fan-cli.c $(COMMON_SRC) $(REPORT_SRC)
 
 # Man pages render without groff warnings (1.33.0)
 man-check:

@@ -50,6 +50,7 @@ run fan_backend     "$BUILD/test_fan_backend"
 run cpu_daemon      python3 "$TESTS/test_cpu_daemon.py" "$WORK/cpu_daemon" "$BUILD/cpud_test"
 run kbd_daemon      python3 "$TESTS/test_kbd_daemon.py" "$WORK/kbd_daemon" "$BUILD/kbdd_test" "$BUILD/kbdcli_test"
 run gui_save        python3 "$TESTS/test_gui_save.py"   "$WORK/gui_save" "$BUILD/test_gui_save" "$BUILD/cpud_test"
+run report          python3 "$TESTS/test_report.py"     "$WORK/report" "$BUILD/report_test"
 
 echo
 echo "Test suites passed: $PASSED, failed: $FAILED"

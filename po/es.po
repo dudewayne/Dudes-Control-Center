@@ -480,6 +480,9 @@ msgstr "No se encontró retroiluminación del teclado. El daemon del teclado vue
 msgid "%s (%s driver)"
 msgstr "%s (controlador %s)"
 
+msgid "Wave"
+msgstr "Ola"
+
 msgid "Keyboard schematic loading..."
 msgstr "Cargando el esquema del teclado..."
 
@@ -766,11 +769,41 @@ msgstr "Archivo no encontrado: %s"
 msgid "Not found"
 msgstr "No encontrado"
 
+msgid "Copied. Paste the report into the new issue that opened in your browser."
+msgstr "Copiado. Pegue el informe en el nuevo issue que se abrió en su navegador."
+
+msgid "Copied to the clipboard."
+msgstr "Copiado al portapapeles."
+
+msgid "System Report"
+msgstr "Informe del sistema"
+
+msgid "Copy"
+msgstr "Copiar"
+
+msgid "Copy and Open GitHub Issues"
+msgstr "Copiar y abrir issues de GitHub"
+
+msgid "Close"
+msgstr "Cerrar"
+
+msgid "What Dudes Control Center detected on this computer, for a bug report from a laptop it was not tested on. It contains no user names, host names, serial numbers or home folder paths. Please read it before you share it."
+msgstr "Lo que Dudes Control Center detectó en este equipo, para un informe de errores desde un portátil en el que no se probó. No contiene nombres de usuario, nombres de equipo, números de serie ni rutas de la carpeta personal. Léalo antes de compartirlo."
+
+msgid "The report could not be made (out of memory)."
+msgstr "No se pudo crear el informe (sin memoria)."
+
 msgid "Search"
 msgstr "Buscar"
 
 msgid "Enter: next match, Shift+Enter: previous match"
 msgstr "Intro: siguiente coincidencia, Mayús+Intro: coincidencia anterior"
+
+msgid "System Report…"
+msgstr "Informe del sistema…"
+
+msgid "What was detected on this computer, to copy into a GitHub issue (no user names, host names, serial numbers or home folder paths)"
+msgstr "Lo detectado en este equipo, para copiarlo en un issue de GitHub (sin nombres de usuario, nombres de equipo, números de serie ni rutas de la carpeta personal)"
 
 msgid "Changelog"
 msgstr "Registro de cambios"
@@ -937,9 +970,6 @@ msgstr "Respiración"
 
 msgid "Rainbow"
 msgstr "Arcoíris"
-
-msgid "Wave"
-msgstr "Ola"
 
 msgid "Animated effect of the selected zone, or of the base color when no zone is selected. Breathing fades the color in and out; Rainbow and Wave use all colors. Runs in the keyboard daemon, also when this window is closed."
 msgstr "Efecto animado de la zona seleccionada, o del color base si no hay ninguna zona seleccionada. Respiración atenúa y aviva el color; Arcoíris y Ola usan todos los colores. Funciona en el daemon del teclado, también con esta ventana cerrada."

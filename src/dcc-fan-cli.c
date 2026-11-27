@@ -15,6 +15,11 @@
 #include <signal.h>
 #include <unistd.h>
 #include "dcc-common.h"
+#include "dcc-report.h"
+
+#ifndef APP_VERSION
+#define APP_VERSION "unknown"
+#endif
 
 #define PROGRAM_NAME "dcc-fan-cli"
 
@@ -209,6 +214,8 @@ static void print_usage(void) {
     printf("  (none)         Show CPU/GPU temperatures and fan status (default)\n");
     printf("  --set <pct>    Set fan speed to specified percentage (0,10,...,100; 0 = fans off)\n");
     printf("  --release-hwmon  Hand generic hwmon fans back to the driver's automatic mode\n");
+    printf("  --report       Print a system report for bug reports (what was detected;\n");
+    printf("                 no user names, host names, serial numbers or home paths)\n");
     printf("  --auto         Enable automatic fan control based on temperature\n");
     printf("  --log-level <LEVEL>  Set daemon log level (ERROR, WARN, INFO, DEBUG)\n");
     printf("  --log-level-get      Show current daemon log level\n");
@@ -269,6 +276,17 @@ int main(int argc, char *argv[]) {
         }
     }
     
+    /* --report (1.45.0): what was detected, for bug reports; no root needed */
+    for (int i = 1; i < argc; i++) {
+        if (strcmp(argv[i], "--report") == 0) {
+            char *r = dcc_report_build(APP_VERSION);
+            if (!r) { fprintf(stderr, "Error: out of memory\n"); return EXIT_FAILURE; }
+            fputs(r, stdout);
+            free(r);
+            return EXIT_SUCCESS;
+        }
+    }
+
     /* --release-hwmon (1.43.0): hand generic hwmon fans back to the driver's
      * automatic mode (used when generic fan control is switched off) */
     for (int i = 1; i < argc; i++) {

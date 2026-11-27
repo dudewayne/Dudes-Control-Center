@@ -73,7 +73,7 @@ dcc-gui --debug      # more output in GUI.log
 | **Keyboard Backlight** | Keyboard profiles, **brightness slider**, backlight off switch, preset and custom colors, **effects** (Breathing, Rainbow, Wave), the **zone editor** (keyboard picture + zone list) for per-key lighting, the LED wizard. |
 | **Settings** | Components on/off, language, appearance, start minimized, refresh interval, keyboard layout (see [Settings](#settings)). |
 | **Logs** | Live GUI, CPU daemon, fan daemon and keyboard daemon logs (newest on top, errors in red). |
-| **Help** | This README, the changelog and the license, formatted, with clickable links and a search field. |
+| **Help** | This README, the changelog and the license, formatted, with clickable links and a search field; **System Report…** shows what was detected on this computer, to copy into a GitHub issue. |
 | **About** | Version, credits, links. |
 
 **Tray icon:** left click shows/hides the window, right click opens a menu with CPU, fan and keyboard profiles (choosing one activates it). Closing the window minimizes to the tray. Window position and size are remembered; only one GUI instance can run: starting it again opens the running one's window.
@@ -144,6 +144,7 @@ dcc-fan-cli                  # temperatures and fan status (sudo without the dcc
 sudo dcc-fan-cli --set 40    # fan speed 0,10,...,100 (0 = fans off)
 sudo dcc-fan-cli --auto      # automatic, temperature-based
 dcc-fan-cli --log-level DEBUG
+dcc-fan-cli --report         # system report for a bug report (no root needed)
 
 dcc-cpu-cli                  # CPU status
 dcc-cpu-cli --list-profiles
@@ -252,7 +253,7 @@ Designed for Clevo-based notebooks with EC access at I/O ports 0x62/0x66 and an 
 | Keyboard backlight | LED class devices in `/sys/class/leds`: multicolor `*kbd_backlight*` (`multi_intensity`, `multi_index`) or a single-color `*::kbd_backlight` (`brightness`) |
 | AMD GPU | the `amdgpu` driver's sysfs values (temperature, power, clocks, load, video memory), only while the GPU is awake; the name from libdrm's `amdgpu.ids`. A discrete GPU is shown before an integrated one, an NVIDIA GPU before both |
 
-AMD support, generic fan control, the firmware power profile and keyboards other than the ITE 829x are built from the kernel's documented interfaces and tested with simulated sysfs trees, not yet on such hardware.
+AMD support, generic fan control, the firmware power profile and keyboards other than the ITE 829x are built from the kernel's documented interfaces and tested with simulated sysfs trees, not yet on such hardware. Reports from such laptops are welcome: see **Reporting a problem** under [Troubleshooting](#troubleshooting).
 
 ### EC registers
 
@@ -272,6 +273,8 @@ Fan percentage: the fan duty, from the EC's duty registers (`0xCE`/`0xCF`, 0-255
 Linear interpolation between the points: ≤45°C 20%, 55°C 30%, 60°C 40%, 70°C 50%, 80°C 70%, ≥85°C 100%. Custom curves are edited in the Fan Profiles tab.
 
 ## Troubleshooting
+
+**Reporting a problem, or a laptop it was not tested on**: open the Help tab, click **System Report…**, read it, then **Copy and Open GitHub Issues** (or run `dcc-fan-cli --report`) and paste it into the [hardware report](https://github.com/dudewayne/Dudes-Control-Center/issues/new?template=hardware-report.md). It lists what was detected (model, BIOS, kernel, modules, the daemons' status, sensors, fans, keyboard LEDs, GPUs) and contains no user names, host names, serial numbers or home folder paths.
 
 **GUI says a daemon is not running**
 ```bash

@@ -476,6 +476,9 @@ msgstr "Keine Tastaturbeleuchtung gefunden. Der Tastatur-Daemon sucht alle 10 Se
 msgid "%s (%s driver)"
 msgstr "%s (Treiber %s)"
 
+msgid "Wave"
+msgstr "Welle"
+
 msgid "Keyboard schematic loading..."
 msgstr "Tastaturbild wird geladen …"
 
@@ -759,11 +762,41 @@ msgstr "Datei nicht gefunden: %s"
 msgid "Not found"
 msgstr "Nicht gefunden"
 
+msgid "Copied. Paste the report into the new issue that opened in your browser."
+msgstr "Kopiert. Fügen Sie den Bericht in das neue Issue ein, das sich im Browser geöffnet hat."
+
+msgid "Copied to the clipboard."
+msgstr "In die Zwischenablage kopiert."
+
+msgid "System Report"
+msgstr "Systembericht"
+
+msgid "Copy"
+msgstr "Kopieren"
+
+msgid "Copy and Open GitHub Issues"
+msgstr "Kopieren und GitHub-Issues öffnen"
+
+msgid "Close"
+msgstr "Schließen"
+
+msgid "What Dudes Control Center detected on this computer, for a bug report from a laptop it was not tested on. It contains no user names, host names, serial numbers or home folder paths. Please read it before you share it."
+msgstr "Was Dudes Control Center auf diesem Computer erkannt hat, für einen Fehlerbericht von einem Laptop, auf dem es nicht getestet wurde. Er enthält keine Benutzernamen, Rechnernamen, Seriennummern oder Pfade des Home-Ordners. Bitte lesen Sie ihn, bevor Sie ihn teilen."
+
+msgid "The report could not be made (out of memory)."
+msgstr "Der Bericht konnte nicht erstellt werden (kein Speicher)."
+
 msgid "Search"
 msgstr "Suchen"
 
 msgid "Enter: next match, Shift+Enter: previous match"
 msgstr "Eingabe: nächster Treffer, Umschalt+Eingabe: vorheriger Treffer"
+
+msgid "System Report…"
+msgstr "Systembericht…"
+
+msgid "What was detected on this computer, to copy into a GitHub issue (no user names, host names, serial numbers or home folder paths)"
+msgstr "Was auf diesem Computer erkannt wurde, zum Kopieren in ein GitHub-Issue (keine Benutzernamen, Rechnernamen, Seriennummern oder Pfade des Home-Ordners)"
 
 msgid "Changelog"
 msgstr "Änderungsprotokoll"
@@ -920,9 +953,6 @@ msgstr "Atmen"
 
 msgid "Rainbow"
 msgstr "Regenbogen"
-
-msgid "Wave"
-msgstr "Welle"
 
 msgid "Animated effect of the selected zone, or of the base color when no zone is selected. Breathing fades the color in and out; Rainbow and Wave use all colors. Runs in the keyboard daemon, also when this window is closed."
 msgstr "Animierter Effekt der ausgewählten Zone, oder der Grundfarbe, wenn keine Zone ausgewählt ist. Atmen blendet die Farbe ein und aus; Regenbogen und Welle nutzen alle Farben. Läuft im Tastatur-Daemon, auch wenn dieses Fenster geschlossen ist."

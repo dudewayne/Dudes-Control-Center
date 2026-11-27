@@ -74,6 +74,7 @@ static int gui_debug_flag;   /* started with --debug (kept by "Restart now") */
 
 #include "dcc-log.h"
 #include "dcc-common.h"
+#include "dcc-report.h"
 #include "dcc-cpu-common.h"
 #include "dcc-kbd-common.h"
 #include <cairo.h>
@@ -8898,6 +8899,80 @@ static void on_help_tab_switched(GtkNotebook *nb, GtkWidget *page, guint num, gp
     if (help.search_status) gtk_label_set_text(GTK_LABEL(help.search_status), "");
 }
 
+/* System report (1.45.0): what was detected, shown for checking before it
+ * is copied into a GitHub issue. Not modal and without a nested main loop. */
+static GtkWidget *report_dialog;
+
+static void on_report_response(GtkDialog *d, gint response, gpointer user_data) {
+    GtkWidget *note = GTK_WIDGET(user_data);
+    if (response == 1 || response == 2) {
+        GtkTextBuffer *tb = g_object_get_data(G_OBJECT(d), "report-buffer");
+        GtkTextIter a, e;
+        gtk_text_buffer_get_bounds(tb, &a, &e);
+        gchar *text = gtk_text_buffer_get_text(tb, &a, &e, FALSE);
+        gtk_clipboard_set_text(gtk_clipboard_get(GDK_SELECTION_CLIPBOARD), text, -1);
+        g_free(text);
+        gtk_label_set_text(GTK_LABEL(note), response == 2
+            ? _("Copied. Paste the report into the new issue that opened in your browser.")
+            : _("Copied to the clipboard."));
+        if (response == 2) {
+            GError *error = NULL;
+            if (!g_app_info_launch_default_for_uri(DCC_REPO_URL "/issues/new?template=hardware-report.md", NULL, &error) && error) {
+                g_printerr("[GUI] Failed to open URI: %s\n", error->message);
+                g_error_free(error);
+            }
+        }
+        return;
+    }
+    gtk_widget_destroy(GTK_WIDGET(d));
+    report_dialog = NULL;
+}
+
+static void report_dialog_open(GtkWidget *parent) {
+    if (report_dialog) {
+        gtk_window_present(GTK_WINDOW(report_dialog));
+        return;
+    }
+    char *text = dcc_report_build(APP_VERSION);
+    GtkWindow *top = parent ? GTK_WINDOW(gtk_widget_get_toplevel(parent)) : NULL;
+    report_dialog = gtk_dialog_new_with_buttons(_("System Report"), top, GTK_DIALOG_DESTROY_WITH_PARENT,
+                                                _("Copy"), 1, _("Copy and Open GitHub Issues"), 2,
+                                                _("Close"), GTK_RESPONSE_CLOSE, NULL);
+    gtk_window_set_default_size(GTK_WINDOW(report_dialog), 760, 560);
+    GtkWidget *content = gtk_dialog_get_content_area(GTK_DIALOG(report_dialog));
+    gtk_container_set_border_width(GTK_CONTAINER(content), 10);
+    gtk_box_set_spacing(GTK_BOX(content), 8);
+    GtkWidget *intro = gtk_label_new(_("What Dudes Control Center detected on this computer, for a bug report from a "
+                                       "laptop it was not tested on. It contains no user names, host names, serial "
+                                       "numbers or home folder paths. Please read it before you share it."));
+    gtk_label_set_line_wrap(GTK_LABEL(intro), TRUE);
+    gtk_label_set_xalign(GTK_LABEL(intro), 0.0);
+    gtk_box_pack_start(GTK_BOX(content), intro, FALSE, FALSE, 0);
+    GtkWidget *scrolled = gtk_scrolled_window_new(NULL, NULL);
+    gtk_scrolled_window_set_policy(GTK_SCROLLED_WINDOW(scrolled), GTK_POLICY_AUTOMATIC, GTK_POLICY_AUTOMATIC);
+    gtk_scrolled_window_set_min_content_height(GTK_SCROLLED_WINDOW(scrolled), 380);
+    GtkWidget *view = gtk_text_view_new();
+    gtk_text_view_set_editable(GTK_TEXT_VIEW(view), FALSE);
+    gtk_text_view_set_monospace(GTK_TEXT_VIEW(view), TRUE);
+    gtk_text_view_set_left_margin(GTK_TEXT_VIEW(view), 6);
+    GtkTextBuffer *tb = gtk_text_view_get_buffer(GTK_TEXT_VIEW(view));
+    gtk_text_buffer_set_text(tb, text ? text : _("The report could not be made (out of memory)."), -1);
+    free(text);
+    g_object_set_data(G_OBJECT(report_dialog), "report-buffer", tb);
+    gtk_container_add(GTK_CONTAINER(scrolled), view);
+    gtk_box_pack_start(GTK_BOX(content), scrolled, TRUE, TRUE, 0);
+    GtkWidget *note = gtk_label_new("");
+    gtk_label_set_xalign(GTK_LABEL(note), 0.0);
+    gtk_box_pack_start(GTK_BOX(content), note, FALSE, FALSE, 0);
+    g_signal_connect(report_dialog, "response", G_CALLBACK(on_report_response), note);
+    gtk_widget_show_all(report_dialog);
+}
+
+static void on_report_clicked(GtkButton *btn, gpointer user_data) {
+    (void)user_data;
+    report_dialog_open(GTK_WIDGET(btn));
+}
+
 static GtkWidget *create_help_page(void) {
     GtkWidget *box = gtk_box_new(GTK_ORIENTATION_VERTICAL, 4);
     gtk_container_set_border_width(GTK_CONTAINER(box), 5);
@@ -8910,6 +8985,11 @@ static GtkWidget *create_help_page(void) {
     help.search_status = gtk_label_new("");
     gtk_box_pack_start(GTK_BOX(bar), help.search, FALSE, FALSE, 0);
     gtk_box_pack_start(GTK_BOX(bar), help.search_status, FALSE, FALSE, 0);
+    GtkWidget *report_btn = gtk_button_new_with_label(_("System Report…"));
+    gtk_widget_set_tooltip_text(report_btn, _("What was detected on this computer, to copy into a GitHub issue "
+                                              "(no user names, host names, serial numbers or home folder paths)"));
+    g_signal_connect(report_btn, "clicked", G_CALLBACK(on_report_clicked), NULL);
+    gtk_box_pack_end(GTK_BOX(bar), report_btn, FALSE, FALSE, 0);
     gtk_box_pack_start(GTK_BOX(box), bar, FALSE, FALSE, 0);
     g_signal_connect(help.search, "search-changed", G_CALLBACK(on_help_search_changed), NULL);
     g_signal_connect(help.search, "activate", G_CALLBACK(on_help_search_next), NULL);

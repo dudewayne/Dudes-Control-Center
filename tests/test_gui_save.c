@@ -973,6 +973,22 @@ int main(int argc, char **argv) {
               "O: keyboard: per-key RGB -> everything again");
         CHECK(gtk_tree_model_iter_n_children(gtk_combo_box_get_model(GTK_COMBO_BOX(ka.kbd_fx_combo)), NULL) == 4 &&
               gtk_widget_get_visible(ka.kbd_fx_dir), "O: keyboard: per-key RGB -> Wave and direction back");
+
+        /* System report dialog (1.45.0): not modal, one at a time, Copy */
+        report_dialog_open(NULL);
+        GtkWidget *rd = report_dialog;
+        GtkTextBuffer *rtb = rd ? g_object_get_data(G_OBJECT(rd), "report-buffer") : NULL;
+        gchar *rtext = NULL;
+        if (rtb) { GtkTextIter a1, e1; gtk_text_buffer_get_bounds(rtb, &a1, &e1); rtext = gtk_text_buffer_get_text(rtb, &a1, &e1, FALSE); }
+        CHECK(rd && !gtk_window_get_modal(GTK_WINDOW(rd)) && rtext && g_str_has_prefix(rtext, "Dudes Control Center system report") &&
+              strstr(rtext, "Version: " APP_VERSION), "O: System Report opens a non-modal dialog with the report");
+        g_free(rtext);
+        report_dialog_open(NULL);
+        CHECK(report_dialog == rd, "O: a second click shows the same dialog");
+        gtk_dialog_response(GTK_DIALOG(rd), 1);
+        CHECK(report_dialog == rd, "O: Copy keeps the dialog open");
+        gtk_dialog_response(GTK_DIALOG(rd), GTK_RESPONSE_CLOSE);
+        CHECK(report_dialog == NULL, "O: Close closes it");
         gtk_widget_destroy(kw);
     } else {
         printf("SKIP  O: no display\n");

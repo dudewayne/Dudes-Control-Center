@@ -6,6 +6,14 @@ Programs and services were named `dudes-control-center-*` before 1.19.0 (for exa
 
 ## [Unreleased]
 
+## [1.45.0] - 2026-11-27
+
+### Added
+- **System report** for bug reports from laptops Dudes Control Center was not tested on: **System Report…** in the Help tab opens it in a window to read first, with **Copy** and **Copy and Open GitHub Issues**; `dcc-fan-cli --report` prints it (no root needed). It lists the model and BIOS, distribution, kernel, CPU, loaded kernel modules, the switched-off components and opt-ins, the three daemons' STATUS (per-core lines summed up), hwmon devices with their sensors, fans and pwm modes, thermal zones, keyboard LEDs, the firmware power profile, graphics cards and power supplies.
+- **Privacy**: the report contains no user names, host names, serial numbers or home folder paths. DMI serial numbers and UUIDs are never read; the user name (also the desktop user the daemons serve and sudo's user), the home folder and the host name are replaced by `<user>`, `<home>` and `<host>`.
+- A GitHub issue template **Hardware report** that asks for the report.
+- Tests: the report against a fake `/sys`, `/proc` and `/etc` with fake daemons (contents, a daemon that is not running, no serial number, user name, home folder or host name), and the Help tab's report window.
+
 ## [1.44.1] - 2026-11-27
 
 ### Fixed
@@ -1095,7 +1103,8 @@ Programs and services were named `dudes-control-center-*` before 1.19.0 (for exa
 - Unix socket IPC between GUI and daemon
 - Watchdog timer and fail-safe mode in daemon
 
-[Unreleased]: https://github.com/dudewayne/Dudes-Control-Center/compare/v1.44.1...HEAD
+[Unreleased]: https://github.com/dudewayne/Dudes-Control-Center/compare/v1.45.0...HEAD
+[1.45.0]: https://github.com/dudewayne/Dudes-Control-Center/compare/v1.44.1...v1.45.0
 [1.44.1]: https://github.com/dudewayne/Dudes-Control-Center/compare/v1.44.0...v1.44.1
 [1.44.0]: https://github.com/dudewayne/Dudes-Control-Center/compare/v1.43.0...v1.44.0
 [1.43.0]: https://github.com/dudewayne/Dudes-Control-Center/compare/v1.42.0...v1.43.0
