@@ -1348,6 +1348,10 @@ int main(int argc, char **argv) {
         gui_log_lost("CPU", "poll failed", EBADF);
         gui_event_conn("[GUI] Connected to Q-test daemon successfully!\n");
         gui_event_conn("[GUI] Connected to Q-test daemon successfully!\n");   /* reconnect soon after */
+        int qlost = 0;
+        gui_log_connected("Qx", &qlost);
+        qlost = 1;
+        gui_log_connected("Qx", &qlost);
         gui_event("[GUI] Q-test ordinary line\n");
         gui_event("[GUI] Q-test ordinary line\n");
         log_cleanup();
@@ -1364,6 +1368,22 @@ int main(int argc, char **argv) {
         for (char *q = lg; q && (q = strstr(q, "Connected to Q-test daemon")); q++) conn++;
         for (char *q = lg; q && (q = strstr(q, "Q-test ordinary line")); q++) ord++;
         CHECK(conn == 2 && ord == 1, "Q: a reconnect soon after is logged again; other repeats are still dropped");
+        CHECK(lg && strstr(lg, "[INFO ] [GUI] Qx daemon connected\n") && strstr(lg, "[INFO ] [GUI] Qx daemon connected again\n") && qlost == 0,
+              "Q: the same lines for every daemon: \"connected\", after a lost connection \"connected again\"");
+        /* Logs tab: [ERROR] lines in red */
+        GtkTextBuffer *lb = gtk_text_buffer_new(NULL);
+        log_insert_top(lb, "[t] [INFO ] [GUI] old\n");
+        log_insert_top(lb, "[t] [ERROR] [GUI] bad\n[t] [INFO ] [GUI] fine\n");
+        GtkTextTag *red = gtk_text_tag_table_lookup(gtk_text_buffer_get_tag_table(lb), "log-error");
+        GtkTextIter li;
+        int tagged[3];
+        for (int i = 0; i < 3; i++) {
+            gtk_text_buffer_get_iter_at_line(lb, &li, i);
+            gtk_text_iter_forward_chars(&li, 2);
+            tagged[i] = red && gtk_text_iter_has_tag(&li, red);
+        }
+        CHECK(tagged[0] && !tagged[1] && !tagged[2], "Q: Logs tab shows only the [ERROR] line in red");
+        g_object_unref(lb);
         g_free(lg);
     }
 

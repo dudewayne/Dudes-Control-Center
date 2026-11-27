@@ -45,6 +45,9 @@ static void gui_event(const char *fmt, ...) G_GNUC_PRINTF(1, 2);
  * "reconnecting" line always has its "connected" line */
 static void gui_event_conn(const char *fmt, ...) G_GNUC_PRINTF(1, 2);
 static int g_log_keep_repeats;
+/* Daemons whose connection was lost: the next connect says "connected again" */
+static int g_conn_lost_fan, g_conn_lost_cpu, g_conn_lost_kbd;
+static void gui_log_connected(const char *daemon, int *lost);
 
 typedef struct { const char *code, *label; } UiLanguage;
 static const UiLanguage ui_languages[] = {
@@ -1107,6 +1110,9 @@ static int check_unsaved_changes(AppData *app) {
  * during a package update, or stop) is normal and logged at INFO; the GUI
  * reconnects by itself. Other socket errors stay errors. */
 static void gui_log_lost(const char *daemon, const char *what, int err) {
+    if (!strcmp(daemon, "Fan")) g_conn_lost_fan = 1;
+    else if (!strcmp(daemon, "CPU")) g_conn_lost_cpu = 1;
+    else if (!strcmp(daemon, "Keyboard")) g_conn_lost_kbd = 1;
     if (err == EPIPE || err == ECONNRESET || err == 0) {
         gui_event_conn("[GUI] %s daemon closed the connection (restarted or stopped) - reconnecting\n", daemon);
         return;
@@ -1114,6 +1120,13 @@ static void gui_log_lost(const char *daemon, const char *what, int err) {
     char ts[32];
     get_timestamp(ts, sizeof(ts));
     g_print("%s [GUI] %s ERROR: %s (%s), marking disconnected\n", ts, daemon, what, strerror(err));
+}
+
+/* "Fan daemon connected", or "... connected again" after a lost connection:
+ * the same pair of lines for all three daemons (1.44.1) */
+static void gui_log_connected(const char *daemon, int *lost) {
+    gui_event_conn("[GUI] %s daemon connected%s\n", daemon, *lost ? " again" : "");
+    *lost = 0;
 }
 
 /* Send command to daemon and receive response */
@@ -1571,7 +1584,6 @@ static gboolean cpu_refresh_timer_callback(gpointer user_data) {
         connect_to_cpu_daemon(app);
         update_daemon_status_labels(app);
         if (!app->cpu_connected) return G_SOURCE_CONTINUE;
-        gui_event_conn("[GUI] Reconnected to the CPU daemon\n");
         cpu_load_initial_data(app);
         load_cpu_custom_profiles_select(app,
             gtk_combo_box_get_active(GTK_COMBO_BOX(app->cpu_custom_profile_combo)));
@@ -4203,7 +4215,7 @@ static void connect_to_daemon(AppData *app) {
     }
 
     app->connected = 1;
-    gui_event_conn("[GUI] Connected to daemon successfully!\n");
+    gui_log_connected("Fan", &g_conn_lost_fan);
 }
 
 /* Disconnect from daemon */
@@ -4251,7 +4263,7 @@ static void connect_to_cpu_daemon(AppData *app) {
 
     app->cpu_connected = 1;
     update_daemon_status_labels(app);
-    gui_event_conn("[GUI] Connected to CPU daemon successfully!\n");
+    gui_log_connected("CPU", &g_conn_lost_cpu);
 }
 
 /* Disconnect from CPU daemon */
@@ -4302,7 +4314,7 @@ static void connect_to_keyboard_daemon(AppData *app) {
 
     app->kbd_connected = 1;
     update_daemon_status_labels(app);
-    gui_event_conn("[GUI] Connected to keyboard daemon successfully!\n");
+    gui_log_connected("Keyboard", &g_conn_lost_kbd);
 
     /* The daemon restores the backlight itself (off, profile colors or
      * white); the GUI only shows that state instead of switching it on */
@@ -7745,6 +7757,31 @@ static GtkWidget *create_log_page(AppData *app) {
 }
 
 /* Timer callback to refresh logs periodically */
+/* Insert new log lines at the top of a Logs tab view; lines with [ERROR]
+ * are shown in red (1.44.1) */
+static void log_insert_top(GtkTextBuffer *b, const char *text) {
+    GtkTextTagTable *table = gtk_text_buffer_get_tag_table(b);
+    GtkTextTag *red = gtk_text_tag_table_lookup(table, "log-error");
+    if (!red) red = gtk_text_buffer_create_tag(b, "log-error", "foreground", "#e74c3c", NULL);
+    GtkTextIter it;
+    gtk_text_buffer_get_start_iter(b, &it);
+    gtk_text_buffer_insert(b, &it, text, -1);
+    int line = 0;
+    for (const char *p = text; *p; line++) {
+        const char *nl = strchr(p, '\n');
+        size_t len = nl ? (size_t)(nl - p) : strlen(p);
+        if (g_strstr_len(p, (gssize)len, "[ERROR]")) {
+            GtkTextIter a, e;
+            gtk_text_buffer_get_iter_at_line(b, &a, line);
+            e = a;
+            if (!gtk_text_iter_ends_line(&e)) gtk_text_iter_forward_to_line_end(&e);
+            gtk_text_buffer_apply_tag(b, red, &a, &e);
+        }
+        if (!nl) break;
+        p = nl + 1;
+    }
+}
+
 static gboolean refresh_logs_timer(gpointer user_data) {
     AppData *app = (AppData *)user_data;
 
@@ -7855,7 +7892,7 @@ static void load_gui_logs(AppData *app) {
     /* Insert all at once at the start of the buffer */
     GtkTextIter start_iter;
     gtk_text_buffer_get_start_iter(app->gui_log_buffer, &start_iter);
-    gtk_text_buffer_insert(app->gui_log_buffer, &start_iter, reversed->str, -1);
+    log_insert_top(app->gui_log_buffer, reversed->str);
 
     /* Trim buffer if too large to keep GTK responsive */
     const gsize MAX_BUFFER_CHARS = 10000;
@@ -7985,7 +8022,7 @@ static void load_daemon_logs(AppData *app) {
     /* Insert all at once at the start of the buffer */
     GtkTextIter start_iter;
     gtk_text_buffer_get_start_iter(app->daemon_log_buffer, &start_iter);
-    gtk_text_buffer_insert(app->daemon_log_buffer, &start_iter, reversed->str, -1);
+    log_insert_top(app->daemon_log_buffer, reversed->str);
 
     /* Trim buffer if too large to keep GTK responsive */
     const gsize MAX_BUFFER_CHARS = 10000;
@@ -8105,7 +8142,7 @@ static void load_cpu_daemon_logs(AppData *app) {
 
     GtkTextIter start_iter;
     gtk_text_buffer_get_start_iter(app->cpu_daemon_log_buffer, &start_iter);
-    gtk_text_buffer_insert(app->cpu_daemon_log_buffer, &start_iter, reversed->str, -1);
+    log_insert_top(app->cpu_daemon_log_buffer, reversed->str);
 
     const gsize MAX_BUFFER_CHARS = 10000;
     gsize current_length = gtk_text_buffer_get_char_count(app->cpu_daemon_log_buffer);
@@ -8222,7 +8259,7 @@ static void load_kbd_daemon_logs(AppData *app) {
 
     GtkTextIter start_iter;
     gtk_text_buffer_get_start_iter(app->kbd_daemon_log_buffer, &start_iter);
-    gtk_text_buffer_insert(app->kbd_daemon_log_buffer, &start_iter, reversed->str, -1);
+    log_insert_top(app->kbd_daemon_log_buffer, reversed->str);
 
     const gsize MAX_BUFFER_CHARS = 10000;
     gsize current_length = gtk_text_buffer_get_char_count(app->kbd_daemon_log_buffer);

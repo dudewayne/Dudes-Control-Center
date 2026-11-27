@@ -72,7 +72,7 @@ dcc-gui --debug      # more output in GUI.log
 | **CPU Profiles** | The processor (name, P- and E-cores on hybrid Intel CPUs), power mode (**Performance / Balanced / Power Save**), on laptops that offer one the **firmware power profile** a frequency profile sets (`platform_profile`, e.g. low-power / balanced / performance; "Unchanged" by default), per-core min/max frequency profiles (Create, Rename, Save, Delete, Activate; unsaved changes are asked about before switching profiles, leaving the tab or closing), the CPU hard limit. |
 | **Keyboard Backlight** | Keyboard profiles, **brightness slider**, backlight off switch, preset and custom colors, **effects** (Breathing, Rainbow, Wave), the **zone editor** (keyboard picture + zone list) for per-key lighting, the LED wizard. |
 | **Settings** | Components on/off, language, appearance, start minimized, refresh interval, keyboard layout (see [Settings](#settings)). |
-| **Logs** | Live GUI, CPU daemon, fan daemon and keyboard daemon logs (newest on top). |
+| **Logs** | Live GUI, CPU daemon, fan daemon and keyboard daemon logs (newest on top, errors in red). |
 | **Help** | This README, the changelog and the license, formatted, with clickable links and a search field. |
 | **About** | Version, credits, links. |
 
