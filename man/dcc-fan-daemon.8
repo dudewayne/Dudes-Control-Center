@@ -26,7 +26,15 @@ When the
 .BR dcc_fan (4)
 kernel module is loaded, the daemon reaches the EC through it (and writes the
 fan duty every 5 seconds for the module's watchdog).
-Without the module it uses the I/O ports 0x62/0x66 directly only if the
+Without the module it uses, if the administrator allowed it
+.RB ( "dcc-component hwmon-fans enable" ),
+the fans of the first non-GPU hwmon device with a manual mode
+.RB ( pwm N
+and
+.BR pwm N _enable ;
+switched to manual with the first write, speeds from
+.BR fan N _input ).
+Otherwise it uses the I/O ports 0x62/0x66 directly only if the
 administrator allowed it
 .RB ( "dcc-component ec-direct enable" ,
 see
@@ -35,9 +43,13 @@ and the EC answers like a Clevo EC; otherwise it only monitors (CPU
 temperature from coretemp, k10temp or zenpower), the firmware controls the fans and
 nothing is written.
 The log names the method at start; STATUS reports it as
-.BR EC_ACCESS=module | ports | none ,
-the opt-in as
-.BR EC_DIRECT=enabled | disabled ,
+.BR EC_ACCESS=module | hwmon | ports | none ,
+the opt-ins as
+.BR EC_DIRECT=enabled | disabled
+and
+.BR HWMON_FANS=enabled | disabled
+(with
+.BR HWMON_FANS_DRIVER= ),
 and, while monitoring only, the reason as
 .BR EC_REASON= .
 .PP

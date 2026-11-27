@@ -662,6 +662,10 @@ typedef struct {
     GtkWidget *cpu_page_num_label;
     GtkWidget *cpu_page_min_max_freq_label;
     GtkWidget *cpu_profile_combo;
+    GtkWidget *cpu_pp_row, *cpu_pp_combo;   /* firmware power profile of a CPU profile (1.43.0) */
+    char cpu_pp_choices[256];               /* PLATFORM_PROFILE_CHOICES, "" = not offered */
+    char cpu_pp_current[32];                /* PLATFORM_PROFILE */
+    char cpu_snap_pp[32];
     GtkListStore *cpu_profile_store;
     guint cpu_refresh_timer_id;
 
@@ -748,11 +752,14 @@ typedef struct {
     GtkWidget *settings_refresh_combo;
     GtkWidget *settings_minimized_switch;   /* start minimized to tray (1.40.0) */
     /* Direct EC access (1.41.0): from the fan daemon's STATUS */
-    char ec_access[12];                /* "module", "ports", "none", "" = unknown */
+    char ec_access[12];                /* "module", "hwmon", "ports", "none", "" = unknown */
     char ec_reason[200];
     GtkWidget *fan_ec_label, *manual_row;
     GtkWidget *settings_ec_switch, *settings_ec_state;
     GtkWidget *ec_dialog;                 /* the open warning, NULL if none */
+    GtkWidget *settings_hw_switch, *settings_hw_state;   /* generic hwmon fans (1.43.0) */
+    gulong settings_hw_sig;
+    char hw_driver[32];                   /* HWMON_FANS_DRIVER of the fan daemon */
     gulong settings_ec_sig;
     guint instance_watch;              /* second start -> show window (1.40.0) */
     /* Zone editor (1.24.0) */
@@ -846,6 +853,30 @@ static void connect_to_cpu_daemon(AppData *app);
 static void update_daemon_status_labels(AppData *app);
 static void disconnect_from_cpu_daemon(AppData *app);
 static const char *send_cpu_command(AppData *app, const char *cmd);
+/* Firmware power profile (1.43.0): the choices the laptop offers fill the
+ * CPU profile editor's combo; without any the row stays hidden */
+static void cpu_pp_set_choices(AppData *app, const char *choices) {
+    if (!app->cpu_pp_combo || !strcmp(app->cpu_pp_choices, choices)) return;
+    g_strlcpy(app->cpu_pp_choices, choices, sizeof app->cpu_pp_choices);
+    gchar *keep = g_strdup(gtk_combo_box_get_active_id(GTK_COMBO_BOX(app->cpu_pp_combo)));
+    gtk_combo_box_text_remove_all(GTK_COMBO_BOX_TEXT(app->cpu_pp_combo));
+    gtk_combo_box_text_append(GTK_COMBO_BOX_TEXT(app->cpu_pp_combo), "", _("Unchanged"));
+    gchar **v = g_strsplit(choices, " ", -1);
+    for (int i = 0; v[i]; i++)
+        if (v[i][0]) gtk_combo_box_text_append(GTK_COMBO_BOX_TEXT(app->cpu_pp_combo), v[i], v[i]);
+    g_strfreev(v);
+    if (!keep || !gtk_combo_box_set_active_id(GTK_COMBO_BOX(app->cpu_pp_combo), keep))
+        gtk_combo_box_set_active_id(GTK_COMBO_BOX(app->cpu_pp_combo), "");
+    g_free(keep);
+    gtk_widget_set_no_show_all(app->cpu_pp_row, choices[0] == '\0');
+    if (choices[0]) gtk_widget_show_all(app->cpu_pp_row); else gtk_widget_hide(app->cpu_pp_row);
+}
+
+static const char *cpu_pp_selected(const AppData *app) {
+    const char *id = app->cpu_pp_combo ? gtk_combo_box_get_active_id(GTK_COMBO_BOX(app->cpu_pp_combo)) : NULL;
+    return id ? id : "";
+}
+
 static void parse_cpu_status(AppData *app, const char *response);
 
 /* Forward declarations for keyboard daemon connection */
@@ -921,6 +952,7 @@ static gboolean refresh_timer_callback(gpointer user_data);
 static void on_tray_show_app(GtkMenuItem *menuitem, gpointer user_data);
 static void status_show_ec(AppData *app);
 static void settings_update_ec(AppData *app);
+static void settings_update_hw(AppData *app);
 static void label_set_changed(GtkWidget *l, const char *t);
 static void refresh_timers_start(AppData *app);
 static void appearance_refresh(AppData *app);
@@ -1370,6 +1402,10 @@ static void parse_cpu_status(AppData *app, const char *response) {
             cpu_power = num_c(line + 12);
         } else if (strncmp(line, "CPU_POWER_LIMIT_W=", 18) == 0) {
             cpu_power_limit = atoi(line + 18);
+        } else if (strncmp(line, "PLATFORM_PROFILE_CHOICES=", 25) == 0) {
+            cpu_pp_set_choices(app, line + 25);
+        } else if (strncmp(line, "PLATFORM_PROFILE=", 17) == 0) {
+            g_strlcpy(app->cpu_pp_current, line + 17, sizeof app->cpu_pp_current);
         } else if (strncmp(line, "CPU_LOAD=", 9) == 0) {
             cpu_load = num_c(line + 9);
         } else if (strncmp(line, "NUM_CPUS=", 9) == 0) {
@@ -2291,6 +2327,8 @@ typedef struct {
     int num_cores;
     int apply_all_cores;
     char governor[64];
+    char pp[32];                  /* firmware power profile, "" = unchanged (1.43.0) */
+    int pp_offered;
     double core_min_mhz[MAX_CPUS];
     double core_max_mhz[MAX_CPUS];
 } CpuSaveContext;
@@ -2326,6 +2364,12 @@ static gboolean cpu_save_freq_profile_idle(gpointer user_data) {
     LOG_INFO("Sending batch save for profile %d", idx);
     const char *resp = send_cpu_command(app, batch_cmd);
     LOG_INFO("SAVE_CUSTOM_PROFILE response: %s", resp ? resp : "(NULL)");
+    if (ctx->pp_offered) {
+        char pp_cmd[96];
+        snprintf(pp_cmd, sizeof pp_cmd, "SET_CUSTOM_PROFILE_PLATFORM|%d|%s", idx, ctx->pp[0] ? ctx->pp : "-");
+        resp = send_cpu_command(app, pp_cmd);
+        LOG_INFO("SET_CUSTOM_PROFILE_PLATFORM response: %s", resp ? resp : "(NULL)");
+    }
 
     /* Mark profiles modified and save to disk */
     mark_cpu_freq_profiles_modified(app);
@@ -2367,6 +2411,8 @@ static CpuSaveContext *cpu_save_ctx_from_ui(AppData *app, int idx) {
         ctx->core_min_mhz[i] = gtk_adjustment_get_value(app->cpu_core_min_adjustments[i]);
         ctx->core_max_mhz[i] = gtk_adjustment_get_value(app->cpu_core_max_adjustments[i]);
     }
+    ctx->pp_offered = app->cpu_pp_choices[0] != '\0';
+    g_strlcpy(ctx->pp, cpu_pp_selected(app), sizeof ctx->pp);
     return ctx;
 }
 
@@ -2386,6 +2432,7 @@ static void cpu_take_snapshot(AppData *app) {
     app->cpu_snap_profile = idx;
     app->cpu_snap_mode_row = gtk_combo_box_get_active(GTK_COMBO_BOX(app->cpu_profile_combo));
     app->cpu_snap_all_cores = gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(app->cpu_apply_all_cores_checkbox)) ? 1 : 0;
+    g_strlcpy(app->cpu_snap_pp, cpu_pp_selected(app), sizeof app->cpu_snap_pp);
     app->cpu_snap_cores = n;
     for (int i = 0; i < n; i++) {
         app->cpu_snap_min[i] = gtk_adjustment_get_value(app->cpu_core_min_adjustments[i]);
@@ -2397,6 +2444,7 @@ static void cpu_take_snapshot(AppData *app) {
 static int cpu_profile_has_unsaved_changes(const AppData *app) {
     if (!app->cpu_snap_valid || app->cpu_core_count != app->cpu_snap_cores) return 0;
     if (gtk_combo_box_get_active(GTK_COMBO_BOX(app->cpu_profile_combo)) != app->cpu_snap_mode_row) return 1;
+    if (strcmp(cpu_pp_selected(app), app->cpu_snap_pp)) return 1;
     if ((gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(app->cpu_apply_all_cores_checkbox)) ? 1 : 0)
         != app->cpu_snap_all_cores) return 1;
     for (int i = 0; i < app->cpu_snap_cores; i++) {
@@ -2803,6 +2851,9 @@ static void update_cpu_core_freq_spinners(AppData *app, int profile_idx) {
             snprintf(profile_gov, sizeof profile_gov, "%s", p + 9);
         } else if (strncmp(p, "EPP:", 4) == 0) {
             snprintf(profile_epp, sizeof profile_epp, "%s", p + 4);
+        } else if (strncmp(p, "PLATFORM_PROFILE:", 17) == 0) {
+            if (app->cpu_pp_combo && !gtk_combo_box_set_active_id(GTK_COMBO_BOX(app->cpu_pp_combo), p + 17))
+                gtk_combo_box_set_active_id(GTK_COMBO_BOX(app->cpu_pp_combo), "");
         } else if (sscanf(p, "CORE_%d_MAX:%llu", &core_id, &freq_hz) == 2) {
             if (core_id >= 0 && core_id < MAX_CPUS && app->cpu_core_max_adjustments[core_id] != NULL) {
                 /* Convert Hz to MHz for spinner */
@@ -6146,6 +6197,8 @@ static void parse_status(AppData *app, const char *response) {
             app->ec_reason[0] = '\0';
         } else if (strncmp(token, "EC_REASON=", 10) == 0) {
             g_strlcpy(app->ec_reason, token + 10, sizeof app->ec_reason);
+        } else if (strncmp(token, "HWMON_FANS_DRIVER=", 18) == 0) {
+            g_strlcpy(app->hw_driver, token + 18, sizeof app->hw_driver);
         }
         token = strtok(NULL, "\n");
     }
@@ -9038,6 +9091,25 @@ static GtkWidget *create_cpu_page(AppData *app) {
         app->cpu_profile_combo_signal_id = g_signal_connect(app->cpu_profile_combo, "changed", G_CALLBACK(on_cpu_governor_changed), app);
     }
 
+    /* Firmware power profile (1.43.0): only on laptops that offer one */
+    {
+        app->cpu_pp_row = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 10);
+        GtkWidget *label = gtk_label_new(_("Firmware power profile:"));
+        gtk_widget_set_halign(label, GTK_ALIGN_END);
+        gtk_label_set_width_chars(GTK_LABEL(label), 20);
+        gtk_box_pack_start(GTK_BOX(app->cpu_pp_row), label, FALSE, FALSE, 0);
+        app->cpu_pp_combo = gtk_combo_box_text_new();
+        gtk_combo_box_text_append(GTK_COMBO_BOX_TEXT(app->cpu_pp_combo), "", _("Unchanged"));
+        gtk_combo_box_set_active_id(GTK_COMBO_BOX(app->cpu_pp_combo), "");
+        gtk_widget_set_tooltip_text(app->cpu_pp_combo,
+            _("Set by the laptop's firmware (platform_profile) when the frequency profile is applied; "
+              "Unchanged leaves it as it is. Saved with the frequency profile."));
+        gtk_widget_set_hexpand(app->cpu_pp_combo, TRUE);
+        gtk_box_pack_start(GTK_BOX(app->cpu_pp_row), app->cpu_pp_combo, TRUE, TRUE, 0);
+        gtk_box_pack_start(GTK_BOX(profile_box), app->cpu_pp_row, FALSE, FALSE, 0);
+        gtk_widget_set_no_show_all(app->cpu_pp_row, TRUE);
+    }
+
     /* Section: Per-Core Frequency Profiles */
     {
         GtkWidget *freq_frame = gtk_frame_new(_("Per-Core Frequency Profiles"));
@@ -10225,6 +10297,12 @@ static void status_show_ec(AppData *app) {
         label_set_changed(app->fan_ec_label, _("Direct EC access (switched on in Settings; only safe on Clevo laptops)"));
         tooltip_set_changed(app->fan_ec_label, NULL);
         widget_set_shown(app->fan_ec_label, TRUE);
+    } else if (!strcmp(app->ec_access, "hwmon")) {
+        char t[160];
+        snprintf(t, sizeof t, _("Generic fan control: fans of the %s driver (switched on in Settings)"), app->hw_driver);
+        label_set_changed(app->fan_ec_label, t);
+        tooltip_set_changed(app->fan_ec_label, NULL);
+        widget_set_shown(app->fan_ec_label, TRUE);
     } else {
         widget_set_shown(app->fan_ec_label, FALSE);
     }
@@ -10233,6 +10311,32 @@ static void status_show_ec(AppData *app) {
         if (none) gtk_widget_hide(app->manual_row); else gtk_widget_show_all(app->manual_row);
     }
     settings_update_ec(app);
+}
+
+/* Settings: generic hwmon fan control (1.43.0). The switch follows the
+ * opt-in file; the label says what was found and whether it is used. */
+static void settings_update_hw(AppData *app) {
+    if (!app->settings_hw_switch) return;
+    int on = hwmon_fans_allowed();
+    GtkSwitch *sw = GTK_SWITCH(app->settings_hw_switch);
+    if (!app->ec_dialog && (gtk_switch_get_active(sw) != on || gtk_switch_get_state(sw) != on)) {
+        g_signal_handler_block(sw, app->settings_hw_sig);
+        gtk_switch_set_active(sw, on);
+        gtk_switch_set_state(sw, on);
+        g_signal_handler_unblock(sw, app->settings_hw_sig);
+    }
+    gtk_widget_set_sensitive(app->settings_hw_switch, !app->settings_busy && !app->ec_dialog);
+    char dir[512], name[32], t[160];
+    int n = hwmon_fans_find(dir, sizeof dir, name, sizeof name);
+    if (!strcmp(app->ec_access, "module"))
+        snprintf(t, sizeof t, "%s", _("Not needed: dcc_fan module in use"));
+    else if (!strcmp(app->ec_access, "hwmon"))
+        snprintf(t, sizeof t, _("On, in use: %s"), app->hw_driver);
+    else if (n > 0)
+        snprintf(t, sizeof t, on ? _("On, not in use: %s fans found") : _("Off: %s fans found"), name);
+    else
+        snprintf(t, sizeof t, "%s", on ? _("On, but no fan with a manual mode found") : _("Off: no fan with a manual mode found"));
+    label_set_changed(app->settings_hw_state, t);
 }
 
 /* Settings: the direct EC access switch follows the opt-in file; the label
@@ -10251,13 +10355,15 @@ static void settings_update_ec(AppData *app) {
     const char *t;
     if (!strcmp(app->ec_access, "module")) t = _("Not needed: dcc_fan module in use");
     else if (!strcmp(app->ec_access, "ports")) t = _("On, in use");
+    else if (!strcmp(app->ec_access, "hwmon")) t = _("Not needed: generic fan control in use");
     else if (!strcmp(app->ec_access, "none")) t = on ? _("On, refused: the EC check failed") : _("Off: no fan control");
     else t = on ? _("On") : _("Off");
     label_set_changed(app->settings_ec_state, t);
     tooltip_set_changed(app->settings_ec_state, app->ec_reason[0] ? app->ec_reason : NULL);
+    settings_update_hw(app);
 }
 
-typedef struct { AppData *app; int enable; } EcJob;
+typedef struct { AppData *app; int enable; int hw; } EcJob;   /* hw: generic fans, else direct EC */
 
 static void settings_ec_done(GObject *source, GAsyncResult *res, gpointer user_data) {
     EcJob *job = (EcJob *)user_data;
@@ -10267,14 +10373,20 @@ static void settings_ec_done(GObject *source, GAsyncResult *res, gpointer user_d
     int status = ok && g_subprocess_get_if_exited(G_SUBPROCESS(source)) ? g_subprocess_get_exit_status(G_SUBPROCESS(source)) : -1;
     app->settings_busy = 0;
     if (status == 0) {
-        gui_event("[GUI] Settings: direct EC access %s\n", job->enable ? "switched on" : "switched off");
-        show_status(app, job->enable ? _("Direct EC access switched on - the fan daemon was restarted")
-                                     : _("Direct EC access switched off - the fan daemon was restarted"));
+        gui_event("[GUI] Settings: %s %s\n", job->hw ? "generic fan control" : "direct EC access",
+                  job->enable ? "switched on" : "switched off");
+        if (job->hw)
+            show_status(app, job->enable ? _("Generic fan control switched on - the fan daemon was restarted")
+                                         : _("Generic fan control switched off - the fans are back in automatic mode"));
+        else
+            show_status(app, job->enable ? _("Direct EC access switched on - the fan daemon was restarted")
+                                         : _("Direct EC access switched off - the fan daemon was restarted"));
         disconnect_from_daemon(app);              /* it was restarted: connect again */
         app->ec_access[0] = '\0';
         g_timeout_add(2000, settings_reconnect_cb, app);
     } else {
-        g_print("[GUI] Settings: switching direct EC access %s failed (exit %d%s%s)\n", job->enable ? "on" : "off",
+        g_print("[GUI] Settings: switching %s %s failed (exit %d%s%s)\n",
+                job->hw ? "generic fan control" : "direct EC access", job->enable ? "on" : "off",
                 status, err ? ": " : "", err ? err->message : "");
         show_status(app, status == 126 || status == 127 ? _("Not changed: authentication was cancelled or failed")
                                                        : _("Could not change the component (see the GUI log)"));
@@ -10315,10 +10427,10 @@ static GtkWidget *ec_warning_dialog(GtkWindow *parent) {
     return d;
 }
 
-static void ec_direct_run(AppData *app, int enable) {
+static void ec_direct_run(AppData *app, int hw, int enable) {
     GError *err = NULL;
     GSubprocess *proc = g_subprocess_new(G_SUBPROCESS_FLAGS_NONE, &err, "pkexec", DCC_COMPONENT_HELPER,
-                                         "ec-direct", enable ? "enable" : "disable", NULL);
+                                         hw ? "hwmon-fans" : "ec-direct", enable ? "enable" : "disable", NULL);
     if (!proc) {
         gui_event("[GUI] Settings: cannot run pkexec: %s\n", err ? err->message : "?");
         show_status(app, _("Could not run pkexec"));
@@ -10329,9 +10441,11 @@ static void ec_direct_run(AppData *app, int enable) {
     EcJob *job = g_new0(EcJob, 1);
     job->app = app;
     job->enable = enable;
+    job->hw = hw;
     app->settings_busy = 1;
     for (int c = 0; c < COMP_COUNT; c++) gtk_widget_set_sensitive(app->settings_switch[c], FALSE);
     gtk_widget_set_sensitive(app->settings_ec_switch, FALSE);
+    if (app->settings_hw_switch) gtk_widget_set_sensitive(app->settings_hw_switch, FALSE);
     show_status(app, _("Waiting for authentication..."));
     g_subprocess_wait_async(proc, NULL, settings_ec_done, job);
     g_object_unref(proc);
@@ -10339,9 +10453,10 @@ static void ec_direct_run(AppData *app, int enable) {
 
 static void ec_dialog_response(GtkDialog *d, int response, gpointer user_data) {
     AppData *app = (AppData *)user_data;
+    int hw = GPOINTER_TO_INT(g_object_get_data(G_OBJECT(d), "hw"));
     gtk_widget_destroy(GTK_WIDGET(d));
     app->ec_dialog = NULL;
-    if (response == GTK_RESPONSE_OK) ec_direct_run(app, 1);
+    if (response == GTK_RESPONSE_OK) ec_direct_run(app, hw, 1);
     else settings_update_ec(app);
 }
 
@@ -10357,10 +10472,49 @@ static gboolean on_settings_ec_switch(GtkSwitch *sw, gboolean state, gpointer us
         app->ec_dialog = ec_warning_dialog(GTK_WINDOW(app->window));
         g_signal_connect(app->ec_dialog, "response", G_CALLBACK(ec_dialog_response), app);
         gtk_widget_set_sensitive(app->settings_ec_switch, FALSE);
+        if (app->settings_hw_switch) gtk_widget_set_sensitive(app->settings_hw_switch, FALSE);
         gtk_window_present(GTK_WINDOW(app->ec_dialog));
         return TRUE;
     }
-    ec_direct_run(app, 0);
+    ec_direct_run(app, 0, 0);
+    return TRUE;
+}
+
+/* The short note before generic fan control (1.43.0): the standard
+ * interface is meant for this, so no tick box like for direct EC access */
+static GtkWidget *hw_warning_dialog(GtkWindow *parent, const char *driver) {
+    GtkWidget *d = gtk_message_dialog_new(parent, GTK_DIALOG_MODAL | GTK_DIALOG_DESTROY_WITH_PARENT,
+                                          GTK_MESSAGE_WARNING, GTK_BUTTONS_NONE,
+                                          _("Switch on generic fan control?"));
+    gtk_message_dialog_format_secondary_text(GTK_MESSAGE_DIALOG(d),
+        _("The fan daemon then sets the speed of the %s driver's fans through the kernel's standard interface, "
+          "following your fan profiles. Only fans whose driver offers a manual mode are used.\n\n"
+          "If the fan daemon stops, the fans run at 100%% until it starts again or the laptop restarts. "
+          "Switched off, the fans go back to the driver's automatic mode."), driver[0] ? driver : "?");
+    gtk_dialog_add_button(GTK_DIALOG(d), _("_Cancel"), GTK_RESPONSE_CANCEL);
+    gtk_dialog_add_button(GTK_DIALOG(d), _("Switch on"), GTK_RESPONSE_OK);
+    gtk_dialog_set_default_response(GTK_DIALOG(d), GTK_RESPONSE_CANCEL);
+    gtk_window_set_title(GTK_WINDOW(d), _("Generic fan control"));
+    gtk_window_set_position(GTK_WINDOW(d), GTK_WIN_POS_CENTER_ON_PARENT);
+    g_object_set_data(G_OBJECT(d), "hw", GINT_TO_POINTER(1));
+    return d;
+}
+
+static gboolean on_settings_hw_switch(GtkSwitch *sw, gboolean state, gpointer user_data) {
+    (void)sw;
+    AppData *app = (AppData *)user_data;
+    if (app->settings_busy || app->ec_dialog) return TRUE;
+    if (state) {
+        char dir[512], name[32] = "";
+        hwmon_fans_find(dir, sizeof dir, name, sizeof name);
+        app->ec_dialog = hw_warning_dialog(GTK_WINDOW(app->window), name);
+        g_signal_connect(app->ec_dialog, "response", G_CALLBACK(ec_dialog_response), app);
+        gtk_widget_set_sensitive(app->settings_ec_switch, FALSE);
+        gtk_widget_set_sensitive(app->settings_hw_switch, FALSE);
+        gtk_window_present(GTK_WINDOW(app->ec_dialog));
+        return TRUE;
+    }
+    ec_direct_run(app, 1, 0);
     return TRUE;
 }
 
@@ -10465,12 +10619,39 @@ static GtkWidget *create_settings_page(AppData *app) {
         gtk_label_set_xalign(GTK_LABEL(app->settings_state[c]), 0.0);
         gtk_grid_attach(GTK_GRID(grid), app->settings_state[c], 2, row, 1, 1);
     }
+    /* Generic fan control (1.43.0): off by default, short warning */
+    {
+        app->settings_hw_switch = gtk_switch_new();
+        gtk_widget_set_valign(app->settings_hw_switch, GTK_ALIGN_START);
+        app->settings_hw_sig = g_signal_connect(app->settings_hw_switch, "state-set", G_CALLBACK(on_settings_hw_switch), app);
+        gtk_grid_attach(GTK_GRID(grid), app->settings_hw_switch, 0, COMP_COUNT, 1, 1);
+        GtkWidget *box = gtk_box_new(GTK_ORIENTATION_VERTICAL, 2);
+        GtkWidget *title = gtk_label_new(NULL);
+        gchar *m = g_markup_printf_escaped("<b>%s</b>", _("Generic fan control (other laptops)"));
+        gtk_label_set_markup(GTK_LABEL(title), m);
+        g_free(m);
+        gtk_label_set_xalign(GTK_LABEL(title), 0.0);
+        GtkWidget *text = gtk_label_new(_("For laptops without the Clevo interface whose fan driver offers a manual mode "
+                                          "(for example ThinkPad, Dell): the fan daemon sets the fan speed through the "
+                                          "kernel's standard interface. Off: the driver controls the fans."));
+        gtk_label_set_xalign(GTK_LABEL(text), 0.0);
+        gtk_label_set_line_wrap(GTK_LABEL(text), TRUE);
+        gtk_label_set_max_width_chars(GTK_LABEL(text), 90);
+        gtk_box_pack_start(GTK_BOX(box), title, FALSE, FALSE, 0);
+        gtk_box_pack_start(GTK_BOX(box), text, FALSE, FALSE, 0);
+        gtk_widget_set_hexpand(box, TRUE);
+        gtk_grid_attach(GTK_GRID(grid), box, 1, COMP_COUNT, 1, 1);
+        app->settings_hw_state = gtk_label_new("");
+        gtk_widget_set_valign(app->settings_hw_state, GTK_ALIGN_START);
+        gtk_label_set_xalign(GTK_LABEL(app->settings_hw_state), 0.0);
+        gtk_grid_attach(GTK_GRID(grid), app->settings_hw_state, 2, COMP_COUNT, 1, 1);
+    }
     /* Direct EC access (1.41.0): off by default, with a warning */
     {
         app->settings_ec_switch = gtk_switch_new();
         gtk_widget_set_valign(app->settings_ec_switch, GTK_ALIGN_START);
         app->settings_ec_sig = g_signal_connect(app->settings_ec_switch, "state-set", G_CALLBACK(on_settings_ec_switch), app);
-        gtk_grid_attach(GTK_GRID(grid), app->settings_ec_switch, 0, COMP_COUNT, 1, 1);
+        gtk_grid_attach(GTK_GRID(grid), app->settings_ec_switch, 0, COMP_COUNT + 1, 1, 1);
         GtkWidget *box = gtk_box_new(GTK_ORIENTATION_VERTICAL, 2);
         GtkWidget *title = gtk_label_new(NULL);
         gchar *m = g_markup_printf_escaped("<b>%s</b>", _("Direct EC access (unsupported hardware)"));
@@ -10486,17 +10667,17 @@ static GtkWidget *create_settings_page(AppData *app) {
         gtk_box_pack_start(GTK_BOX(box), title, FALSE, FALSE, 0);
         gtk_box_pack_start(GTK_BOX(box), text, FALSE, FALSE, 0);
         gtk_widget_set_hexpand(box, TRUE);
-        gtk_grid_attach(GTK_GRID(grid), box, 1, COMP_COUNT, 1, 1);
+        gtk_grid_attach(GTK_GRID(grid), box, 1, COMP_COUNT + 1, 1, 1);
         app->settings_ec_state = gtk_label_new("");
         gtk_widget_set_valign(app->settings_ec_state, GTK_ALIGN_START);
         gtk_label_set_xalign(GTK_LABEL(app->settings_ec_state), 0.0);
-        gtk_grid_attach(GTK_GRID(grid), app->settings_ec_state, 2, COMP_COUNT, 1, 1);
+        gtk_grid_attach(GTK_GRID(grid), app->settings_ec_state, 2, COMP_COUNT + 1, 1, 1);
     }
 
     /* The note belongs to the switches above (1.40.1: was at the bottom of the page) */
     gtk_grid_attach(GTK_GRID(grid), settings_note(_("Switching asks for the administrator password and takes effect right away. "
                                                     "The setting applies to the whole system and stays after reboots and updates.")),
-                    0, COMP_COUNT + 1, 3, 1);
+                    0, COMP_COUNT + 2, 3, 1);
     gtk_container_add(GTK_CONTAINER(frame), grid);
     gtk_box_pack_start(GTK_BOX(vbox), frame, FALSE, FALSE, 0);
 
@@ -11545,7 +11726,12 @@ static void status_update_active_profiles(AppData *app) {
         status_set(app->active_cpu_label, cpu, 0);
         g_free(disp);
         const char *mode = app->cpu_page_governor_label ? gtk_label_get_text(GTK_LABEL(app->cpu_page_governor_label)) : NULL;
-        status_set(app->active_mode_label, mode && *mode ? mode : "--", 0);
+        if (app->cpu_pp_current[0]) {          /* firmware power profile (1.43.0) */
+            snprintf(buf, sizeof buf, _("%s (firmware: %s)"), mode && *mode ? mode : "--", app->cpu_pp_current);
+            status_set(app->active_mode_label, buf, 0);
+        } else {
+            status_set(app->active_mode_label, mode && *mode ? mode : "--", 0);
+        }
     }
     /* keyboard: asked over an existing connection only (no reconnect here) */
     if (dcc_component_disabled(COMP_KEYBOARD)) status_set(app->active_kbd_label, _("Keyboard backlight switched off"), 1);

@@ -61,6 +61,117 @@ static int kmod_find(void) {
     return found;
 }
 
+/* --- Generic hwmon fans (1.43.0) --- */
+static char g_hwfan[512];          /* hwmon dir of the fans in use, "" = not used */
+static char g_hwfan_name[32];
+static int g_hwfan_n;              /* fans (pwm channels) in use, 0-2 */
+static int g_hwfan_ch[2];          /* their pwm numbers */
+static int g_hwfan_manual[2];      /* switched to manual mode by us */
+
+static int hw_read(const char *dir, const char *file, long *v) {
+    char path[700], buf[32];
+    snprintf(path, sizeof path, "%s/%s", dir, file);
+    FILE *f = fopen(path, "r");
+    if (!f) return -1;
+    int ok = fgets(buf, sizeof buf, f) != NULL;
+    fclose(f);
+    if (!ok) return -1;
+    char *end = NULL;
+    *v = strtol(buf, &end, 10);
+    return end == buf ? -1 : 0;
+}
+
+static int hw_write(const char *dir, const char *file, long v) {
+    char path[700];
+    snprintf(path, sizeof path, "%s/%s", dir, file);
+    FILE *f = fopen(path, "w");
+    if (!f) return -1;
+    int ok = fprintf(f, "%ld\n", v) > 0;
+    if (fclose(f) != 0) ok = 0;
+    return ok ? 0 : -1;
+}
+
+int hwmon_fans_allowed(void) {
+    char buf[32] = "";
+    FILE *f = fopen(DCC_HWMON_FANS_FILE, "r");
+    if (!f) return 0;
+    if (!fgets(buf, sizeof buf, f)) buf[0] = '\0';
+    fclose(f);
+    buf[strcspn(buf, " \t\r\n")] = '\0';
+    return strcmp(buf, "enabled") == 0;
+}
+
+/* pwm channels of one hwmon device that have pwmN and pwmN_enable */
+static int hw_channels(const char *dir, int ch[2]) {
+    int n = 0;
+    for (int i = 1; i <= 8 && n < 2; i++) {
+        char f1[24], f2[24];
+        long v;
+        snprintf(f1, sizeof f1, "pwm%d", i);
+        snprintf(f2, sizeof f2, "pwm%d_enable", i);
+        if (hw_read(dir, f1, &v) == 0 && hw_read(dir, f2, &v) == 0) ch[n++] = i;
+    }
+    return n;
+}
+
+int hwmon_fans_find(char *dir, size_t dir_size, char *name, size_t name_size) {
+    static const char *skip[] = { "dcc_fan", "amdgpu", "radeon", "nouveau", "nvidia", "i915", "xe", NULL };
+    DIR *d = opendir(DCC_HWMON_DIR);
+    if (!d) return 0;
+    struct dirent *de;
+    int n = 0;
+    while (!n && (de = readdir(d)) != NULL) {
+        if (strncmp(de->d_name, "hwmon", 5) != 0) continue;
+        char path[512], nm[32] = "";
+        snprintf(path, sizeof path, "%s/%s/name", DCC_HWMON_DIR, de->d_name);
+        FILE *f = fopen(path, "r");
+        if (!f) continue;
+        if (fgets(nm, sizeof nm, f)) nm[strcspn(nm, "\n")] = '\0';
+        fclose(f);
+        int skipped = 0;
+        for (int i = 0; skip[i]; i++) if (!strcmp(nm, skip[i])) skipped = 1;
+        if (skipped) continue;
+        snprintf(path, sizeof path, "%s/%s", DCC_HWMON_DIR, de->d_name);
+        int ch[2];
+        if ((n = hw_channels(path, ch)) > 0) {
+            if (dir_size) snprintf(dir, dir_size, "%s", path);
+            if (name_size) snprintf(name, name_size, "%s", nm);
+        }
+    }
+    closedir(d);
+    return n;
+}
+
+const char *hwmon_fans_driver(void) { return g_hwfan[0] ? g_hwfan_name : ""; }
+
+static int hwfan_start(void) {
+    if (g_hwfan[0]) return 1;
+    if (!hwmon_fans_allowed()) return 0;
+    if (hwmon_fans_find(g_hwfan, sizeof g_hwfan, g_hwfan_name, sizeof g_hwfan_name) <= 0) {
+        g_hwfan[0] = '\0';
+        return 0;
+    }
+    g_hwfan_n = hw_channels(g_hwfan, g_hwfan_ch);
+    g_hwfan_manual[0] = g_hwfan_manual[1] = 0;
+    return 1;
+}
+
+/* Back to the driver's automatic mode (2), e.g. when the opt-in is switched
+ * off; works without the opt-in, because it only hands the fans back */
+int hwmon_fans_release(void) {
+    char dir[512], name[32];
+    int ch[2], n = 0;
+    if (hwmon_fans_find(dir, sizeof dir, name, sizeof name) <= 0) return 0;
+    int k = hw_channels(dir, ch);
+    for (int i = 0; i < k; i++) {
+        char f[24];
+        long v;
+        snprintf(f, sizeof f, "pwm%d_enable", ch[i]);
+        if (hw_read(dir, f, &v) == 0 && v == 1 && hw_write(dir, f, 2) == 0) n++;
+    }
+    return n;
+}
+
 static int ports_init(void) {
     if (g_ports_ok) return 0;
     if (ioperm(EC_DATA, 1, 1) != 0) {
@@ -114,6 +225,10 @@ static void kmod_lost(void) {
     if (!g_kmod[0]) return;
     g_kmod[0] = '\0';
     if (kmod_find()) return;                  /* reloaded (package update): new hwmonN */
+    if (hwfan_start()) {
+        fprintf(stderr, "dcc_fan module no longer available, using the %s fans (hwmon)\n", g_hwfan_name);
+        return;
+    }
     if (ports_start() == EC_INIT_OK)
         fprintf(stderr, "dcc_fan module no longer available, using direct port I/O (enabled by the administrator)\n");
     else
@@ -144,7 +259,9 @@ static int kmod_write(const char *attr, long val) {
 }
 
 int ec_backend_module(void) { return g_kmod[0] != '\0'; }
-const char *ec_backend_name(void) { return g_kmod[0] ? "module" : g_ports_ok ? "ports" : "none"; }
+const char *ec_backend_name(void) {
+    return g_kmod[0] ? "module" : g_hwfan[0] ? "hwmon" : g_ports_ok ? "ports" : "none";
+}
 const char *ec_init_reason(void) { return g_reason; }
 
 /* CPU package temperature from the standard drivers (coretemp, k10temp,
@@ -168,7 +285,13 @@ static int ec_io_wait(const uint32_t port, const uint32_t flag, const char value
 
 int ec_init(void) {
     if (kmod_find()) { g_reason[0] = '\0'; return EC_INIT_OK; }
-    return ports_start();
+    if (hwfan_start()) { g_reason[0] = '\0'; return EC_INIT_OK; }
+    int r = ports_start();
+    if (r == EC_INIT_DISABLED && hwmon_fans_allowed())
+        snprintf(g_reason, sizeof g_reason, "no dcc_fan module, no hwmon fan with a manual mode, and direct EC access is not enabled");
+    else if (r == EC_INIT_DISABLED)
+        snprintf(g_reason, sizeof g_reason, "no dcc_fan module (no Clevo WMI interface); generic fan control and direct EC access are not enabled");
+    return r;
 }
 
 void ec_cleanup(void) {
@@ -562,6 +685,15 @@ static int clamp_impl(int v, int lo, int hi) {
 
 static int fan_duty_pct(uint32_t reg) {
     uint8_t raw = 0;
+    if (g_hwfan[0]) {               /* generic hwmon fans (1.43.0) */
+        int i = reg == EC_REG_FAN1_DUTY ? 0 : 1;
+        char f[16];
+        long v;
+        if (i >= g_hwfan_n) return -1;
+        snprintf(f, sizeof f, "pwm%d", g_hwfan_ch[i]);
+        if (hw_read(g_hwfan, f, &v) != 0 || v < 0 || v > 255) return -1;
+        return ((int)v * 100 + 127) / 255;
+    }
     if (ec_backend_module()) {     /* the duty the firmware really runs (WMI) */
         long v;
         if (kmod_read(reg == EC_REG_FAN1_DUTY ? "pwm1" : "pwm2", &v) != 0) return -1;
@@ -587,9 +719,19 @@ void format_fan_text(char *buf, size_t size, const char *name, int rpm, int duty
         snprintf(buf, size, "%s: %d RPM", name, rpm < 0 ? 0 : rpm);
 }
 
+static int hwfan_rpm(int i) {
+    char f[16];
+    long v;
+    if (i >= g_hwfan_n) return 0;
+    snprintf(f, sizeof f, "fan%d_input", g_hwfan_ch[i]);
+    return hw_read(g_hwfan, f, &v) == 0 && v >= 0 ? (int)v : 0;
+}
+
 int get_cpu_fan_rpm(void) {
     long v;
     if (ec_backend_module()) return kmod_read("fan1_input", &v) == 0 ? (int)v : 0;
+    if (g_hwfan[0]) return hwfan_rpm(0);
+    if (!g_ports_ok) return 0;
     /* Read CPU fan (fan1) RPM */
     int hi = (int)ec_io_read(EC_REG_FAN1_RPM_HI);
     int lo = (int)ec_io_read(EC_REG_FAN1_RPM_LO);
@@ -604,6 +746,8 @@ int get_cpu_fan_rpm(void) {
 int get_gpu_fan_rpm(void) {
     long v;
     if (ec_backend_module()) return kmod_read("fan2_input", &v) == 0 ? (int)v : 0;
+    if (g_hwfan[0]) return hwfan_rpm(1);
+    if (!g_ports_ok) return 0;
     /* Read GPU fan (fan2) RPM */
     int hi = (int)ec_io_read(EC_REG_FAN2_RPM_HI);
     int lo = (int)ec_io_read(EC_REG_FAN2_RPM_LO);
@@ -628,6 +772,21 @@ int set_fan_duty(int pct) {
             usleep(500 * 1000);
             return 0;
         }
+    }
+    if (g_hwfan[0]) {               /* generic hwmon fans (1.43.0): manual mode on the first write */
+        for (int i = 0; i < g_hwfan_n; i++) {
+            char f[24];
+            long e;
+            if (!g_hwfan_manual[i]) {
+                snprintf(f, sizeof f, "pwm%d_enable", g_hwfan_ch[i]);
+                if (hw_write(g_hwfan, f, 1) != 0 || hw_read(g_hwfan, f, &e) != 0 || e != 1) return -1;
+                g_hwfan_manual[i] = 1;
+            }
+            snprintf(f, sizeof f, "pwm%d", g_hwfan_ch[i]);
+            if (hw_write(g_hwfan, f, v) != 0) return -1;
+        }
+        g_last_raw = v;
+        return 0;
     }
     if (!g_ports_ok) return -1;   /* no module, no (allowed and plausible) direct access */
 
@@ -693,6 +852,14 @@ static int ports_plausible(char *why, size_t n) {
 /* Write the last duty again, so the module's watchdog knows the controlling
  * program is alive (it sets 100% after watchdog_sec without a write) */
 int fan_keepalive(void) {
+    if (g_hwfan[0] && g_last_raw >= 0) {    /* some drivers fall back to automatic without writes */
+        for (int i = 0; i < g_hwfan_n; i++) {
+            char f[16];
+            snprintf(f, sizeof f, "pwm%d", g_hwfan_ch[i]);
+            if (hw_write(g_hwfan, f, g_last_raw) != 0) return -1;
+        }
+        return 0;
+    }
     if (!ec_backend_module() || g_last_raw < 0) return 0;
     if (kmod_write("pwm1", g_last_raw) != 0 || kmod_write("pwm2", g_last_raw) != 0) return -1;
     return 0;

@@ -217,6 +217,9 @@ static void handle_command(const char *cmd, char *response, size_t resp_size) {
             snprintf(mode_buf, sizeof mode_buf, "%s", active_name);
         active_name = mode_buf;
 
+        char pp_cur[64], pp_choices[256];
+        platform_profile_get(pp_cur, sizeof pp_cur, pp_choices, sizeof pp_choices);
+
         /* Get min/max freq from first core (all cores share the same range) */
         char freq_min_buf[32], freq_max_buf[32];
         format_frequency(status.cpus[0].min_freq_hz, freq_min_buf, sizeof(freq_min_buf));
@@ -235,7 +238,9 @@ static void handle_command(const char *cmd, char *response, size_t resp_size) {
             "EPP=%s\n"
             "AUTO_MODE=%d\n"
             "CPU_POWER_W=%.1f\n"
-            "CPU_POWER_LIMIT_W=%d\n",
+            "CPU_POWER_LIMIT_W=%d\n"
+            "PLATFORM_PROFILE=%s\n"
+            "PLATFORM_PROFILE_CHOICES=%s\n",
             status.num_cpus,
             status.on_ac_power,
             status.cpu_temp_c,
@@ -247,7 +252,8 @@ static void handle_command(const char *cmd, char *response, size_t resp_size) {
             cur_epp,
             g_cpu_state.auto_mode_enabled,
             cpu_package_power_w(),
-            cpu_power_limit_w());
+            cpu_power_limit_w(),
+            pp_cur, pp_choices);
 
         /* Add CPU details */
         size_t pos = strlen(response);
@@ -765,6 +771,7 @@ static void handle_command(const char *cmd, char *response, size_t resp_size) {
         pos += snprintf(response + pos, resp_size - pos, "NAME:%s\n", cp->name);
         pos += snprintf(response + pos, resp_size - pos, "GOVERNOR:%s\n", enum_to_governor(cp->governor));
         pos += snprintf(response + pos, resp_size - pos, "EPP:%s\n", cp->epp);
+        pos += snprintf(response + pos, resp_size - pos, "PLATFORM_PROFILE:%s\n", cp->platform_profile);
         pos += snprintf(response + pos, resp_size - pos, "APPLY_ALL:%d\n", cp->apply_all_cores);
         pos += snprintf(response + pos, resp_size - pos, "NUM_CORES:%d\n", cp->num_cores);
 
@@ -772,6 +779,29 @@ static void handle_command(const char *cmd, char *response, size_t resp_size) {
             pos += snprintf(response + pos, resp_size - pos, "CORE_%d_MAX:%" PRIu64 "\n", c, cp->per_core_max_freq_hz[c]);
             pos += snprintf(response + pos, resp_size - pos, "CORE_%d_MIN:%" PRIu64 "\n", c, cp->per_core_min_freq_hz[c]);
         }
+        return;
+    }
+
+    /* --- SET_CUSTOM_PROFILE_PLATFORM <index> <choice|-> (1.43.0) ---
+     * the firmware power profile a CPU profile sets; "-" = leave unchanged.
+     * Applied right away if the profile is active. */
+    if (strcmp(action, "SET_CUSTOM_PROFILE_PLATFORM") == 0) {
+        int idx = arg1[0] ? atoi(arg1) : -1;
+        if (idx < 0 || idx >= g_cpu_state.num_custom_profiles || !arg2[0]) {
+            snprintf(response, resp_size, "ERROR Usage: SET_CUSTOM_PROFILE_PLATFORM <index> <choice|->\n");
+            return;
+        }
+        CpuCustomProfile *cp = &g_cpu_state.custom_profiles[idx];
+        if (strcmp(arg2, "-") && !platform_profile_offered(arg2)) {
+            snprintf(response, resp_size, "ERROR Firmware power profile '%s' is not offered by this laptop\n", arg2);
+            return;
+        }
+        snprintf(cp->platform_profile, sizeof cp->platform_profile, "%s", strcmp(arg2, "-") ? arg2 : "");
+        cpu_custom_profile_save_json();
+        if (cp->platform_profile[0] && idx == g_cpu_state.active_custom_profile_idx)
+            platform_profile_set(cp->platform_profile, cp->name);
+        snprintf(response, resp_size, "OK Firmware power profile of '%s': %s\n", cp->name,
+                 cp->platform_profile[0] ? cp->platform_profile : "unchanged");
         return;
     }
 

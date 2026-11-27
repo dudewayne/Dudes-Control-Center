@@ -1,5 +1,5 @@
 .\" SPDX-License-Identifier: GPL-2.0-only
-.TH DCC-COMPONENT 8 2026-11-26 "Dudes Control Center @VERSION@" "System Administration"
+.TH DCC-COMPONENT 8 2026-11-27 "Dudes Control Center @VERSION@" "System Administration"
 .nh
 .SH NAME
 dcc-component \- switch parts of Dudes Control Center on or off
@@ -9,6 +9,9 @@ dcc-component \- switch parts of Dudes Control Center on or off
 .BR fan | cpu | keyboard
 .br
 .B dcc-component ec\-direct
+.BR enable | disable
+.br
+.B dcc-component hwmon\-fans
 .BR enable | disable
 .br
 .B dcc-component status
@@ -54,11 +57,30 @@ first read the EC and refuse the ports unless it answers like a Clevo EC
 registers in a fan's range).
 The GUI's switch asks for a confirmed warning first.
 .TP
+.B hwmon\-fans enable\fR|\fBdisable
+Allows or forbids generic fan control (1.43.0): on laptops without the
+.BR dcc_fan (4)
+module whose fan driver offers a manual mode through the kernel's hwmon
+interface
+.RB ( pwm N
+and
+.BR pwm N _enable ,
+for example thinkpad_acpi or dell_smm_hwmon), the fan daemon sets the fan
+speed there, following the fan profiles. GPU drivers' fans are never used.
+.B enable
+restarts the fan daemon;
+.B disable
+stops it, hands the fans back to the driver's automatic mode
+.RB ( "dcc-fan-cli \-\-release\-hwmon" )
+and starts it again (monitoring only).
+It is off by default; it is used before direct EC access when both are allowed.
+.TP
 .B status
 Prints one line per part:
 .IR component " " enabled | disabled ,
+.BR "ec-direct enabled" | disabled
 and
-.BR "ec-direct enabled" | disabled .
+.BR "hwmon-fans enabled" | disabled .
 Needs no root.
 .SS Units per part
 .TP
@@ -86,6 +108,11 @@ Flag files.
 Contains
 .B enabled
 while direct EC access is allowed.
+.TP
+.I /etc/dudes-control-center/hwmon-fans
+Contains
+.B enabled
+while generic fan control is allowed.
 .TP
 .I /usr/share/polkit-1/actions/org.dudes-control-center.component.policy
 polkit action.

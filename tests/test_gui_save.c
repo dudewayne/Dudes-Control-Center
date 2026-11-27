@@ -880,6 +880,10 @@ int main(int argc, char **argv) {
               gtk_widget_get_visible(ea.manual_row), "O: direct EC access -> shown in Fan Speed, manual row back");
         parse_status(&ea, "STATUS OK\nCPU_TEMP=48\nCPU_FAN_RPM=3000\nAUTO_MODE=1\nEC_ACCESS=module\nGPU_STATE=none\n");
         CHECK(!gtk_widget_get_visible(ea.fan_ec_label) && gtk_widget_get_visible(ea.manual_row), "O: dcc_fan module -> no note");
+        parse_status(&ea, "STATUS OK\nCPU_TEMP=48\nCPU_FAN_RPM=2900\nAUTO_MODE=1\nEC_ACCESS=hwmon\nHWMON_FANS=enabled\n"
+                          "HWMON_FANS_DRIVER=thinkpad\nGPU_STATE=none\n");
+        CHECK(gtk_widget_get_visible(ea.fan_ec_label) && strstr(gtk_label_get_text(GTK_LABEL(ea.fan_ec_label)), "thinkpad") &&
+              gtk_widget_get_visible(ea.manual_row), "O: generic fan control -> named in Fan Speed, manual row shown");
         /* AMD GPUs (1.42.0) */
         parse_status(&ea, "STATUS OK\nCPU_TEMP=48\nAUTO_MODE=1\nEC_ACCESS=module\nGPU_STATE=awake\nGPU_NAME=AMD Radeon 780M Graphics\n"
                           "GPU_POWER_W=9.0\nGPU_CLOCK_MHZ=800\nGPU_MEM_CLOCK_MHZ=-1\nGPU_UTIL=4\nGPU_VRAM_USED_MB=-1\n"
@@ -916,6 +920,20 @@ int main(int argc, char **argv) {
         CHECK(!sa.ec_dialog && !sa.settings_busy && gtk_widget_get_sensitive(sa.settings_ec_switch) &&
               !gtk_switch_get_active(GTK_SWITCH(sa.settings_ec_switch)),
               "O: Cancel closes it, the switch stays off, no pkexec");
+        /* generic fan control (1.43.0) */
+        CHECK(on_settings_hw_switch(GTK_SWITCH(sa.settings_hw_switch), TRUE, &sa) && sa.ec_dialog &&
+              !strcmp(gtk_window_get_title(GTK_WINDOW(sa.ec_dialog)), "Generic fan control") &&
+              !gtk_widget_get_sensitive(sa.settings_ec_switch),
+              "O: generic fan control: the short warning opens, the other switch waits");
+        gtk_dialog_response(GTK_DIALOG(sa.ec_dialog), GTK_RESPONSE_CANCEL);
+        CHECK(!sa.ec_dialog && !gtk_switch_get_active(GTK_SWITCH(sa.settings_hw_switch)) &&
+              gtk_widget_get_sensitive(sa.settings_hw_switch), "O: generic fan control: Cancel leaves it off");
+        g_strlcpy(sa.ec_access, "hwmon", sizeof sa.ec_access);
+        g_strlcpy(sa.hw_driver, "thinkpad", sizeof sa.hw_driver);
+        settings_update_ec(&sa);
+        CHECK(!strcmp(gtk_label_get_text(GTK_LABEL(sa.settings_hw_state)), "On, in use: thinkpad") &&
+              !strcmp(gtk_label_get_text(GTK_LABEL(sa.settings_ec_state)), "Not needed: generic fan control in use"),
+              "O: generic fan control in use: both rows say so");
         gtk_widget_destroy(sa.window);
     } else {
         printf("SKIP  O: no display\n");

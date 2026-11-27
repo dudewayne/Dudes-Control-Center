@@ -231,6 +231,41 @@ int main(void) {
     CHECK(gpu_info_get(&g) == GPU_AWAKE && !strcmp(g.name, "AMD Radeon GPU") && g.temp == -1 && g.util == -1,
           "AMD without the amdgpu driver: no readings");
 
+    /* Generic hwmon fans (1.43.0): opt-in, manual mode on the first write,
+     * GPU drivers skipped, handed back to automatic */
+    mkdir("hwmon/hwmon21", 0755);                    /* a GPU's fan: never used */
+    put("hwmon21", "name", "amdgpu\n");
+    put("hwmon21", "pwm1", "80\n");
+    put("hwmon21", "pwm1_enable", "2\n");
+    char dir[512], name[32];
+    CHECK(hwmon_fans_find(dir, sizeof dir, name, sizeof name) == 0, "hwmon fans: a GPU driver's fan is not used");
+    mkdir("hwmon/hwmon22", 0755);
+    put("hwmon22", "name", "thinkpad\n");
+    put("hwmon22", "pwm1", "100\n");
+    put("hwmon22", "pwm1_enable", "2\n");
+    put("hwmon22", "fan1_input", "2900\n");
+    CHECK(hwmon_fans_find(dir, sizeof dir, name, sizeof name) == 1 && !strcmp(name, "thinkpad"),
+          "hwmon fans: thinkpad fan with a manual mode found");
+    ec_cleanup();
+    CHECK(ec_init() == EC_INIT_DISABLED && !strcmp(ec_backend_name(), "none") && set_fan_duty(60) == -1 &&
+          get("hwmon22", "pwm1_enable") == 2 && strstr(ec_init_reason(), "not enabled"),
+          "hwmon fans without the opt-in: not used, nothing written");
+    put_abs("hwfans", "enabled\n");
+    CHECK(ec_init() == EC_INIT_OK && !strcmp(ec_backend_name(), "hwmon") && !strcmp(hwmon_fans_driver(), "thinkpad") &&
+          get("hwmon22", "pwm1_enable") == 2,
+          "hwmon fans with the opt-in: in use, still automatic until the first write");
+    CHECK(get_cpu_fan_rpm() == 2900 && get_gpu_fan_rpm() == 0 && get_cpu_fan_duty() == 39 && get_gpu_fan_duty() == -1,
+          "hwmon fans: speed and duty of the one fan read");
+    CHECK(set_fan_duty(50) == 0 && get("hwmon22", "pwm1_enable") == 1 && get("hwmon22", "pwm1") == 128 &&
+          get("hwmon21", "pwm1") == 80, "hwmon fans: first write switches to manual and sets the duty; the GPU fan untouched");
+    put("hwmon22", "pwm1", "0\n");
+    CHECK(fan_keepalive() == 0 && get("hwmon22", "pwm1") == 128, "hwmon fans: keepalive rewrites the duty");
+    CHECK(cpu_temp_hwmon() == 47 && get_cpu_temp() == 47, "hwmon fans: CPU temperature from coretemp");
+    put_abs("hwfans", "off\n");
+    CHECK(hwmon_fans_release() == 1 && get("hwmon22", "pwm1_enable") == 2,
+          "hwmon fans: released back to automatic mode (also without the opt-in)");
+    CHECK(hwmon_fans_release() == 0, "hwmon fans: nothing to release when already automatic");
+
     ec_cleanup();
     printf("\n%d failure(s)\n", fails);
     return fails != 0;

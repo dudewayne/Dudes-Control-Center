@@ -69,7 +69,7 @@ dcc-gui --debug      # more output in GUI.log
 |---|---|
 | **Status** | Live values in three columns: **Temperatures** (CPU, GPU, SSDs) and **Fan Speed** (each fan's RPM and duty, plus the manual mode switch with +/- in 10% steps from **0% (fans off)** to 100%); **GPU** (clocks, load, power state, video memory, or "sleeping": a powered-down NVIDIA or AMD GPU is not woken up) and **Power** (CPU package watts with the sustained limit, GPU watts, the laptop's draw on battery); **Battery** (charge, rate, time left, health) and **Active Profiles**. Below: per-core CPU frequencies (P/E cores marked) next to **System** (model, BIOS, processor, graphics, memory, drives, operating system, kernel). |
 | **Fan Profiles** | One dropdown for all fan profiles (the one in use is marked "(Active)"): Create, Rename, Save, Delete, **Activate**, and the graphical temperature-to-fan-speed curve of the selected profile (add, edit, delete points; Save keeps them, unsaved changes are asked about before switching profiles or leaving the tab). Shows a warning with "Disable Manual Mode" while manual mode is on. |
-| **CPU Profiles** | The processor (name, P- and E-cores on hybrid Intel CPUs), power mode (**Performance / Balanced / Power Save**), per-core min/max frequency profiles (Create, Rename, Save, Delete, Activate; unsaved changes are asked about before switching profiles, leaving the tab or closing), the CPU hard limit. |
+| **CPU Profiles** | The processor (name, P- and E-cores on hybrid Intel CPUs), power mode (**Performance / Balanced / Power Save**), on laptops that offer one the **firmware power profile** a frequency profile sets (`platform_profile`, e.g. low-power / balanced / performance; "Unchanged" by default), per-core min/max frequency profiles (Create, Rename, Save, Delete, Activate; unsaved changes are asked about before switching profiles, leaving the tab or closing), the CPU hard limit. |
 | **Keyboard Backlight** | Keyboard profiles, **brightness slider**, backlight off switch, preset and custom colors, **effects** (Breathing, Rainbow, Wave), the **zone editor** (keyboard picture + zone list) for per-key lighting, the LED wizard. |
 | **Settings** | Components on/off, language, appearance, start minimized, refresh interval, keyboard layout (see [Settings](#settings)). |
 | **Logs** | Live GUI, CPU daemon, fan daemon and keyboard daemon logs (newest on top). |
@@ -93,7 +93,7 @@ dcc-gui --debug      # more output in GUI.log
 
 Three sections:
 
-- **Components**: switch **CPU control, fan control or the keyboard backlight** off when it does not work on your laptop or causes problems, and on again. Asks for the administrator password, applies system wide and stays after reboots and updates; the tabs and tray submenus of a switched-off part are hidden. Fan control switched off: the fans run at 100% until the next reboot, then the firmware controls them.
+- **Components**: switch **CPU control, fan control or the keyboard backlight** off when it does not work on your laptop or causes problems, and on again. Asks for the administrator password, applies system wide and stays after reboots and updates. Below them, for laptops without the Clevo interface: **Generic fan control** (fans with a manual mode through the kernel's standard interface; shows which driver's fans were found) and **Direct EC access** (Clevo-based laptops only), both off by default and each with a warning; the tabs and tray submenus of a switched-off part are hidden. Fan control switched off: the fans run at 100% until the next reboot, then the firmware controls them.
 - **Language & Display**:
   - **Language**: system default, English (US), English (UK), German, Spanish, Japanese or Korean, after a restart of the GUI (**Restart now**). Japanese and Korean are not reviewed by a native speaker yet. The command-line tools stay in English.
   - **Keyboard layout**: German, English (UK), Spanish, Japanese or Korean picture and keys, preselected from the system's keyboard layout. The LED wizard mapping is kept per layout.
@@ -167,7 +167,9 @@ dcc-kbd-cli --show-profile "Gaming"
 
 8. **Direct EC access only as an opt-in** (1.41.0): without the `dcc_fan` module (no Clevo WMI interface) the fan daemon writes nothing to the EC; it only monitors and the firmware controls the fans. Direct port I/O (0x62/0x66) has to be switched on in Settings → Components (**Direct EC access**), after a warning that has to be confirmed, with the administrator password (`dcc-component ec-direct enable`). On laptops with another EC layout these writes can damage the hardware. Even then, the EC is first read and the ports are refused unless it answers like a Clevo EC. While in use, the Status tab, `dcc-fan-cli` and the log say so.
 
-`STATUS` of the fan daemon reports `FAILSAFE=1` while an override is active, `EC_ACCESS=module`, `ports` or `none`, `EC_DIRECT=enabled` or `disabled`, and while monitoring only `EC_REASON=`.
+9. **Generic fan control only as an opt-in** (1.43.0): on laptops without the Clevo interface whose fan driver offers a manual mode through the kernel's standard hwmon interface (`pwmN`/`pwmN_enable`, for example ThinkPad or Dell), the fan daemon can set the fan speed there. It has to be switched on in Settings → Components (**Generic fan control**), after a short warning, with the administrator password (`dcc-component hwmon-fans enable`). GPU drivers' fans are never used; the fans switch to manual mode only with the first write. Switched off, they go back to the driver's automatic mode. If the daemon stops, they run at 100% like with the Clevo interface. This works without the EC and is preferred to direct EC access.
+
+`STATUS` of the fan daemon reports `FAILSAFE=1` while an override is active, `EC_ACCESS=module`, `hwmon`, `ports` or `none`, `EC_DIRECT=enabled` or `disabled`, `HWMON_FANS=enabled` or `disabled` with `HWMON_FANS_DRIVER=`, and while monitoring only `EC_REASON=`.
 
 ## Configuration
 
@@ -236,9 +238,11 @@ Designed for Clevo-based notebooks with EC access at I/O ports 0x62/0x66 and an 
 |---|---|
 | CPU temperature | `coretemp` (Intel), `k10temp` (AMD, the `Tdie` sensor where there is one) or `zenpower`; without EC access also for the fan daemon |
 | NVIDIA GPU | `nvidia-smi`, only while the GPU is awake |
+| Fans (generic, opt-in) | the first hwmon device with `pwmN` and `pwmN_enable` (manual mode 1, automatic 2) that is not a GPU driver; speeds from `fanN_input` |
+| Firmware power profile | `/sys/firmware/acpi/platform_profile` with its `_choices`, set by a CPU profile |
 | AMD GPU | the `amdgpu` driver's sysfs values (temperature, power, clocks, load, video memory), only while the GPU is awake; the name from libdrm's `amdgpu.ids`. A discrete GPU is shown before an integrated one, an NVIDIA GPU before both |
 
-AMD support is built from the kernel's documented interfaces and tested with simulated sysfs trees, not yet on AMD hardware.
+AMD support, generic fan control and the firmware power profile are built from the kernel's documented interfaces and tested with simulated sysfs trees, not yet on such hardware.
 
 ### EC registers
 
@@ -283,7 +287,7 @@ sudo systemctl restart dcc-fan-daemon
 
 **The NVIDIA GPU never powers down (on-demand mode)**: Dudes Control Center does not wake it (it reads GPU values only while the GPU is awake), but every program that uses it keeps it on: the desktop itself, browsers, chat and game launchers. `cat /sys/bus/pci/devices/*/power/runtime_status` shows its state; the Status tab says "sleeping" when it is powered down.
 
-**"No fan control on this laptop"** (Status tab): the `dcc_fan` module did not load (no Clevo WMI interface) and direct EC access is off. That is the safe default: the firmware controls the fans. Only on a Clevo-based laptop, switch on **Direct EC access** in Settings; hover over the state there to see why it was refused if the EC check fails.
+**"No fan control on this laptop"** (Status tab): the `dcc_fan` module did not load (no Clevo WMI interface), and neither generic fan control nor direct EC access is in use. That is the safe default: the firmware controls the fans. If Settings shows fans with a manual mode next to **Generic fan control**, switch that on. Only on a Clevo-based laptop, switch on **Direct EC access** instead; hover over the state there to see why it was refused if the EC check fails.
 
 **Zero or wrong temperatures, fans do not react**: your model may use a different EC layout or commands, or the BIOS may lock fan control.
 

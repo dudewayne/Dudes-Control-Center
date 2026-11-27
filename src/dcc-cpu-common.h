@@ -87,6 +87,7 @@ typedef struct {
     uint64_t per_core_min_freq_hz[MAX_CPUS];  /* Min freq per core in Hz (0 = default) */
     int apply_all_cores;          /* 1 = use single freq for all cores, 0 = per-core */
     int num_cores;                /* Number of cores this profile was created for */
+    char platform_profile[CPU_EPP_NAME_MAX];  /* firmware power profile, "" = unchanged (1.43.0) */
 } CpuCustomProfile;
 
 /* --- CPU information structure --- */
@@ -194,6 +195,10 @@ CpuGovernor cpu_governor_resolve_enum(CpuGovernor gov, const char *context);  /*
 
 /* Power modes = governor + energy performance preference (EPP).
  * With intel_pstate in active mode "Balanced" is powersave + balance_performance. */
+/* Firmware power profile, /sys/firmware/acpi/platform_profile (1.43.0) */
+int platform_profile_get(char *cur, size_t cur_size, char *choices, size_t choices_size);  /* 0: offered */
+int platform_profile_offered(const char *choice);         /* 1 if listed in platform_profile_choices */
+int platform_profile_set(const char *choice, const char *context);  /* 0 on success */
 int cpu_epp_available(const char *epp);                   /* 1 if listed in energy_performance_available_preferences */
 /* The power mode the CPU actually runs, read from cpu0's governor and EPP:
  * "Performance", "Balanced", "Power Save", or the governor name if it matches

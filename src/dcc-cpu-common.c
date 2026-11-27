@@ -20,6 +20,9 @@
 #include "dcc-secure.h"
 #include "dcc-hwmon.h"
 
+#ifndef DCC_PLATFORM_PROFILE_DIR
+#define DCC_PLATFORM_PROFILE_DIR "/sys/firmware/acpi"
+#endif
 #ifndef DCC_CPU_HWMON_DIR
 #define DCC_CPU_HWMON_DIR "/sys/class/hwmon"
 #endif
@@ -291,6 +294,63 @@ const char *cpu_current_mode(char *gov_out, size_t gov_size, char *epp_out, size
         return "Power Save";      /* power, balance_power, default or no EPP */
     }
     return gov[0] ? "Other" : "Unknown";
+}
+
+/* --- Firmware power profile (1.43.0) ---
+ * Many laptops (ThinkPad, ASUS, Dell, HP, Lenovo IdeaPad ...) offer
+ * low-power / balanced / performance through ACPI platform_profile. A CPU
+ * profile can set one when it is applied. */
+static int pp_read(const char *file, char *buf, size_t n) {
+    char path[512];
+    snprintf(path, sizeof path, "%s/%s", DCC_PLATFORM_PROFILE_DIR, file);
+    FILE *f = fopen(path, "r");
+    if (!f) { if (n) buf[0] = '\0'; return -1; }
+    int ok = fgets(buf, (int)n, f) != NULL;
+    fclose(f);
+    if (!ok) { buf[0] = '\0'; return -1; }
+    buf[strcspn(buf, "\n")] = '\0';
+    return 0;
+}
+
+int platform_profile_get(char *cur, size_t cur_size, char *choices, size_t choices_size) {
+    char c[256];
+    if (pp_read("platform_profile_choices", c, sizeof c) != 0 || !c[0]) {
+        if (cur_size) cur[0] = '\0';
+        if (choices_size) choices[0] = '\0';
+        return -1;
+    }
+    if (choices_size) snprintf(choices, choices_size, "%s", c);
+    if (cur_size && pp_read("platform_profile", cur, cur_size) != 0) cur[0] = '\0';
+    return 0;
+}
+
+int platform_profile_offered(const char *choice) {
+    char c[256];
+    if (!choice || !*choice || platform_profile_get(NULL, 0, c, sizeof c) != 0) return 0;
+    for (char *save = NULL, *t = strtok_r(c, " ", &save); t; t = strtok_r(NULL, " ", &save))
+        if (!strcmp(t, choice)) return 1;
+    return 0;
+}
+
+int platform_profile_set(const char *choice, const char *context) {
+    if (!platform_profile_offered(choice)) {
+        LOG_WARN("[CPU] %s: firmware power profile '%s' is not offered by this laptop - left unchanged",
+                 context, choice ? choice : "");
+        return -1;
+    }
+    char cur[64];
+    if (pp_read("platform_profile", cur, sizeof cur) == 0 && !strcmp(cur, choice)) return 0;
+    char path[512];
+    snprintf(path, sizeof path, "%s/platform_profile", DCC_PLATFORM_PROFILE_DIR);
+    FILE *f = fopen(path, "w");
+    int ok = f && fprintf(f, "%s\n", choice) > 0;
+    if (f && fclose(f) != 0) ok = 0;
+    if (!ok) {
+        LOG_WARN("[CPU] %s: could not set the firmware power profile '%s'", context, choice);
+        return -1;
+    }
+    LOG_INFO("[CPU] %s: firmware power profile set to '%s'", context, choice);
+    return 0;
 }
 
 int cpu_epp_available(const char *epp) {
@@ -1299,6 +1359,7 @@ static cJSON* cpu_custom_profile_to_json(const CpuCustomProfile *p) {
     cJSON_AddStringToObject(profile_obj, "name", p->name);
     cJSON_AddStringToObject(profile_obj, "governor", enum_to_governor(p->governor));
     cJSON_AddStringToObject(profile_obj, "epp", p->epp);
+    cJSON_AddStringToObject(profile_obj, "platform_profile", p->platform_profile);
     cJSON_AddNumberToObject(profile_obj, "apply_all_cores", p->apply_all_cores);
     cJSON_AddNumberToObject(profile_obj, "num_cores", p->num_cores);
 
@@ -1474,6 +1535,9 @@ int cpu_custom_profile_load_json(void) {
             if (cJSON_IsString(epp_item) && epp_item->valuestring) {
                 snprintf(p.epp, sizeof(p.epp), "%s", epp_item->valuestring);
             }
+            cJSON *pp_item = cJSON_GetObjectItem(profile_obj, "platform_profile");
+            if (cJSON_IsString(pp_item) && pp_item->valuestring)
+                snprintf(p.platform_profile, sizeof(p.platform_profile), "%s", pp_item->valuestring);
 
             cJSON *apply_all_item = cJSON_GetObjectItem(profile_obj, "apply_all_cores");
             if (apply_all_item) p.apply_all_cores = apply_all_item->valueint;
@@ -1541,6 +1605,7 @@ int cpu_custom_profile_apply(int idx) {
     if (cpu_apply_governor_and_epp(enum_to_governor(p->governor), p->epp, p->name) != 0) {
         LOG_WARN("[CPU] Continuing with frequencies for profile '%s' despite governor error", p->name);
     }
+    if (p->platform_profile[0]) platform_profile_set(p->platform_profile, p->name);
 
     /* Set per-core frequencies */
     int errors = 0;

@@ -44,11 +44,26 @@
 #ifndef DCC_EC_DIRECT_FILE
 #define DCC_EC_DIRECT_FILE "/etc/dudes-control-center/ec-direct-access"
 #endif
+/* Generic fan control through the kernel's hwmon pwm files (1.43.0): for
+ * laptops without the Clevo interface whose driver offers a manual mode
+ * (pwmN_enable = 1), e.g. thinkpad_acpi, dell_smm_hwmon. Also an opt-in:
+ * the file DCC_HWMON_FANS_FILE containing "enabled"
+ * ("dcc-component hwmon-fans enable"). */
+#ifndef DCC_HWMON_FANS_FILE
+#define DCC_HWMON_FANS_FILE "/etc/dudes-control-center/hwmon-fans"
+#endif
+int hwmon_fans_allowed(void);      /* the opt-in file says "enabled" */
+/* The first hwmon device with fans that have a manual mode (GPU drivers and
+ * dcc_fan excluded); no writes. Returns the number of fans (0: none, at most
+ * 2); dir/name receive the device path and driver name. */
+int hwmon_fans_find(char *dir, size_t dir_size, char *name, size_t name_size);
+int hwmon_fans_release(void);      /* fans of that device back to automatic; returns how many */
+const char *hwmon_fans_driver(void);   /* driver name of the fans in use, "" if none */
 enum { EC_INIT_OK = 0, EC_INIT_ERROR = -1, EC_INIT_DISABLED = -2, EC_INIT_IMPLAUSIBLE = -3 };
 int ec_init(void);                 /* EC_INIT_*: module, or opt-in + plausible ports */
 void ec_cleanup(void);
 int ec_backend_module(void);       /* 1: dcc_fan module, 0: port I/O or none */
-const char *ec_backend_name(void); /* "module", "ports" or "none" */
+const char *ec_backend_name(void); /* "module", "hwmon", "ports" or "none" */
 const char *ec_init_reason(void);  /* why direct access is not used ("" if it is) */
 int ec_direct_allowed(void);       /* the opt-in file says "enabled" */
 int cpu_temp_hwmon(void);          /* coretemp/k10temp package temperature, -1 if none */

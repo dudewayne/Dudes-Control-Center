@@ -34,6 +34,9 @@ msgstr "韓国語 (KR)"
 msgid "A maximum frequency is a ceiling, not a target: the CPU picks its own speed below it. Many CPUs do not go below a certain speed once they have work to do, however low the maximum is (an Intel Core Ultra 9 275HX keeps about 2.2 GHz on its P-cores and 1.5 GHz on its E-cores). Maximums below that change little; higher ones are kept exactly."
 msgstr "最大周波数は目標ではなく上限です。CPU はその範囲内で自分で速度を選びます。多くの CPU は処理があると、最大値をどれだけ低くしても一定の速度より下がりません(Intel Core Ultra 9 275HX では P コアで約 2.2 GHz、E コアで約 1.5 GHz)。それより低い最大値はほとんど効果がなく、高い値は正確に守られます。"
 
+msgid "Unchanged"
+msgstr "変更しない"
+
 msgid "<b>Warning:</b> You have unsaved changes to the curve points.\n\nWhat would you like to do?"
 msgstr "<b>警告:</b> カーブポイントに未保存の変更があります。\n\nどうしますか?"
 
@@ -819,6 +822,12 @@ msgstr "有効な電源モード:"
 msgid "Governor Profiles"
 msgstr "ガバナープロファイル"
 
+msgid "Firmware power profile:"
+msgstr "ファームウェアの電源プロファイル:"
+
+msgid "Set by the laptop's firmware (platform_profile) when the frequency profile is applied; Unchanged leaves it as it is. Saved with the frequency profile."
+msgstr "周波数プロファイルを適用すると、ノートPCのファームウェア (platform_profile) に設定されます。「変更しない」はそのままにします。周波数プロファイルと一緒に保存されます。"
+
 msgid "Per-Core Frequency Profiles"
 msgstr "コアごとの周波数プロファイル"
 
@@ -1073,11 +1082,36 @@ msgstr "GPU ファン: --"
 msgid "Direct EC access (switched on in Settings; only safe on Clevo laptops)"
 msgstr "EC への直接アクセス (設定でオン。Clevo ノートPCでのみ安全)"
 
+#, c-format
+msgid "Generic fan control: fans of the %s driver (switched on in Settings)"
+msgstr "汎用ファン制御: %s ドライバーのファン (設定でオン)"
+
 msgid "Not needed: dcc_fan module in use"
 msgstr "不要: dcc_fan モジュールを使用中"
 
+#, c-format
+msgid "On, in use: %s"
+msgstr "オン、使用中: %s"
+
+#, c-format
+msgid "On, not in use: %s fans found"
+msgstr "オン、未使用: %s のファンを検出"
+
+#, c-format
+msgid "Off: %s fans found"
+msgstr "オフ: %s のファンを検出"
+
+msgid "On, but no fan with a manual mode found"
+msgstr "オン、ただし手動モードのあるファンが見つかりません"
+
+msgid "Off: no fan with a manual mode found"
+msgstr "オフ: 手動モードのあるファンが見つかりません"
+
 msgid "On, in use"
 msgstr "オン、使用中"
+
+msgid "Not needed: generic fan control in use"
+msgstr "不要: 汎用ファン制御を使用中"
 
 msgid "On, refused: the EC check failed"
 msgstr "オン、拒否: EC チェックに失敗"
@@ -1090,6 +1124,12 @@ msgstr "オン"
 
 msgid "Off"
 msgstr "オフ"
+
+msgid "Generic fan control switched on - the fan daemon was restarted"
+msgstr "汎用ファン制御をオンにしました - ファンデーモンを再起動しました"
+
+msgid "Generic fan control switched off - the fans are back in automatic mode"
+msgstr "汎用ファン制御をオフにしました - ファンは自動モードに戻りました"
 
 msgid "Direct EC access switched on - the fan daemon was restarted"
 msgstr "EC への直接アクセスをオンにしました - ファンデーモンを再起動しました"
@@ -1112,6 +1152,16 @@ msgstr "危険を理解しており、Clevo ベースのノートPCで使用し�
 msgid "Direct EC access"
 msgstr "EC への直接アクセス"
 
+msgid "Switch on generic fan control?"
+msgstr "汎用ファン制御をオンにしますか?"
+
+#, c-format
+msgid "The fan daemon then sets the speed of the %s driver's fans through the kernel's standard interface, following your fan profiles. Only fans whose driver offers a manual mode are used.\n\nIf the fan daemon stops, the fans run at 100%% until it starts again or the laptop restarts. Switched off, the fans go back to the driver's automatic mode."
+msgstr "ファンデーモンは、ファンプロファイルに従って、カーネルの標準インターフェイス経由で %s ドライバーのファン速度を設定します。手動モードを持つドライバーのファンだけを使用します。\n\nファンデーモンが停止すると、再起動するかノートPCを再起動するまでファンは 100%% で回ります。オフにすると、ファンはドライバーの自動モードに戻ります。"
+
+msgid "Generic fan control"
+msgstr "汎用ファン制御"
+
 msgid "Components"
 msgstr "コンポーネント"
 
@@ -1133,6 +1183,12 @@ msgstr "CPU デーモンと上限タイマー、CPU プロファイルタブ、�
 
 msgid "Keyboard daemon, Keyboard Backlight tab, keyboard profiles in the tray menu. The LEDs keep their last colors."
 msgstr "キーボードデーモン、キーボードバックライトタブ、トレイメニューのキーボードプロファイル。LED は最後の色のままです。"
+
+msgid "Generic fan control (other laptops)"
+msgstr "汎用ファン制御 (他のノートPC)"
+
+msgid "For laptops without the Clevo interface whose fan driver offers a manual mode (for example ThinkPad, Dell): the fan daemon sets the fan speed through the kernel's standard interface. Off: the driver controls the fans."
+msgstr "Clevo インターフェイスがなく、ファンドライバーが手動モードを提供するノートPC (例: ThinkPad、Dell) 向け: ファンデーモンがカーネルの標準インターフェイス経由でファン速度を設定します。オフ: ドライバーがファンを制御します。"
 
 msgid "Direct EC access (unsupported hardware)"
 msgstr "EC への直接アクセス (非対応ハードウェア)"
@@ -1235,6 +1291,10 @@ msgstr "%s (手動モード: %d%%)"
 
 msgid "CPU control switched off"
 msgstr "CPU 制御はオフです"
+
+#, c-format
+msgid "%s (firmware: %s)"
+msgstr "%s (ファームウェア: %s)"
 
 msgid "Keyboard backlight switched off"
 msgstr "キーボードバックライトはオフです"

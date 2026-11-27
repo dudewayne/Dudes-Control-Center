@@ -70,6 +70,9 @@ static void print_status(int cpu_temp, int gpu_temp, int cpu_fan_rpm, int gpu_fa
     }
     if (ec_backend_module())
         printf("EC access: dcc_fan kernel module\n");
+    else if (!strcmp(ec_backend_name(), "hwmon"))
+        printf("EC access: none - fans of the %s driver through hwmon (generic fan control, enabled by the administrator)\n",
+               hwmon_fans_driver());
     else if (!strcmp(ec_backend_name(), "ports"))
         printf("EC access: direct port I/O (enabled by the administrator; only safe on Clevo EC layouts)\n");
     else
@@ -205,6 +208,7 @@ static void print_usage(void) {
     printf("Options:\n");
     printf("  (none)         Show CPU/GPU temperatures and fan status (default)\n");
     printf("  --set <pct>    Set fan speed to specified percentage (0,10,...,100; 0 = fans off)\n");
+    printf("  --release-hwmon  Hand generic hwmon fans back to the driver's automatic mode\n");
     printf("  --auto         Enable automatic fan control based on temperature\n");
     printf("  --log-level <LEVEL>  Set daemon log level (ERROR, WARN, INFO, DEBUG)\n");
     printf("  --log-level-get      Show current daemon log level\n");
@@ -265,6 +269,16 @@ int main(int argc, char *argv[]) {
         }
     }
     
+    /* --release-hwmon (1.43.0): hand generic hwmon fans back to the driver's
+     * automatic mode (used when generic fan control is switched off) */
+    for (int i = 1; i < argc; i++) {
+        if (strcmp(argv[i], "--release-hwmon") == 0) {
+            int n = hwmon_fans_release();
+            printf("%d fan(s) handed back to automatic mode\n", n);
+            return EXIT_SUCCESS;
+        }
+    }
+
     /* Initialize EC access: the dcc_fan module, or direct port I/O only if
      * the administrator enabled it and the EC looks like a Clevo EC (1.41.0) */
     int ec_state = ec_init();

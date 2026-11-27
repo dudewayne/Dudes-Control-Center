@@ -6,6 +6,18 @@ Programs and services were named `dudes-control-center-*` before 1.19.0 (for exa
 
 ## [Unreleased]
 
+## [1.43.0] - 2026-11-27
+
+### Added
+- **Generic fan control** for laptops without the Clevo interface: when the fan driver offers a manual mode through the kernel's standard hwmon interface (`pwmN` and `pwmN_enable`, for example `thinkpad_acpi` or `dell_smm_hwmon`), the fan daemon can drive those fans with the fan profiles and all safety checks. **Opt-in**: Settings → Components → **Generic fan control**, after a short warning, with the administrator password (`dcc-component hwmon-fans enable|disable`, file `/etc/dudes-control-center/hwmon-fans`). The Settings row shows which driver's fans were found. GPU drivers' fans are never used; the fans switch to manual mode only with the first write. Switched off, they go back to the driver's automatic mode (`dcc-fan-cli --release-hwmon`). It is preferred to direct EC access when both are allowed.
+- The Fan Speed section, `dcc-fan-cli` and the log name the driver while generic fan control is in use; STATUS reports `EC_ACCESS=hwmon`, `HWMON_FANS=` and `HWMON_FANS_DRIVER=`.
+- **Firmware power profile in CPU profiles**: on laptops that offer `/sys/firmware/acpi/platform_profile` (e.g. low-power / balanced / performance), a frequency profile can set one when it is applied; **Firmware power profile** in the CPU Profiles tab, "Unchanged" by default, saved with the profile (`platform_profile` in `profiles.json`, daemon command `SET_CUSTOM_PROFILE_PLATFORM`). The Status tab shows the current one next to the power mode; the CPU daemon's STATUS reports `PLATFORM_PROFILE=` and `PLATFORM_PROFILE_CHOICES=`. Hidden on laptops without it.
+- Tests: generic fans (opt-in, GPU fan skipped, manual mode only on the first write, speeds, keepalive, release), the Settings row and its warning, the firmware power profile in the CPU daemon (refused choice, stored, applied, unchanged), the CPU daemon's temperature from `k10temp`.
+
+### Changed
+- The CPU daemon's tests use a fake hwmon tree, so they no longer read the real `/sys/class/hwmon`.
+- The reason shown without fan control names generic fan control as well.
+
 ## [1.42.0] - 2026-11-27
 
 ### Added
@@ -1055,7 +1067,8 @@ Programs and services were named `dudes-control-center-*` before 1.19.0 (for exa
 - Unix socket IPC between GUI and daemon
 - Watchdog timer and fail-safe mode in daemon
 
-[Unreleased]: https://github.com/dudewayne/Dudes-Control-Center/compare/v1.42.0...HEAD
+[Unreleased]: https://github.com/dudewayne/Dudes-Control-Center/compare/v1.43.0...HEAD
+[1.43.0]: https://github.com/dudewayne/Dudes-Control-Center/compare/v1.42.0...v1.43.0
 [1.42.0]: https://github.com/dudewayne/Dudes-Control-Center/compare/v1.41.0...v1.42.0
 [1.41.0]: https://github.com/dudewayne/Dudes-Control-Center/compare/v1.40.1...v1.41.0
 [1.40.1]: https://github.com/dudewayne/Dudes-Control-Center/compare/v1.40.0...v1.40.1

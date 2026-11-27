@@ -6,6 +6,7 @@
 #   dcc-component enable  fan|cpu|keyboard
 #   dcc-component status
 #   dcc-component ec-direct enable|disable   (1.41.0)
+#   dcc-component hwmon-fans enable|disable  (1.43.0)
 #
 # Runs as root (the GUI starts it through pkexec; polkit asks for the
 # administrator password). A disabled component has the flag file
@@ -22,13 +23,19 @@
 # power or thermal limits and damage the hardware. Enabled, the file
 # /etc/dudes-control-center/ec-direct-access contains "enabled"; the fan
 # daemon still refuses the ports if the EC does not answer like a Clevo EC.
+#
+# hwmon-fans: generic fan control through the kernel's hwmon pwm files, for
+# laptops whose driver offers a manual mode (thinkpad_acpi, dell_smm_hwmon,
+# ...). Off by default; enabled, /etc/dudes-control-center/hwmon-fans
+# contains "enabled". Switched off, the fans go back to the driver's
+# automatic mode (dcc-fan-cli --release-hwmon).
 set -eu
 PATH=/usr/sbin:/usr/bin:/sbin:/bin
 export PATH
 DIR=/etc/dudes-control-center
 
 usage() {
-    echo "Usage: dcc-component enable|disable fan|cpu|keyboard  |  dcc-component ec-direct enable|disable  |  dcc-component status" >&2
+    echo "Usage: dcc-component enable|disable fan|cpu|keyboard  |  dcc-component ec-direct|hwmon-fans enable|disable  |  dcc-component status" >&2
     exit 2
 }
 
@@ -41,6 +48,45 @@ if [ "${1:-}" = "status" ] && [ $# -eq 1 ]; then
     else
         echo "ec-direct disabled"
     fi
+    if [ "$(head -n 1 "$DIR/hwmon-fans" 2>/dev/null)" = "enabled" ]; then
+        echo "hwmon-fans enabled"
+    else
+        echo "hwmon-fans disabled"
+    fi
+    exit 0
+fi
+
+if [ "${1:-}" = "hwmon-fans" ] && [ $# -eq 2 ]; then
+    case "$2" in enable|disable) ;; *) usage ;; esac
+    if [ "$(id -u)" -ne 0 ]; then
+        echo "dcc-component: must run as root (the GUI uses pkexec)" >&2
+        exit 1
+    fi
+    mkdir -p "$DIR"
+    chmod 755 "$DIR"
+    if [ "$2" = "enable" ]; then
+        tmp="$DIR/.hwmon-fans.$$"
+        echo enabled > "$tmp"
+        chmod 644 "$tmp"
+        mv -f "$tmp" "$DIR/hwmon-fans"
+        msg="generic fan control (hwmon) enabled"
+        if [ ! -e "$DIR/disabled-fan" ]; then
+            systemctl reset-failed dcc-fan-daemon.service 2>/dev/null || true
+            systemctl restart dcc-fan-daemon.service || true
+        fi
+    else
+        rm -f "$DIR/hwmon-fans"
+        msg="generic fan control (hwmon) disabled, fans back to automatic"
+        # stop first (its fail-safe sets 100%), then hand the fans back
+        systemctl stop dcc-fan-daemon.service 2>/dev/null || true
+        /usr/local/bin/dcc-fan-cli --release-hwmon >/dev/null 2>&1 || true
+        if [ ! -e "$DIR/disabled-fan" ]; then
+            systemctl reset-failed dcc-fan-daemon.service 2>/dev/null || true
+            systemctl start dcc-fan-daemon.service || true
+        fi
+    fi
+    echo "$msg"
+    logger -t dcc-component "$msg" 2>/dev/null || true
     exit 0
 fi
 

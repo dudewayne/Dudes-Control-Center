@@ -36,7 +36,8 @@ and automatic mode.
 .TP
 .B CPU
 The processor (name; P- and E-cores on hybrid Intel CPUs), governor,
-per-core frequency profiles and the hard frequency limit.
+the firmware power profile a frequency profile sets (on laptops that offer
+one), per-core frequency profiles and the hard frequency limit.
 .TP
 .B Keyboard
 Keyboard profiles with a base color and named zones, edited on a picture of
@@ -48,8 +49,9 @@ that maps keys to LEDs.
 Language, appearance (system, dark, light), refresh interval of the live
 values (1, 2, 3, 5 or 10 seconds), start minimized to the tray or with the
 window open, keyboard layout, and switching
-the fan, CPU or keyboard part on or off (asks for the administrator password,
-see
+the fan, CPU or keyboard part on or off, generic fan control and direct EC
+access for laptops without the Clevo interface (asks for the administrator
+password, see
 .BR dcc-component (8)).
 .TP
 .B Logs

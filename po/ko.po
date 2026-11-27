@@ -34,6 +34,9 @@ msgstr "한국어 (KR)"
 msgid "A maximum frequency is a ceiling, not a target: the CPU picks its own speed below it. Many CPUs do not go below a certain speed once they have work to do, however low the maximum is (an Intel Core Ultra 9 275HX keeps about 2.2 GHz on its P-cores and 1.5 GHz on its E-cores). Maximums below that change little; higher ones are kept exactly."
 msgstr "최대 주파수는 목표가 아니라 상한입니다. CPU는 그 아래에서 스스로 속도를 고릅니다. 많은 CPU는 작업이 있으면 최대값을 아무리 낮춰도 일정 속도 아래로 내려가지 않습니다 (Intel Core Ultra 9 275HX는 P 코어에서 약 2.2 GHz, E 코어에서 약 1.5 GHz를 유지합니다). 그보다 낮은 최대값은 효과가 거의 없고, 더 높은 값은 정확히 지켜집니다."
 
+msgid "Unchanged"
+msgstr "변경 안 함"
+
 msgid "<b>Warning:</b> You have unsaved changes to the curve points.\n\nWhat would you like to do?"
 msgstr "<b>경고:</b> 곡선 포인트에 저장되지 않은 변경 사항이 있습니다.\n\n어떻게 하시겠습니까?"
 
@@ -822,6 +825,12 @@ msgstr "활성 전원 모드:"
 msgid "Governor Profiles"
 msgstr "거버너 프로필"
 
+msgid "Firmware power profile:"
+msgstr "펌웨어 전원 프로필:"
+
+msgid "Set by the laptop's firmware (platform_profile) when the frequency profile is applied; Unchanged leaves it as it is. Saved with the frequency profile."
+msgstr "주파수 프로필을 적용할 때 노트북 펌웨어(platform_profile)에 설정됩니다. 변경 안 함은 그대로 둡니다. 주파수 프로필과 함께 저장됩니다."
+
 msgid "Per-Core Frequency Profiles"
 msgstr "코어별 주파수 프로필"
 
@@ -1076,11 +1085,36 @@ msgstr "GPU 팬: --"
 msgid "Direct EC access (switched on in Settings; only safe on Clevo laptops)"
 msgstr "EC 직접 접근 (설정에서 켬, Clevo 노트북에서만 안전)"
 
+#, c-format
+msgid "Generic fan control: fans of the %s driver (switched on in Settings)"
+msgstr "일반 팬 제어: %s 드라이버의 팬 (설정에서 켜짐)"
+
 msgid "Not needed: dcc_fan module in use"
 msgstr "필요 없음: dcc_fan 모듈 사용 중"
 
+#, c-format
+msgid "On, in use: %s"
+msgstr "켜짐, 사용 중: %s"
+
+#, c-format
+msgid "On, not in use: %s fans found"
+msgstr "켜짐, 사용 안 함: %s 팬 발견"
+
+#, c-format
+msgid "Off: %s fans found"
+msgstr "꺼짐: %s 팬 발견"
+
+msgid "On, but no fan with a manual mode found"
+msgstr "켜짐, 하지만 수동 모드가 있는 팬을 찾지 못함"
+
+msgid "Off: no fan with a manual mode found"
+msgstr "꺼짐: 수동 모드가 있는 팬을 찾지 못함"
+
 msgid "On, in use"
 msgstr "켜짐, 사용 중"
+
+msgid "Not needed: generic fan control in use"
+msgstr "필요 없음: 일반 팬 제어 사용 중"
 
 msgid "On, refused: the EC check failed"
 msgstr "켜짐, 거부됨: EC 검사 실패"
@@ -1093,6 +1127,12 @@ msgstr "켜짐"
 
 msgid "Off"
 msgstr "꺼짐"
+
+msgid "Generic fan control switched on - the fan daemon was restarted"
+msgstr "일반 팬 제어를 켰습니다 - 팬 데몬을 다시 시작했습니다"
+
+msgid "Generic fan control switched off - the fans are back in automatic mode"
+msgstr "일반 팬 제어를 껐습니다 - 팬이 자동 모드로 돌아갔습니다"
 
 msgid "Direct EC access switched on - the fan daemon was restarted"
 msgstr "EC 직접 접근을 켰습니다 - 팬 데몬을 다시 시작했습니다"
@@ -1115,6 +1155,16 @@ msgstr "위험을 이해하며 Clevo 기반 노트북에서 사용합니다"
 msgid "Direct EC access"
 msgstr "EC 직접 액세스"
 
+msgid "Switch on generic fan control?"
+msgstr "일반 팬 제어를 켜시겠습니까?"
+
+#, c-format
+msgid "The fan daemon then sets the speed of the %s driver's fans through the kernel's standard interface, following your fan profiles. Only fans whose driver offers a manual mode are used.\n\nIf the fan daemon stops, the fans run at 100%% until it starts again or the laptop restarts. Switched off, the fans go back to the driver's automatic mode."
+msgstr "팬 데몬이 팬 프로필에 따라 커널의 표준 인터페이스를 통해 %s 드라이버의 팬 속도를 설정합니다. 드라이버가 수동 모드를 제공하는 팬만 사용합니다.\n\n팬 데몬이 멈추면 다시 시작하거나 노트북을 다시 시작할 때까지 팬이 100%%로 돕니다. 끄면 팬이 드라이버의 자동 모드로 돌아갑니다."
+
+msgid "Generic fan control"
+msgstr "일반 팬 제어"
+
 msgid "Components"
 msgstr "구성 요소"
 
@@ -1136,6 +1186,12 @@ msgstr "CPU 데몬과 최대 한도 타이머, CPU 프로필 탭, 트레이 메�
 
 msgid "Keyboard daemon, Keyboard Backlight tab, keyboard profiles in the tray menu. The LEDs keep their last colors."
 msgstr "키보드 데몬, 키보드 백라이트 탭, 트레이 메뉴의 키보드 프로필. LED는 마지막 색상을 유지합니다."
+
+msgid "Generic fan control (other laptops)"
+msgstr "일반 팬 제어 (다른 노트북)"
+
+msgid "For laptops without the Clevo interface whose fan driver offers a manual mode (for example ThinkPad, Dell): the fan daemon sets the fan speed through the kernel's standard interface. Off: the driver controls the fans."
+msgstr "Clevo 인터페이스가 없고 팬 드라이버가 수동 모드를 제공하는 노트북(예: ThinkPad, Dell)용: 팬 데몬이 커널의 표준 인터페이스를 통해 팬 속도를 설정합니다. 꺼짐: 드라이버가 팬을 제어합니다."
 
 msgid "Direct EC access (unsupported hardware)"
 msgstr "EC 직접 접근 (지원되지 않는 하드웨어)"
@@ -1238,6 +1294,10 @@ msgstr "%s (수동 모드: %d%%)"
 
 msgid "CPU control switched off"
 msgstr "CPU 제어 꺼짐"
+
+#, c-format
+msgid "%s (firmware: %s)"
+msgstr "%s (펌웨어: %s)"
 
 msgid "Keyboard backlight switched off"
 msgstr "키보드 백라이트 꺼짐"

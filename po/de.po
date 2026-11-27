@@ -34,6 +34,9 @@ msgstr "Koreanisch (KR)"
 msgid "A maximum frequency is a ceiling, not a target: the CPU picks its own speed below it. Many CPUs do not go below a certain speed once they have work to do, however low the maximum is (an Intel Core Ultra 9 275HX keeps about 2.2 GHz on its P-cores and 1.5 GHz on its E-cores). Maximums below that change little; higher ones are kept exactly."
 msgstr "Eine Höchstfrequenz ist eine Obergrenze, kein Ziel: Die CPU wählt ihre Geschwindigkeit darunter selbst. Viele CPUs gehen nicht unter eine bestimmte Geschwindigkeit, sobald sie Arbeit haben, egal wie niedrig das Maximum ist (ein Intel Core Ultra 9 275HX hält etwa 2,2 GHz auf den P-Kernen und 1,5 GHz auf den E-Kernen). Niedrigere Maxima ändern wenig; höhere werden genau eingehalten."
 
+msgid "Unchanged"
+msgstr "Unverändert"
+
 msgid "<b>Warning:</b> You have unsaved changes to the curve points.\n\nWhat would you like to do?"
 msgstr "<b>Warnung:</b> Die Kurvenpunkte haben ungespeicherte Änderungen.\n\nWas möchten Sie tun?"
 
@@ -808,6 +811,12 @@ msgstr "Aktiver Energiemodus:"
 msgid "Governor Profiles"
 msgstr "Governor-Profile"
 
+msgid "Firmware power profile:"
+msgstr "Firmware-Energieprofil:"
+
+msgid "Set by the laptop's firmware (platform_profile) when the frequency profile is applied; Unchanged leaves it as it is. Saved with the frequency profile."
+msgstr "Wird von der Firmware des Laptops (platform_profile) gesetzt, wenn das Frequenzprofil angewendet wird; Unverändert lässt es, wie es ist. Wird mit dem Frequenzprofil gespeichert."
+
 msgid "Per-Core Frequency Profiles"
 msgstr "Frequenzprofile pro Kern"
 
@@ -1044,11 +1053,36 @@ msgstr "GPU-Lüfter: --"
 msgid "Direct EC access (switched on in Settings; only safe on Clevo laptops)"
 msgstr "Direkter EC-Zugriff (in den Einstellungen eingeschaltet; nur auf Clevo-Laptops sicher)"
 
+#, c-format
+msgid "Generic fan control: fans of the %s driver (switched on in Settings)"
+msgstr "Allgemeine Lüftersteuerung: Lüfter des Treibers %s (in den Einstellungen eingeschaltet)"
+
 msgid "Not needed: dcc_fan module in use"
 msgstr "Nicht nötig: dcc_fan-Modul in Verwendung"
 
+#, c-format
+msgid "On, in use: %s"
+msgstr "Ein, in Gebrauch: %s"
+
+#, c-format
+msgid "On, not in use: %s fans found"
+msgstr "Ein, nicht in Gebrauch: Lüfter von %s gefunden"
+
+#, c-format
+msgid "Off: %s fans found"
+msgstr "Aus: Lüfter von %s gefunden"
+
+msgid "On, but no fan with a manual mode found"
+msgstr "Ein, aber kein Lüfter mit manuellem Modus gefunden"
+
+msgid "Off: no fan with a manual mode found"
+msgstr "Aus: kein Lüfter mit manuellem Modus gefunden"
+
 msgid "On, in use"
 msgstr "Ein, in Verwendung"
+
+msgid "Not needed: generic fan control in use"
+msgstr "Nicht nötig: allgemeine Lüftersteuerung in Gebrauch"
 
 msgid "On, refused: the EC check failed"
 msgstr "Ein, abgelehnt: EC-Prüfung fehlgeschlagen"
@@ -1061,6 +1095,12 @@ msgstr "Ein"
 
 msgid "Off"
 msgstr "Aus"
+
+msgid "Generic fan control switched on - the fan daemon was restarted"
+msgstr "Allgemeine Lüftersteuerung eingeschaltet – der Lüfter-Daemon wurde neu gestartet"
+
+msgid "Generic fan control switched off - the fans are back in automatic mode"
+msgstr "Allgemeine Lüftersteuerung ausgeschaltet – die Lüfter laufen wieder automatisch"
 
 msgid "Direct EC access switched on - the fan daemon was restarted"
 msgstr "Direkter EC-Zugriff eingeschaltet – der Lüfter-Daemon wurde neu gestartet"
@@ -1083,6 +1123,16 @@ msgstr "Ich verstehe das Risiko und verwende dies auf einem Clevo-basierten Lapt
 msgid "Direct EC access"
 msgstr "Direkter EC-Zugriff"
 
+msgid "Switch on generic fan control?"
+msgstr "Allgemeine Lüftersteuerung einschalten?"
+
+#, c-format
+msgid "The fan daemon then sets the speed of the %s driver's fans through the kernel's standard interface, following your fan profiles. Only fans whose driver offers a manual mode are used.\n\nIf the fan daemon stops, the fans run at 100%% until it starts again or the laptop restarts. Switched off, the fans go back to the driver's automatic mode."
+msgstr "Der Lüfter-Daemon stellt dann die Drehzahl der Lüfter des Treibers %s über die Standardschnittstelle des Kernels ein, nach Ihren Lüfterprofilen. Es werden nur Lüfter verwendet, deren Treiber einen manuellen Modus bietet.\n\nWenn der Lüfter-Daemon stoppt, laufen die Lüfter mit 100%%, bis er wieder startet oder der Laptop neu startet. Ausgeschaltet laufen die Lüfter wieder im automatischen Modus des Treibers."
+
+msgid "Generic fan control"
+msgstr "Allgemeine Lüftersteuerung"
+
 msgid "Components"
 msgstr "Komponenten"
 
@@ -1104,6 +1154,12 @@ msgstr "CPU-Daemon und Hardlimit-Timer, Tab CPU-Profile, CPU-Profile im Tray-Men
 
 msgid "Keyboard daemon, Keyboard Backlight tab, keyboard profiles in the tray menu. The LEDs keep their last colors."
 msgstr "Tastatur-Daemon, Tab Tastaturbeleuchtung, Tastaturprofile im Tray-Menü. Die LEDs behalten ihre letzten Farben."
+
+msgid "Generic fan control (other laptops)"
+msgstr "Allgemeine Lüftersteuerung (andere Laptops)"
+
+msgid "For laptops without the Clevo interface whose fan driver offers a manual mode (for example ThinkPad, Dell): the fan daemon sets the fan speed through the kernel's standard interface. Off: the driver controls the fans."
+msgstr "Für Laptops ohne die Clevo-Schnittstelle, deren Lüftertreiber einen manuellen Modus bietet (zum Beispiel ThinkPad, Dell): Der Lüfter-Daemon stellt die Lüfterdrehzahl über die Standardschnittstelle des Kernels ein. Aus: Der Treiber steuert die Lüfter."
 
 msgid "Direct EC access (unsupported hardware)"
 msgstr "Direkter EC-Zugriff (nicht unterstützte Hardware)"
@@ -1202,6 +1258,10 @@ msgstr "%s (manueller Modus: %d%%)"
 
 msgid "CPU control switched off"
 msgstr "CPU-Steuerung ausgeschaltet"
+
+#, c-format
+msgid "%s (firmware: %s)"
+msgstr "%s (Firmware: %s)"
 
 msgid "Keyboard backlight switched off"
 msgstr "Tastaturbeleuchtung ausgeschaltet"

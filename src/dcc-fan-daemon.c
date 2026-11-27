@@ -447,12 +447,15 @@ static int handle_command(const char *cmd, char *response, size_t resp_size) {
             "EMERGENCY_AUTO=%d\n"
             "EC_ACCESS=%s\n"
             "EC_DIRECT=%s\n"
+            "HWMON_FANS=%s\n"
+            "HWMON_FANS_DRIVER=%s\n"
             "%s%s%s",
             cpu_temp, gpu_temp, cpu_fan_rpm, gpu_fan_rpm, fan_duty,
             status_fan_duty(get_cpu_fan_duty(), cpu_fan_rpm, "CPU"),
             status_fan_duty(get_gpu_fan_duty(), gpu_fan_rpm, "GPU"), auto_mode_enabled,
             override_reason != OVERRIDE_NONE ? 1 : 0, emergency_auto_count,
             ec_backend_name(), ec_direct_allowed() ? "enabled" : "disabled",
+            hwmon_fans_allowed() ? "enabled" : "disabled", hwmon_fans_driver(),
             monitor_only ? "EC_REASON=" : "", monitor_only ? ec_init_reason() : "", monitor_only ? "\n" : "");
         strncat(response, gpu_status, resp_size - strlen(response) - 1);
         return 0;
@@ -1256,6 +1259,9 @@ int main(int argc, char *argv[]) {
         return EXIT_FAILURE;
     } else if (ec_backend_module()) {
         LOG_INFO("EC access: dcc_fan kernel module (ACPI EC driver, Clevo WMI)");
+    } else if (!strcmp(ec_backend_name(), "hwmon")) {
+        LOG_WARN("Fan control: the %s driver's fans through hwmon (generic fan control, enabled by the "
+                 "administrator); the EC is not accessed", hwmon_fans_driver());
     } else {
         LOG_WARN("EC access: direct port I/O (0x62/0x66), enabled by the administrator - only safe on "
                  "laptops with a Clevo EC layout");

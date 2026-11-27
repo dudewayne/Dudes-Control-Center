@@ -328,7 +328,7 @@ $(TEST_BUILD)/test_secure_deny: tests/test_secure.c $(SECURE_SRC) $(SECURE_HDR) 
 	$(CC) $(TEST_CFLAGS) -DDCC_AUTH_GROUP='"dcc-test-no-such-group"' -o $@ tests/test_secure.c $(SECURE_SRC) $(LOG_SRC)
 
 $(TEST_BUILD)/test_fan_backend: tests/test_fan_backend.c $(COMMON_SRC) $(COMMON_HDR) | $(TEST_BUILD)
-	$(CC) $(TEST_CFLAGS) -DDCC_HWMON_DIR='"hwmon"' -DDCC_PCI_DIR='"pci"' -DDCC_NVIDIA_SMI='"./nvidia-smi"' -DDCC_AMDGPU_IDS='"amdgpu.ids"' -DDCC_EC_DIRECT_FILE='"ecdirect"' -o $@ tests/test_fan_backend.c $(COMMON_SRC)
+	$(CC) $(TEST_CFLAGS) -DDCC_HWMON_DIR='"hwmon"' -DDCC_PCI_DIR='"pci"' -DDCC_NVIDIA_SMI='"./nvidia-smi"' -DDCC_AMDGPU_IDS='"amdgpu.ids"' -DDCC_EC_DIRECT_FILE='"ecdirect"' -DDCC_HWMON_FANS_FILE='"hwfans"' -o $@ tests/test_fan_backend.c $(COMMON_SRC)
 
 $(TEST_BUILD)/test_paths: tests/test_paths.c $(SECURE_SRC) $(SECURE_HDR) $(LOG_SRC) | $(TEST_BUILD)
 	$(CC) $(TEST_CFLAGS) -DDCC_USER_FILE='"user"' -o $@ tests/test_paths.c $(SECURE_SRC) $(LOG_SRC)
@@ -337,6 +337,7 @@ $(TEST_BUILD)/test_paths: tests/test_paths.c $(SECURE_SRC) $(SECURE_HDR) $(LOG_S
 $(TEST_BUILD)/cpud_test: $(CPU_DAEMON_DEPS) | $(TEST_BUILD)
 	$(CC) $(TEST_CFLAGS) $(CJSON_CFLAGS) -DSOCKET_PATH='"cpu.sock"' -DCPU_LOG_DIR='"logs"' \
 	  -DCPUSYSFS='"sys"' -DCONTROL_CENTER_CONFIG_DIR='"cfg"' -DDCC_AUTH_GROUP='"$(TEST_GROUP)"' -DDCC_POWERCAP_DIR='"powercap"' \
+	  -DDCC_PLATFORM_PROFILE_DIR='"acpi"' -DDCC_CPU_HWMON_DIR='"hwmon"' \
 	  -o $@ src/dcc-cpu-daemon.c src/dcc-cpu-common.c $(LOG_SRC) $(SECURE_SRC) $(CJSON_LIBS)
 
 # The real keyboard daemon against a fake /sys/class/leds ("leds")

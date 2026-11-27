@@ -1,5 +1,5 @@
 .\" SPDX-License-Identifier: GPL-2.0-only
-.TH DCC-CPU-DAEMON 8 2026-11-22 "Dudes Control Center @VERSION@" "System Administration"
+.TH DCC-CPU-DAEMON 8 2026-11-27 "Dudes Control Center @VERSION@" "System Administration"
 .nh
 .SH NAME
 dcc-cpu-daemon, dcc-hard-limit-enforce \- CPU frequency daemon of Dudes Control Center
@@ -22,6 +22,24 @@ Profiles and the hard limit come from the desktop user's
 (see
 .BR dudes-control-center (7));
 on start the daemon applies the hard limit to all cores.
+.PP
+On laptops that offer a firmware power profile
+.RI ( /sys/firmware/acpi/platform_profile ,
+for example low-power, balanced, performance), a frequency profile can set
+one when it is applied (1.43.0; stored as
+.B platform_profile
+in the profile, empty = unchanged; set with
+.BI SET_CUSTOM_PROFILE_PLATFORM| index | choice
+or
+.BR \- ).
+STATUS reports
+.B PLATFORM_PROFILE=
+and
+.BR PLATFORM_PROFILE_CHOICES= .
+If power-profiles-daemon runs, it may change the profile as well.
+.PP
+The CPU temperature comes from coretemp, k10temp (Tdie where it exists) or
+zenpower, otherwise from a CPU thermal zone.
 .PP
 Clients connect to
 .IR /run/dcc-cpu.sock ;

@@ -34,6 +34,9 @@ msgstr "Coreano (KR)"
 msgid "A maximum frequency is a ceiling, not a target: the CPU picks its own speed below it. Many CPUs do not go below a certain speed once they have work to do, however low the maximum is (an Intel Core Ultra 9 275HX keeps about 2.2 GHz on its P-cores and 1.5 GHz on its E-cores). Maximums below that change little; higher ones are kept exactly."
 msgstr "Una frecuencia máxima es un límite, no un objetivo: la CPU elige su velocidad por debajo de él. Muchas CPU no bajan de cierta velocidad cuando tienen trabajo, por bajo que sea el máximo (un Intel Core Ultra 9 275HX mantiene unos 2,2 GHz en sus núcleos P y 1,5 GHz en sus núcleos E). Los máximos por debajo de eso cambian poco; los más altos se respetan exactamente."
 
+msgid "Unchanged"
+msgstr "Sin cambios"
+
 msgid "<b>Warning:</b> You have unsaved changes to the curve points.\n\nWhat would you like to do?"
 msgstr "<b>Atención:</b> Hay cambios sin guardar en los puntos de la curva.\n\n¿Qué desea hacer?"
 
@@ -819,6 +822,12 @@ msgstr "Modo de energía activo:"
 msgid "Governor Profiles"
 msgstr "Perfiles de governor"
 
+msgid "Firmware power profile:"
+msgstr "Perfil de energía del firmware:"
+
+msgid "Set by the laptop's firmware (platform_profile) when the frequency profile is applied; Unchanged leaves it as it is. Saved with the frequency profile."
+msgstr "Lo establece el firmware del portátil (platform_profile) al aplicar el perfil de frecuencia; Sin cambios lo deja como está. Se guarda con el perfil de frecuencia."
+
 msgid "Per-Core Frequency Profiles"
 msgstr "Perfiles de frecuencia por núcleo"
 
@@ -1067,11 +1076,36 @@ msgstr "Ventilador GPU: --"
 msgid "Direct EC access (switched on in Settings; only safe on Clevo laptops)"
 msgstr "Acceso directo al EC (activado en Configuración; solo seguro en portátiles Clevo)"
 
+#, c-format
+msgid "Generic fan control: fans of the %s driver (switched on in Settings)"
+msgstr "Control genérico de ventiladores: ventiladores del controlador %s (activado en Ajustes)"
+
 msgid "Not needed: dcc_fan module in use"
 msgstr "No necesario: módulo dcc_fan en uso"
 
+#, c-format
+msgid "On, in use: %s"
+msgstr "Activado, en uso: %s"
+
+#, c-format
+msgid "On, not in use: %s fans found"
+msgstr "Activado, sin uso: ventiladores de %s encontrados"
+
+#, c-format
+msgid "Off: %s fans found"
+msgstr "Desactivado: ventiladores de %s encontrados"
+
+msgid "On, but no fan with a manual mode found"
+msgstr "Activado, pero no se encontró ningún ventilador con modo manual"
+
+msgid "Off: no fan with a manual mode found"
+msgstr "Desactivado: no se encontró ningún ventilador con modo manual"
+
 msgid "On, in use"
 msgstr "Activado, en uso"
+
+msgid "Not needed: generic fan control in use"
+msgstr "No necesario: control genérico de ventiladores en uso"
 
 msgid "On, refused: the EC check failed"
 msgstr "Activado, rechazado: la comprobación del EC falló"
@@ -1084,6 +1118,12 @@ msgstr "Activado"
 
 msgid "Off"
 msgstr "Desactivado"
+
+msgid "Generic fan control switched on - the fan daemon was restarted"
+msgstr "Control genérico de ventiladores activado: se reinició el demonio de ventiladores"
+
+msgid "Generic fan control switched off - the fans are back in automatic mode"
+msgstr "Control genérico de ventiladores desactivado: los ventiladores vuelven al modo automático"
 
 msgid "Direct EC access switched on - the fan daemon was restarted"
 msgstr "Acceso directo al EC activado: se reinició el servicio de ventiladores"
@@ -1106,6 +1146,16 @@ msgstr "Entiendo el riesgo y lo uso en un portátil basado en Clevo"
 msgid "Direct EC access"
 msgstr "Acceso directo al EC"
 
+msgid "Switch on generic fan control?"
+msgstr "¿Activar el control genérico de ventiladores?"
+
+#, c-format
+msgid "The fan daemon then sets the speed of the %s driver's fans through the kernel's standard interface, following your fan profiles. Only fans whose driver offers a manual mode are used.\n\nIf the fan daemon stops, the fans run at 100%% until it starts again or the laptop restarts. Switched off, the fans go back to the driver's automatic mode."
+msgstr "El demonio de ventiladores ajustará entonces la velocidad de los ventiladores del controlador %s mediante la interfaz estándar del kernel, según sus perfiles de ventilador. Solo se usan ventiladores cuyo controlador ofrece un modo manual.\n\nSi el demonio de ventiladores se detiene, los ventiladores funcionan al 100%% hasta que vuelva a iniciarse o se reinicie el portátil. Al desactivarlo, los ventiladores vuelven al modo automático del controlador."
+
+msgid "Generic fan control"
+msgstr "Control genérico de ventiladores"
+
 msgid "Components"
 msgstr "Componentes"
 
@@ -1127,6 +1177,12 @@ msgstr "Daemon de CPU y temporizador del límite máximo, pestaña Perfiles de C
 
 msgid "Keyboard daemon, Keyboard Backlight tab, keyboard profiles in the tray menu. The LEDs keep their last colors."
 msgstr "Daemon del teclado, pestaña Retroiluminación del teclado, perfiles de teclado en el menú de la bandeja. Los LED conservan sus últimos colores."
+
+msgid "Generic fan control (other laptops)"
+msgstr "Control genérico de ventiladores (otros portátiles)"
+
+msgid "For laptops without the Clevo interface whose fan driver offers a manual mode (for example ThinkPad, Dell): the fan daemon sets the fan speed through the kernel's standard interface. Off: the driver controls the fans."
+msgstr "Para portátiles sin la interfaz de Clevo cuyo controlador de ventiladores ofrece un modo manual (por ejemplo ThinkPad, Dell): el demonio de ventiladores ajusta la velocidad mediante la interfaz estándar del kernel. Desactivado: el controlador gestiona los ventiladores."
 
 msgid "Direct EC access (unsupported hardware)"
 msgstr "Acceso directo al EC (hardware no compatible)"

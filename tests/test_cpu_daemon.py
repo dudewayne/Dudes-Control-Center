@@ -34,6 +34,14 @@ wr("powercap/intel-rapl:0/enabled", 1)
 wr("powercap/intel-rapl:0/constraint_0_power_limit_uw", 200000000)
 wr("powercap/intel-rapl-mmio:0/enabled", 1)
 wr("powercap/intel-rapl-mmio:0/constraint_0_power_limit_uw", 46000000)
+# firmware power profile (v1.43.0) and an AMD CPU sensor (v1.42.0)
+wr("acpi/platform_profile_choices", "low-power balanced performance")
+wr("acpi/platform_profile", "balanced")
+wr("hwmon/hwmon3/name", "k10temp")
+wr("hwmon/hwmon3/temp1_label", "Tctl")
+wr("hwmon/hwmon3/temp1_input", 71000)
+wr("hwmon/hwmon3/temp2_label", "Tdie")
+wr("hwmon/hwmon3/temp2_input", 61000)
 os.makedirs("cfg", exist_ok=True)
 os.makedirs("logs", exist_ok=True)
 
@@ -148,6 +156,28 @@ try:
     r = ask(a, "GET_CUSTOM_PROFILE_INFO|0")
     check("GOVERNOR:performance" in r and "EPP:\n" in r, "no EPP stored for the performance governor")
     check('"epp"' in ask(a, "LIST_CUSTOM_PROFILES_JSON"), "EPP included in the profile JSON")
+
+    # firmware power profile in a CPU profile (v1.43.0)
+    st = ask(a, "STATUS")
+    check("PLATFORM_PROFILE=balanced\n" in st and "PLATFORM_PROFILE_CHOICES=low-power balanced performance\n" in st,
+          "STATUS: current firmware power profile and the choices")
+    check("CPU_TEMP=61\n" in st, "CPU temperature from k10temp's Tdie (v1.42.0)")
+    r = ask(a, "SET_CUSTOM_PROFILE_PLATFORM|0|turbo")
+    check(r.startswith("ERROR") and "not offered" in r, "a choice the laptop does not offer is refused")
+    r = ask(a, "SET_CUSTOM_PROFILE_PLATFORM|0|performance")
+    check(r.startswith("OK") and "PLATFORM_PROFILE:performance" in ask(a, "GET_CUSTOM_PROFILE_INFO|0"),
+          "profile stores the firmware power profile")
+    data = json.load(open("cfg/profiles.json"))
+    check(data["cpu_freq_profiles"]["profiles"][0].get("platform_profile") == "performance",
+          "firmware power profile saved in profiles.json")
+    wr("acpi/platform_profile", "low-power")
+    ask(a, "APPLY_CUSTOM_PROFILE|0")
+    check(open("acpi/platform_profile").read().strip() == "performance", "applying the profile sets it")
+    ask(a, "SET_CUSTOM_PROFILE_PLATFORM|0|-")
+    wr("acpi/platform_profile", "low-power")
+    ask(a, "APPLY_CUSTOM_PROFILE|0")
+    check(open("acpi/platform_profile").read().strip() == "low-power" and
+          "PLATFORM_PROFILE:\n" in ask(a, "GET_CUSTOM_PROFILE_INFO|0"), "'unchanged' leaves it alone")
 
     # saving keeps the other sections; the hard limit no longer touches EPP
     wr("sys/cpu1/cpufreq/energy_performance_preference", "balance_power")
