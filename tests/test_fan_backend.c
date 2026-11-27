@@ -135,7 +135,7 @@ int main(void) {
     GpuInfo g;
     CHECK(gpu_info_get(&g) == GPU_NONE, "no NVIDIA GPU -> state none");
     mkdir("pci", 0755);
-    mkdir("pci/0000:00:02.0", 0755);                 /* Intel iGPU: ignored */
+    mkdir("pci/0000:00:02.0", 0755);                 /* Intel iGPU: after NVIDIA and AMD (1.47.0) */
     put_abs("pci/0000:00:02.0/vendor", "0x8086\n");
     put_abs("pci/0000:00:02.0/class", "0x030000\n");
     mkdir("pci/0000:02:00.0", 0755);
@@ -230,6 +230,60 @@ int main(void) {
     usleep(1200000);
     CHECK(gpu_info_get(&g) == GPU_AWAKE && !strcmp(g.name, "AMD Radeon GPU") && g.temp == -1 && g.util == -1,
           "AMD without the amdgpu driver: no readings");
+
+    /* Intel GPU (1.47.0): i915 integrated, xe discrete; names from pci.ids */
+    put_abs("pciids", "# test\n8086  Intel Corporation\n\t46a6  Alder Lake-P GT2 [Iris Xe Graphics]\n"
+                      "\t\t1028 0b19  a subsystem line\n\t56a0  DG2 [Arc A770]\n"
+                      "10de  NVIDIA Corporation\n\t46a6  not an Intel device\n");
+    mkdir("pci/0000:00:02.0", 0755);                 /* integrated, i915 */
+    put_abs("pci/0000:00:02.0/vendor", "0x8086\n");
+    put_abs("pci/0000:00:02.0/class", "0x030000\n");
+    put_abs("pci/0000:00:02.0/boot_vga", "1\n");
+    put_abs("pci/0000:00:02.0/device", "0x46a6\n");
+    if (symlink("../../drivers/i915", "pci/0000:00:02.0/driver") != 0) return 1;
+    mkdir("pci/0000:00:02.0/drm", 0755);
+    mkdir("pci/0000:00:02.0/drm/card0", 0755);
+    put_abs("pci/0000:00:02.0/drm/card0/gt_act_freq_mhz", "1100\n");
+    put_abs("pci/0000:00:02.0/drm/card0/gt_cur_freq_mhz", "1300\n");
+    usleep(1200000);
+    CHECK(gpu_info_get(&g) == GPU_AWAKE && !strcmp(g.name, "AMD Radeon GPU"),
+          "Intel: an integrated AMD GPU comes before an integrated Intel GPU");
+    if (system("rm -rf pci/0000:05:00.0") != 0) return 1;
+    usleep(1200000);
+    CHECK(gpu_info_get(&g) == GPU_AWAKE && !strcmp(g.name, "Intel Alder Lake-P GT2 [Iris Xe Graphics]") &&
+          g.clock_mhz == 1100 && g.temp == -1 && g.power_w < 0 && g.util == -1 && g.mem_clock_mhz == -1,
+          "Intel integrated (i915): name from pci.ids, actual clock, no temperature, power or load");
+    unlink("pci/0000:00:02.0/drm/card0/gt_act_freq_mhz");
+    usleep(1200000);
+    CHECK(gpu_info_get(&g) == GPU_AWAKE && g.clock_mhz == 1300, "Intel (i915): requested clock without gt_act_freq_mhz");
+    mkdir("pci/0000:03:00.0", 0755);                 /* discrete Arc, xe */
+    mkdir("pci/0000:03:00.0/power", 0755);
+    put_abs("pci/0000:03:00.0/vendor", "0x8086\n");
+    put_abs("pci/0000:03:00.0/class", "0x030000\n");
+    put_abs("pci/0000:03:00.0/boot_vga", "0\n");
+    put_abs("pci/0000:03:00.0/device", "0x56a0\n");
+    put_abs("pci/0000:03:00.0/power/runtime_status", "active\n");
+    if (symlink("../../drivers/xe", "pci/0000:03:00.0/driver") != 0) return 1;
+    if (system("mkdir -p pci/0000:03:00.0/tile0/gt0/freq0 pci/0000:03:00.0/hwmon/hwmon7") != 0) return 1;
+    put_abs("pci/0000:03:00.0/tile0/gt0/freq0/act_freq", "2400\n");
+    put_abs("pci/0000:03:00.0/hwmon/hwmon7/temp2_input", "61000\n");
+    put_abs("pci/0000:03:00.0/hwmon/hwmon7/energy1_input", "1000000000\n");
+    usleep(1200000);
+    CHECK(gpu_info_get(&g) == GPU_AWAKE && !strcmp(g.name, "Intel DG2 [Arc A770]") && g.clock_mhz == 2400 &&
+          g.temp == 61 && g.power_w < 0,
+          "Intel discrete (xe) before integrated: clock, temperature; power needs a second reading");
+    put_abs("pci/0000:03:00.0/hwmon/hwmon7/energy1_input", "1036000000\n");   /* +36 J */
+    usleep(1200000);
+    CHECK(gpu_info_get(&g) == GPU_AWAKE && g.power_w > 20 && g.power_w < 40,
+          "Intel discrete: power from the energy counter between two readings");
+    put_abs("pci/0000:03:00.0/device", "0x9999\n");
+    put_abs("pci/0000:03:00.0/power/runtime_status", "suspended\n");
+    usleep(1200000);
+    CHECK(gpu_info_get(&g) == GPU_SLEEPING, "Intel discrete asleep -> sleeping, nothing read");
+    put_abs("pci/0000:03:00.0/power/runtime_status", "active\n");
+    usleep(1200000);
+    CHECK(gpu_info_get(&g) == GPU_AWAKE && !strcmp(g.name, "Intel Graphics"), "Intel: unknown device -> \"Intel Graphics\"");
+    if (system("rm -rf pci/0000:03:00.0 pci/0000:00:02.0") != 0) return 1;
 
     /* Generic hwmon fans (1.43.0): opt-in, manual mode on the first write,
      * GPU drivers skipped, handed back to automatic */

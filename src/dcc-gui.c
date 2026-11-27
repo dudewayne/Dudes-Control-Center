@@ -6259,7 +6259,7 @@ static void status_show_gpu(AppData *app, const StatusGpu *g) {
         snprintf(b, sizeof b, "%s", _("Not woken up for readings"));
         snprintf(pw, sizeof pw, "%s", _("GPU: sleeping"));
     } else {
-        snprintf(a, sizeof a, "%s", g->state[0] ? _("No NVIDIA or AMD GPU") : "--");
+        snprintf(a, sizeof a, "%s", g->state[0] ? _("No NVIDIA, AMD or Intel GPU") : "--");
         snprintf(pw, sizeof pw, "%s", _("GPU: -- W"));
     }
     gtk_label_set_text(GTK_LABEL(app->gpu_name_label), a);

@@ -171,7 +171,7 @@ T = [
 (r"Schläft (abgeschaltet)", r"En reposo (apagada)", r"スリープ中 (電源オフ)", r"절전 중 (전원 꺼짐)"),
 (r"Für Messwerte nicht aufgeweckt", r"No se despierta para leer valores", r"計測のために起こしません", r"측정을 위해 깨우지 않음"),
 (r"GPU: schläft", r"GPU: en reposo", r"GPU: スリープ中", r"GPU: 절전 중"),
-(r"Keine NVIDIA- oder AMD-GPU", r"Sin GPU NVIDIA ni AMD", r"NVIDIA または AMD の GPU なし", r"NVIDIA 또는 AMD GPU 없음"),
+(r"Keine NVIDIA-, AMD- oder Intel-GPU", r"Sin GPU NVIDIA, AMD ni Intel", r"NVIDIA、AMD、Intel の GPU なし", r"NVIDIA, AMD 또는 Intel GPU 없음"),
 (None, None, None, None),
 (None, None, None, None),
 (r"CPU-Lüfter", r"Ventilador de CPU", r"CPU ファン", r"CPU 팬"),

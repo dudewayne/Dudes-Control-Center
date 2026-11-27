@@ -552,8 +552,8 @@ msgstr "計測のために起こしません"
 msgid "GPU: sleeping"
 msgstr "GPU: スリープ中"
 
-msgid "No NVIDIA or AMD GPU"
-msgstr "NVIDIA または AMD の GPU なし"
+msgid "No NVIDIA, AMD or Intel GPU"
+msgstr "NVIDIA、AMD、Intel の GPU なし"
 
 msgid "CPU Fan"
 msgstr "CPU ファン"

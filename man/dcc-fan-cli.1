@@ -23,8 +23,9 @@ dcc-fan-cli \- show and set the notebook fan speed
 Without options,
 .B dcc-fan-cli
 shows the CPU and GPU temperatures, the speed of both fans (duty in percent
-and measured RPM) and, while an NVIDIA or AMD GPU is awake, its power, clock
-and load (a powered-down GPU is not woken up).
+and measured RPM) and, while an NVIDIA, AMD or Intel GPU is awake, the values
+it offers: power, clock and load (Intel: clock, and temperature and power on
+discrete cards; a powered-down GPU is not woken up).
 .PP
 The status display,
 .B \-\-set

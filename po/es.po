@@ -555,8 +555,8 @@ msgstr "No se despierta para leer valores"
 msgid "GPU: sleeping"
 msgstr "GPU: en reposo"
 
-msgid "No NVIDIA or AMD GPU"
-msgstr "Sin GPU NVIDIA ni AMD"
+msgid "No NVIDIA, AMD or Intel GPU"
+msgstr "Sin GPU NVIDIA, AMD ni Intel"
 
 msgid "CPU Fan"
 msgstr "Ventilador de CPU"

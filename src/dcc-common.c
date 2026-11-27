@@ -453,8 +453,15 @@ static int gpu_temp_sysfs(void) {
 #ifndef DCC_AMDGPU_IDS
 #define DCC_AMDGPU_IDS "/usr/share/libdrm/amdgpu.ids"
 #endif
+/* PCI ID list for Intel GPU names (1.47.0): hwdata, or the older location */
+#ifndef DCC_PCI_IDS
+#define DCC_PCI_IDS "/usr/share/hwdata/pci.ids"
+#endif
+#ifndef DCC_PCI_IDS_ALT
+#define DCC_PCI_IDS_ALT "/usr/share/misc/pci.ids"
+#endif
 
-enum { GPU_VENDOR_NONE = 0, GPU_VENDOR_NVIDIA, GPU_VENDOR_AMD };
+enum { GPU_VENDOR_NONE = 0, GPU_VENDOR_NVIDIA, GPU_VENDOR_AMD, GPU_VENDOR_INTEL };
 
 static int read_line_at(const char *path, char *buf, size_t n) {
     FILE *f = fopen(path, "r");
@@ -474,9 +481,9 @@ static long read_long_at(const char *path) {
     return end == buf ? -1 : v;
 }
 
-/* The GPU the Status tab shows (1.42.0): an NVIDIA GPU first, then a
- * discrete AMD GPU, then an integrated AMD GPU (boot_vga 1). Intel GPUs have
- * no readings here. Returns GPU_NONE, GPU_SLEEPING (runtime-suspended:
+/* The GPU the Status tab shows (1.42.0, Intel 1.47.0): an NVIDIA GPU
+ * first, then a discrete AMD GPU, a discrete Intel GPU (Arc), an integrated
+ * AMD GPU (boot_vga 1), an integrated Intel GPU. Returns GPU_NONE, GPU_SLEEPING (runtime-suspended:
  * nothing is read, reading would wake it) or GPU_AWAKE; dev gets the PCI
  * device directory. */
 static int gpu_find(char *dev, size_t n, int *vendor) {
@@ -494,11 +501,16 @@ static int gpu_find(char *dev, size_t n, int *vendor) {
         snprintf(p, sizeof p, "%s/%s/vendor", DCC_PCI_DIR, de->d_name);
         if (read_line_at(p, buf, sizeof buf) != 0) continue;
         int v, prio;
-        if (!strncmp(buf, "0x10de", 6)) { v = GPU_VENDOR_NVIDIA; prio = 6; }
-        else if (!strncmp(buf, "0x1002", 6)) {
-            v = GPU_VENDOR_AMD;
+        if (!strncmp(buf, "0x10de", 6)) { v = GPU_VENDOR_NVIDIA; prio = 10; }
+        else if (!strncmp(buf, "0x1002", 6) || !strncmp(buf, "0x8086", 6)) {
+            int amd = buf[2] == '1';
+            v = amd ? GPU_VENDOR_AMD : GPU_VENDOR_INTEL;
             snprintf(p, sizeof p, "%s/%s/boot_vga", DCC_PCI_DIR, de->d_name);
-            prio = read_long_at(p) == 1 ? 2 : 4;          /* integrated : discrete */
+            long bv = read_long_at(p);
+            /* AMD: boot_vga 1 = integrated (as before); Intel: discrete only
+             * with boot_vga 0, an iGPU without the file stays integrated */
+            int integrated = amd ? bv == 1 : bv != 0;
+            prio = integrated ? (amd ? 4 : 2) : (amd ? 8 : 6);
         } else continue;
         /* "suspended"/"suspending": asleep; "active", "resuming" or no
          * runtime PM: awake */
@@ -577,6 +589,95 @@ static void amdgpu_read(const char *dev, GpuInfo *g) {
     if ((v = read_long_at(p)) > 0) g->vram_total_mb = (int)(v / (1024 * 1024));
 }
 
+static double now_sec(void);
+
+/* Name of an Intel GPU from the PCI ID list: "Intel " + the device line
+ * ("\t46a6  Alder Lake-P GT2 [Iris Xe Graphics]"); "Intel Graphics" if none */
+static void intel_gpu_name(const char *dev, char *name, size_t n) {
+    char p[600], dbuf[16];
+    snprintf(name, n, "Intel Graphics");
+    snprintf(p, sizeof p, "%s/device", dev);
+    if (read_line_at(p, dbuf, sizeof dbuf) != 0) return;
+    unsigned did = (unsigned)strtoul(dbuf, NULL, 16);
+    FILE *f = fopen(DCC_PCI_IDS, "r");
+    if (!f) f = fopen(DCC_PCI_IDS_ALT, "r");
+    if (!f) return;
+    char line[512];
+    int in_intel = 0;
+    while (fgets(line, sizeof line, f)) {
+        if (line[0] == '#' || line[0] == '\n') continue;
+        if (line[0] != '\t') {                       /* a vendor line */
+            if (in_intel) break;
+            in_intel = !strncmp(line, "8086 ", 5);
+            continue;
+        }
+        if (!in_intel || line[1] == '\t') continue;  /* subsystem lines */
+        char *end = NULL;
+        unsigned id = (unsigned)strtoul(line + 1, &end, 16);
+        if (id != did || !end) continue;
+        while (*end == ' ' || *end == '\t') end++;
+        end[strcspn(end, "\n")] = '\0';
+        if (*end) snprintf(name, n, "Intel %.*s", (int)(n > 7 ? n - 7 : 0), end);
+        break;
+    }
+    fclose(f);
+}
+
+/* Intel values (1.47.0), read only while the GPU is awake: the clock from
+ * i915 (drm/cardN/gt_act_freq_mhz) or xe (tile0/gt0/freq0/act_freq; 0 while
+ * the GPU idles in RC6), temperature and power from its hwmon where there
+ * is one (discrete Arc). Intel offers no load figure in sysfs. */
+static void intel_gpu_read(const char *dev, const char *driver, GpuInfo *g) {
+    char p[1000], hd[600], hw[900] = "";
+    long v;
+    intel_gpu_name(dev, g->name, sizeof g->name);
+    if (!strcmp(driver, "xe")) {
+        snprintf(p, sizeof p, "%s/tile0/gt0/freq0/act_freq", dev);
+        if ((v = read_long_at(p)) >= 0) g->clock_mhz = (int)v;
+    } else {
+        snprintf(hd, sizeof hd, "%s/drm", dev);
+        DIR *d = opendir(hd);
+        if (d) {
+            struct dirent *de;
+            while ((de = readdir(d)) != NULL) {
+                if (strncmp(de->d_name, "card", 4)) continue;
+                snprintf(p, sizeof p, "%s/%s/gt_act_freq_mhz", hd, de->d_name);
+                if ((v = read_long_at(p)) < 0) {
+                    snprintf(p, sizeof p, "%s/%s/gt_cur_freq_mhz", hd, de->d_name);
+                    v = read_long_at(p);
+                }
+                if (v >= 0) { g->clock_mhz = (int)v; break; }
+            }
+            closedir(d);
+        }
+    }
+    snprintf(hd, sizeof hd, "%s/hwmon", dev);
+    DIR *d = opendir(hd);
+    if (d) {
+        struct dirent *de;
+        while ((de = readdir(d)) != NULL)
+            if (!strncmp(de->d_name, "hwmon", 5)) { snprintf(hw, sizeof hw, "%s/%s", hd, de->d_name); break; }
+        closedir(d);
+    }
+    if (!hw[0]) return;
+    for (int i = 1; i <= 4 && g->temp < 0; i++) {
+        snprintf(p, sizeof p, "%s/temp%d_input", hw, i);
+        if ((v = read_long_at(p)) > 0 && v / 1000 <= 130) g->temp = (int)(v / 1000);
+    }
+    /* power from the energy counter (microjoules) between two readings */
+    static long long last_uj = -1;
+    static double last_t;
+    snprintf(p, sizeof p, "%s/energy1_input", hw);
+    char buf[32];
+    if (read_line_at(p, buf, sizeof buf) == 0) {
+        long long uj = strtoll(buf, NULL, 10);
+        double t = now_sec();
+        if (last_uj >= 0 && uj >= last_uj && t - last_t > 0.2) g->power_w = (double)(uj - last_uj) / 1e6 / (t - last_t);
+        last_uj = uj;
+        last_t = t;
+    }
+}
+
 static double now_sec(void) {
     struct timespec ts;
     clock_gettime(CLOCK_MONOTONIC, &ts);
@@ -604,7 +705,16 @@ int gpu_info_get(GpuInfo *out) {
     char dev[512];
     int vendor;
     g.state = gpu_find(dev, sizeof dev, &vendor);
-    if (g.state == GPU_AWAKE && vendor == GPU_VENDOR_AMD) {
+    if (g.state == GPU_AWAKE && vendor == GPU_VENDOR_INTEL) {
+        char p[600], drv[600] = "";
+        snprintf(p, sizeof p, "%s/driver", dev);
+        ssize_t l = readlink(p, drv, sizeof drv - 1);
+        if (l > 0) drv[l] = '\0';
+        const char *base = strrchr(drv, '/');
+        base = base ? base + 1 : "";
+        if (!strcmp(base, "i915") || !strcmp(base, "xe")) intel_gpu_read(dev, base, &g);
+        else snprintf(g.name, sizeof g.name, "Intel Graphics");   /* no Intel driver: no readings */
+    } else if (g.state == GPU_AWAKE && vendor == GPU_VENDOR_AMD) {
         char p[600], drv[600] = "";
         snprintf(p, sizeof p, "%s/driver", dev);
         ssize_t l = readlink(p, drv, sizeof drv - 1);

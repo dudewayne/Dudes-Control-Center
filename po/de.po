@@ -551,8 +551,8 @@ msgstr "Für Messwerte nicht aufgeweckt"
 msgid "GPU: sleeping"
 msgstr "GPU: schläft"
 
-msgid "No NVIDIA or AMD GPU"
-msgstr "Keine NVIDIA- oder AMD-GPU"
+msgid "No NVIDIA, AMD or Intel GPU"
+msgstr "Keine NVIDIA-, AMD- oder Intel-GPU"
 
 msgid "CPU Fan"
 msgstr "CPU-Lüfter"

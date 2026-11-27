@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: dudes-control-center\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-11-27 20:05+0100\n"
+"POT-Creation-Date: 2026-11-27 20:40+0100\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -793,7 +793,7 @@ msgid "GPU: sleeping"
 msgstr ""
 
 #: src/dcc-gui.c:6262
-msgid "No NVIDIA or AMD GPU"
+msgid "No NVIDIA, AMD or Intel GPU"
 msgstr ""
 
 #: src/dcc-gui.c:6323

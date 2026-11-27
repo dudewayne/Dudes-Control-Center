@@ -6,6 +6,17 @@ Programs and services were named `dudes-control-center-*` before 1.19.0 (for exa
 
 ## [Unreleased]
 
+## [1.47.0] - 2026-11-27
+
+### Added
+- **Intel GPUs**: the Status tab, the fan daemon's STATUS and `dcc-fan-cli` show an Intel GPU with the `i915` or `xe` driver: the name from the PCI ID list (`/usr/share/hwdata/pci.ids`, e.g. "Intel Alder Lake-P GT2 [Iris Xe Graphics]"), the clock (`gt_act_freq_mhz` or `tile0/gt0/freq0/act_freq`; 0 MHz while the GPU idles), and on discrete Arc cards with hwmon the temperature and the power from the energy counter. Intel offers no load figure in sysfs, so none is shown. Like the other GPUs it is read only while awake.
+- GPU order: NVIDIA, discrete AMD, discrete Intel, integrated AMD, integrated Intel.
+- Tests: integrated (i915) and discrete (xe) Intel GPUs, the order against AMD, names, power from the energy counter, a sleeping and an unknown Intel GPU, and the Status tab's lines for an Intel GPU.
+
+### Changed
+- `dcc-fan-cli` shows only the GPU values the GPU offers (it used to print nothing without a power reading).
+- "No NVIDIA or AMD GPU" is now "No NVIDIA, AMD or Intel GPU".
+
 ## [1.46.0] - 2026-11-27
 
 ### Added
@@ -1113,7 +1124,8 @@ Programs and services were named `dudes-control-center-*` before 1.19.0 (for exa
 - Unix socket IPC between GUI and daemon
 - Watchdog timer and fail-safe mode in daemon
 
-[Unreleased]: https://github.com/dudewayne/Dudes-Control-Center/compare/v1.46.0...HEAD
+[Unreleased]: https://github.com/dudewayne/Dudes-Control-Center/compare/v1.47.0...HEAD
+[1.47.0]: https://github.com/dudewayne/Dudes-Control-Center/compare/v1.46.0...v1.47.0
 [1.46.0]: https://github.com/dudewayne/Dudes-Control-Center/compare/v1.45.0...v1.46.0
 [1.45.0]: https://github.com/dudewayne/Dudes-Control-Center/compare/v1.44.1...v1.45.0
 [1.44.1]: https://github.com/dudewayne/Dudes-Control-Center/compare/v1.44.0...v1.44.1

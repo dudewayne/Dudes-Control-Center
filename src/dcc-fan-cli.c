@@ -84,9 +84,14 @@ static void print_status(int cpu_temp, int gpu_temp, int cpu_fan_rpm, int gpu_fa
         printf("EC access: none - %s (fan values unknown; the firmware controls the fans)\n", ec_init_reason());
     GpuInfo gi;
     int gs = gpu_info_get(&gi);
-    if (gs == GPU_AWAKE && gi.power_w >= 0)
-        printf("GPU: %s, %.1f W, %d MHz, load %d%%\n", gi.name, gi.power_w, gi.clock_mhz, gi.util);
-    else if (gs == GPU_SLEEPING)
+    if (gs == GPU_AWAKE && gi.name[0]) {
+        /* only the values this GPU has (Intel: no load, integrated: no power; 1.47.0) */
+        printf("GPU: %s", gi.name);
+        if (gi.power_w >= 0) printf(", %.1f W", gi.power_w);
+        if (gi.clock_mhz >= 0) printf(", %d MHz", gi.clock_mhz);
+        if (gi.util >= 0) printf(", load %d%%", gi.util);
+        printf("\n");
+    } else if (gs == GPU_SLEEPING)
         printf("GPU: sleeping (powered down)\n");
 }
 

@@ -894,9 +894,18 @@ int main(int argc, char **argv) {
               !strcmp(gtk_label_get_text(GTK_LABEL(ea.pw_gpu_label)), want_pw),
               "O: integrated AMD GPU: clock without memory clock, load without power state");
         g_free(want_pw);
+        /* Intel GPU (1.47.0): clock only, no load or power */
+        parse_status(&ea, "STATUS OK\nCPU_TEMP=48\nAUTO_MODE=1\nEC_ACCESS=module\nGPU_STATE=awake\n"
+                          "GPU_NAME=Intel Alder Lake-P GT2 [Iris Xe Graphics]\nGPU_POWER_W=-1.0\nGPU_CLOCK_MHZ=1100\n"
+                          "GPU_MEM_CLOCK_MHZ=-1\nGPU_UTIL=-1\nGPU_VRAM_USED_MB=-1\nGPU_VRAM_TOTAL_MB=-1\nGPU_PSTATE=\n");
+        CHECK(!strcmp(gtk_label_get_text(GTK_LABEL(ea.gpu_clock_label)), "Clock: 1100 MHz") &&
+              !strcmp(gtk_label_get_text(GTK_LABEL(ea.gpu_load_label)), "") &&
+              !strcmp(gtk_label_get_text(GTK_LABEL(ea.gpu_vram_label)), "") &&
+              !strcmp(gtk_label_get_text(GTK_LABEL(ea.pw_gpu_label)), "GPU: -- W"),
+              "O: integrated Intel GPU: clock, no load, video memory or power");
         parse_status(&ea, "STATUS OK\nCPU_TEMP=48\nAUTO_MODE=1\nEC_ACCESS=module\nGPU_STATE=none\n");
-        CHECK(!strcmp(gtk_label_get_text(GTK_LABEL(ea.gpu_name_label)), "No NVIDIA or AMD GPU"),
-              "O: no supported GPU -> 'No NVIDIA or AMD GPU'");
+        CHECK(!strcmp(gtk_label_get_text(GTK_LABEL(ea.gpu_name_label)), "No NVIDIA, AMD or Intel GPU"),
+              "O: no supported GPU -> 'No NVIDIA, AMD or Intel GPU'");
         gtk_widget_destroy(ew);
 
         /* the warning opens without a nested main loop (it froze the GUI in the 1.41.0 test) */
