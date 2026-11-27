@@ -59,11 +59,15 @@ static void print_status(int cpu_temp, int gpu_temp, int cpu_fan_rpm, int gpu_fa
         printf("GPU Temperature: N/A (sensor not available)\n");
     }
     /* Percent = duty set in the EC; RPM = measured speed */
-    int cd = get_cpu_fan_duty(), gd = get_gpu_fan_duty();
-    format_fan_text(line, sizeof line, "CPU Fan", cpu_fan_rpm, fan_duty_plausible(cd, cpu_fan_rpm) ? cd : -1);
-    printf("%s\n", line);
-    format_fan_text(line, sizeof line, "GPU Fan", gpu_fan_rpm, fan_duty_plausible(gd, gpu_fan_rpm) ? gd : -1);
-    printf("%s\n", line);
+    if (!strcmp(ec_backend_name(), "none")) {
+        printf("CPU Fan: --\nGPU Fan: --\n");     /* no EC access: speeds unknown */
+    } else {
+        int cd = get_cpu_fan_duty(), gd = get_gpu_fan_duty();
+        format_fan_text(line, sizeof line, "CPU Fan", cpu_fan_rpm, fan_duty_plausible(cd, cpu_fan_rpm) ? cd : -1);
+        printf("%s\n", line);
+        format_fan_text(line, sizeof line, "GPU Fan", gpu_fan_rpm, fan_duty_plausible(gd, gpu_fan_rpm) ? gd : -1);
+        printf("%s\n", line);
+    }
     if (ec_backend_module())
         printf("EC access: dcc_fan kernel module\n");
     else if (!strcmp(ec_backend_name(), "ports"))

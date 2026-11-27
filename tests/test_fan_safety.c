@@ -11,6 +11,7 @@
 #define get_gpu_fan_rpm mock_gpu_rpm
 #define get_cpu_fan_duty mock_cpu_duty
 #define get_gpu_fan_duty mock_gpu_duty
+#define ec_backend_name mock_backend_name
 #define main daemon_main
 #include "dcc-fan-daemon.c"
 #undef main
@@ -24,6 +25,8 @@ int mock_gpu_rpm(void) { return 2930; }
 static int m_cpu_duty = 50, m_gpu_duty = -1;   /* -1: EC did not answer */
 int mock_cpu_duty(void) { return m_cpu_duty; }
 int mock_gpu_duty(void) { return m_gpu_duty; }
+static const char *m_backend = "module";
+const char *mock_backend_name(void) { return m_backend; }
 
 static int fails = 0;
 #define CHECK(cond, msg) do { if (cond) printf("PASS  %s\n", msg); else { printf("FAIL  %s (duty=%d override=%d active=%d)\n", msg, current_fan_duty, override_reason, active_profile_idx); fails++; } } while (0)
@@ -174,6 +177,18 @@ int main(void) {
     CHECK(strstr(resp, "EC_ACCESS=") && strstr(resp, "EC_REASON=") && strstr(resp, "GPU_STATE="),
           "monitor only: STATUS carries EC_REASON and still the GPU state");
     monitor_only = 0; m_cpu = 50;
+
+    /* 12. the module goes away while the daemon runs, no direct EC access:
+     * monitoring only from then on, the fail-safe on shutdown writes nothing */
+    steps(2);
+    m_backend = "none"; m_writes = 0;
+    steps(3);
+    CHECK(monitor_only == 1 && m_writes == 0, "module gone: monitoring only, no fan writes");
+    fail_safe_fan_max("daemon shutting down");
+    CHECK(m_writes == 0, "module gone: the shutdown fail-safe writes nothing");
+    cmd("STATUS\n");
+    CHECK(strstr(resp, "EC_ACCESS=none\n") && strstr(resp, "EC_REASON="), "module gone: STATUS reports no access with the reason");
+    m_backend = "module"; monitor_only = 0;
 
     printf("\n%d failure(s)\n", fails);
     return fails != 0;

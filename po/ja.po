@@ -1105,6 +1105,9 @@ msgstr "オンにする"
 msgid "I understand the risk and use this on a Clevo-based laptop"
 msgstr "危険を理解しており、Clevo ベースのノートPCで使用します"
 
+msgid "Direct EC access"
+msgstr "EC への直接アクセス"
+
 msgid "Components"
 msgstr "コンポーネント"
 

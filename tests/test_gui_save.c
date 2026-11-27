@@ -881,6 +881,29 @@ int main(int argc, char **argv) {
         parse_status(&ea, "STATUS OK\nCPU_TEMP=48\nCPU_FAN_RPM=3000\nAUTO_MODE=1\nEC_ACCESS=module\nGPU_STATE=none\n");
         CHECK(!gtk_widget_get_visible(ea.fan_ec_label) && gtk_widget_get_visible(ea.manual_row), "O: dcc_fan module -> no note");
         gtk_widget_destroy(ew);
+
+        /* the warning opens without a nested main loop (it froze the GUI in the 1.41.0 test) */
+        static AppData sa;
+        sa.socket_fd = sa.cpu_socket_fd = sa.kbd_socket_fd = -1;
+        sa.window = gtk_offscreen_window_new();
+        GtkWidget *sp = create_settings_page(&sa);
+        gtk_container_add(GTK_CONTAINER(sa.window), sp);
+        gtk_widget_show_all(sa.window);
+        g_strlcpy(sa.ec_access, "none", sizeof sa.ec_access);
+        settings_update_ec(&sa);
+        CHECK(on_settings_ec_switch(GTK_SWITCH(sa.settings_ec_switch), TRUE, &sa) && sa.ec_dialog &&
+              !strcmp(gtk_window_get_title(GTK_WINDOW(sa.ec_dialog)), "Direct EC access"),
+              "O: switching on returns at once with the titled warning open");
+        settings_update_ec(&sa);                      /* a refresh while it is open */
+        CHECK(!gtk_widget_get_sensitive(sa.settings_ec_switch) && !sa.settings_busy,
+              "O: while the warning is open the switch waits, nothing runs");
+        CHECK(on_settings_ec_switch(GTK_SWITCH(sa.settings_ec_switch), TRUE, &sa) && sa.ec_dialog,
+              "O: a second click does not open a second warning");
+        gtk_dialog_response(GTK_DIALOG(sa.ec_dialog), GTK_RESPONSE_CANCEL);
+        CHECK(!sa.ec_dialog && !sa.settings_busy && gtk_widget_get_sensitive(sa.settings_ec_switch) &&
+              !gtk_switch_get_active(GTK_SWITCH(sa.settings_ec_switch)),
+              "O: Cancel closes it, the switch stays off, no pkexec");
+        gtk_widget_destroy(sa.window);
     } else {
         printf("SKIP  O: no display\n");
     }

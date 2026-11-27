@@ -1099,6 +1099,9 @@ msgstr "Activar"
 msgid "I understand the risk and use this on a Clevo-based laptop"
 msgstr "Entiendo el riesgo y lo uso en un portátil basado en Clevo"
 
+msgid "Direct EC access"
+msgstr "Acceso directo al EC"
+
 msgid "Components"
 msgstr "Componentes"
 

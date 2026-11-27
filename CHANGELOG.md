@@ -6,14 +6,16 @@ Programs and services were named `dudes-control-center-*` before 1.19.0 (for exa
 
 ## [Unreleased]
 
-## [1.41.0] - 2026-11-26
+## [1.41.0] - 2026-11-27
 
 ### Added
 - **Direct EC access is an opt-in with a warning.** Without the `dcc_fan` module (no Clevo WMI interface) the fan daemon used to fall back to direct port I/O on 0x62/0x66 on its own; on a laptop with another EC layout those writes can change charging, power or thermal settings or overheat the hardware. Now it is off by default: the fan daemon only monitors (CPU temperature from coretemp/k10temp), the firmware controls the fans and nothing is written to the EC, also not the 100% fail-safe. Settings → Components has a **Direct EC access (unsupported hardware)** switch: switching it on shows a warning that has to be confirmed ("I understand the risk..."), asks for the administrator password and restarts the fan daemon. The state shows whether it is not needed (module in use), in use, refused or off.
 - **EC check before any port write**: with the opt-in, the daemon and `dcc-fan-cli` first read the EC and refuse the ports unless it answers like a Clevo EC (CPU temperature register steady over three reads and within 20 °C of the CPU's own sensor, fan speed registers 0 or 200-10000 RPM). The reason is logged and shown in the GUI.
+- If the `dcc_fan` module is removed while the fan daemon runs and direct EC access is not available, the daemon switches to monitoring only and logs it once; the shutdown fail-safe then writes nothing instead of logging a failed write. Without EC access `dcc-fan-cli` shows the fan speeds as unknown (`--`) instead of 0 RPM.
+- The warning before switching on direct EC access opens as a normal dialog with a title, centered on the window, and does not block the GUI while it waits.
 - `dcc-component ec-direct enable|disable` (file `/etc/dudes-control-center/ec-direct-access`), shown by `dcc-component status`.
 - The Fan Speed section says when there is no fan control ("the firmware controls the fans", reason as tooltip) or when direct EC access is in use. `dcc-fan-cli` names the EC access and the reason; `--set`/`--auto` explain why they cannot work. Fan daemon `STATUS`: `EC_ACCESS=none`, `EC_DIRECT=`, `EC_REASON=`.
-- Tests: no opt-in → no port access and no writes, the opt-in file, port I/O refused without root, the plausibility rules, CPU temperature from coretemp, monitor-only daemon (no writes for sensor failure or emergency, `SET_MANUAL` refused), the GUI's Fan Speed states.
+- Tests: the module removed while the daemon runs (monitoring only, no fail-safe write), no opt-in → no port access and no writes, the opt-in file, port I/O refused without root, the plausibility rules, CPU temperature from coretemp, monitor-only daemon (no writes for sensor failure or emergency, `SET_MANUAL` refused), the GUI's Fan Speed states.
 
 ### Changed
 - **Upgrade note**: on laptops without the `dcc_fan` module that relied on the automatic port I/O fallback, the fans are now left to the firmware until **Direct EC access** is switched on in Settings. Clevo laptops with the module (the usual case) are not affected.

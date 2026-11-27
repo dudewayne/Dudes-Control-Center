@@ -752,6 +752,7 @@ typedef struct {
     char ec_reason[200];
     GtkWidget *fan_ec_label, *manual_row;
     GtkWidget *settings_ec_switch, *settings_ec_state;
+    GtkWidget *ec_dialog;                 /* the open warning, NULL if none */
     gulong settings_ec_sig;
     guint instance_watch;              /* second start -> show window (1.40.0) */
     /* Zone editor (1.24.0) */
@@ -920,6 +921,7 @@ static gboolean refresh_timer_callback(gpointer user_data);
 static void on_tray_show_app(GtkMenuItem *menuitem, gpointer user_data);
 static void status_show_ec(AppData *app);
 static void settings_update_ec(AppData *app);
+static void label_set_changed(GtkWidget *l, const char *t);
 static void refresh_timers_start(AppData *app);
 static void appearance_refresh(AppData *app);
 static void appearance_apply_theme(int mode);
@@ -6156,8 +6158,10 @@ static void parse_status(AppData *app, const char *response) {
 
     gtk_label_set_text(GTK_LABEL(app->cpu_temp_label), cpu_text);
     gtk_label_set_text(GTK_LABEL(app->gpu_temp_label), gpu_text);
-    gtk_label_set_text(GTK_LABEL(app->cpu_fan_rpm_label), cpu_rpm_text);
-    gtk_label_set_text(GTK_LABEL(app->gpu_fan_rpm_label), gpu_rpm_text);
+    if (strcmp(app->ec_access, "none")) {           /* without EC access: "--" (status_show_ec) */
+        label_set_changed(app->cpu_fan_rpm_label, cpu_rpm_text);
+        label_set_changed(app->gpu_fan_rpm_label, gpu_rpm_text);
+    }
     status_show_gpu(app, &gpu);
     status_show_ec(app);
 
@@ -10189,26 +10193,42 @@ static void on_settings_refresh_changed(GtkComboBox *combo, gpointer user_data) 
 /* Fan Speed section: what the fan daemon can do (1.41.0). Without the
  * dcc_fan module and without direct EC access nothing is controlled; with
  * direct access it says so, because that is only safe on Clevo EC layouts. */
+/* Set only what changed: these run on every refresh, and each label change
+ * makes GTK lay the window out again */
+static void label_set_changed(GtkWidget *l, const char *t) {
+    if (strcmp(gtk_label_get_text(GTK_LABEL(l)), t)) gtk_label_set_text(GTK_LABEL(l), t);
+}
+
+static void tooltip_set_changed(GtkWidget *w, const char *t) {
+    gchar *cur = gtk_widget_get_tooltip_text(w);
+    if (g_strcmp0(cur, t)) gtk_widget_set_tooltip_text(w, t);
+    g_free(cur);
+}
+
+static void widget_set_shown(GtkWidget *w, gboolean show) {
+    if (gtk_widget_get_visible(w) == show) return;
+    if (show) gtk_widget_show(w); else gtk_widget_hide(w);
+}
+
 static void status_show_ec(AppData *app) {
     if (!app->fan_ec_label) return;
-    if (!strcmp(app->ec_access, "none")) {
-        gtk_label_set_text(GTK_LABEL(app->fan_ec_label),
-                           _("No fan control on this laptop: the firmware controls the fans."));
-        gtk_widget_set_tooltip_text(app->fan_ec_label, app->ec_reason);
-        gtk_widget_show(app->fan_ec_label);
-        gtk_label_set_text(GTK_LABEL(app->cpu_fan_rpm_label), _("CPU Fan: --"));
-        gtk_label_set_text(GTK_LABEL(app->gpu_fan_rpm_label), _("GPU Fan: --"));
-        if (app->manual_row) { gtk_widget_set_no_show_all(app->manual_row, TRUE); gtk_widget_hide(app->manual_row); }
+    gboolean none = !strcmp(app->ec_access, "none");
+    if (none) {
+        label_set_changed(app->fan_ec_label, _("No fan control on this laptop: the firmware controls the fans."));
+        tooltip_set_changed(app->fan_ec_label, app->ec_reason);
+        widget_set_shown(app->fan_ec_label, TRUE);
+        label_set_changed(app->cpu_fan_rpm_label, _("CPU Fan: --"));
+        label_set_changed(app->gpu_fan_rpm_label, _("GPU Fan: --"));
+    } else if (!strcmp(app->ec_access, "ports")) {
+        label_set_changed(app->fan_ec_label, _("Direct EC access (switched on in Settings; only safe on Clevo laptops)"));
+        tooltip_set_changed(app->fan_ec_label, NULL);
+        widget_set_shown(app->fan_ec_label, TRUE);
     } else {
-        if (!strcmp(app->ec_access, "ports")) {
-            gtk_label_set_text(GTK_LABEL(app->fan_ec_label),
-                               _("Direct EC access (switched on in Settings; only safe on Clevo laptops)"));
-            gtk_widget_set_tooltip_text(app->fan_ec_label, NULL);
-            gtk_widget_show(app->fan_ec_label);
-        } else {
-            gtk_widget_hide(app->fan_ec_label);
-        }
-        if (app->manual_row) { gtk_widget_set_no_show_all(app->manual_row, FALSE); gtk_widget_show_all(app->manual_row); }
+        widget_set_shown(app->fan_ec_label, FALSE);
+    }
+    if (app->manual_row && gtk_widget_get_visible(app->manual_row) == none) {
+        gtk_widget_set_no_show_all(app->manual_row, none);
+        if (none) gtk_widget_hide(app->manual_row); else gtk_widget_show_all(app->manual_row);
     }
     settings_update_ec(app);
 }
@@ -10218,18 +10238,21 @@ static void status_show_ec(AppData *app) {
 static void settings_update_ec(AppData *app) {
     if (!app->settings_ec_switch) return;
     int on = ec_direct_allowed();
-    g_signal_handler_block(app->settings_ec_switch, app->settings_ec_sig);
-    gtk_switch_set_active(GTK_SWITCH(app->settings_ec_switch), on);
-    gtk_switch_set_state(GTK_SWITCH(app->settings_ec_switch), on);
-    g_signal_handler_unblock(app->settings_ec_switch, app->settings_ec_sig);
-    gtk_widget_set_sensitive(app->settings_ec_switch, !app->settings_busy);
+    if (!app->ec_dialog && (gtk_switch_get_active(GTK_SWITCH(app->settings_ec_switch)) != on ||
+                            gtk_switch_get_state(GTK_SWITCH(app->settings_ec_switch)) != on)) {
+        g_signal_handler_block(app->settings_ec_switch, app->settings_ec_sig);
+        gtk_switch_set_active(GTK_SWITCH(app->settings_ec_switch), on);
+        gtk_switch_set_state(GTK_SWITCH(app->settings_ec_switch), on);
+        g_signal_handler_unblock(app->settings_ec_switch, app->settings_ec_sig);
+    }
+    gtk_widget_set_sensitive(app->settings_ec_switch, !app->settings_busy && !app->ec_dialog);
     const char *t;
     if (!strcmp(app->ec_access, "module")) t = _("Not needed: dcc_fan module in use");
     else if (!strcmp(app->ec_access, "ports")) t = _("On, in use");
     else if (!strcmp(app->ec_access, "none")) t = on ? _("On, refused: the EC check failed") : _("Off: no fan control");
     else t = on ? _("On") : _("Off");
-    gtk_label_set_text(GTK_LABEL(app->settings_ec_state), t);
-    gtk_widget_set_tooltip_text(app->settings_ec_state, app->ec_reason[0] ? app->ec_reason : NULL);
+    label_set_changed(app->settings_ec_state, t);
+    tooltip_set_changed(app->settings_ec_state, app->ec_reason[0] ? app->ec_reason : NULL);
 }
 
 typedef struct { AppData *app; int enable; } EcJob;
@@ -10285,43 +10308,57 @@ static GtkWidget *ec_warning_dialog(GtkWindow *parent) {
     gtk_box_pack_start(GTK_BOX(gtk_message_dialog_get_message_area(GTK_MESSAGE_DIALOG(d))), cb, FALSE, FALSE, 6);
     gtk_widget_show(cb);
     gtk_dialog_set_default_response(GTK_DIALOG(d), GTK_RESPONSE_CANCEL);
+    gtk_window_set_title(GTK_WINDOW(d), _("Direct EC access"));
+    gtk_window_set_position(GTK_WINDOW(d), GTK_WIN_POS_CENTER_ON_PARENT);
     return d;
 }
 
-/* Switching it on needs a confirmed warning, then the administrator
- * password (pkexec dcc-component ec-direct enable) */
-static gboolean on_settings_ec_switch(GtkSwitch *sw, gboolean state, gpointer user_data) {
-    (void)sw;
-    AppData *app = (AppData *)user_data;
-    if (app->settings_busy) return TRUE;
-    if (state) {
-        GtkWidget *d = ec_warning_dialog(GTK_WINDOW(app->window));
-        int r = gtk_dialog_run(GTK_DIALOG(d));
-        gtk_widget_destroy(d);
-        if (r != GTK_RESPONSE_OK) {
-            settings_update_ec(app);
-            return TRUE;
-        }
-    }
+static void ec_direct_run(AppData *app, int enable) {
     GError *err = NULL;
     GSubprocess *proc = g_subprocess_new(G_SUBPROCESS_FLAGS_NONE, &err, "pkexec", DCC_COMPONENT_HELPER,
-                                         "ec-direct", state ? "enable" : "disable", NULL);
+                                         "ec-direct", enable ? "enable" : "disable", NULL);
     if (!proc) {
         gui_event("[GUI] Settings: cannot run pkexec: %s\n", err ? err->message : "?");
         show_status(app, _("Could not run pkexec"));
         if (err) g_error_free(err);
         settings_update_ec(app);
-        return TRUE;
+        return;
     }
     EcJob *job = g_new0(EcJob, 1);
     job->app = app;
-    job->enable = state ? 1 : 0;
+    job->enable = enable;
     app->settings_busy = 1;
     for (int c = 0; c < COMP_COUNT; c++) gtk_widget_set_sensitive(app->settings_switch[c], FALSE);
     gtk_widget_set_sensitive(app->settings_ec_switch, FALSE);
     show_status(app, _("Waiting for authentication..."));
     g_subprocess_wait_async(proc, NULL, settings_ec_done, job);
     g_object_unref(proc);
+}
+
+static void ec_dialog_response(GtkDialog *d, int response, gpointer user_data) {
+    AppData *app = (AppData *)user_data;
+    gtk_widget_destroy(GTK_WIDGET(d));
+    app->ec_dialog = NULL;
+    if (response == GTK_RESPONSE_OK) ec_direct_run(app, 1);
+    else settings_update_ec(app);
+}
+
+/* Switching it on needs a confirmed warning, then the administrator
+ * password (pkexec dcc-component ec-direct enable). The warning is not run
+ * with gtk_dialog_run(): a nested main loop inside the switch's state-set
+ * handler froze the GUI and left the dialog blank (1.41.0 test). */
+static gboolean on_settings_ec_switch(GtkSwitch *sw, gboolean state, gpointer user_data) {
+    (void)sw;
+    AppData *app = (AppData *)user_data;
+    if (app->settings_busy || app->ec_dialog) return TRUE;
+    if (state) {
+        app->ec_dialog = ec_warning_dialog(GTK_WINDOW(app->window));
+        g_signal_connect(app->ec_dialog, "response", G_CALLBACK(ec_dialog_response), app);
+        gtk_widget_set_sensitive(app->settings_ec_switch, FALSE);
+        gtk_window_present(GTK_WINDOW(app->ec_dialog));
+        return TRUE;
+    }
+    ec_direct_run(app, 0);
     return TRUE;
 }
 

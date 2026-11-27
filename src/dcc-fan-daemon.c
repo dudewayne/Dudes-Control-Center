@@ -130,8 +130,24 @@ static int apply_fan_duty(int pct) {
     return 0;
 }
 
+/* The dcc_fan module can go away while the daemon runs (rmmod). Without
+ * allowed direct EC access the daemon then only monitors, says so once and
+ * writes nothing (1.41.0) */
+static void check_ec_backend(void) {
+    if (monitor_only || strcmp(ec_backend_name(), "none")) return;
+    monitor_only = 1;
+    LOG_WARN("The dcc_fan module is gone and direct EC access is not available (%s). Monitoring only; "
+             "the laptop's firmware controls the fans. Load the module and restart the daemon to "
+             "control the fans again.", ec_init_reason());
+}
+
 /* Fail-safe: Set fans to 100% regardless of mode */
 static void fail_safe_fan_max(const char *reason) {
+    check_ec_backend();
+    if (monitor_only) {
+        LOG_INFO("Fail-safe (%s) not needed: no fan control, the firmware controls the fans", reason);
+        return;
+    }
     if (apply_fan_duty(100) == 0) {
         LOG_WARN("FAIL-SAFE: Fans set to 100%% (%s)", reason);
     }
@@ -367,6 +383,8 @@ static int profile_has_curve(int idx) {
 static int status_fan_duty(int ec_duty, int rpm, const char *fan) {
     static int warned = 0;
     if (fan_duty_plausible(ec_duty, rpm)) return ec_duty;
+    check_ec_backend();
+    if (monitor_only) return -1;
     if (!warned) {
         LOG_INFO("EC duty register of the %s fan reads %d at %d RPM - this EC does not report the duty; "
                  "STATUS shows the duty set by the daemon", fan, ec_duty, rpm);
@@ -1002,6 +1020,7 @@ static void fan_control_step(void) {
     static int ring[3] = {-1, -1, -1};
     static int ring_idx = 0, ring_filled = 0;
 
+    check_ec_backend();
     if (monitor_only) return;   /* nothing to control, nothing written (1.41.0) */
 
     /* dcc_fan module (1.36.0): rewrite the duty every step, so its watchdog
@@ -1266,8 +1285,8 @@ int main(int argc, char *argv[]) {
         if (gpu_temp >= TEMP_MIN_VALID_C && gpu_temp > cpu_temp) hot_temp = gpu_temp;
         if (cpu_temp >= TEMP_MIN_VALID_C && cpu_temp <= TEMP_MAX_VALID_C) {
             int initial_duty = get_target_duty_from_temp(hot_temp);
-            apply_fan_duty(initial_duty);
-            LOG_INFO("Initial fan speed set to %d%% based on temp CPU=%d°C GPU=%d°C (profile: %s)",
+            if (apply_fan_duty(initial_duty) == 0)
+                LOG_INFO("Initial fan speed set to %d%% based on temp CPU=%d°C GPU=%d°C (profile: %s)",
                      initial_duty, cpu_temp, gpu_temp,
                      profile_has_curve(active_profile_idx) ? profiles[active_profile_idx].name : "built-in");
         }
