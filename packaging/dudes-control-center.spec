@@ -9,6 +9,8 @@
 # the shared /usr/local/libexec/dudes-control-center/pkg-setup.
 
 %global debug_package %{nil}
+# no %changelog here (CHANGELOG.md is the changelog): no build date from it
+%global source_date_epoch_from_changelog 0
 %global _build_id_links none
 
 Name:           dudes-control-center
