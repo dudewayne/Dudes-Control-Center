@@ -81,8 +81,10 @@ jobs:
           rpmbuild -bb packaging/dudes-control-center.spec --define "_topdir $PWD/build-rpm" \
             --define "_stagedir $PWD/build-stage/root" --define "pkgversion $(cat VERSION)"
 
+      # the container image installs without documentation (tsflags=nodocs):
+      # install it like a normal system, the Help tab reads the README
       - name: Install RPM with its dependencies
-        run: dnf -y install ./build-rpm/RPMS/x86_64/dudes-control-center-*.rpm
+        run: dnf -y --setopt=tsflags= install ./build-rpm/RPMS/x86_64/dudes-control-center-*.rpm
 
       - name: Check installed package
         run: bash tests/check_pkg.sh "$(cat VERSION)"
@@ -121,8 +123,13 @@ jobs:
           chown -R builder /tmp/pkg
           cd /tmp/pkg && sudo -u builder makepkg --nodeps --noconfirm
 
+      # the container image leaves out /usr/share/doc and /usr/share/locale
+      # (NoExtract); a normal system installs them. Its kernel-module and
+      # DKMS hooks fail without systemd and a kernel - not part of the package.
       - name: Install package with its dependencies
-        run: pacman -U --noconfirm /tmp/pkg/dudes-control-center-*.pkg.tar.zst
+        run: |
+          sed -i '/^NoExtract/d' /etc/pacman.conf
+          pacman -U --noconfirm /tmp/pkg/dudes-control-center-*.pkg.tar.zst
 
       - name: Check installed package
         run: bash tests/check_pkg.sh "$(cat VERSION)"
