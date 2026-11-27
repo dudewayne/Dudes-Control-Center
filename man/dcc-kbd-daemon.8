@@ -1,5 +1,5 @@
 .\" SPDX-License-Identifier: GPL-2.0-only
-.TH DCC-KBD-DAEMON 8 2026-11-22 "Dudes Control Center @VERSION@" "System Administration"
+.TH DCC-KBD-DAEMON 8 2026-11-27 "Dudes Control Center @VERSION@" "System Administration"
 .nh
 .SH NAME
 dcc-kbd-daemon \- keyboard backlight daemon of Dudes Control Center
@@ -15,7 +15,31 @@ in
 .I /sys/class/leds
 that the
 .B ite_829x
-kernel module provides.
+kernel module provides, and keyboard backlights of other laptops through
+the kernel's standard LED class:
+.TP
+.B per-key
+16 or more multicolor LEDs (ite_829x): profiles, zones and effects per key.
+.TP
+.B rgb
+1 to 15 multicolor LEDs with
+.I multi_intensity
+(one color, or a few zones that all get the same color); the color order
+comes from
+.IR multi_index .
+.TP
+.B white
+a single-color LED
+.I *::kbd_backlight
+(for example thinkpad_acpi, dell\-laptop): only on/off and brightness.
+Off sets the brightness to 0 and keeps the level for switching on.
+.PP
+STATUS reports the kind as
+.B KBD_TYPE=per\-key|rgb|white|none
+and the kernel driver as
+.BR KBD_DRIVER= .
+Without any keyboard backlight the daemon keeps running and looks again
+every 10 seconds, so a driver loaded later is found.
 .PP
 A keyboard profile has a base color for all keys and any number of named
 zones, each with its own color and set of keys.

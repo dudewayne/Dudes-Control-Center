@@ -89,6 +89,15 @@ dcc-gui --debug      # more output in GUI.log
 7. **Backlight Off** switches the keyboard off until you switch it on again, choose a color or activate a profile, also across reboots. Opening the GUI does not change the backlight.
 8. **Brightness** (0-10) is the keyboard's hardware brightness and works on top of the colors. It is the same setting as the keyboard slider of the desktop (e.g. Linux Mint's battery/power applet), so either one can be used; the level is kept across reboots.
 
+**Other keyboards** (1.44.0): the keyboard daemon also drives keyboard backlights of other laptops through the kernel's standard LED class, and the tab shows only what the keyboard can do. The status line names the kind and the driver.
+
+| Keyboard | Found as | Keyboard Backlight tab |
+|---|---|---|
+| Per-key RGB (`ite_829x`) | 16 or more multicolor LEDs `rgb:kbd_backlight*` | everything above |
+| One color or a few zones (e.g. `asus::kbd_backlight`, `system76_acpi::kbd_backlight`, 3-zone Clevo/TUXEDO) | 1 to 15 multicolor LEDs with `multi_intensity`; the color order comes from `multi_index` | profiles, colors, effects, brightness, off switch; no keyboard picture, zones or LED Wizard; a color goes to all zones |
+| Single color (e.g. `tpacpi::kbd_backlight`, `dell::kbd_backlight`) | a LED `*::kbd_backlight` without colors | only the off switch and the brightness; off sets the brightness to 0 and keeps the level for switching on |
+| None | | a note; the daemon keeps running and looks again every 10 seconds (a driver loaded later is found) |
+
 ### Settings
 
 Three sections:
@@ -240,9 +249,10 @@ Designed for Clevo-based notebooks with EC access at I/O ports 0x62/0x66 and an 
 | NVIDIA GPU | `nvidia-smi`, only while the GPU is awake |
 | Fans (generic, opt-in) | the first hwmon device with `pwmN` and `pwmN_enable` (manual mode 1, automatic 2) that is not a GPU driver; speeds from `fanN_input` |
 | Firmware power profile | `/sys/firmware/acpi/platform_profile` with its `_choices`, set by a CPU profile |
+| Keyboard backlight | LED class devices in `/sys/class/leds`: multicolor `*kbd_backlight*` (`multi_intensity`, `multi_index`) or a single-color `*::kbd_backlight` (`brightness`) |
 | AMD GPU | the `amdgpu` driver's sysfs values (temperature, power, clocks, load, video memory), only while the GPU is awake; the name from libdrm's `amdgpu.ids`. A discrete GPU is shown before an integrated one, an NVIDIA GPU before both |
 
-AMD support, generic fan control and the firmware power profile are built from the kernel's documented interfaces and tested with simulated sysfs trees, not yet on such hardware.
+AMD support, generic fan control, the firmware power profile and keyboards other than the ITE 829x are built from the kernel's documented interfaces and tested with simulated sysfs trees, not yet on such hardware.
 
 ### EC registers
 
@@ -273,7 +283,7 @@ sudo systemctl restart dcc-fan-daemon
 
 **Profiles are not found / defaults are used**: check which file the daemons use (`grep CONFIG /var/log/dudes-control-center/*.log`) and correct `/etc/dudes-control-center/user` if needed, then restart the daemons.
 
-**Keyboard backlight does nothing**: check that the module is loaded (`lsmod | grep ite_829x`, `dkms status ite_829x`) and that `/sys/class/leds/rgb:kbd_backlight*` exists. With Secure Boot the module must be signed with an enrolled MOK key. Per-key colors need the LED wizard mapping.
+**Keyboard backlight does nothing**: the Keyboard Backlight tab's status line and `dcc-kbd-cli` show which keyboard was found. On Clevo laptops check that the module is loaded (`lsmod | grep ite_829x`, `dkms status ite_829x`) and that `/sys/class/leds/rgb:kbd_backlight*` exists. With Secure Boot the module must be signed with an enrolled MOK key. Per-key colors need the LED wizard mapping. On other laptops `ls /sys/class/leds | grep kbd_backlight` shows whether the kernel driver offers a keyboard backlight at all.
 
 **Keys light the wrong LEDs**: check the keyboard layout in the Settings tab, then run the LED wizard again for that layout.
 

@@ -1,5 +1,5 @@
 .\" SPDX-License-Identifier: GPL-2.0-only
-.TH DCC-KBD-CLI 1 2026-11-22 "Dudes Control Center @VERSION@" "User Commands"
+.TH DCC-KBD-CLI 1 2026-11-27 "Dudes Control Center @VERSION@" "User Commands"
 .nh
 .SH NAME
 dcc-kbd-cli \- control the keyboard backlight
@@ -14,8 +14,16 @@ over
 .IR /run/dcc-kbd.sock .
 The user must be root or a member of the group
 .BR dudes-control-center .
-Without options it shows whether the backlight is on, the brightness, the
-number of LEDs and the active profile.
+Without options it shows the kind of keyboard (per-key RGB, RGB with one
+color or a few zones, single color, or none found) with its driver, whether
+the backlight is on, the brightness, the number of LEDs and the active
+profile.
+On a single-color keyboard
+.BR \-\-color ,
+.B \-\-effect
+and
+.B \-\-profile
+are refused.
 .SH OPTIONS
 .TP
 .B \-\-on

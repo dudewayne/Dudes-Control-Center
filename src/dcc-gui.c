@@ -791,6 +791,11 @@ typedef struct {
     GtkWidget *kbd_brightness_scale; /* keyboard hardware brightness 0..max */
     guint kbd_brightness_timer;      /* debounce while the slider is dragged */
     int kbd_brightness_max;
+    /* Kind of keyboard backlight from the daemon (1.44.0): KBD_UI_* */
+    int kbd_kind;
+    GtkWidget *kbd_kind_label;
+    GtkWidget *kbd_profile_frame, *kbd_backlight_frame, *kbd_preset_frame, *kbd_zone_frame;
+    GtkWidget *kbd_wizard_box, *kbd_wizard_sep, *kbd_whole_btn, *kbd_off_note;
     int kbd_off_active; /* 1 when off switch is active */
     int kbd_num_zones;
 
@@ -954,6 +959,9 @@ static void status_show_ec(AppData *app);
 static void settings_update_ec(AppData *app);
 static void settings_update_hw(AppData *app);
 static void label_set_changed(GtkWidget *l, const char *t);
+static void widget_set_shown(GtkWidget *w, gboolean show);
+/* app->kbd_kind (1.44.0); UNKNOWN = older daemon: everything shown */
+enum { KBD_UI_UNKNOWN = 0, KBD_UI_PER_KEY, KBD_UI_RGB, KBD_UI_WHITE, KBD_UI_NONE };
 static void refresh_timers_start(AppData *app);
 static void appearance_refresh(AppData *app);
 static void appearance_apply_theme(int mode);
@@ -5569,11 +5577,72 @@ static int kbd_parse_brightness(const char *response, int *level, int *max) {
 
 static void kbd_show_brightness(AppData *app, int level, int max);
 
+/* "KEY=value" line of a daemon response into out ("" if missing) */
+static void kbd_status_field(const char *response, const char *key, char *out, size_t size) {
+    out[0] = '\0';
+    const char *p = response ? strstr(response, key) : NULL;
+    if (!p) return;
+    p += strlen(key);
+    size_t n = strcspn(p, "\n");
+    if (n >= size) n = size - 1;
+    memcpy(out, p, n);
+    out[n] = '\0';
+}
+
+/* Show only what the keyboard can do (1.44.0): per-key RGB (ite_829x) gets
+ * everything; one color or a few zones no key picture, zones or LED
+ * Wizard; a single-color keyboard only on/off and brightness */
+static void kbd_apply_kind(AppData *app, const char *status) {
+    char type[16], drv[64], leds[16];
+    kbd_status_field(status, "KBD_TYPE=", type, sizeof type);
+    kbd_status_field(status, "KBD_DRIVER=", drv, sizeof drv);
+    kbd_status_field(status, "LED_COUNT=", leds, sizeof leds);
+    int kind = !type[0] ? KBD_UI_UNKNOWN
+             : !strcmp(type, "per-key") ? KBD_UI_PER_KEY
+             : !strcmp(type, "rgb") ? KBD_UI_RGB
+             : !strcmp(type, "white") ? KBD_UI_WHITE : KBD_UI_NONE;
+    int n = atoi(leds);
+    gchar *what = NULL;
+    switch (kind) {
+    case KBD_UI_PER_KEY: what = g_strdup(_("Keyboard: per-key RGB")); break;
+    case KBD_UI_RGB:
+        what = n > 1 ? g_strdup_printf(_("Keyboard: %d color zones, one color for all of them"), n)
+                     : g_strdup(_("Keyboard: one color for the whole keyboard"));
+        break;
+    case KBD_UI_WHITE: what = g_strdup(_("Keyboard: single color, brightness only")); break;
+    case KBD_UI_NONE:
+        what = g_strdup(_("No keyboard backlight found. The keyboard daemon looks again every 10 seconds."));
+        break;
+    default: break;
+    }
+    if (what && drv[0] && kind != KBD_UI_NONE) {
+        gchar *t = g_strdup_printf(_("%s (%s driver)"), what, drv);
+        g_free(what);
+        what = t;
+    }
+    if (what) label_set_changed(app->kbd_kind_label, what);
+    widget_set_shown(app->kbd_kind_label, what != NULL);
+    g_free(what);
+    app->kbd_kind = kind;
+
+    gboolean per_key = kind == KBD_UI_UNKNOWN || kind == KBD_UI_PER_KEY;
+    gboolean colors = per_key || kind == KBD_UI_RGB;
+    widget_set_shown(app->kbd_profile_frame, colors);
+    widget_set_shown(app->kbd_preset_frame, colors);
+    widget_set_shown(app->kbd_off_note, colors);
+    widget_set_shown(app->kbd_backlight_frame, kind != KBD_UI_NONE);
+    widget_set_shown(app->kbd_zone_frame, per_key);
+    widget_set_shown(app->kbd_wizard_box, per_key);
+    widget_set_shown(app->kbd_wizard_sep, per_key);
+    widget_set_shown(app->kbd_whole_btn, per_key);
+}
+
 /* Show the daemon's real power state on the "Backlight Off" switch
  * (without sending anything back) */
 static void kbd_sync_power_switch(AppData *app) {
     if (!app->kbd_off_switch || !kbd_ensure_connected(app)) return;
     const char *status = send_keyboard_command(app, "STATUS");
+    if (status && !strncmp(status, "STATUS OK", 9)) kbd_apply_kind(app, status);
     int level, max;
     if (kbd_parse_brightness(status, &level, &max) == 0) kbd_show_brightness(app, level, max);
     int is_on = kbd_parse_is_on(status);
@@ -9306,6 +9375,10 @@ static GtkWidget *create_keyboard_page(AppData *app) {
     gtk_label_set_xalign(GTK_LABEL(app->kbd_status_label), 0.0);
     gtk_widget_set_hexpand(app->kbd_status_label, TRUE);
     gtk_box_pack_start(GTK_BOX(status_box), app->kbd_status_label, FALSE, FALSE, 0);
+    app->kbd_kind_label = gtk_label_new("");
+    gtk_label_set_xalign(GTK_LABEL(app->kbd_kind_label), 0.0);
+    gtk_label_set_line_wrap(GTK_LABEL(app->kbd_kind_label), TRUE);
+    gtk_box_pack_start(GTK_BOX(status_box), app->kbd_kind_label, FALSE, FALSE, 0);
 
     GtkWidget *status_frame = gtk_frame_new(_("Keyboard Daemon Status"));
     gtk_container_set_border_width(GTK_CONTAINER(status_frame), 6);
@@ -9313,7 +9386,7 @@ static GtkWidget *create_keyboard_page(AppData *app) {
     gtk_box_pack_start(GTK_BOX(vbox), status_frame, FALSE, FALSE, 0);
 
     /* --- Profile management section --- */
-    GtkWidget *profile_frame = gtk_frame_new(_("Keyboard Profiles"));
+    GtkWidget *profile_frame = app->kbd_profile_frame = gtk_frame_new(_("Keyboard Profiles"));
     gtk_container_set_border_width(GTK_CONTAINER(profile_frame), 6);
     GtkWidget *profile_vbox = gtk_box_new(GTK_ORIENTATION_VERTICAL, 6);
 
@@ -9366,7 +9439,7 @@ static GtkWidget *create_keyboard_page(AppData *app) {
     gtk_box_pack_start(GTK_BOX(vbox), profile_frame, FALSE, FALSE, 0);
 
     /* --- Off Switch section --- */
-    GtkWidget *off_switch_frame = gtk_frame_new(_("Backlight"));
+    GtkWidget *off_switch_frame = app->kbd_backlight_frame = gtk_frame_new(_("Backlight"));
     gtk_container_set_border_width(GTK_CONTAINER(off_switch_frame), 6);
     GtkWidget *off_switch_vbox = gtk_box_new(GTK_ORIENTATION_VERTICAL, 6);
 
@@ -9398,7 +9471,7 @@ static GtkWidget *create_keyboard_page(AppData *app) {
         gtk_box_pack_start(GTK_BOX(off_switch_vbox), row, FALSE, FALSE, 0);
     }
 
-    GtkWidget *off_switch_note = gtk_label_new(_("When ON, overrides all profile settings until disabled."));
+    GtkWidget *off_switch_note = app->kbd_off_note = gtk_label_new(_("When ON, overrides all profile settings until disabled."));
     gtk_widget_set_name(off_switch_note, "kbd-off-switch-note");
     gtk_label_set_xalign(GTK_LABEL(off_switch_note), 0.0);
     gtk_box_pack_start(GTK_BOX(off_switch_vbox), off_switch_note, FALSE, FALSE, 0);
@@ -9407,8 +9480,9 @@ static GtkWidget *create_keyboard_page(AppData *app) {
      * it is the key-to-LED mapping, not part of the zone editor) */
     GtkWidget *backlight_row = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 12);
     gtk_box_pack_start(GTK_BOX(backlight_row), off_switch_vbox, FALSE, FALSE, 0);
-    gtk_box_pack_start(GTK_BOX(backlight_row), gtk_separator_new(GTK_ORIENTATION_VERTICAL), FALSE, FALSE, 0);
-    GtkWidget *wizard_box = gtk_box_new(GTK_ORIENTATION_VERTICAL, 6);
+    app->kbd_wizard_sep = gtk_separator_new(GTK_ORIENTATION_VERTICAL);
+    gtk_box_pack_start(GTK_BOX(backlight_row), app->kbd_wizard_sep, FALSE, FALSE, 0);
+    GtkWidget *wizard_box = app->kbd_wizard_box = gtk_box_new(GTK_ORIENTATION_VERTICAL, 6);
     {
         GtkWidget *wizard_title = gtk_label_new(NULL);
         gtk_label_set_markup(GTK_LABEL(wizard_title), _("<b>LED Wizard</b>"));
@@ -9426,7 +9500,7 @@ static GtkWidget *create_keyboard_page(AppData *app) {
     gtk_box_pack_start(GTK_BOX(vbox), off_switch_frame, FALSE, FALSE, 0);
 
     /* --- Preset Colors section --- */
-    GtkWidget *preset_frame = gtk_frame_new(_("Preset Colors"));
+    GtkWidget *preset_frame = app->kbd_preset_frame = gtk_frame_new(_("Preset Colors"));
     gtk_container_set_border_width(GTK_CONTAINER(preset_frame), 6);
     GtkWidget *preset_vbox = gtk_box_new(GTK_ORIENTATION_VERTICAL, 6);
 
@@ -9494,7 +9568,7 @@ static GtkWidget *create_keyboard_page(AppData *app) {
         g_signal_connect(app->kbd_fx_speed, "value-changed", G_CALLBACK(on_kbd_fx_changed), app);
         g_signal_connect(app->kbd_fx_dir, "changed", G_CALLBACK(on_kbd_fx_changed), app);
 
-        GtkWidget *whole_btn = gtk_button_new_with_label(_("Whole Keyboard"));
+        GtkWidget *whole_btn = app->kbd_whole_btn = gtk_button_new_with_label(_("Whole Keyboard"));
         gtk_widget_set_tooltip_text(whole_btn, _("Stop editing a zone: colors go to the whole keyboard (base color)"));
         g_signal_connect(whole_btn, "clicked", G_CALLBACK(on_kbd_whole_keyboard_clicked), app);
         gtk_box_pack_end(GTK_BOX(preset_hbox), whole_btn, FALSE, FALSE, 0);
@@ -9504,7 +9578,7 @@ static GtkWidget *create_keyboard_page(AppData *app) {
     gtk_box_pack_start(GTK_BOX(vbox), preset_frame, FALSE, FALSE, 0);
 
     /* --- Visual Zone Editor section --- */
-    GtkWidget *zone_frame = gtk_frame_new(_("Visual Zone Editor"));
+    GtkWidget *zone_frame = app->kbd_zone_frame = gtk_frame_new(_("Visual Zone Editor"));
     gtk_container_set_border_width(GTK_CONTAINER(zone_frame), 6);
     GtkWidget *zone_vbox = gtk_box_new(GTK_ORIENTATION_VERTICAL, 6);
 
@@ -9608,6 +9682,17 @@ static GtkWidget *create_keyboard_page(AppData *app) {
 
     gtk_container_add(GTK_CONTAINER(zone_frame), zone_vbox);
     gtk_box_pack_start(GTK_BOX(vbox), zone_frame, FALSE, FALSE, 0);
+
+    /* Parts hidden for keyboards without per-key colors (1.44.0): shown now,
+     * then left alone by the window's show_all */
+    GtkWidget *hideable[] = { app->kbd_profile_frame, app->kbd_backlight_frame, app->kbd_preset_frame,
+                              app->kbd_zone_frame, app->kbd_wizard_box, app->kbd_wizard_sep,
+                              app->kbd_whole_btn, app->kbd_off_note, app->kbd_kind_label };
+    for (size_t i = 0; i < G_N_ELEMENTS(hideable); i++) {
+        gtk_widget_show_all(hideable[i]);
+        gtk_widget_set_no_show_all(hideable[i], TRUE);
+    }
+    gtk_widget_hide(app->kbd_kind_label);   /* until the daemon tells the kind */
 
     return vbox;
 }
@@ -10956,7 +11041,7 @@ static GtkWidget* create_tray_menu(AppData *app) {
     /* Keyboard Profiles submenu (1.26.0; alphabetical: after Fan). Asks the
      * daemon only over an existing connection: a reconnect from here would
      * rebuild this menu while it is being built. */
-    if (app->kbd_connected && app->kbd_socket_fd >= 0) {
+    if (app->kbd_connected && app->kbd_socket_fd >= 0 && app->kbd_kind != KBD_UI_WHITE && app->kbd_kind != KBD_UI_NONE) {
         const char *r = send_keyboard_command_once(app, "LIST_PROFILES");
         if (r && strncmp(r, "PROFILES_START", 14) == 0) {
             GtkWidget *kbd_item = gtk_menu_item_new_with_label(_("Keyboard Profiles"));

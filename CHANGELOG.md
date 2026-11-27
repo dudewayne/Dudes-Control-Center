@@ -6,6 +6,22 @@ Programs and services were named `dudes-control-center-*` before 1.19.0 (for exa
 
 ## [Unreleased]
 
+## [1.44.0] - 2026-11-27
+
+### Added
+- **Keyboards of other laptops** through the kernel's standard LED class. The keyboard daemon tells three kinds apart and STATUS reports them as `KBD_TYPE=per-key|rgb|white|none` with `KBD_DRIVER=`:
+  - **per-key RGB** (`ite_829x`, 16 or more multicolor LEDs): unchanged;
+  - **one color or a few zones** (1 to 15 multicolor LEDs, e.g. `asus::kbd_backlight`, `system76_acpi::kbd_backlight`, 3-zone keyboards): profiles, colors, effects, brightness and the off switch; the color order is read from `multi_index`;
+  - **single color** (`*::kbd_backlight` without colors, e.g. `thinkpad_acpi`, `dell-laptop`): on/off and brightness; off sets the brightness to 0 and keeps the level for switching on, also across restarts; switching it off or on with the Fn key is noticed.
+- The Keyboard Backlight tab shows the kind and driver and only the parts the keyboard can use: no keyboard picture, zones or LED Wizard without per-key LEDs; only the off switch and brightness for a single-color keyboard. The tray menu has no keyboard profiles for a single-color keyboard.
+- `dcc-kbd-cli` shows the kind of keyboard and refuses `--color`, `--effect` and `--profile` on a single-color keyboard.
+- Tests: one-color, zone, single-color and missing keyboards in the keyboard daemon and CLI (channel order, on/off, kept level, Fn key, a backlight that appears later), and the Keyboard tab for each kind.
+
+### Changed
+- Without any keyboard backlight the keyboard daemon keeps running and looks again every 10 seconds instead of exiting; systemd used to restart it every 3 seconds, which filled the log on laptops without one.
+- The keyboard daemon's log names the kind of keyboard and the driver in one line instead of one line per LED (those are at DEBUG level now).
+- Colors are written in the channel order of `multi_index`; a driver that rejects values above its `max_brightness` gets them scaled.
+
 ## [1.43.0] - 2026-11-27
 
 ### Added
@@ -1067,7 +1083,8 @@ Programs and services were named `dudes-control-center-*` before 1.19.0 (for exa
 - Unix socket IPC between GUI and daemon
 - Watchdog timer and fail-safe mode in daemon
 
-[Unreleased]: https://github.com/dudewayne/Dudes-Control-Center/compare/v1.43.0...HEAD
+[Unreleased]: https://github.com/dudewayne/Dudes-Control-Center/compare/v1.44.0...HEAD
+[1.44.0]: https://github.com/dudewayne/Dudes-Control-Center/compare/v1.43.0...v1.44.0
 [1.43.0]: https://github.com/dudewayne/Dudes-Control-Center/compare/v1.42.0...v1.43.0
 [1.42.0]: https://github.com/dudewayne/Dudes-Control-Center/compare/v1.41.0...v1.42.0
 [1.41.0]: https://github.com/dudewayne/Dudes-Control-Center/compare/v1.40.1...v1.41.0

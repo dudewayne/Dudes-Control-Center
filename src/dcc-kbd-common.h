@@ -78,7 +78,21 @@ typedef struct {
     char path[KBD_LED_PATH_MAX];
     uint8_t r, g, b;          /* Current color */
     int max_brightness;       /* Maximum brightness value */
+    /* multi_intensity channels (1.44.0): position of red, green, blue in
+     * multi_index ("red green blue" if the file is missing), channel count,
+     * and the value range (0 = raw 0-255 like ite_829x, else 0..scale) */
+    int ch[3];
+    int nch;
+    int scale;
 } KbdLedDevice;
+
+/* --- Kind of keyboard backlight (1.44.0) ---
+ * per-key: many multicolor LEDs, one per key (ite_829x);
+ * rgb:     one or a few multicolor LEDs (one color, or a few zones);
+ * white:   one single-color LED class device "*::kbd_backlight"
+ *          (brightness only, e.g. thinkpad_acpi, dell-laptop, asus-wmi) */
+typedef enum { KBD_KIND_NONE = 0, KBD_KIND_PER_KEY, KBD_KIND_RGB, KBD_KIND_WHITE } KbdKind;
+#define KBD_PER_KEY_MIN_LEDS 16     /* fewer multicolor LEDs = zones, not keys */
 
 /* --- Global LED state --- */
 typedef struct {
@@ -88,6 +102,8 @@ typedef struct {
     KbdLedMode mode;                    /* Current lighting mode */
     int is_on;                          /* Overall power state */
     uint8_t brightness;                 /* Global brightness level (0-255) */
+    int kind;                           /* KbdKind (1.44.0) */
+    char driver[64];                    /* kernel driver of the LEDs ("" unknown) */
 } KbdLedState;
 
 /* --- Zone structure --- */
@@ -113,12 +129,17 @@ typedef struct {
 /* --- Function prototypes for LED access --- */
 int kbd_led_init(void);                           /* Initialize LED subsystem */
 void kbd_led_cleanup(void);                       /* Cleanup LED subsystem */
+int kbd_led_rescan(void);                         /* none found at start: look again (0 = found) */
+#define KBD_RESCAN_SEC 10
 int set_led_color(const char *led_path, uint8_t r, uint8_t g, uint8_t b, int max_brightness);
 int set_all_leds_color(uint8_t r, uint8_t g, uint8_t b);
 int set_all_leds_with_brightness(uint8_t r, uint8_t g, uint8_t b);
 int set_all_zones_color(uint8_t r, uint8_t g, uint8_t b);
 int turn_off_all_leds(void);
 int get_led_count(void);
+int kbd_led_kind(void);                         /* KbdKind */
+const char *kbd_kind_name(int kind);            /* "per-key", "rgb", "white", "none" */
+const char *kbd_led_driver(void);               /* "" if unknown */
 const KbdLedState* kbd_led_get_state(void);
 void kbd_led_set_mode(KbdLedMode mode);
 void kbd_led_set_power(int is_on);              /* also stores the off state on disk */

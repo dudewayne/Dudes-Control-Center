@@ -78,6 +78,7 @@ try:
             idx[int(parts[1])] = parts[2]
     check(len(idx) == NLEDS, f"daemon found the {NLEDS} keyboard LEDs and ignored other LEDs (found {len(idx)})")
     check(all(num(idx[i]) == i for i in range(NLEDS)), "LEDs numbered by name: LED N = rgb:kbd_backlight_N (v1.18.7)")
+    check("KBD_TYPE=per-key\n" in ask(s, "STATUS"), "120 multicolor LEDs -> STATUS KBD_TYPE=per-key (1.44.0)")
     csv = open("cfg/keyboard_led_mapping.csv").read()
     check("numbering=name" in csv and "\n7;3;\n" in csv and "\n42;50;\n" in csv and "\n100;;\n" in csv,
           "LED wizard mapping converted once to the name numbering")
@@ -290,8 +291,9 @@ try:
             r = subprocess.run([cli, *args], capture_output=True, text=True, timeout=10)
             return r.returncode, r.stdout + r.stderr
         rc, out = run()
-        check(rc == 0 and "Backlight:      on" in out and "Active profile: Start" in out and "LEDs:           120" in out,
-              "CLI: status shows backlight, active profile and LED count")
+        check(rc == 0 and "Backlight:      on" in out and "Active profile: Start" in out and "LEDs:           120" in out
+              and "Keyboard:       per-key RGB" in out,
+              "CLI: status shows keyboard kind, backlight, active profile and LED count")
         rc, out = run("--brightness", "3")
         check(rc == 0 and "Brightness 3 / 10" in out and bright(0) == 3, "CLI: --brightness sets the hardware brightness")
         rc, out = run("--color", "orange")
@@ -394,5 +396,152 @@ try:
 finally:
     if proc.poll() is None:
         proc.kill()
+
+
+# --- Other keyboards through the standard LED class (1.44.0) ---
+def fresh(name):
+    d = os.path.join(base, name)
+    os.makedirs(d + "/logs", exist_ok=True)
+    os.makedirs(d + "/cfg", exist_ok=True)
+    os.chdir(d)
+    return d
+
+
+def stop(p, sock):
+    sock.close()
+    p.send_signal(signal.SIGTERM)
+    p.wait(timeout=5)
+    return p.returncode
+
+
+def rd(path):
+    return open(path).read().strip()
+
+
+def status(sock):
+    return dict(l.split("=", 1) for l in ask(sock, "STATUS").splitlines() if "=" in l)
+
+
+# one multicolor LED (e.g. asus::kbd_backlight), channels in another order
+fresh("rgb")
+wr("leds/asus::kbd_backlight/multi_index", "green red blue\n")
+wr("leds/asus::kbd_backlight/multi_intensity", "0 0 0\n")
+wr("leds/asus::kbd_backlight/max_brightness", "3\n")
+wr("leds/asus::kbd_backlight/brightness", "1\n")
+wr("leds/input3::capslock/brightness", "0\n")
+proc, s = start()
+try:
+    st = status(s)
+    check(st.get("KBD_TYPE") == "rgb" and st.get("LED_COUNT") == "1",
+          f"one multicolor LED -> KBD_TYPE=rgb, LED_COUNT=1 ({st.get('KBD_TYPE')}, {st.get('LED_COUNT')})")
+    check(rd("leds/asus::kbd_backlight/multi_intensity") == "255 255 255" and rd("leds/asus::kbd_backlight/brightness") == "3",
+          "no profile -> white at full brightness at start")
+    ask(s, "SET_KEYS_COLOR::255,0,0::all")
+    check(rd("leds/asus::kbd_backlight/multi_intensity") == "0 255 0",
+          "colors written in the order of multi_index (green red blue), 0-255")
+    ask(s, "SET_BRIGHTNESS 2")
+    check(rd("leds/asus::kbd_backlight/brightness") == "2" and st.get("BRIGHTNESS_MAX") == "3",
+          "brightness 0..max_brightness of the LED")
+    ask(s, "TURN_OFF")
+    check(rd("leds/asus::kbd_backlight/multi_intensity") == "0 0 0", "TURN_OFF: all colors 0")
+    ask(s, "TURN_ON")
+    check(rd("leds/asus::kbd_backlight/multi_intensity") == "0 255 0", "TURN_ON: the color comes back")
+    check(stop(proc, s) == 0, "rgb keyboard: clean exit")
+finally:
+    if proc.poll() is None:
+        proc.kill()
+
+# a few zones (3 multicolor LEDs) are not a per-key keyboard
+fresh("zones")
+for n in ["rgb:kbd_backlight", "rgb:kbd_backlight_1", "rgb:kbd_backlight_2"]:
+    wr(f"leds/{n}/multi_intensity", "0 0 0\n")
+    wr(f"leds/{n}/max_brightness", "255\n")
+    wr(f"leds/{n}/brightness", "255\n")
+proc, s = start()
+try:
+    st = status(s)
+    check(st.get("KBD_TYPE") == "rgb" and st.get("LED_COUNT") == "3", "three color zones -> KBD_TYPE=rgb with 3 LEDs")
+    ask(s, "SET_KEYS_COLOR::0,0,255::all")
+    check(all(rd(f"leds/{n}/multi_intensity") == "0 0 255" for n in ["rgb:kbd_backlight", "rgb:kbd_backlight_2"]),
+          "a color for the whole keyboard reaches every zone")
+    stop(proc, s)
+finally:
+    if proc.poll() is None:
+        proc.kill()
+
+# single-color keyboard backlight (e.g. thinkpad_acpi): brightness only
+fresh("white")
+wr("leds/tpacpi::kbd_backlight/brightness", "0\n")
+wr("leds/tpacpi::kbd_backlight/max_brightness", "2\n")
+wr("leds/tpacpi::thinklight/brightness", "0\n")
+wr("leds/tpacpi::thinklight/max_brightness", "1\n")
+json.dump({"version": "1.0", "keyboard_profiles": {"active_profile_index": 0, "profiles": [
+    {"name": "Empty", "zones": []}]}}, open("cfg/profiles.json", "w"))
+WB = "leds/tpacpi::kbd_backlight/brightness"
+proc, s = start()
+try:
+    st = status(s)
+    check(st.get("KBD_TYPE") == "white" and st.get("LED_COUNT") == "1" and st.get("BRIGHTNESS_MAX") == "2",
+          f"single-color *::kbd_backlight -> KBD_TYPE=white ({st.get('KBD_TYPE')})")
+    check(rd(WB) == "2" and st.get("IS_ON") == "1",
+          "white keyboard on at full brightness at start, also with a profile without colors")
+    ask(s, "SET_BRIGHTNESS 1")
+    check(rd(WB) == "1" and rd("state/kbd_brightness") == "1", "SET_BRIGHTNESS sets and remembers the level")
+    ask(s, "TURN_OFF")
+    st = status(s)
+    check(rd(WB) == "0" and st.get("IS_ON") == "0" and rd("state/kbd_brightness") == "1",
+          "TURN_OFF: brightness 0, the level is kept")
+    ask(s, "TURN_ON")
+    check(rd(WB) == "1" and status(s).get("IS_ON") == "1", "TURN_ON: back to the kept level")
+    ask(s, "SET_KEYS_COLOR::255,0,0::all")
+    check(rd(WB) == "1", "a color changes nothing on a white keyboard")
+    wr(WB, "0\n")                     # Fn key or desktop switched it off
+    time.sleep(1.6)
+    check(status(s).get("IS_ON") == "0" and rd("state/kbd_brightness") == "1",
+          "switched off outside the daemon: reported as off, level kept")
+    ask(s, "SET_BRIGHTNESS 2")
+    check(rd(WB) == "2" and status(s).get("IS_ON") == "1", "a brightness above 0 switches it on again")
+    ask(s, "TURN_OFF")
+    stop(proc, s)
+    proc, s = start()
+    time.sleep(0.3)
+    check(rd(WB) == "0" and status(s).get("IS_ON") == "0", "switched off -> still off after a restart")
+    ask(s, "TURN_ON")
+    check(rd(WB) == "2", "TURN_ON after the restart: the remembered level")
+    if cli:
+        r = subprocess.run([cli], capture_output=True, text=True, timeout=10)
+        check(r.returncode == 0 and "Keyboard:       single color (brightness only)" in r.stdout
+              and "Brightness:     2 / 2" in r.stdout, "CLI: status of a white keyboard")
+        r = subprocess.run([cli, "--color", "red"], capture_output=True, text=True, timeout=10)
+        check(r.returncode == 1 and "single color" in r.stderr, "CLI: --color refused on a white keyboard")
+        r = subprocess.run([cli, "--off"], capture_output=True, text=True, timeout=10)
+        check(r.returncode == 0 and rd(WB) == "0", "CLI: --off on a white keyboard")
+    stop(proc, s)
+finally:
+    if proc.poll() is None:
+        proc.kill()
+
+# no keyboard backlight at all: the daemon keeps running and answers
+fresh("none")
+wr("leds/input3::capslock/brightness", "0\n")
+proc, s = start()
+try:
+    st = status(s)
+    check(proc.poll() is None and st.get("KBD_TYPE") == "none" and st.get("LED_COUNT") == "0",
+          "no keyboard backlight: the daemon keeps running, KBD_TYPE=none")
+    check(ask(s, "SET_KEYS_COLOR::255,0,0::all").startswith("ERROR"), "colors are refused without LEDs")
+    wr("leds/dell::kbd_backlight/brightness", "0\n")      # driver loaded later
+    wr("leds/dell::kbd_backlight/max_brightness", "3\n")
+    deadline = time.time() + 25
+    while time.time() < deadline and status(s).get("KBD_TYPE") != "white":
+        time.sleep(1)
+    st = status(s)
+    check(st.get("KBD_TYPE") == "white" and rd("leds/dell::kbd_backlight/brightness") == "3",
+          "a keyboard backlight that appears later is found and switched on")
+    check(stop(proc, s) == 0, "clean exit")
+finally:
+    if proc.poll() is None:
+        proc.kill()
+os.chdir(base)
 
 sys.exit(check.finish())

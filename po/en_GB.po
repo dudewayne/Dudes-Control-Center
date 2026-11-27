@@ -33,6 +33,16 @@ msgid "Delete zone '%s'? Its keys get the base color."
 msgstr "Delete zone '%s'? Its keys get the base colour."
 
 #, c-format
+msgid "Keyboard: %d color zones, one color for all of them"
+msgstr "Keyboard: %d colour zones, one colour for all of them"
+
+msgid "Keyboard: one color for the whole keyboard"
+msgstr "Keyboard: one colour for the whole keyboard"
+
+msgid "Keyboard: single color, brightness only"
+msgstr "Keyboard: single colour, brightness only"
+
+#, c-format
 msgid "'%s' has the base color - select or create a zone to color single keys"
 msgstr "'%s' has the base colour - select or create a zone to colour single keys"
 

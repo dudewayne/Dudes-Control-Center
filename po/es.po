@@ -460,6 +460,26 @@ msgstr "Asistente de LED: haga clic en la tecla del LED %d / 119 (ahora: %s)"
 msgid "LED Wizard completed!"
 msgstr "¡Asistente de LED completado!"
 
+msgid "Keyboard: per-key RGB"
+msgstr "Teclado: RGB por tecla"
+
+#, c-format
+msgid "Keyboard: %d color zones, one color for all of them"
+msgstr "Teclado: %d zonas de color, un color para todas"
+
+msgid "Keyboard: one color for the whole keyboard"
+msgstr "Teclado: un color para todo el teclado"
+
+msgid "Keyboard: single color, brightness only"
+msgstr "Teclado: un solo color, solo brillo"
+
+msgid "No keyboard backlight found. The keyboard daemon looks again every 10 seconds."
+msgstr "No se encontró retroiluminación del teclado. El daemon del teclado vuelve a buscar cada 10 segundos."
+
+#, c-format
+msgid "%s (%s driver)"
+msgstr "%s (controlador %s)"
+
 msgid "Keyboard schematic loading..."
 msgstr "Cargando el esquema del teclado..."
 

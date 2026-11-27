@@ -456,6 +456,26 @@ msgstr "LED-Assistent: Taste für LED %d / 119 anklicken (jetzt: %s)"
 msgid "LED Wizard completed!"
 msgstr "LED-Assistent abgeschlossen!"
 
+msgid "Keyboard: per-key RGB"
+msgstr "Tastatur: RGB pro Taste"
+
+#, c-format
+msgid "Keyboard: %d color zones, one color for all of them"
+msgstr "Tastatur: %d Farbzonen, eine Farbe für alle"
+
+msgid "Keyboard: one color for the whole keyboard"
+msgstr "Tastatur: eine Farbe für die ganze Tastatur"
+
+msgid "Keyboard: single color, brightness only"
+msgstr "Tastatur: einfarbig, nur Helligkeit"
+
+msgid "No keyboard backlight found. The keyboard daemon looks again every 10 seconds."
+msgstr "Keine Tastaturbeleuchtung gefunden. Der Tastatur-Daemon sucht alle 10 Sekunden erneut."
+
+#, c-format
+msgid "%s (%s driver)"
+msgstr "%s (Treiber %s)"
+
 msgid "Keyboard schematic loading..."
 msgstr "Tastaturbild wird geladen …"
 

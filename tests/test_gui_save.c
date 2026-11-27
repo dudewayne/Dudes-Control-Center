@@ -935,6 +935,41 @@ int main(int argc, char **argv) {
               !strcmp(gtk_label_get_text(GTK_LABEL(sa.settings_ec_state)), "Not needed: generic fan control in use"),
               "O: generic fan control in use: both rows say so");
         gtk_widget_destroy(sa.window);
+
+        /* Keyboard tab per kind of keyboard backlight (1.44.0) */
+        static AppData ka;
+        ka.socket_fd = ka.cpu_socket_fd = ka.kbd_socket_fd = -1;
+        GtkWidget *kw = gtk_offscreen_window_new();
+        gtk_container_add(GTK_CONTAINER(kw), create_keyboard_page(&ka));
+        gtk_widget_show_all(kw);
+        CHECK(gtk_widget_get_visible(ka.kbd_zone_frame) && gtk_widget_get_visible(ka.kbd_wizard_box) &&
+              !gtk_widget_get_visible(ka.kbd_kind_label), "O: keyboard: before the daemon answers everything is shown");
+        kbd_apply_kind(&ka, "STATUS OK\nLED_COUNT=1\nKBD_TYPE=rgb\nKBD_DRIVER=asus-nb-wmi\n");
+        gtk_widget_show_all(kw);                      /* showing the window again must not undo it */
+        CHECK(ka.kbd_kind == KBD_UI_RGB && gtk_widget_get_visible(ka.kbd_preset_frame) &&
+              gtk_widget_get_visible(ka.kbd_profile_frame) && !gtk_widget_get_visible(ka.kbd_zone_frame) &&
+              !gtk_widget_get_visible(ka.kbd_wizard_box) && !gtk_widget_get_visible(ka.kbd_whole_btn) &&
+              !strcmp(gtk_label_get_text(GTK_LABEL(ka.kbd_kind_label)),
+                      "Keyboard: one color for the whole keyboard (asus-nb-wmi driver)"),
+              "O: keyboard: one color -> profiles and colors, no key picture, zones or LED Wizard");
+        kbd_apply_kind(&ka, "STATUS OK\nLED_COUNT=3\nKBD_TYPE=rgb\nKBD_DRIVER=\n");
+        CHECK(!strcmp(gtk_label_get_text(GTK_LABEL(ka.kbd_kind_label)), "Keyboard: 3 color zones, one color for all of them"),
+              "O: keyboard: a few zones without a driver name");
+        kbd_apply_kind(&ka, "STATUS OK\nLED_COUNT=1\nKBD_TYPE=white\nKBD_DRIVER=thinkpad_acpi\n");
+        gtk_widget_show_all(kw);
+        CHECK(ka.kbd_kind == KBD_UI_WHITE && gtk_widget_get_visible(ka.kbd_backlight_frame) &&
+              !gtk_widget_get_visible(ka.kbd_preset_frame) && !gtk_widget_get_visible(ka.kbd_profile_frame) &&
+              !gtk_widget_get_visible(ka.kbd_zone_frame) && !gtk_widget_get_visible(ka.kbd_off_note),
+              "O: keyboard: single color -> only on/off and brightness");
+        kbd_apply_kind(&ka, "STATUS OK\nLED_COUNT=0\nKBD_TYPE=none\nKBD_DRIVER=\n");
+        CHECK(!gtk_widget_get_visible(ka.kbd_backlight_frame) && gtk_widget_get_visible(ka.kbd_kind_label),
+              "O: keyboard: none found -> only the note");
+        kbd_apply_kind(&ka, "STATUS OK\nLED_COUNT=120\nKBD_TYPE=per-key\nKBD_DRIVER=ite_829x\n");
+        CHECK(ka.kbd_kind == KBD_UI_PER_KEY && gtk_widget_get_visible(ka.kbd_zone_frame) &&
+              gtk_widget_get_visible(ka.kbd_wizard_box) && gtk_widget_get_visible(ka.kbd_whole_btn) &&
+              gtk_widget_get_visible(ka.kbd_backlight_frame),
+              "O: keyboard: per-key RGB -> everything again");
+        gtk_widget_destroy(kw);
     } else {
         printf("SKIP  O: no display\n");
     }

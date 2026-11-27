@@ -188,7 +188,19 @@ static int cmd_status(int fd) {
     field(reply, "LED_COUNT=", leds, sizeof leds);
     field(reply, "BRIGHTNESS=", br, sizeof br);
     field(reply, "BRIGHTNESS_MAX=", brmax, sizeof brmax);
+    char kind[16] = "", drv[64] = "";
+    field(reply, "KBD_TYPE=", kind, sizeof kind);
+    field(reply, "KBD_DRIVER=", drv, sizeof drv);
     printf("=== Dudes Control Center - Keyboard Backlight ===\n");
+    if (kind[0]) {
+        const char *k = !strcmp(kind, "per-key") ? "per-key RGB"
+                      : !strcmp(kind, "rgb") ? (strcmp(leds, "1") ? "RGB zones" : "RGB, one color")
+                      : !strcmp(kind, "white") ? "single color (brightness only)"
+                      : "none found";
+        if (drv[0]) printf("Keyboard:       %s (%s driver)\n", k, drv);
+        else printf("Keyboard:       %s\n", k);
+        if (!strcmp(kind, "none")) return EXIT_SUCCESS;
+    }
     printf("Backlight:      %s\n", !strcmp(on, "1") ? "on" : "off");
     if (br[0] && strcmp(br, "-1")) printf("Brightness:     %s / %s\n", br, brmax[0] ? brmax : "?");
     else printf("Brightness:     unknown\n");
@@ -308,6 +320,19 @@ int main(int argc, char **argv) {
     int rc = EXIT_SUCCESS;
     static char reply[REPLY_MAX];
     char cmd[512];
+
+    /* colors, effects and profiles need a color keyboard (1.44.0) */
+    if (opt && (!strcmp(opt, "--color") || !strcmp(opt, "--effect") || !strcmp(opt, "--profile"))) {
+        char kind[16] = "";
+        if (ask(fd, "STATUS", reply, sizeof reply) == 0) field(reply, "KBD_TYPE=", kind, sizeof kind);
+        if (!strcmp(kind, "white") || !strcmp(kind, "none")) {
+            fprintf(stderr, "Error: %s\n", !strcmp(kind, "white")
+                    ? "this keyboard backlight has a single color - use --on, --off or --brightness"
+                    : "no keyboard backlight found");
+            close(fd);
+            return EXIT_FAILURE;
+        }
+    }
 
     if (!opt) {
         rc = cmd_status(fd);

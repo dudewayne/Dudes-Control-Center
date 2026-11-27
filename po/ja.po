@@ -457,6 +457,26 @@ msgstr "LED ウィザード: LED %d / 119 のキーをクリック (現在: %s)"
 msgid "LED Wizard completed!"
 msgstr "LED ウィザードが完了しました!"
 
+msgid "Keyboard: per-key RGB"
+msgstr "キーボード: キーごとの RGB"
+
+#, c-format
+msgid "Keyboard: %d color zones, one color for all of them"
+msgstr "キーボード: %d 個のカラーゾーン、すべて同じ色"
+
+msgid "Keyboard: one color for the whole keyboard"
+msgstr "キーボード: キーボード全体で 1 色"
+
+msgid "Keyboard: single color, brightness only"
+msgstr "キーボード: 単色、明るさのみ"
+
+msgid "No keyboard backlight found. The keyboard daemon looks again every 10 seconds."
+msgstr "キーボードバックライトが見つかりません。キーボードデーモンは 10 秒ごとに再検索します。"
+
+#, c-format
+msgid "%s (%s driver)"
+msgstr "%s (%s ドライバー)"
+
 msgid "Keyboard schematic loading..."
 msgstr "キーボード図を読み込み中..."
 

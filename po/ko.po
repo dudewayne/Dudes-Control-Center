@@ -460,6 +460,26 @@ msgstr "LED 마법사: LED %d / 119의 키를 클릭 (현재: %s)"
 msgid "LED Wizard completed!"
 msgstr "LED 마법사 완료!"
 
+msgid "Keyboard: per-key RGB"
+msgstr "키보드: 키별 RGB"
+
+#, c-format
+msgid "Keyboard: %d color zones, one color for all of them"
+msgstr "키보드: 색상 영역 %d개, 모두 같은 색"
+
+msgid "Keyboard: one color for the whole keyboard"
+msgstr "키보드: 키보드 전체에 한 가지 색"
+
+msgid "Keyboard: single color, brightness only"
+msgstr "키보드: 단색, 밝기만"
+
+msgid "No keyboard backlight found. The keyboard daemon looks again every 10 seconds."
+msgstr "키보드 백라이트를 찾지 못했습니다. 키보드 데몬이 10초마다 다시 찾습니다."
+
+#, c-format
+msgid "%s (%s driver)"
+msgstr "%s (%s 드라이버)"
+
 msgid "Keyboard schematic loading..."
 msgstr "키보드 그림 불러오는 중..."
 

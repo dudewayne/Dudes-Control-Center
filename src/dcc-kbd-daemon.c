@@ -190,13 +190,16 @@ static int handle_command(const char *cmd, char *response, size_t resp_size) {
             "IS_ON=%d\n"
             "BRIGHTNESS=%d\n"
             "BRIGHTNESS_MAX=%d\n"
-            "EFFECTS=%d\n",
+            "EFFECTS=%d\n"
+            "KBD_TYPE=%s\n"
+            "KBD_DRIVER=%s\n",
             led_count,
             state->global_r,
             state->global_g,
             state->global_b,
             state->mode,
-            state->is_on, kbd_hw_brightness_get(), kbd_hw_brightness_max(), kbd_fx_running());
+            state->is_on, kbd_hw_brightness_get(), kbd_hw_brightness_max(), kbd_fx_running(),
+            kbd_kind_name(kbd_led_kind()), kbd_led_driver());
         return 0;
     }
 
@@ -906,6 +909,32 @@ static int init_socket(void) {
     return sock_fd;
 }
 
+/* Start in the state the user left: off if switched off, otherwise the
+ * active profile's colors (lost at reboot; a profile without colors keeps
+ * the keys off), otherwise - no profile at all - white. The GUI no longer
+ * turns the backlight on when it starts (1.18.6). A single-color keyboard
+ * (1.44.0) has no colors: just on or off. */
+static void kbd_start_lighting(void) {
+    if (kbd_led_kind() == KBD_KIND_PER_KEY)
+        kbd_led_migrate_numbering();   /* once: data saved with the old LED numbering */
+    if (kbd_led_off_flag_set()) {
+        LOG_INFO("[KBD_DAEMON] Backlight was switched off - keeping it off");
+        turn_off_all_leds();
+        kbd_led_set_power(0);
+        kbd_led_set_mode(KBD_LED_MODE_OFF);
+    } else if (kbd_led_kind() != KBD_KIND_WHITE && kbd_active_profile_valid()) {
+        kbd_restore_active(1);
+        kbd_led_set_power(1);
+        kbd_led_set_mode(KBD_LED_MODE_STATIC);
+    } else if (set_all_leds_color(255, 255, 255) == 0) {
+        kbd_led_set_power(1);
+        kbd_led_set_mode(KBD_LED_MODE_STATIC);
+    }
+    /* Keyboard brightness: the last level (also one set with the desktop's
+     * keyboard slider), or the maximum */
+    kbd_hw_brightness_restore();
+}
+
 int main(int argc, char *argv[]) {
     (void)argc;
     (void)argv;
@@ -918,36 +947,16 @@ int main(int argc, char *argv[]) {
 
     LOG_INFO("[KBD_DAEMON] Starting %s...", PROGRAM_NAME);
 
-    /* Initialize LED subsystem */
-    if (kbd_led_init() != 0) {
-        LOG_ERROR("[KBD_DAEMON] Failed to initialize LED subsystem");
-        return 1;
-    }
+    /* Initialize LED subsystem. Without a keyboard backlight the daemon
+     * keeps running and looks again every few seconds (1.44.0; it used to
+     * exit, and systemd restarted it every 3 seconds). */
+    int have_leds = kbd_led_init() == 0;
 
     /* Load saved profiles from profiles.json */
     LOG_INFO("[KBD_DAEMON] Loading saved profiles...");
     kbd_profiles_load_json();
     LOG_INFO("[KBD_DAEMON] Loaded %d keyboard profiles", g_num_profiles);
-    kbd_led_migrate_numbering();   /* once: data saved with the old LED numbering */
-    /* Start in the state the user left: off if switched off, otherwise the
-     * active profile's colors (lost at reboot; a profile without colors
-     * keeps the keys off), otherwise - no profile at all - white. The GUI
-     * no longer turns the backlight on when it starts (1.18.6). */
-    if (kbd_led_off_flag_set()) {
-        LOG_INFO("[KBD_DAEMON] Backlight was switched off - keeping it off");
-        turn_off_all_leds();
-        kbd_led_set_mode(KBD_LED_MODE_OFF);
-    } else if (kbd_active_profile_valid()) {
-        kbd_restore_active(1);
-        kbd_led_set_power(1);
-        kbd_led_set_mode(KBD_LED_MODE_STATIC);
-    } else if (set_all_leds_color(255, 255, 255) == 0) {
-        kbd_led_set_power(1);
-        kbd_led_set_mode(KBD_LED_MODE_STATIC);
-    }
-    /* Keyboard brightness: the last level (also one set with the desktop's
-     * keyboard slider), or the maximum */
-    kbd_hw_brightness_restore();
+    if (have_leds) kbd_start_lighting();
 
     /* Set up signal handlers */
     struct sigaction sa;
@@ -1035,9 +1044,18 @@ int main(int argc, char *argv[]) {
 
         /* Notice brightness changes made outside the daemon (desktop slider) */
         static double last_poll = 0;
-        if (now - last_poll >= 1.0) {
+        if (have_leds && now - last_poll >= 1.0) {
             last_poll = now;
             kbd_hw_brightness_poll();
+        }
+        /* No keyboard backlight yet (driver loaded later): look again */
+        static double last_scan = 0;
+        if (!have_leds && now - last_scan >= KBD_RESCAN_SEC) {
+            if (last_scan > 0 && kbd_led_rescan() == 0) {
+                have_leds = 1;
+                kbd_start_lighting();
+            }
+            last_scan = now;
         }
     }
 

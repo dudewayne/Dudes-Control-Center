@@ -85,9 +85,94 @@ int parse_rgb(const char *str, uint8_t *r, uint8_t *g, uint8_t *b) {
  * LED SUBSYSTEM
  * ============================================================================ */
 
+/* Kernel driver of a LED class device ("" if unknown) */
+static void led_driver_name(const char *led_dir, char *out, size_t size) {
+    char link[KBD_LED_PATH_MAX + 32], target[KBD_LED_PATH_MAX];
+    out[0] = '\0';
+    snprintf(link, sizeof link, "%s/device/driver", led_dir);
+    ssize_t n = readlink(link, target, sizeof target - 1);
+    if (n <= 0) return;
+    target[n] = '\0';
+    const char *base = strrchr(target, '/');
+    base = base ? base + 1 : target;
+    size_t len = strlen(base);
+    if (len >= size) len = size - 1;     /* driver names are short */
+    memcpy(out, base, len);
+    out[len] = '\0';
+}
+
+static int read_int_file(const char *path, int fallback) {
+    FILE *f = fopen(path, "r");
+    if (!f) return fallback;
+    int v;
+    if (fscanf(f, "%d", &v) != 1) v = fallback;
+    fclose(f);
+    return v;
+}
+
+/* Channel order from multi_index: 0 if red, green and blue are there (a
+ * missing file means "red green blue", as ite_829x), -1 otherwise */
+static int led_channels(const char *led_dir, KbdLedDevice *d) {
+    char path[KBD_LED_PATH_MAX + 32], line[256];
+    d->ch[0] = 0; d->ch[1] = 1; d->ch[2] = 2; d->nch = 3;
+    snprintf(path, sizeof path, "%s/multi_index", led_dir);
+    FILE *f = fopen(path, "r");
+    if (!f) return 0;
+    int ok = fgets(line, sizeof line, f) != NULL;
+    fclose(f);
+    if (!ok) return -1;
+    d->ch[0] = d->ch[1] = d->ch[2] = -1;
+    int n = 0;
+    char *save = NULL;
+    for (char *t = strtok_r(line, " \t\n", &save); t && n < 16; t = strtok_r(NULL, " \t\n", &save), n++) {
+        if (strcmp(t, "red") == 0) d->ch[0] = n;
+        else if (strcmp(t, "green") == 0) d->ch[1] = n;
+        else if (strcmp(t, "blue") == 0) d->ch[2] = n;
+    }
+    d->nch = n;
+    return (d->ch[0] >= 0 && d->ch[1] >= 0 && d->ch[2] >= 0) ? 0 : -1;
+}
+
+/* No multicolor keyboard LED: a single-color "*::kbd_backlight" (brightness
+ * only). The first by name, so the choice does not depend on readdir. */
+static int scan_white_led(KbdLedDevice *d) {
+    DIR *dir = opendir(KBD_LEDS_DIR);
+    if (!dir) return 0;
+    char best[KBD_LED_NAME_MAX] = "";
+    struct dirent *e;
+    while ((e = readdir(dir)) != NULL) {
+        const char *k = strstr(e->d_name, "kbd_backlight");
+        if (!k || strlen(e->d_name) >= KBD_LED_NAME_MAX) continue;
+        if (k[strlen("kbd_backlight")] != '\0') continue;      /* not "..._1" */
+        char path[KBD_LED_PATH_MAX + 32];
+        snprintf(path, sizeof path, "%s/%s/brightness", KBD_LEDS_DIR, e->d_name);
+        if (access(path, F_OK) != 0) continue;
+        snprintf(path, sizeof path, "%s/%s/max_brightness", KBD_LEDS_DIR, e->d_name);
+        if (read_int_file(path, 0) <= 0) continue;
+        if (!best[0] || strcmp(e->d_name, best) < 0)
+            memcpy(best, e->d_name, strlen(e->d_name) + 1);    /* length checked above */
+    }
+    closedir(dir);
+    if (!best[0]) return 0;
+    char led_dir[KBD_LED_PATH_MAX - 32], path[KBD_LED_PATH_MAX + 32];
+    snprintf(led_dir, sizeof led_dir, "%s/%s", KBD_LEDS_DIR, best);
+    memset(d, 0, sizeof *d);
+    snprintf(d->name, sizeof d->name, "%s", best);
+    snprintf(d->path, sizeof d->path, "%s/brightness", led_dir);
+    snprintf(path, sizeof path, "%s/max_brightness", led_dir);
+    d->max_brightness = read_int_file(path, 1);
+    d->nch = 0;
+    led_driver_name(led_dir, g_led_state.driver, sizeof g_led_state.driver);
+    LOG_DEBUG("[KBD] Found single-color keyboard backlight: %s (max_brightness=%d, driver %s)",
+             d->name, d->max_brightness, g_led_state.driver[0] ? g_led_state.driver : "unknown");
+    return 1;
+}
+
 static int scan_leds(KbdLedDevice *devices, int max_devices) {
     int count = 0;
     char led_path[KBD_LED_PATH_MAX - 32];   /* room for "/multi_intensity" in .path */
+    g_led_state.kind = KBD_KIND_NONE;
+    g_led_state.driver[0] = '\0';
 
     DIR *dir = opendir(KBD_LEDS_DIR);
     if (!dir) {
@@ -108,25 +193,27 @@ static int scan_leds(KbdLedDevice *devices, int max_devices) {
 
             struct stat st;
             if (stat(multi_intensity_path, &st) == 0 && S_ISREG(st.st_mode)) {
+                if (led_channels(led_path, &devices[count]) != 0) {
+                    LOG_INFO("[KBD] %s: no red, green and blue channels - not used as a color LED", entry->d_name);
+                    continue;
+                }
                 strncpy(devices[count].name, entry->d_name, KBD_LED_NAME_MAX - 1);
                 devices[count].name[KBD_LED_NAME_MAX - 1] = '\0';
                 snprintf(devices[count].path, sizeof(devices[count].path), "%s/multi_intensity", led_path);
                 devices[count].max_brightness = 255;
+                devices[count].scale = 0;
 
                 char max_bright_path[KBD_LED_PATH_MAX + 32];
                 snprintf(max_bright_path, sizeof(max_bright_path), "%s/max_brightness", led_path);
-                FILE *f = fopen(max_bright_path, "r");
-                if (f) {
-                    if (fscanf(f, "%d", &devices[count].max_brightness) != 1)
-                        devices[count].max_brightness = 255;
-                    fclose(f);
-                }
+                devices[count].max_brightness = read_int_file(max_bright_path, 255);
 
                 devices[count].r = 0;
                 devices[count].g = 0;
                 devices[count].b = 0;
+                if (!g_led_state.driver[0])
+                    led_driver_name(led_path, g_led_state.driver, sizeof g_led_state.driver);
 
-                LOG_INFO("[KBD] Found LED: %s at %s (max_brightness=%d)",
+                LOG_DEBUG("[KBD] Found LED: %s at %s (max_brightness=%d)",
                          devices[count].name, devices[count].path, devices[count].max_brightness);
 
                 count++;
@@ -161,31 +248,90 @@ static int scan_leds(KbdLedDevice *devices, int max_devices) {
         g_led_old_to_new[order[n]] = n;
     }
     memcpy(devices, sorted, (size_t)count * sizeof(KbdLedDevice));
+
+    if (count >= KBD_PER_KEY_MIN_LEDS) {
+        g_led_state.kind = KBD_KIND_PER_KEY;
+    } else if (count > 0) {
+        /* Colors are written 0-255 like ite_829x, asus-wmi, system76 and
+         * tuxedo expect; scaled to max_brightness only if the kernel
+         * rejects that (see led_write_raw) */
+        g_led_state.kind = KBD_KIND_RGB;
+        LOG_DEBUG("[KBD] %d color LED(s) without per-key layout: %s (max_brightness=%d, driver %s)",
+                 count, devices[0].name, devices[0].max_brightness,
+                 g_led_state.driver[0] ? g_led_state.driver : "unknown");
+    } else if (max_devices > 0 && scan_white_led(&devices[0])) {
+        g_led_state.kind = KBD_KIND_WHITE;
+        count = 1;
+    }
     return count;
 }
 
-static int led_write_raw(const char *led_path, uint8_t r, uint8_t g, uint8_t b) {
-    FILE *f = fopen(led_path, "w");
-    if (!f) {
-        LOG_ERROR("[KBD] Cannot open LED %s for writing: %s", led_path, strerror(errno));
+int kbd_led_kind(void) {
+    return g_led_state.kind;
+}
+
+const char *kbd_kind_name(int kind) {
+    switch (kind) {
+    case KBD_KIND_PER_KEY: return "per-key";
+    case KBD_KIND_RGB: return "rgb";
+    case KBD_KIND_WHITE: return "white";
+    default: return "none";
+    }
+}
+
+const char *kbd_led_driver(void) {
+    return g_led_state.driver;
+}
+
+static int led_write_values(KbdLedDevice *d, uint8_t r, uint8_t g, uint8_t b) {
+    int v[16] = {0};
+    int nch = d->nch < 16 ? d->nch : 16;
+    const uint8_t rgb[3] = { r, g, b };
+    for (int c = 0; c < 3; c++) {
+        int val = rgb[c];
+        if (d->scale > 0) val = (val * d->scale + 127) / 255;
+        if (d->ch[c] >= 0 && d->ch[c] < nch) v[d->ch[c]] = val;
+    }
+    char buf[16 * 5 + 2];
+    size_t len = 0;
+    for (int c = 0; c < nch; c++)
+        len += (size_t)snprintf(buf + len, sizeof buf - len, c ? " %d" : "%d", v[c]);
+    snprintf(buf + len, sizeof buf - len, "\n");
+
+    int fd = open(d->path, O_WRONLY | O_TRUNC | O_CLOEXEC);
+    if (fd < 0) return -1;
+    ssize_t n = write(fd, buf, strlen(buf));
+    int err = errno;
+    close(fd);
+    errno = err;
+    return n == (ssize_t)strlen(buf) ? 0 : -1;
+}
+
+static int led_write_raw(KbdLedDevice *d, uint8_t r, uint8_t g, uint8_t b) {
+    if (d->nch <= 0) return 0;     /* single-color LED: on/off goes through the brightness */
+    int rc = led_write_values(d, r, g, b);
+    /* a driver that only takes 0..max_brightness per color */
+    if (rc != 0 && errno == EINVAL && d->scale == 0 && d->max_brightness > 0 && d->max_brightness < 255) {
+        d->scale = d->max_brightness;
+        LOG_INFO("[KBD] %s takes colors 0-%d only - scaling", d->name, d->scale);
+        rc = led_write_values(d, r, g, b);
+    }
+    if (rc != 0) {
+        LOG_ERROR("[KBD] Cannot write LED %s: %s", d->path, strerror(errno));
         return -1;
     }
-
-    int written = fprintf(f, "%d %d %d\n", r, g, b);
-    fclose(f);
-
-    if (written > 0) {
-        LOG_DEBUG("[KBD] Set LED %s to RGB(%d, %d, %d)", led_path, r, g, b);
-    }
-
-    return (written > 0) ? 0 : -1;
+    LOG_DEBUG("[KBD] Set LED %s to RGB(%d, %d, %d)", d->path, r, g, b);
+    return 0;
 }
 
 /* Write by path (other code): the cache no longer knows the LED's color */
 int set_led_color(const char *led_path, uint8_t r, uint8_t g, uint8_t b, int max_brightness) {
-    (void)max_brightness;   /* multi_intensity takes the raw 0-255 channel values */
+    (void)max_brightness;
     memset(g_written_ok, 0, sizeof g_written_ok);
-    return led_write_raw(led_path, r, g, b);
+    for (int i = 0; i < g_led_state.num_leds && i < KBD_MAX_LEDS; i++)
+        if (strcmp(g_led_state.leds[i].path, led_path) == 0)
+            return led_write_raw(&g_led_state.leds[i], r, g, b);
+    return -1;
 }
 
 /* Write LED i; with !force only if its color changed since the last write */
@@ -193,7 +339,7 @@ static int led_write_idx(int i, uint8_t r, uint8_t g, uint8_t b, int force) {
     if (i < 0 || i >= g_led_state.num_leds || i >= KBD_MAX_LEDS) return -1;
     if (!force && g_written_ok[i] && g_written[i][0] == r && g_written[i][1] == g && g_written[i][2] == b)
         return 0;
-    if (led_write_raw(g_led_state.leds[i].path, r, g, b) != 0) {
+    if (led_write_raw(&g_led_state.leds[i], r, g, b) != 0) {
         g_written_ok[i] = 0;
         return -1;
     }
@@ -276,7 +422,10 @@ void kbd_led_set_mode(KbdLedMode mode) {
     g_led_state.mode = mode;
 }
 
+static void white_power(int on);
+
 void kbd_led_set_power(int is_on) {
+    if (g_led_state.kind == KBD_KIND_WHITE) white_power(is_on);
     g_led_state.is_on = is_on;
     if (is_on) {
         if (unlink(KBD_OFF_FLAG_FILE) != 0 && errno != ENOENT)
@@ -324,6 +473,8 @@ static int led_write_int(int i, const char *attr, int v) {
 }
 
 static void brightness_remember(int level) {
+    /* a white keyboard is switched off with brightness 0: keep the level */
+    if (level <= 0 && g_led_state.kind == KBD_KIND_WHITE) return;
     mkdir(KBD_STATE_DIR, 0755);
     int fd = open(KBD_BRIGHTNESS_FILE, O_WRONLY | O_CREAT | O_TRUNC | O_NOFOLLOW | O_CLOEXEC, 0644);
     if (fd < 0) return;
@@ -359,7 +510,42 @@ int kbd_hw_brightness_set(int level) {
     g_hw_brightness_last = level;
     brightness_remember(level);
     LOG_INFO("[KBD] Keyboard brightness %d/%d", level, max);
+    /* white keyboard: a level above 0 is "on", 0 is "off" */
+    if (g_led_state.kind == KBD_KIND_WHITE && (level > 0) != (g_led_state.is_on != 0)) {
+        g_led_state.is_on = level > 0;
+        kbd_led_set_power(level > 0);
+    }
     return 0;
+}
+
+/* Remembered level (-1 none) */
+static int brightness_remembered(void) {
+    int level = -1;
+    FILE *f = fopen(KBD_BRIGHTNESS_FILE, "r");
+    if (f) {
+        if (fscanf(f, "%d", &level) != 1) level = -1;
+        fclose(f);
+    }
+    return level;
+}
+
+/* White keyboard on/off = brightness (the level is kept for "on") */
+static void white_power(int on) {
+    if (g_led_state.num_leds == 0) return;
+    int cur = led_read_int(0, "brightness");
+    if (!on) {
+        if (cur != 0 && led_write_int(0, "brightness", 0) != 0)
+            LOG_ERROR("[KBD] Cannot switch the keyboard backlight off: %s", strerror(errno));
+        g_hw_brightness_last = 0;
+        return;
+    }
+    if (cur > 0) return;
+    int max = kbd_hw_brightness_max();
+    int level = brightness_remembered();
+    if (level <= 0 || level > max) level = max;
+    if (led_write_int(0, "brightness", level) != 0)
+        LOG_ERROR("[KBD] Cannot switch the keyboard backlight on: %s", strerror(errno));
+    g_hw_brightness_last = level;
 }
 
 int kbd_hw_brightness_cached(void) {
@@ -373,32 +559,45 @@ int kbd_hw_brightness_poll(void) {
         LOG_INFO("[KBD] Keyboard brightness changed to %d (desktop slider or other program)", cur);
     g_hw_brightness_last = cur;
     brightness_remember(cur);
+    /* white keyboard: the Fn key or the desktop switched it off or on */
+    if (g_led_state.kind == KBD_KIND_WHITE && (cur > 0) != (g_led_state.is_on != 0)) {
+        g_led_state.is_on = cur > 0;
+        if (cur > 0) unlink(KBD_OFF_FLAG_FILE);
+    }
     return 1;
 }
 
 void kbd_hw_brightness_restore(void) {
-    int level = -1;
-    FILE *f = fopen(KBD_BRIGHTNESS_FILE, "r");
-    if (f) {
-        if (fscanf(f, "%d", &level) != 1) level = -1;
-        fclose(f);
-    }
+    /* white keyboard switched off: stays at 0 */
+    if (g_led_state.kind == KBD_KIND_WHITE && !g_led_state.is_on) return;
+    int level = brightness_remembered();
     int max = kbd_hw_brightness_max();
     if (level < 0 || level > max) level = max;
     kbd_hw_brightness_set(level);
+}
+
+static const char *kind_text(int kind) {
+    switch (kind) {
+    case KBD_KIND_PER_KEY: return "per-key RGB";
+    case KBD_KIND_RGB: return "RGB without per-key layout";
+    case KBD_KIND_WHITE: return "single color, brightness only";
+    default: return "none";
+    }
 }
 
 int kbd_led_init(void) {
     LOG_INFO("[KBD] Initializing LED subsystem...");
 
     memset(&g_led_state, 0, sizeof(g_led_state));
+    memset(g_written_ok, 0, sizeof g_written_ok);
     g_led_state.num_leds = scan_leds(g_led_state.leds, KBD_MAX_LEDS);
 
     if (g_led_state.num_leds == 0) {
-        LOG_WARN("[KBD] No LEDs found! Driver may not be loaded.");
-        LOG_WARN("[KBD] Try loading the driver with: sudo modprobe ite_829x");
+        LOG_WARN("[KBD] No keyboard backlight found (no LED class device \"*kbd_backlight*\"). "
+                 "On Clevo laptops: sudo modprobe ite_829x. Looking again every %d seconds.", KBD_RESCAN_SEC);
     } else {
-        LOG_INFO("[KBD] Found %d LED(s)", g_led_state.num_leds);
+        LOG_INFO("[KBD] Found %d LED(s) (%s, ...): %s, driver %s", g_led_state.num_leds, g_led_state.leds[0].name,
+                 kind_text(g_led_state.kind), g_led_state.driver[0] ? g_led_state.driver : "unknown");
     }
 
     g_led_state.mode = KBD_LED_MODE_OFF;
@@ -406,6 +605,15 @@ int kbd_led_init(void) {
     g_led_state.brightness = 255;
 
     return (g_led_state.num_leds > 0) ? 0 : -1;
+}
+
+int kbd_led_rescan(void) {
+    g_led_state.num_leds = scan_leds(g_led_state.leds, KBD_MAX_LEDS);
+    if (g_led_state.num_leds == 0) return -1;
+    memset(g_written_ok, 0, sizeof g_written_ok);
+    LOG_INFO("[KBD] Keyboard backlight appeared: %d LED(s) (%s, ...), %s, driver %s", g_led_state.num_leds,
+             g_led_state.leds[0].name, kind_text(g_led_state.kind), g_led_state.driver[0] ? g_led_state.driver : "unknown");
+    return 0;
 }
 
 void kbd_led_cleanup(void) {
