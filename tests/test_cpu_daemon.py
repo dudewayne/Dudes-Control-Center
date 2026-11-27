@@ -37,6 +37,12 @@ wr("powercap/intel-rapl-mmio:0/constraint_0_power_limit_uw", 46000000)
 # firmware power profile (v1.43.0) and an AMD CPU sensor (v1.42.0)
 wr("acpi/platform_profile_choices", "low-power balanced performance")
 wr("acpi/platform_profile", "balanced")
+# battery with a charge limit (1.46.0); a limit of 75 % is stored from before
+wr("ps/AC/type", "Mains\n")
+wr("ps/BAT0/type", "Battery\n")
+wr("ps/BAT0/charge_control_end_threshold", "100\n")
+wr("ps/BAT0/charge_control_start_threshold", "90\n")
+wr("state/battery-limit", "75\n")
 wr("hwmon/hwmon3/name", "k10temp")
 wr("hwmon/hwmon3/temp1_label", "Tctl")
 wr("hwmon/hwmon3/temp1_input", 71000)
@@ -220,6 +226,28 @@ try:
     w2 = float(ask(a, "STATUS").split("CPU_POWER_W=")[1].split("\n")[0])
     check(0 < w2 < 1500, f"counter wrap-around handled ({w2:.0f} W)")
 
+    # battery charge limit (1.46.0)
+    def bl(f="end"):
+        return open(f"ps/BAT0/charge_control_{f}_threshold").read().strip()
+    check(bl() == "75" and bl("start") == "65", "stored charge limit set at start, start threshold lowered below it")
+    st = ask(a, "STATUS")
+    check("BATTERY_LIMIT=75\nBATTERY_LIMIT_SAVED=75\nBATTERY_LIMIT_DEVICE=BAT0\n" in st, "STATUS reports the charge limit")
+    r = ask(a, "SET_BATTERY_LIMIT|80")
+    check(r.startswith("OK Charge limit 80%") and bl() == "80" and open("state/battery-limit").read().strip() == "80",
+          "SET_BATTERY_LIMIT sets and stores it")
+    check(all(ask(a, f"SET_BATTERY_LIMIT|{v}").startswith("ERROR") for v in ("49", "101", "x", "")) and bl() == "80",
+          "out-of-range or invalid limits are refused")
+    wr("ps/BAT0/charge_control_end_threshold", "100\n")      # firmware reset (standby)
+    time.sleep(3.2)
+    check(bl() == "80", "a limit reset by the firmware is set again")
+    r = ask(a, "SET_BATTERY_LIMIT|100")
+    check(r.startswith("OK Charge limit off") and bl() == "100" and not os.path.exists("state/battery-limit"),
+          "100 = off: charges to 100 %, nothing stored")
+    os.rename("ps/BAT0/charge_control_end_threshold", "ps/BAT0/gone")
+    check(ask(a, "SET_BATTERY_LIMIT|80").startswith("ERROR This laptop") and "BATTERY_LIMIT=-1\n" in ask(a, "STATUS"),
+          "a battery without a charge limit: refused, STATUS -1")
+    os.rename("ps/BAT0/gone", "ps/BAT0/charge_control_end_threshold")
+
     # signals
     proc.send_signal(signal.SIGHUP)
     time.sleep(1.5)
@@ -243,4 +271,6 @@ check("Could not load saved profiles" not in log, "no false 'could not load save
 check(log.split("SIGHUP: reloading configuration")[1].count("custom profiles from") == 1, "SIGHUP reloads the profiles")
 check("core 10: invalid max frequency 3 Hz" in log, "corrupt per-core value reported in the log")
 check("uses governor 'schedutil', which this system does not offer" in log, "unavailable governor reported at startup")
+check("BAT0: charge limit set to 75% (was 100%)" in log and "BAT0: charge limit back to 80% (the firmware had set 100%)" in log,
+      "charge limit logged at start and after a firmware reset")
 sys.exit(check.finish())

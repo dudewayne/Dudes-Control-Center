@@ -1215,6 +1215,27 @@ msgstr "팬 데몬이 팬 프로필에 따라 커널의 표준 인터페이스�
 msgid "Generic fan control"
 msgstr "일반 팬 제어"
 
+#, c-format
+msgid "Charge limit: %d %%"
+msgstr "충전 한도: %d %%"
+
+msgid "Needs the CPU daemon (CPU control in Components)."
+msgstr "CPU 데몬이 필요합니다 (구성 요소의 CPU 제어)."
+
+msgid "This laptop's battery driver offers no charge limit (charge_control_end_threshold)."
+msgstr "이 노트북의 배터리 드라이버는 충전 한도를 제공하지 않습니다 (charge_control_end_threshold)."
+
+#, c-format
+msgid "Stops charging %s at this level, which is easier on a battery that is plugged in most of the time. Set again after a reboot or standby; some drivers only take certain values."
+msgstr "%s 충전을 이 수준에서 멈춥니다. 대부분 전원에 연결해 두는 배터리에 좋습니다. 재부팅이나 대기 후 다시 설정됩니다. 일부 드라이버는 특정 값만 받습니다."
+
+#, c-format
+msgid "Not changed: %s"
+msgstr "변경되지 않음: %s"
+
+msgid "no answer from the CPU daemon"
+msgstr "CPU 데몬의 응답 없음"
+
 msgid "Components"
 msgstr "구성 요소"
 
@@ -1297,6 +1318,12 @@ msgstr "새로 고침 간격:"
 
 msgid "How often the window shows new temperatures, fan speeds, frequencies and power. The daemons control fans and CPU on their own schedule."
 msgstr "창에 새 온도, 팬 속도, 주파수 및 전력을 표시하는 주기입니다. 데몬은 자체 주기로 팬과 CPU를 제어합니다."
+
+msgid "Off (charges to 100 %)"
+msgstr "끄기 (100%까지 충전)"
+
+msgid "Charge limit:"
+msgstr "충전 한도:"
 
 msgid "Show Application"
 msgstr "애플리케이션 표시"

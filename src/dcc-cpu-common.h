@@ -199,6 +199,23 @@ CpuGovernor cpu_governor_resolve_enum(CpuGovernor gov, const char *context);  /*
 int platform_profile_get(char *cur, size_t cur_size, char *choices, size_t choices_size);  /* 0: offered */
 int platform_profile_offered(const char *choice);         /* 1 if listed in platform_profile_choices */
 int platform_profile_set(const char *choice, const char *context);  /* 0 on success */
+
+/* Battery charge limit (1.46.0): charge_control_end_threshold of the first
+ * battery in /sys/class/power_supply. Stored system-wide; 100 = off. */
+#ifndef DCC_POWER_SUPPLY_DIR
+#define DCC_POWER_SUPPLY_DIR "/sys/class/power_supply"
+#endif
+#ifndef DCC_BATTERY_LIMIT_FILE
+#define DCC_BATTERY_LIMIT_FILE "/etc/dudes-control-center/battery-limit"
+#endif
+#define BATTERY_LIMIT_MIN 50
+#ifndef BATTERY_LIMIT_CHECK_SEC
+#define BATTERY_LIMIT_CHECK_SEC 60
+#endif
+int battery_limit_get(char *bat, size_t bat_size);   /* current limit 0-100, -1 if not offered */
+int battery_limit_saved(void);                        /* stored limit, 100 if none */
+int battery_limit_set(int pct);                       /* set and store; 0 ok, -1 not offered/failed */
+void battery_limit_enforce(int quiet);                /* set the stored limit again if it was reset */
 int cpu_epp_available(const char *epp);                   /* 1 if listed in energy_performance_available_preferences */
 /* The power mode the CPU actually runs, read from cpu0's governor and EPP:
  * "Performance", "Balanced", "Power Save", or the governor name if it matches

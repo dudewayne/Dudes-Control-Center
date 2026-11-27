@@ -989,6 +989,40 @@ int main(int argc, char **argv) {
         CHECK(report_dialog == rd, "O: Copy keeps the dialog open");
         gtk_dialog_response(GTK_DIALOG(rd), GTK_RESPONSE_CLOSE);
         CHECK(report_dialog == NULL, "O: Close closes it");
+
+        /* Battery charge limit (1.46.0): Settings row and Status line */
+        static AppData ba;
+        ba.socket_fd = ba.kbd_socket_fd = -1;
+        ba.cpu_socket_fd = app.cpu_socket_fd;
+        ba.cpu_connected = app.cpu_connected;
+        GtkWidget *bw = gtk_offscreen_window_new();
+        gtk_container_add(GTK_CONTAINER(bw), create_settings_page(&ba));
+        gtk_widget_show_all(bw);
+        CHECK(!gtk_widget_get_sensitive(ba.settings_bat_combo), "O: charge limit: inactive until the CPU daemon tells");
+        ba.bat_limit_seen = 1;
+        ba.bat_limit = -1;
+        settings_update_battery(&ba);
+        CHECK(!gtk_widget_get_sensitive(ba.settings_bat_combo) &&
+              strstr(gtk_label_get_text(GTK_LABEL(ba.settings_bat_note)), "offers no charge limit"),
+              "O: charge limit: not offered -> inactive with the reason");
+        ba.bat_limit = 80;
+        g_strlcpy(ba.bat_limit_dev, "BAT0", sizeof ba.bat_limit_dev);
+        settings_update_battery(&ba);
+        CHECK(gtk_widget_get_sensitive(ba.settings_bat_combo) &&
+              !g_strcmp0(gtk_combo_box_get_active_id(GTK_COMBO_BOX(ba.settings_bat_combo)), "80") &&
+              strstr(gtk_label_get_text(GTK_LABEL(ba.settings_bat_note)), "Stops charging BAT0"),
+              "O: charge limit: 80 % shown and selectable");
+        ba.bat_limit = 95;                              /* set with dcc-cpu-cli */
+        settings_update_battery(&ba);
+        CHECK(!g_strcmp0(gtk_combo_box_get_active_id(GTK_COMBO_BOX(ba.settings_bat_combo)), "95"),
+              "O: charge limit: a value set elsewhere is added and shown");
+        ba.bat_limit = 80;
+        settings_update_battery(&ba);
+        gtk_combo_box_set_active_id(GTK_COMBO_BOX(ba.settings_bat_combo), "70");   /* the test daemon has no battery */
+        CHECK(!g_strcmp0(gtk_combo_box_get_active_id(GTK_COMBO_BOX(ba.settings_bat_combo)), "80") &&
+              g_str_has_prefix(gtk_label_get_text(GTK_LABEL(ba.settings_bat_note)), "Not changed:"),
+              "O: charge limit: refused by the daemon -> back to 80 % with the reason");
+        gtk_widget_destroy(bw);
         gtk_widget_destroy(kw);
     } else {
         printf("SKIP  O: no display\n");

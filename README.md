@@ -100,7 +100,7 @@ dcc-gui --debug      # more output in GUI.log
 
 ### Settings
 
-Three sections:
+Four sections:
 
 - **Components**: switch **CPU control, fan control or the keyboard backlight** off when it does not work on your laptop or causes problems, and on again. Asks for the administrator password, applies system wide and stays after reboots and updates. Below them, for laptops without the Clevo interface: **Generic fan control** (fans with a manual mode through the kernel's standard interface; shows which driver's fans were found) and **Direct EC access** (Clevo-based laptops only), both off by default and each with a warning; the tabs and tray submenus of a switched-off part are hidden. Fan control switched off: the fans run at 100% until the next reboot, then the firmware controls them.
 - **Language & Display**:
@@ -110,6 +110,7 @@ Three sections:
 - **Behavior**:
   - **Start minimized to tray**: on (default), the GUI starts as a tray icon; off, it opens its window. The application menu entry (a per-user copy in `~/.local/share/applications`) and your startup applications that start `dcc-gui` get or lose the `--minimized` option to match.
   - **Refresh interval**: how often the window shows new temperatures, fan speeds, CPU frequencies, power and GPU values: every 1, 2 (default), 3, 5 or 10 seconds. The daemons control fans and CPU on their own schedule regardless.
+- **Battery** (1.46.0): **Charge limit**: stop charging at 90, 85, 80, 75, 70, 60 or 50 %, or off (100 %). Easier on a battery that is plugged in most of the time. Only where the battery driver offers `charge_control_end_threshold` (for example `thinkpad_acpi`, `asus-wmi`, `dell-laptop`, `huawei-wmi`, TUXEDO/Clevo with tuxedo-drivers); otherwise the row says so. The CPU daemon sets it and stores it system-wide (`/etc/dudes-control-center/battery-limit`), sets it again at start and checks every minute, because many firmwares forget it after a reboot or standby. A start threshold (`charge_control_start_threshold`, ThinkPads) is lowered below the limit when needed. The Status tab's battery section shows the limit while one is set; `dcc-cpu-cli --battery-limit 80|off` sets it from a terminal.
 
 ### CPU power modes
 
@@ -149,6 +150,7 @@ dcc-fan-cli --report         # system report for a bug report (no root needed)
 dcc-cpu-cli                  # CPU status
 dcc-cpu-cli --list-profiles
 dcc-cpu-cli --apply-profile 0
+dcc-cpu-cli --battery-limit 80   # stop charging at 80 % (off = 100 %), where the battery offers it
 dcc-cpu-cli --hard-limit 3.8 # GHz
 dcc-cpu-cli --hard-limit-get
 dcc-cpu-cli --log-level DEBUG
@@ -250,10 +252,11 @@ Designed for Clevo-based notebooks with EC access at I/O ports 0x62/0x66 and an 
 | NVIDIA GPU | `nvidia-smi`, only while the GPU is awake |
 | Fans (generic, opt-in) | the first hwmon device with `pwmN` and `pwmN_enable` (manual mode 1, automatic 2) that is not a GPU driver; speeds from `fanN_input` |
 | Firmware power profile | `/sys/firmware/acpi/platform_profile` with its `_choices`, set by a CPU profile |
+| Battery charge limit | `charge_control_end_threshold` (and `charge_control_start_threshold`) of the first battery in `/sys/class/power_supply` |
 | Keyboard backlight | LED class devices in `/sys/class/leds`: multicolor `*kbd_backlight*` (`multi_intensity`, `multi_index`) or a single-color `*::kbd_backlight` (`brightness`) |
 | AMD GPU | the `amdgpu` driver's sysfs values (temperature, power, clocks, load, video memory), only while the GPU is awake; the name from libdrm's `amdgpu.ids`. A discrete GPU is shown before an integrated one, an NVIDIA GPU before both |
 
-AMD support, generic fan control, the firmware power profile and keyboards other than the ITE 829x are built from the kernel's documented interfaces and tested with simulated sysfs trees, not yet on such hardware. Reports from such laptops are welcome: see **Reporting a problem** under [Troubleshooting](#troubleshooting).
+AMD support, generic fan control, the firmware power profile, the battery charge limit and keyboards other than the ITE 829x are built from the kernel's documented interfaces and tested with simulated sysfs trees, not yet on such hardware. Reports from such laptops are welcome: see **Reporting a problem** under [Troubleshooting](#troubleshooting).
 
 ### EC registers
 

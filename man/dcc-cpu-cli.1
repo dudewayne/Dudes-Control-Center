@@ -1,5 +1,5 @@
 .\" SPDX-License-Identifier: GPL-2.0-only
-.TH DCC-CPU-CLI 1 2026-11-22 "Dudes Control Center @VERSION@" "User Commands"
+.TH DCC-CPU-CLI 1 2026-11-27 "Dudes Control Center @VERSION@" "User Commands"
 .nh
 .SH NAME
 dcc-cpu-cli \- show and set CPU frequency settings
@@ -44,6 +44,15 @@ have work to do, however low the limit is (see
 .TP
 .B \-\-hard\-limit\-get
 Show the hard frequency limit.
+.TP
+.BI \-\-battery\-limit " percent" "\fR|\fPoff"
+Stop charging the battery at
+.I percent
+(50 to 100), or charge to 100 % with
+.BR off .
+Only where the battery driver offers a charge limit; the daemon stores it
+and sets it again after a reboot or standby.
+The status (no option) shows the limit as "Charge Limit".
 .TP
 .BI \-\-log\-level " level"
 Set the daemon's log level:

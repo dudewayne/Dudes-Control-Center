@@ -341,6 +341,7 @@ $(TEST_BUILD)/cpud_test: $(CPU_DAEMON_DEPS) | $(TEST_BUILD)
 	$(CC) $(TEST_CFLAGS) $(CJSON_CFLAGS) -DSOCKET_PATH='"cpu.sock"' -DCPU_LOG_DIR='"logs"' \
 	  -DCPUSYSFS='"sys"' -DCONTROL_CENTER_CONFIG_DIR='"cfg"' -DDCC_AUTH_GROUP='"$(TEST_GROUP)"' -DDCC_POWERCAP_DIR='"powercap"' \
 	  -DDCC_PLATFORM_PROFILE_DIR='"acpi"' -DDCC_CPU_HWMON_DIR='"hwmon"' \
+	  -DDCC_POWER_SUPPLY_DIR='"ps"' -DDCC_BATTERY_LIMIT_FILE='"state/battery-limit"' -DBATTERY_LIMIT_CHECK_SEC=2 \
 	  -o $@ src/dcc-cpu-daemon.c src/dcc-cpu-common.c $(LOG_SRC) $(SECURE_SRC) $(CJSON_LIBS)
 
 # The real keyboard daemon against a fake /sys/class/leds ("leds")

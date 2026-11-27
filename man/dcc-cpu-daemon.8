@@ -38,6 +38,24 @@ and
 .BR PLATFORM_PROFILE_CHOICES= .
 If power-profiles-daemon runs, it may change the profile as well.
 .PP
+Battery charge limit (1.46.0): where the first battery in
+.I /sys/class/power_supply
+offers
+.BR charge_control_end_threshold ,
+.BI SET_BATTERY_LIMIT| percent
+(50 to 100, 100 = off) sets it and stores it in
+.IR /etc/dudes-control-center/battery-limit .
+The daemon sets the stored limit again at start and checks it every
+minute, because many firmwares reset it after a reboot or standby.
+A start threshold
+.RB ( charge_control_start_threshold )
+at or above the new limit is lowered to 10 below it.
+STATUS reports
+.BR BATTERY_LIMIT= " (\-1 if not offered),"
+.B BATTERY_LIMIT_SAVED=
+and
+.BR BATTERY_LIMIT_DEVICE= .
+.PP
 The CPU temperature comes from coretemp, k10temp (Tdie where it exists) or
 zenpower, otherwise from a CPU thermal zone.
 .PP
@@ -78,6 +96,9 @@ Daemon log (rotated at 1 MB, 5 old files kept).
 .TP
 .I /var/log/dudes-control-center/HARD_LIMIT_ENFORCER.log
 Log of the fail-safe (capped at 1 MB).
+.TP
+.I /etc/dudes-control-center/battery-limit
+The stored battery charge limit (missing = off).
 .TP
 .I /etc/systemd/system/dcc-cpu-daemon.service
 .TQ

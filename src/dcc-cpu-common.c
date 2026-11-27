@@ -12,6 +12,7 @@
 #include <sys/stat.h>
 #include <sys/time.h>
 #include <errno.h>
+#include <unistd.h>
 #include <time.h>
 #include <ctype.h>
 #include <cjson/cJSON.h>
@@ -1694,4 +1695,128 @@ int cpu_power_limit_w(void) {
         if (best < 0 || w < best) best = w;
     }
     return best;
+}
+
+/* ============================================================================
+ * Battery charge limit (1.46.0)
+ * ============================================================================ */
+
+/* First battery that offers charge_control_end_threshold: its directory */
+static int bat_find(char *dir, size_t size, char *name, size_t name_size) {
+    DIR *d = opendir(DCC_POWER_SUPPLY_DIR);
+    if (!d) return -1;
+    char best[256] = "";
+    struct dirent *e;
+    while ((e = readdir(d)) != NULL) {
+        if (e->d_name[0] == '.' || strlen(e->d_name) >= sizeof best) continue;
+        char p[600], t[64] = "";
+        snprintf(p, sizeof p, "%s/%s/type", DCC_POWER_SUPPLY_DIR, e->d_name);
+        FILE *f = fopen(p, "r");
+        if (f) { if (!fgets(t, sizeof t, f)) t[0] = '\0'; fclose(f); }
+        if (strncmp(t, "Battery", 7)) continue;
+        snprintf(p, sizeof p, "%s/%s/charge_control_end_threshold", DCC_POWER_SUPPLY_DIR, e->d_name);
+        if (access(p, F_OK) != 0) continue;
+        if (!best[0] || strcmp(e->d_name, best) < 0) memcpy(best, e->d_name, strlen(e->d_name) + 1);
+    }
+    closedir(d);
+    if (!best[0]) return -1;
+    snprintf(dir, size, "%s/%s", DCC_POWER_SUPPLY_DIR, best);
+    if (name_size) snprintf(name, name_size, "%s", best);
+    return 0;
+}
+
+static int bat_read_int(const char *dir, const char *file) {
+    char p[700];
+    snprintf(p, sizeof p, "%s/%s", dir, file);
+    FILE *f = fopen(p, "r");
+    if (!f) return -1;
+    int v = -1;
+    if (fscanf(f, "%d", &v) != 1) v = -1;
+    fclose(f);
+    return v;
+}
+
+static int bat_write_int(const char *dir, const char *file, int v) {
+    char p[700];
+    snprintf(p, sizeof p, "%s/%s", dir, file);
+    FILE *f = fopen(p, "w");
+    if (!f) return -1;
+    int ok = fprintf(f, "%d\n", v) > 0;
+    if (fclose(f) != 0) ok = 0;
+    return ok ? 0 : -1;
+}
+
+int battery_limit_get(char *bat, size_t bat_size) {
+    char dir[600];
+    if (bat_size) bat[0] = '\0';
+    if (bat_find(dir, sizeof dir, bat, bat_size) != 0) return -1;
+    return bat_read_int(dir, "charge_control_end_threshold");
+}
+
+int battery_limit_saved(void) {
+    FILE *f = fopen(DCC_BATTERY_LIMIT_FILE, "r");
+    if (!f) return 100;
+    int v = 100;
+    if (fscanf(f, "%d", &v) != 1) v = 100;
+    fclose(f);
+    return (v >= BATTERY_LIMIT_MIN && v <= 100) ? v : 100;
+}
+
+/* Write the limit; a start threshold (thinkpad_acpi) must stay below it */
+static int battery_limit_write(int pct, int log_error) {
+    char dir[600], name[64];
+    if (bat_find(dir, sizeof dir, name, sizeof name) != 0) return -1;
+    int start = bat_read_int(dir, "charge_control_start_threshold");
+    if (start >= pct && pct < 100) {
+        int ns = pct > 10 ? pct - 10 : 0;
+        if (bat_write_int(dir, "charge_control_start_threshold", ns) == 0)
+            LOG_INFO("[CPU] %s: charge start threshold lowered from %d%% to %d%%", name, start, ns);
+    }
+    if (bat_write_int(dir, "charge_control_end_threshold", pct) != 0) {
+        if (log_error) LOG_ERROR("[CPU] %s: cannot set the charge limit to %d%%: %s", name, pct, strerror(errno));
+        return -1;
+    }
+    int now = bat_read_int(dir, "charge_control_end_threshold");
+    if (now != pct)
+        LOG_INFO("[CPU] %s: charge limit %d%% requested, the driver set %d%%", name, pct, now);
+    return 0;
+}
+
+int battery_limit_set(int pct) {
+    if (pct < BATTERY_LIMIT_MIN) pct = BATTERY_LIMIT_MIN;
+    if (pct > 100) pct = 100;
+    if (battery_limit_write(pct, 1) != 0) return -1;
+    if (pct >= 100) {
+        if (unlink(DCC_BATTERY_LIMIT_FILE) != 0 && errno != ENOENT)
+            LOG_WARN("[CPU] Cannot remove %s: %s", DCC_BATTERY_LIMIT_FILE, strerror(errno));
+        LOG_INFO("[CPU] Battery charge limit off (charges to 100%%)");
+        return 0;
+    }
+    FILE *f = fopen(DCC_BATTERY_LIMIT_FILE, "w");
+    if (!f || fprintf(f, "%d\n", pct) < 0) {
+        LOG_WARN("[CPU] Cannot store the charge limit in %s: %s", DCC_BATTERY_LIMIT_FILE, strerror(errno));
+        if (f) fclose(f);
+    } else {
+        fclose(f);
+    }
+    LOG_INFO("[CPU] Battery charge limit %d%%", pct);
+    return 0;
+}
+
+/* Firmware often forgets the limit (reboot, standby): set it again */
+void battery_limit_enforce(int quiet) {
+    int want = battery_limit_saved();
+    if (want >= 100) return;
+    char bat[64];
+    int cur = battery_limit_get(bat, sizeof bat);
+    if (cur < 0) {
+        if (!quiet) LOG_WARN("[CPU] A charge limit of %d%% is stored, but no battery offers one", want);
+        return;
+    }
+    if (cur == want) return;
+    static int failed_once;       /* a failing write is logged once, not every minute */
+    if (battery_limit_write(want, !failed_once) != 0) { failed_once = 1; return; }
+    failed_once = 0;
+    if (quiet) LOG_INFO("[CPU] %s: charge limit back to %d%% (the firmware had set %d%%)", bat, want, cur);
+    else LOG_INFO("[CPU] %s: charge limit set to %d%% (was %d%%)", bat, want, cur);
 }

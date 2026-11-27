@@ -144,7 +144,33 @@ static int run_default_mode(int fd) {
     printf("Max Frequency: ");
     print_value(resp, "MAX_FREQ=");
 
+    /* battery charge limit (1.46.0), only where the battery offers one */
+    tmp = strstr(resp, "BATTERY_LIMIT=");
+    if (tmp && atoi(tmp + 14) >= 0) {
+        int lim = atoi(tmp + 14);
+        const char *dev = strstr(resp, "BATTERY_LIMIT_DEVICE=");
+        char name[64] = "";
+        if (dev) sscanf(dev + 21, "%63[^\n]", name);
+        if (lim >= 100) printf("Charge Limit: off (%s)\n", name);
+        else printf("Charge Limit: %d%% (%s)\n", lim, name);
+    }
+
     return EXIT_SUCCESS;
+}
+
+static int run_battery_limit(int fd, const char *arg) {
+    char *end = NULL;
+    long pct = !strcmp(arg, "off") ? 100 : strtol(arg, &end, 10);
+    if (strcmp(arg, "off") && (end == arg || *end || pct < 50 || pct > 100)) {
+        fprintf(stderr, "Error: --battery-limit takes a percentage from 50 to 100, or off\n");
+        return EXIT_FAILURE;
+    }
+    char cmd[64], response[CPU_BUFFER_SIZE];
+    snprintf(cmd, sizeof cmd, "SET_BATTERY_LIMIT|%ld", pct);
+    const char *resp = send_command(fd, cmd, response, sizeof response);
+    if (!resp) return EXIT_FAILURE;
+    printf("%s", resp);
+    return strncmp(resp, "OK", 2) == 0 ? EXIT_SUCCESS : EXIT_FAILURE;
 }
 
 static int run_list_profiles(int fd) {
@@ -234,6 +260,7 @@ static void print_usage(void) {
     printf("  --governor <name>    Set governor (performance, schedutil, powersave, etc.)\n");
     printf("  --hard-limit <GHz>   Set hard frequency limit in GHz (e.g. 3.8)\n");
     printf("  --hard-limit-get     Show current hard frequency limit\n");
+    printf("  --battery-limit <N|off>  Stop charging the battery at N%% (50-100), or off\n");
     printf("  --log-level <LEVEL>  Set the daemon log level (ERROR, WARN, INFO, DEBUG)\n");
     printf("  --log-level-get      Show the daemon log level\n");
     printf("  --help               Show this help message\n");
@@ -336,6 +363,17 @@ int main(int argc, char *argv[]) {
 
         if (strcmp(argv[i], "--log-level-get") == 0) {
             int result = run_log_level(fd, NULL);
+            close(fd);
+            return result;
+        }
+
+        if (strcmp(argv[i], "--battery-limit") == 0) {
+            if (i + 1 >= argc) {
+                fprintf(stderr, "Error: --battery-limit requires a percentage (50-100) or off\n");
+                close(fd);
+                return EXIT_FAILURE;
+            }
+            int result = run_battery_limit(fd, argv[++i]);
             close(fd);
             return result;
         }

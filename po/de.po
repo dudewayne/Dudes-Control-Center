@@ -1183,6 +1183,27 @@ msgstr "Der Lüfter-Daemon stellt dann die Drehzahl der Lüfter des Treibers %s 
 msgid "Generic fan control"
 msgstr "Allgemeine Lüftersteuerung"
 
+#, c-format
+msgid "Charge limit: %d %%"
+msgstr "Ladegrenze: %d %%"
+
+msgid "Needs the CPU daemon (CPU control in Components)."
+msgstr "Benötigt den CPU-Daemon (CPU-Steuerung unter Komponenten)."
+
+msgid "This laptop's battery driver offers no charge limit (charge_control_end_threshold)."
+msgstr "Der Akkutreiber dieses Laptops bietet keine Ladegrenze (charge_control_end_threshold)."
+
+#, c-format
+msgid "Stops charging %s at this level, which is easier on a battery that is plugged in most of the time. Set again after a reboot or standby; some drivers only take certain values."
+msgstr "Beendet das Laden von %s bei diesem Stand; das schont einen Akku, der meist am Netzteil hängt. Wird nach Neustart oder Standby erneut gesetzt; manche Treiber nehmen nur bestimmte Werte an."
+
+#, c-format
+msgid "Not changed: %s"
+msgstr "Nicht geändert: %s"
+
+msgid "no answer from the CPU daemon"
+msgstr "keine Antwort vom CPU-Daemon"
+
 msgid "Components"
 msgstr "Komponenten"
 
@@ -1265,6 +1286,12 @@ msgstr "Aktualisierungsintervall:"
 
 msgid "How often the window shows new temperatures, fan speeds, frequencies and power. The daemons control fans and CPU on their own schedule."
 msgstr "Wie oft das Fenster neue Temperaturen, Lüfterdrehzahlen, Frequenzen und Leistungswerte zeigt. Die Dienste steuern Lüfter und CPU in ihrem eigenen Takt."
+
+msgid "Off (charges to 100 %)"
+msgstr "Aus (lädt bis 100 %)"
+
+msgid "Charge limit:"
+msgstr "Ladegrenze:"
 
 msgid "Show Application"
 msgstr "Anwendung anzeigen"

@@ -769,6 +769,12 @@ typedef struct {
     GtkWidget *settings_layout_note;
     int refresh_sec;                   /* refresh interval of the live values (1.40.0) */
     GtkWidget *settings_refresh_combo;
+    /* Battery charge limit (1.46.0), from the CPU daemon's STATUS */
+    int bat_limit;                     /* 0-100, -1 not offered, -2 unknown (no answer yet) */
+    char bat_limit_dev[64];
+    int bat_limit_seen;
+    GtkWidget *settings_bat_combo, *settings_bat_note, *bat_limit_label;
+    int settings_bat_syncing;
     GtkWidget *settings_minimized_switch;   /* start minimized to tray (1.40.0) */
     /* Direct EC access (1.41.0): from the fan daemon's STATUS */
     char ec_access[12];                /* "module", "hwmon", "ports", "none", "" = unknown */
@@ -902,6 +908,7 @@ static const char *cpu_pp_selected(const AppData *app) {
 }
 
 static void parse_cpu_status(AppData *app, const char *response);
+static void settings_update_battery(AppData *app);
 
 /* Forward declarations for keyboard daemon connection */
 static void connect_to_keyboard_daemon(AppData *app);
@@ -1442,6 +1449,12 @@ static void parse_cpu_status(AppData *app, const char *response) {
             cpu_pp_set_choices(app, line + 25);
         } else if (strncmp(line, "PLATFORM_PROFILE=", 17) == 0) {
             g_strlcpy(app->cpu_pp_current, line + 17, sizeof app->cpu_pp_current);
+        } else if (strncmp(line, "BATTERY_LIMIT=", 14) == 0) {
+            app->bat_limit = atoi(line + 14);
+            app->bat_limit_seen = 1;
+        } else if (strncmp(line, "BATTERY_LIMIT_DEVICE=", 21) == 0) {
+            g_strlcpy(app->bat_limit_dev, line + 21, sizeof app->bat_limit_dev);
+            settings_update_battery(app);      /* the last of the three lines */
         } else if (strncmp(line, "CPU_LOAD=", 9) == 0) {
             cpu_load = num_c(line + 9);
         } else if (strncmp(line, "NUM_CPUS=", 9) == 0) {
@@ -4129,6 +4142,7 @@ static void update_daemon_status_labels(AppData *app) {
     set_daemon_status(app->fan_daemon_status_label, _("Fan"), app->connected && app->socket_fd >= 0);
     set_daemon_status(app->cpu_daemon_status_label, _("CPU"), app->cpu_connected && app->cpu_socket_fd >= 0);
     set_daemon_status(app->kbd_status_label, _("Keyboard"), app->kbd_connected && app->kbd_socket_fd >= 0);
+    settings_update_battery(app);   /* the charge limit needs the CPU daemon (1.46.0) */
     /* switched off in Settings: grey, not a red "not connected" (1.27.0) */
     GtkWidget *labels[COMP_COUNT] = { app->fan_daemon_status_label, app->cpu_daemon_status_label, app->kbd_status_label };
     const char *names[COMP_COUNT] = { _("Fan"), _("CPU"), _("Keyboard") };
@@ -6914,6 +6928,8 @@ static GtkWidget *create_status_page(AppData *app) {
     app->bat_state_label = status_label(box, "");
     app->bat_health_label = status_label(box, "");
     gtk_widget_set_no_show_all(app->bat_health_label, TRUE);
+    app->bat_limit_label = status_label(box, "");
+    gtk_widget_set_no_show_all(app->bat_limit_label, TRUE);
     gtk_box_pack_start(GTK_BOX(col[2]), f, FALSE, FALSE, 0);
 
     f = gtk_frame_new(_("Active Profiles"));
@@ -9877,7 +9893,11 @@ GtkWidget *page4 = create_log_page(app);
     gtk_scrolled_window_set_policy(GTK_SCROLLED_WINDOW(kbd_scrolled), GTK_POLICY_NEVER, GTK_POLICY_AUTOMATIC);
     gtk_container_add(GTK_CONTAINER(kbd_scrolled), kbd_page);
 
-    GtkWidget *settings_page = create_settings_page(app);
+    GtkWidget *settings_inner = create_settings_page(app);
+    /* scrollable since the Battery section (1.46.0) made it taller */
+    GtkWidget *settings_page = gtk_scrolled_window_new(NULL, NULL);
+    gtk_scrolled_window_set_policy(GTK_SCROLLED_WINDOW(settings_page), GTK_POLICY_NEVER, GTK_POLICY_AUTOMATIC);
+    gtk_container_add(GTK_CONTAINER(settings_page), settings_inner);
     app->page_widgets[PAGE_STATUS] = page1;
     app->page_widgets[PAGE_FAN] = page2;
     app->page_widgets[PAGE_CPU] = cpu_scrolled;
@@ -10791,6 +10811,76 @@ static void settings_grid_row(GtkWidget *g, int *row, const char *label, GtkWidg
     }
 }
 
+/* Battery charge limit (1.46.0) */
+static const int bat_limit_choices[] = { 100, 90, 85, 80, 75, 70, 60, 50 };
+
+static void settings_update_battery(AppData *app) {
+    int lim = app->bat_limit_seen ? app->bat_limit : -2;
+    if (app->bat_limit_label) {
+        if (lim >= 0 && lim < 100) {
+            gchar *t = g_strdup_printf(_("Charge limit: %d %%"), lim);
+            label_set_changed(app->bat_limit_label, t);
+            g_free(t);
+        }
+        widget_set_shown(app->bat_limit_label, lim >= 0 && lim < 100);
+    }
+    if (!app->settings_bat_combo) return;
+    gboolean ok = lim >= 0 && app->cpu_connected;
+    if (gtk_widget_get_sensitive(app->settings_bat_combo) != ok) gtk_widget_set_sensitive(app->settings_bat_combo, ok);
+    gchar *note;
+    if (!app->cpu_connected || lim == -2)
+        note = g_strdup(_("Needs the CPU daemon (CPU control in Components)."));
+    else if (lim < 0)
+        note = g_strdup(_("This laptop's battery driver offers no charge limit (charge_control_end_threshold)."));
+    else
+        note = g_strdup_printf(_("Stops charging %s at this level, which is easier on a battery that is plugged in "
+                                 "most of the time. Set again after a reboot or standby; some drivers only take "
+                                 "certain values."), app->bat_limit_dev);
+    label_set_changed(app->settings_bat_note, note);
+    g_free(note);
+    if (lim < 0) return;
+    char id[16];
+    g_snprintf(id, sizeof id, "%d", lim);
+    const char *cur = gtk_combo_box_get_active_id(GTK_COMBO_BOX(app->settings_bat_combo));
+    if (cur && !strcmp(cur, id)) return;
+    app->settings_bat_syncing = 1;
+    if (!gtk_combo_box_set_active_id(GTK_COMBO_BOX(app->settings_bat_combo), id)) {
+        /* a value set elsewhere (dcc-cpu-cli, the driver rounded it) */
+        gchar *t = g_strdup_printf(_("%d %%"), lim);
+        gtk_combo_box_text_append(GTK_COMBO_BOX_TEXT(app->settings_bat_combo), id, t);
+        g_free(t);
+        gtk_combo_box_set_active_id(GTK_COMBO_BOX(app->settings_bat_combo), id);
+    }
+    app->settings_bat_syncing = 0;
+}
+
+static void on_settings_bat_changed(GtkComboBox *combo, gpointer user_data) {
+    AppData *app = user_data;
+    if (app->settings_bat_syncing) return;
+    const char *id = gtk_combo_box_get_active_id(combo);
+    if (!id) return;
+    char cmd[64];
+    g_snprintf(cmd, sizeof cmd, "SET_BATTERY_LIMIT|%s", id);
+    const char *r = send_cpu_command(app, cmd);
+    if (r && !strncmp(r, "OK", 2)) {
+        app->bat_limit = atoi(id);
+        gui_event("[GUI] Battery charge limit: %s\n", atoi(id) >= 100 ? "off" : id);
+        settings_update_battery(app);
+        return;
+    }
+    /* refused: show why, back to the real value */
+    gchar *msg = g_strdup_printf(_("Not changed: %s"), r && !strncmp(r, "ERROR ", 6) ? r + 6 : _("no answer from the CPU daemon"));
+    g_strchomp(msg);
+    int keep = app->bat_limit;
+    char kid[16];
+    g_snprintf(kid, sizeof kid, "%d", keep);
+    app->settings_bat_syncing = 1;
+    gtk_combo_box_set_active_id(combo, kid);
+    app->settings_bat_syncing = 0;
+    label_set_changed(app->settings_bat_note, msg);
+    g_free(msg);
+}
+
 static GtkWidget *create_settings_page(AppData *app) {
     GtkWidget *vbox = gtk_box_new(GTK_ORIENTATION_VERTICAL, 10);
     gtk_container_set_border_width(GTK_CONTAINER(vbox), 12);
@@ -10987,6 +11077,30 @@ static GtkWidget *create_settings_page(AppData *app) {
 
         gtk_container_add(GTK_CONTAINER(bframe), g);
         gtk_box_pack_start(GTK_BOX(vbox), bframe, FALSE, FALSE, 0);
+    }
+
+    /* Battery (1.46.0): charge limit through the CPU daemon */
+    {
+        GtkWidget *bframe = gtk_frame_new(_("Battery"));
+        GtkWidget *g = settings_grid();
+        int r = 0;
+        app->settings_bat_combo = gtk_combo_box_text_new();
+        for (size_t i = 0; i < G_N_ELEMENTS(bat_limit_choices); i++) {
+            gchar *id = g_strdup_printf("%d", bat_limit_choices[i]);
+            gchar *t = bat_limit_choices[i] >= 100 ? g_strdup(_("Off (charges to 100 %)"))
+                                                   : g_strdup_printf(_("%d %%"), bat_limit_choices[i]);
+            gtk_combo_box_text_append(GTK_COMBO_BOX_TEXT(app->settings_bat_combo), id, t);
+            g_free(id);
+            g_free(t);
+        }
+        gtk_widget_set_sensitive(app->settings_bat_combo, FALSE);
+        g_signal_connect(app->settings_bat_combo, "changed", G_CALLBACK(on_settings_bat_changed), app);
+        app->settings_bat_note = settings_note("");   /* filled by settings_update_battery() */
+        settings_grid_row(g, &r, _("Charge limit:"), app->settings_bat_combo, app->settings_bat_note);
+        gtk_container_add(GTK_CONTAINER(bframe), g);
+        gtk_box_pack_start(GTK_BOX(vbox), bframe, FALSE, FALSE, 0);
+        if (!app->bat_limit_seen) app->bat_limit = -2;
+        settings_update_battery(app);
     }
 
     settings_sync_switches(app);

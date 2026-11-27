@@ -130,7 +130,7 @@ check("tpacpi::kbd_backlight: single color, brightness 1/2" in out and
 check("platform_profile: balanced (choices: low-power balanced performance)" in out, "firmware power profile")
 check("card0: driver ?, id 0x1002:0x73df, boot_vga 0, power suspended" in out and "card0-eDP-1" not in out,
       "graphics cards without connectors")
-check("BAT0: Battery, charge_control_end_threshold" in out, "power supplies")
+check("BAT0: Battery, charge_control_end_threshold 80\n" in out, "power supplies with the charge limit")
 check("SERIAL-123456" not in out and "UUID-abcdef" not in out, "no serial number or UUID")
 check(home not in out and "<home>/.config" in out and "<home>/x" in out, "the home folder is replaced")
 check(f"{user} BIOS" not in out and "<user> BIOS" in out, f"the user name is replaced ({len(user)} characters)")

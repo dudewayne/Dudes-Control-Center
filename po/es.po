@@ -1206,6 +1206,27 @@ msgstr "El demonio de ventiladores ajustará entonces la velocidad de los ventil
 msgid "Generic fan control"
 msgstr "Control genérico de ventiladores"
 
+#, c-format
+msgid "Charge limit: %d %%"
+msgstr "Límite de carga: %d %%"
+
+msgid "Needs the CPU daemon (CPU control in Components)."
+msgstr "Necesita el daemon de CPU (Control de CPU en Componentes)."
+
+msgid "This laptop's battery driver offers no charge limit (charge_control_end_threshold)."
+msgstr "El controlador de batería de este portátil no ofrece límite de carga (charge_control_end_threshold)."
+
+#, c-format
+msgid "Stops charging %s at this level, which is easier on a battery that is plugged in most of the time. Set again after a reboot or standby; some drivers only take certain values."
+msgstr "Detiene la carga de %s en este nivel, lo que cuida una batería que está enchufada casi siempre. Se vuelve a aplicar tras un reinicio o una suspensión; algunos controladores solo aceptan ciertos valores."
+
+#, c-format
+msgid "Not changed: %s"
+msgstr "Sin cambios: %s"
+
+msgid "no answer from the CPU daemon"
+msgstr "sin respuesta del daemon de CPU"
+
 msgid "Components"
 msgstr "Componentes"
 
@@ -1288,6 +1309,12 @@ msgstr "Intervalo de actualización:"
 
 msgid "How often the window shows new temperatures, fan speeds, frequencies and power. The daemons control fans and CPU on their own schedule."
 msgstr "Con qué frecuencia la ventana muestra nuevas temperaturas, velocidades de ventilador, frecuencias y potencia. Los servicios controlan ventiladores y CPU a su propio ritmo."
+
+msgid "Off (charges to 100 %)"
+msgstr "Desactivado (carga hasta el 100 %)"
+
+msgid "Charge limit:"
+msgstr "Límite de carga:"
 
 msgid "Show Application"
 msgstr "Mostrar aplicación"

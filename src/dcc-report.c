@@ -418,9 +418,11 @@ static void put_platform_gpu_power(Buf *b) {
     shown = 0;
     for (int i = 0; i < n; i++) {
         snprintf(p, sizeof p, "%s/%s/type", dir, ps[i]); rline(p, v, sizeof v);
-        snprintf(p, sizeof p, "%s/%s/charge_control_end_threshold", dir, ps[i]);
-        int thr = rexists(p);
-        bput(b, "%s: %s%s\n", ps[i], v[0] ? v : "?", thr ? ", charge_control_end_threshold" : "");
+        snprintf(p, sizeof p, "%s/%s/charge_control_end_threshold", dir, ps[i]); rline(p, x, sizeof x);
+        snprintf(p, sizeof p, "%s/%s/charge_control_start_threshold", dir, ps[i]); rline(p, y, sizeof y);
+        if (x[0] && y[0]) bput(b, "%s: %s, charge_control_end_threshold %s, start %s\n", ps[i], v[0] ? v : "?", x, y);
+        else if (x[0]) bput(b, "%s: %s, charge_control_end_threshold %s\n", ps[i], v[0] ? v : "?", x);
+        else bput(b, "%s: %s\n", ps[i], v[0] ? v : "?");
         shown++;
     }
     if (!shown) bput(b, "none\n");

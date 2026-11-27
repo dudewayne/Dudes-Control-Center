@@ -219,6 +219,9 @@ static void handle_command(const char *cmd, char *response, size_t resp_size) {
 
         char pp_cur[64], pp_choices[256];
         platform_profile_get(pp_cur, sizeof pp_cur, pp_choices, sizeof pp_choices);
+        char bat[64];
+        int bat_limit = battery_limit_get(bat, sizeof bat);
+        int bat_saved = battery_limit_saved();
 
         /* Get min/max freq from first core (all cores share the same range) */
         char freq_min_buf[32], freq_max_buf[32];
@@ -240,7 +243,10 @@ static void handle_command(const char *cmd, char *response, size_t resp_size) {
             "CPU_POWER_W=%.1f\n"
             "CPU_POWER_LIMIT_W=%d\n"
             "PLATFORM_PROFILE=%s\n"
-            "PLATFORM_PROFILE_CHOICES=%s\n",
+            "PLATFORM_PROFILE_CHOICES=%s\n"
+            "BATTERY_LIMIT=%d\n"
+            "BATTERY_LIMIT_SAVED=%d\n"
+            "BATTERY_LIMIT_DEVICE=%s\n",
             status.num_cpus,
             status.on_ac_power,
             status.cpu_temp_c,
@@ -253,7 +259,7 @@ static void handle_command(const char *cmd, char *response, size_t resp_size) {
             g_cpu_state.auto_mode_enabled,
             cpu_package_power_w(),
             cpu_power_limit_w(),
-            pp_cur, pp_choices);
+            pp_cur, pp_choices, bat_limit, bat_saved, bat);
 
         /* Add CPU details */
         size_t pos = strlen(response);
@@ -796,12 +802,42 @@ static void handle_command(const char *cmd, char *response, size_t resp_size) {
             snprintf(response, resp_size, "ERROR Firmware power profile '%s' is not offered by this laptop\n", arg2);
             return;
         }
-        snprintf(cp->platform_profile, sizeof cp->platform_profile, "%s", strcmp(arg2, "-") ? arg2 : "");
+        {   /* an offered choice is short; copy at most what fits */
+            const char *ch = strcmp(arg2, "-") ? arg2 : "";
+            size_t l = strlen(ch);
+            if (l >= sizeof cp->platform_profile) l = sizeof cp->platform_profile - 1;
+            memcpy(cp->platform_profile, ch, l);
+            cp->platform_profile[l] = '\0';
+        }
         cpu_custom_profile_save_json();
         if (cp->platform_profile[0] && idx == g_cpu_state.active_custom_profile_idx)
             platform_profile_set(cp->platform_profile, cp->name);
         snprintf(response, resp_size, "OK Firmware power profile of '%s': %s\n", cp->name,
                  cp->platform_profile[0] ? cp->platform_profile : "unchanged");
+        return;
+    }
+
+    /* --- SET_BATTERY_LIMIT <50-100> (1.46.0): charge limit of the battery,
+     * 100 = off; stored system-wide and set again after a reset --- */
+    if (strcmp(action, "SET_BATTERY_LIMIT") == 0) {
+        char *end = NULL;
+        long pct = strtol(arg1, &end, 10);
+        if (!arg1[0] || *end || pct < BATTERY_LIMIT_MIN || pct > 100) {
+            snprintf(response, resp_size, "ERROR Usage: SET_BATTERY_LIMIT <%d-100> (100 = off)\n", BATTERY_LIMIT_MIN);
+            return;
+        }
+        char bat[64];
+        if (battery_limit_get(bat, sizeof bat) < 0) {
+            snprintf(response, resp_size, "ERROR This laptop's battery driver offers no charge limit\n");
+            return;
+        }
+        if (battery_limit_set((int)pct) != 0) {
+            snprintf(response, resp_size, "ERROR Cannot set the charge limit (see the CPU daemon log)\n");
+            return;
+        }
+        int now = battery_limit_get(bat, sizeof bat);
+        if (pct >= 100) snprintf(response, resp_size, "OK Charge limit off (%s charges to %d%%)\n", bat, now);
+        else snprintf(response, resp_size, "OK Charge limit %ld%% (%s reports %d%%)\n", pct, bat, now);
         return;
     }
 
@@ -1207,7 +1243,8 @@ int main(int argc, char *argv[]) {
 
     LOG_INFO("[DAEMON] Daemon ready, waiting for connections...");
 
-    double last_check = 0, last_enforce = 0;
+    double last_check = 0, last_enforce = 0, last_battery = 0;
+    battery_limit_enforce(0);   /* the stored charge limit (1.46.0) */
 
     /* Main loop: sleep in select() until a client talks or a timer is due */
     while (g_running) {
@@ -1256,6 +1293,12 @@ int main(int argc, char *argv[]) {
         if (now - last_check >= AUTO_CHECK_INTERVAL_SEC) {
             check_auto_conditions();
             last_check = now;
+        }
+
+        /* Firmware may reset the charge limit (standby, reboot) */
+        if (now - last_battery >= BATTERY_LIMIT_CHECK_SEC) {
+            if (last_battery > 0) battery_limit_enforce(1);
+            last_battery = now;
         }
 
         /* Re-apply frequency limits periodically */

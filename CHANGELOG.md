@@ -6,6 +6,16 @@ Programs and services were named `dudes-control-center-*` before 1.19.0 (for exa
 
 ## [Unreleased]
 
+## [1.46.0] - 2026-11-27
+
+### Added
+- **Battery charge limit**: Settings → **Battery** → **Charge limit** stops charging at 90, 85, 80, 75, 70, 60 or 50 %, or is off (100 %); easier on a battery that is plugged in most of the time. Only where the battery driver offers `charge_control_end_threshold` (e.g. `thinkpad_acpi`, `asus-wmi`, `dell-laptop`, tuxedo-drivers); otherwise the row is inactive and says why. The CPU daemon sets it (`SET_BATTERY_LIMIT|<50-100>`), stores it system-wide in `/etc/dudes-control-center/battery-limit`, sets it again at start and checks it every minute, because many firmwares reset it after a reboot or standby. A start threshold (`charge_control_start_threshold`) at or above the new limit is lowered to 10 below it. STATUS reports `BATTERY_LIMIT=`, `BATTERY_LIMIT_SAVED=` and `BATTERY_LIMIT_DEVICE=`.
+- The Status tab's battery section shows "Charge limit: 80 %" while a limit is set; `dcc-cpu-cli` shows it and sets it with `--battery-limit <50-100|off>`; the system report shows the thresholds' values.
+- Tests: the charge limit in the CPU daemon (stored limit at start, start threshold, refused values, a firmware reset, off, a battery without a limit) and the Settings row (inactive, not offered, a value set elsewhere, refused by the daemon).
+
+### Changed
+- The Settings tab scrolls when the window is too small for its sections.
+
 ## [1.45.0] - 2026-11-27
 
 ### Added
@@ -1103,7 +1113,8 @@ Programs and services were named `dudes-control-center-*` before 1.19.0 (for exa
 - Unix socket IPC between GUI and daemon
 - Watchdog timer and fail-safe mode in daemon
 
-[Unreleased]: https://github.com/dudewayne/Dudes-Control-Center/compare/v1.45.0...HEAD
+[Unreleased]: https://github.com/dudewayne/Dudes-Control-Center/compare/v1.46.0...HEAD
+[1.46.0]: https://github.com/dudewayne/Dudes-Control-Center/compare/v1.45.0...v1.46.0
 [1.45.0]: https://github.com/dudewayne/Dudes-Control-Center/compare/v1.44.1...v1.45.0
 [1.44.1]: https://github.com/dudewayne/Dudes-Control-Center/compare/v1.44.0...v1.44.1
 [1.44.0]: https://github.com/dudewayne/Dudes-Control-Center/compare/v1.43.0...v1.44.0

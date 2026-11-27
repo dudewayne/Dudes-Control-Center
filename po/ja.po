@@ -1212,6 +1212,27 @@ msgstr "ファンデーモンは、ファンプロファイルに従って、カ
 msgid "Generic fan control"
 msgstr "汎用ファン制御"
 
+#, c-format
+msgid "Charge limit: %d %%"
+msgstr "充電上限: %d %%"
+
+msgid "Needs the CPU daemon (CPU control in Components)."
+msgstr "CPU デーモンが必要です (コンポーネントの CPU 制御)。"
+
+msgid "This laptop's battery driver offers no charge limit (charge_control_end_threshold)."
+msgstr "このノートPCのバッテリードライバーは充電上限を提供していません (charge_control_end_threshold)。"
+
+#, c-format
+msgid "Stops charging %s at this level, which is easier on a battery that is plugged in most of the time. Set again after a reboot or standby; some drivers only take certain values."
+msgstr "%s の充電をこのレベルで止めます。ほとんど電源につないだままのバッテリーにやさしい設定です。再起動やスタンバイの後に再設定されます。ドライバーによっては特定の値しか受け付けません。"
+
+#, c-format
+msgid "Not changed: %s"
+msgstr "変更されていません: %s"
+
+msgid "no answer from the CPU daemon"
+msgstr "CPU デーモンから応答がありません"
+
 msgid "Components"
 msgstr "コンポーネント"
 
@@ -1294,6 +1315,12 @@ msgstr "更新間隔:"
 
 msgid "How often the window shows new temperatures, fan speeds, frequencies and power. The daemons control fans and CPU on their own schedule."
 msgstr "ウィンドウが新しい温度、ファン回転数、周波数、電力を表示する頻度です。デーモンは独自の間隔でファンと CPU を制御します。"
+
+msgid "Off (charges to 100 %)"
+msgstr "オフ (100 % まで充電)"
+
+msgid "Charge limit:"
+msgstr "充電上限:"
 
 msgid "Show Application"
 msgstr "アプリケーションを表示"
