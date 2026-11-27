@@ -6,6 +6,12 @@ Programs and services were named `dudes-control-center-*` before 1.19.0 (for exa
 
 ## [Unreleased]
 
+## [1.44.1] - 2026-11-27
+
+### Fixed
+- A daemon restart (for example during a package update) no longer leaves `[ERROR]` lines in the GUI log: a daemon that closed the connection is logged as "… daemon closed the connection (restarted or stopped) - reconnecting" at INFO, and the follow-up "Received error response" line is gone. Other socket errors are still errors.
+- Keyboards without per-key LEDs (one color or a few zones) no longer offer the **Wave** effect and its direction, which only makes sense across a key matrix; a profile with Wave shows Rainbow there.
+
 ## [1.44.0] - 2026-11-27
 
 ### Added
@@ -1083,7 +1089,8 @@ Programs and services were named `dudes-control-center-*` before 1.19.0 (for exa
 - Unix socket IPC between GUI and daemon
 - Watchdog timer and fail-safe mode in daemon
 
-[Unreleased]: https://github.com/dudewayne/Dudes-Control-Center/compare/v1.44.0...HEAD
+[Unreleased]: https://github.com/dudewayne/Dudes-Control-Center/compare/v1.44.1...HEAD
+[1.44.1]: https://github.com/dudewayne/Dudes-Control-Center/compare/v1.44.0...v1.44.1
 [1.44.0]: https://github.com/dudewayne/Dudes-Control-Center/compare/v1.43.0...v1.44.0
 [1.43.0]: https://github.com/dudewayne/Dudes-Control-Center/compare/v1.42.0...v1.43.0
 [1.42.0]: https://github.com/dudewayne/Dudes-Control-Center/compare/v1.41.0...v1.42.0

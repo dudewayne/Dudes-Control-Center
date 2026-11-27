@@ -1088,6 +1088,19 @@ static int check_unsaved_changes(AppData *app) {
     }
 }
 
+/* A lost daemon connection (1.44.1): the daemon closing it (restart, e.g.
+ * during a package update, or stop) is normal and logged at INFO; the GUI
+ * reconnects by itself. Other socket errors stay errors. */
+static void gui_log_lost(const char *daemon, const char *what, int err) {
+    if (err == EPIPE || err == ECONNRESET || err == 0) {
+        gui_event("[GUI] %s daemon closed the connection (restarted or stopped) - reconnecting\n", daemon);
+        return;
+    }
+    char ts[32];
+    get_timestamp(ts, sizeof(ts));
+    g_print("%s [GUI] %s ERROR: %s (%s), marking disconnected\n", ts, daemon, what, strerror(err));
+}
+
 /* Send command to daemon and receive response */
 static const char *send_command(AppData *app, const char *cmd) {
     static char response[BUFFER_SIZE];
@@ -1111,9 +1124,7 @@ static const char *send_command(AppData *app, const char *cmd) {
     /* Send command */
     ssize_t sent = send(app->socket_fd, cmd_with_newline, strlen(cmd_with_newline), MSG_NOSIGNAL);  /* EPIPE instead of SIGPIPE */
     if (sent < 0) {
-        char ts[32];
-        get_timestamp(ts, sizeof(ts));
-        g_print("%s [GUI] ERROR: Failed to send command (%s), marking disconnected\n", ts, strerror(errno));
+        gui_log_lost("Fan", "Failed to send command", errno);
         app->connected = 0;
         if (app->socket_fd >= 0) {
             close(app->socket_fd);
@@ -1127,9 +1138,7 @@ static const char *send_command(AppData *app, const char *cmd) {
     memset(response, 0, sizeof(response));
     ssize_t received = read(app->socket_fd, response, sizeof(response) - 1);
     if (received < 0) {
-        char ts[32];
-        get_timestamp(ts, sizeof(ts));
-        g_print("%s [GUI] ERROR: Failed to receive response (%s), marking disconnected\n", ts, strerror(errno));
+        gui_log_lost("Fan", "Failed to receive response", errno);
         app->connected = 0;
         if (app->socket_fd >= 0) {
             close(app->socket_fd);
@@ -1139,9 +1148,7 @@ static const char *send_command(AppData *app, const char *cmd) {
         return response;
     }
     if (received == 0) {
-        char ts[32];
-        get_timestamp(ts, sizeof(ts));
-        g_print("%s [GUI] ERROR: Connection closed by daemon (EOF)\n", ts);
+        gui_log_lost("Fan", "Connection closed", 0);
         strcpy(response, "ERROR Connection closed by daemon");
         app->connected = 0;
         return response;
@@ -1179,9 +1186,7 @@ static const char *send_cpu_command(AppData *app, const char *cmd) {
     ssize_t sent = send(app->cpu_socket_fd, cmd_with_newline, strlen(cmd_with_newline), MSG_NOSIGNAL);  /* EPIPE instead of SIGPIPE */
     g_free(cmd_with_newline);
     if (sent < 0) {
-        char ts[32];
-        get_timestamp(ts, sizeof(ts));
-        g_print("%s [GUI] CPU ERROR: Failed to send command (%s), marking disconnected\n", ts, strerror(errno));
+        gui_log_lost("CPU", "Failed to send command", errno);
         app->cpu_connected = 0;
         if (app->cpu_socket_fd >= 0) {
             close(app->cpu_socket_fd);
@@ -1202,9 +1207,7 @@ static const char *send_cpu_command(AppData *app, const char *cmd) {
          * without the marker is detected by 200 ms of silence. */
         int poll_ret = poll(&pfd, 1, total_received == 0 ? 3000 : 200);
         if (poll_ret < 0) {
-            char ts[32];
-            get_timestamp(ts, sizeof(ts));
-            g_print("%s [GUI] CPU ERROR: poll failed (%s), marking disconnected\n", ts, strerror(errno));
+            gui_log_lost("CPU", "poll failed", errno);
             app->cpu_connected = 0;
             if (app->cpu_socket_fd >= 0) {
                 close(app->cpu_socket_fd);
@@ -1218,9 +1221,7 @@ static const char *send_cpu_command(AppData *app, const char *cmd) {
         ssize_t received = read(app->cpu_socket_fd, response + total_received, sizeof(response) - 1 - total_received);
         if (received < 0) {
             if (errno == EAGAIN || errno == EWOULDBLOCK) break;
-            char ts[32];
-            get_timestamp(ts, sizeof(ts));
-            g_print("%s [GUI] CPU ERROR: Failed to receive response (%s), marking disconnected\n", ts, strerror(errno));
+            gui_log_lost("CPU", "Failed to receive response", errno);
             app->cpu_connected = 0;
             if (app->cpu_socket_fd >= 0) {
                 close(app->cpu_socket_fd);
@@ -1230,9 +1231,7 @@ static const char *send_cpu_command(AppData *app, const char *cmd) {
             return response;
         }
         if (received == 0) {
-            char ts[32];
-            get_timestamp(ts, sizeof(ts));
-            g_print("%s [GUI] CPU ERROR: Connection closed by daemon (EOF)\n", ts);
+            gui_log_lost("CPU", "Connection closed", 0);
             strcpy(response, "ERROR CPU connection closed");
             app->cpu_connected = 0;
             return response;
@@ -4314,9 +4313,7 @@ static const char *send_keyboard_command_once(AppData *app, const char *cmd) {
     ssize_t sent = send(app->kbd_socket_fd, cmd_with_newline, strlen(cmd_with_newline), MSG_NOSIGNAL);  /* EPIPE instead of SIGPIPE */
     g_free(cmd_with_newline);
     if (sent < 0) {
-        char ts[32];
-        get_timestamp(ts, sizeof(ts));
-        g_print("%s [GUI] KBD ERROR: Failed to send command (%s), marking disconnected\n", ts, strerror(errno));
+        gui_log_lost("Keyboard", "Failed to send command", errno);
         app->kbd_connected = 0;
         if (app->kbd_socket_fd >= 0) {
             close(app->kbd_socket_fd);
@@ -4335,9 +4332,7 @@ static const char *send_keyboard_command_once(AppData *app, const char *cmd) {
         /* stop at the reply's NUL end marker (see send_cpu_command) */
         int poll_ret = poll(&pfd, 1, total_received == 0 ? 3000 : 200);
         if (poll_ret < 0) {
-            char ts[32];
-            get_timestamp(ts, sizeof(ts));
-            g_print("%s [GUI] KBD ERROR: poll failed (%s), marking disconnected\n", ts, strerror(errno));
+            gui_log_lost("Keyboard", "poll failed", errno);
             app->kbd_connected = 0;
             if (app->kbd_socket_fd >= 0) {
                 close(app->kbd_socket_fd);
@@ -4351,9 +4346,7 @@ static const char *send_keyboard_command_once(AppData *app, const char *cmd) {
         ssize_t received = read(app->kbd_socket_fd, response + total_received, sizeof(response) - 1 - total_received);
         if (received < 0) {
             if (errno == EAGAIN || errno == EWOULDBLOCK) break;
-            char ts[32];
-            get_timestamp(ts, sizeof(ts));
-            g_print("%s [GUI] KBD ERROR: Failed to receive response (%s), marking disconnected\n", ts, strerror(errno));
+            gui_log_lost("Keyboard", "Failed to receive response", errno);
             app->kbd_connected = 0;
             if (app->kbd_socket_fd >= 0) {
                 close(app->kbd_socket_fd);
@@ -4363,9 +4356,7 @@ static const char *send_keyboard_command_once(AppData *app, const char *cmd) {
             return response;
         }
         if (received == 0) {
-            char ts[32];
-            get_timestamp(ts, sizeof(ts));
-            g_print("%s [GUI] KBD ERROR: Connection closed by daemon (EOF)\n", ts);
+            gui_log_lost("Keyboard", "Connection closed", 0);
             strcpy(response, "ERROR Keyboard connection closed");
             app->kbd_connected = 0;
             return response;
@@ -4771,7 +4762,10 @@ static void kbd_fx_sync_controls(AppData *app) {
     int type, speed, dir;
     kbd_fx_split(kbd_fx_target(app), &type, &speed, &dir);
     app->kbd_fx_syncing = 1;
-    gtk_combo_box_set_active(GTK_COMBO_BOX(app->kbd_fx_combo), type);
+    /* without Wave in the list (no per-key LEDs, 1.44.1) a Wave shows as
+     * Rainbow, which is what it looks like there */
+    int n = gtk_tree_model_iter_n_children(gtk_combo_box_get_model(GTK_COMBO_BOX(app->kbd_fx_combo)), NULL);
+    gtk_combo_box_set_active(GTK_COMBO_BOX(app->kbd_fx_combo), type < n ? type : n - 1);
     gtk_range_set_value(GTK_RANGE(app->kbd_fx_speed), speed);
     gtk_combo_box_set_active(GTK_COMBO_BOX(app->kbd_fx_dir), dir);
     app->kbd_fx_syncing = 0;
@@ -5635,6 +5629,17 @@ static void kbd_apply_kind(AppData *app, const char *status) {
     widget_set_shown(app->kbd_wizard_box, per_key);
     widget_set_shown(app->kbd_wizard_sep, per_key);
     widget_set_shown(app->kbd_whole_btn, per_key);
+
+    /* Wave runs across the key matrix: only for per-key keyboards (1.44.1) */
+    GtkComboBoxText *fx = GTK_COMBO_BOX_TEXT(app->kbd_fx_combo);
+    int items = gtk_tree_model_iter_n_children(gtk_combo_box_get_model(GTK_COMBO_BOX(fx)), NULL);
+    app->kbd_fx_syncing = 1;
+    if (!per_key && items == 4) gtk_combo_box_text_remove(fx, 3);
+    else if (per_key && items == 3) gtk_combo_box_text_append_text(fx, _("Wave"));
+    app->kbd_fx_syncing = 0;
+    widget_set_shown(app->kbd_fx_dir, per_key);
+    if (items != gtk_tree_model_iter_n_children(gtk_combo_box_get_model(GTK_COMBO_BOX(fx)), NULL))
+        kbd_fx_sync_controls(app);
 }
 
 /* Show the daemon's real power state on the "Backlight Off" switch
@@ -11868,7 +11873,8 @@ static gboolean refresh_timer_callback(gpointer user_data) {
         /* Only parse if we got a valid response, not an error */
         if (strncmp(response, "ERROR", 5) != 0) {
             parse_status(app, response);
-        } else {
+        } else if (app->connected) {
+            /* a lost connection was logged already */
             g_print("%s [GUI] Received error response: %s\n", ts, response);
         }
         get_timestamp(ts, sizeof(ts));

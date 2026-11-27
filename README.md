@@ -94,7 +94,7 @@ dcc-gui --debug      # more output in GUI.log
 | Keyboard | Found as | Keyboard Backlight tab |
 |---|---|---|
 | Per-key RGB (`ite_829x`) | 16 or more multicolor LEDs `rgb:kbd_backlight*` | everything above |
-| One color or a few zones (e.g. `asus::kbd_backlight`, `system76_acpi::kbd_backlight`, 3-zone Clevo/TUXEDO) | 1 to 15 multicolor LEDs with `multi_intensity`; the color order comes from `multi_index` | profiles, colors, effects, brightness, off switch; no keyboard picture, zones or LED Wizard; a color goes to all zones |
+| One color or a few zones (e.g. `asus::kbd_backlight`, `system76_acpi::kbd_backlight`, 3-zone Clevo/TUXEDO) | 1 to 15 multicolor LEDs with `multi_intensity`; the color order comes from `multi_index` | profiles, colors, effects (no Wave), brightness, off switch; no keyboard picture, zones or LED Wizard; a color goes to all zones |
 | Single color (e.g. `tpacpi::kbd_backlight`, `dell::kbd_backlight`) | a LED `*::kbd_backlight` without colors | only the off switch and the brightness; off sets the brightness to 0 and keeps the level for switching on |
 | None | | a note; the daemon keeps running and looks again every 10 seconds (a driver loaded later is found) |
 

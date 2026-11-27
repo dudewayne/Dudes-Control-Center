@@ -952,6 +952,8 @@ int main(int argc, char **argv) {
               !strcmp(gtk_label_get_text(GTK_LABEL(ka.kbd_kind_label)),
                       "Keyboard: one color for the whole keyboard (asus-nb-wmi driver)"),
               "O: keyboard: one color -> profiles and colors, no key picture, zones or LED Wizard");
+        CHECK(gtk_tree_model_iter_n_children(gtk_combo_box_get_model(GTK_COMBO_BOX(ka.kbd_fx_combo)), NULL) == 3 &&
+              !gtk_widget_get_visible(ka.kbd_fx_dir), "O: keyboard: one color -> no Wave and no direction (1.44.1)");
         kbd_apply_kind(&ka, "STATUS OK\nLED_COUNT=3\nKBD_TYPE=rgb\nKBD_DRIVER=\n");
         CHECK(!strcmp(gtk_label_get_text(GTK_LABEL(ka.kbd_kind_label)), "Keyboard: 3 color zones, one color for all of them"),
               "O: keyboard: a few zones without a driver name");
@@ -969,6 +971,8 @@ int main(int argc, char **argv) {
               gtk_widget_get_visible(ka.kbd_wizard_box) && gtk_widget_get_visible(ka.kbd_whole_btn) &&
               gtk_widget_get_visible(ka.kbd_backlight_frame),
               "O: keyboard: per-key RGB -> everything again");
+        CHECK(gtk_tree_model_iter_n_children(gtk_combo_box_get_model(GTK_COMBO_BOX(ka.kbd_fx_combo)), NULL) == 4 &&
+              gtk_widget_get_visible(ka.kbd_fx_dir), "O: keyboard: per-key RGB -> Wave and direction back");
         gtk_widget_destroy(kw);
     } else {
         printf("SKIP  O: no display\n");
@@ -1334,6 +1338,25 @@ int main(int argc, char **argv) {
         help_search(0, 1);
         CHECK(strcmp(gtk_label_get_text(GTK_LABEL(help.search_status)), _("Not found")) == 0, "H: search says when nothing matches");
         g_object_unref(page);
+    }
+
+    /* Q: a daemon restart is not an error in the GUI log (1.44.1) */
+    {
+        log_init("GUI", LOG_LEVEL_INFO, logdir);
+        gui_log_lost("Fan", "Failed to send command", EPIPE);
+        gui_log_lost("Q-test", "Connection closed", 0);   /* EOF */
+        gui_log_lost("CPU", "poll failed", EBADF);
+        log_cleanup();
+        char lp[1100];
+        snprintf(lp, sizeof lp, "%s/GUI.log", logdir);
+        gchar *lg = NULL;
+        g_file_get_contents(lp, &lg, NULL, NULL);
+        CHECK(lg && strstr(lg, "[INFO ] [GUI] Fan daemon closed the connection (restarted or stopped) - reconnecting") &&
+              strstr(lg, "[INFO ] [GUI] Q-test daemon closed the connection"),
+              "Q: a daemon that closed the connection (restart) is logged at INFO");
+        CHECK(lg && strstr(lg, "[ERROR] [GUI] CPU ERROR: poll failed (Bad file descriptor), marking disconnected"),
+              "Q: other socket errors stay errors");
+        g_free(lg);
     }
 
     printf("\n%d failure(s)\n", fails);
