@@ -325,6 +325,11 @@ try:
         check(rc == 0 and set(colors()) == {(0, 0, 0)}, "CLI: --off")
         rc, out = run("--on")
         check(rc == 0 and colors()[6] == (0, 255, 0), "CLI: --on restores the colors")
+        rc, out = run("--profile", "NoSuchProfile")
+        run("--off")
+        run("--on")
+        check(rc == 1 and colors()[6] == (0, 255, 0) and colors()[50] == (255, 255, 255),
+              "unknown profile: refused, the colors in use are kept (also after off/on, 1.44.1)")
         rc, out = run("--bogus")
         check(rc == 1 and "unknown option" in out, "CLI: unknown option rejected")
         run("--brightness", "7")     # as before (the restart below expects 7)

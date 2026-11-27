@@ -1505,29 +1505,26 @@ int kbd_profile_save_json(const char *name) {
 
 /* Load a profile by name from profiles.json into active zones */
 int kbd_profile_load_json(const char *name) {
-    LOG_INFO("[KBD] Loading profile '%s' - clearing existing %d zones first", name, g_num_zones);
-
-    /* Clear all existing zones */
-    zone_clear_all();
-
-    /* Find the profile */
-    for (int i = 0; i < g_num_profiles; i++) {
-        if (strcmp(g_profiles[i].name, name) == 0) {
-            /* Copy zones from profile */
-            for (int z = 0; z < g_profiles[i].num_zones; z++) {
-                memcpy(&g_zones[g_num_zones], &g_profiles[i].zones[z], sizeof(KbdLedZone));
-                g_num_zones++;
-            }
-            kbd_base_set(g_profiles[i].has_base, g_profiles[i].base_r, g_profiles[i].base_g, g_profiles[i].base_b);
-            kbd_base_fx_set(&g_profiles[i].base_fx);
-            g_active_profile_index = i;
-            LOG_INFO("[KBD] Loaded profile '%s' with %d zones", name, g_profiles[i].num_zones);
-            return 0;
-        }
+    /* Find the profile first: an unknown name (a typo in dcc-kbd-cli
+     * --profile) must not discard the colors in use (1.44.1) */
+    int i = 0;
+    while (i < g_num_profiles && strcmp(g_profiles[i].name, name) != 0) i++;
+    if (i >= g_num_profiles) {
+        LOG_ERROR("[KBD] Profile '%s' not found - keeping the current colors", name);
+        return -1;
     }
 
-    LOG_ERROR("[KBD] Profile '%s' not found", name);
-    return -1;
+    LOG_INFO("[KBD] Loading profile '%s' - clearing existing %d zones first", name, g_num_zones);
+    zone_clear_all();
+    for (int z = 0; z < g_profiles[i].num_zones; z++) {
+        memcpy(&g_zones[g_num_zones], &g_profiles[i].zones[z], sizeof(KbdLedZone));
+        g_num_zones++;
+    }
+    kbd_base_set(g_profiles[i].has_base, g_profiles[i].base_r, g_profiles[i].base_g, g_profiles[i].base_b);
+    kbd_base_fx_set(&g_profiles[i].base_fx);
+    g_active_profile_index = i;
+    LOG_INFO("[KBD] Loaded profile '%s' with %d zones", name, g_profiles[i].num_zones);
+    return 0;
 }
 
 /* Delete a profile by name from profiles.json */

@@ -15,6 +15,7 @@ Programs and services were named `dudes-control-center-*` before 1.19.0 (for exa
 
 ### Changed
 - The Logs tab shows `[ERROR]` lines in red.
+- Activating a keyboard profile that does not exist (e.g. a typo in `dcc-kbd-cli --profile`) discarded the colors in use: the keys kept their colors until the next change, then switching the light off and on started from an empty profile. The profile is now looked up first; an unknown name changes nothing.
 - Keyboards without per-key LEDs (one color or a few zones) no longer offer the **Wave** effect and its direction, which only makes sense across a key matrix; a profile with Wave shows Rainbow there.
 
 ## [1.44.0] - 2026-11-27
