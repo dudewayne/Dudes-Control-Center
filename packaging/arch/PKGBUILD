@@ -27,4 +27,8 @@ build() {
 package() {
     cd "Dudes-Control-Center-$pkgver"
     make stage STAGE_DIR="$pkgdir"
+    # Arch's filesystem package makes /usr/local/share/man a symlink to
+    # ../man: the man pages go to its target
+    mv "$pkgdir/usr/local/share/man" "$pkgdir/usr/local/man"
+    rmdir --ignore-fail-on-non-empty "$pkgdir/usr/local/share"
 }

@@ -1042,7 +1042,7 @@ static gboolean populate_cpu_core_grid_idle(gpointer data) {
         const char *info_response = send_cpu_command(app, info_cmd);
         int all_cores = 1; /* Default: apply to all cores */
         if (info_response) {
-            char *aac_ptr = strstr(info_response, "APPLY_ALL:");
+            const char *aac_ptr = strstr(info_response, "APPLY_ALL:");
             if (aac_ptr) {
                 all_cores = atoi(aac_ptr + 10);
             }
@@ -1986,7 +1986,7 @@ static void on_cpu_custom_profile_changed(GtkWidget *widget, gpointer user_data)
         const char *info_response = send_cpu_command(app, info_cmd);
         int all_cores = 1; /* Default: apply to all cores */
         if (info_response) {
-            char *aac_ptr = strstr(info_response, "APPLY_ALL:");
+            const char *aac_ptr = strstr(info_response, "APPLY_ALL:");
             if (aac_ptr) {
                 all_cores = atoi(aac_ptr + 10);
             }
@@ -2181,7 +2181,7 @@ static void on_cpu_create_freq_profile_clicked(GtkWidget *widget, gpointer user_
                     const char *info_response = send_cpu_command(app, info_cmd);
                     int all_cores = 1; /* Default: apply to all cores */
                     if (info_response) {
-                        char *aac_ptr = strstr(info_response, "APPLY_ALL:");
+                        const char *aac_ptr = strstr(info_response, "APPLY_ALL:");
                         if (aac_ptr) {
                             all_cores = atoi(aac_ptr + 10);
                         }
