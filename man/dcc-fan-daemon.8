@@ -1,5 +1,5 @@
 .\" SPDX-License-Identifier: GPL-2.0-only
-.TH DCC-FAN-DAEMON 8 2026-11-26 "Dudes Control Center @VERSION@" "System Administration"
+.TH DCC-FAN-DAEMON 8 2026-11-27 "Dudes Control Center @VERSION@" "System Administration"
 .nh
 .SH NAME
 dcc-fan-daemon \- fan control daemon of Dudes Control Center
@@ -32,7 +32,7 @@ administrator allowed it
 see
 .BR dcc-component (8))
 and the EC answers like a Clevo EC; otherwise it only monitors (CPU
-temperature from coretemp or k10temp), the firmware controls the fans and
+temperature from coretemp, k10temp or zenpower), the firmware controls the fans and
 nothing is written.
 The log names the method at start; STATUS reports it as
 .BR EC_ACCESS=module | ports | none ,
@@ -44,7 +44,11 @@ and, while monitoring only, the reason as
 For an NVIDIA GPU the daemon runs
 .BR nvidia-smi (1)
 only while the GPU is awake (PCI runtime power state), at most every
-3 seconds; a powered-down GPU would be woken up by it.
+once a second; a powered-down GPU would be woken up by it.
+For an AMD GPU (amdgpu driver) it reads the driver's sysfs values (hwmon
+temperature, power and clocks, gpu_busy_percent, mem_info_vram_*), also only
+while the GPU is awake; the name comes from libdrm's amdgpu.ids. A discrete
+GPU is preferred to an integrated one; NVIDIA comes first.
 STATUS reports the GPU state (awake, sleeping, none), power, clocks, load and
 video memory as GPU_* values; while it sleeps the EC's GPU sensor is used.
 .PP

@@ -19,7 +19,7 @@ CJSON_LIBS = $(shell pkg-config --libs libcjson 2>/dev/null || echo "-lcjson")
 
 # Source files
 COMMON_SRC = src/dcc-common.c
-COMMON_HDR = src/dcc-common.h
+COMMON_HDR = src/dcc-common.h src/dcc-hwmon.h
 LOG_SRC = src/dcc-log.c
 LOG_HDR = src/dcc-log.h
 # Socket authorization + safe user-file I/O for the root daemons
@@ -63,7 +63,7 @@ $(CLI_TARGET): $(COMMON_SRC) src/dcc-fan-cli.c $(COMMON_HDR)
 $(DAEMON_TARGET): $(COMMON_SRC) $(LOG_SRC) $(SECURE_SRC) src/dcc-fan-daemon.c $(COMMON_HDR) $(LOG_HDR) $(SECURE_HDR) VERSION
 	$(CC) $(CFLAGS) $(CJSON_CFLAGS) -o $@ $(COMMON_SRC) $(LOG_SRC) $(SECURE_SRC) src/dcc-fan-daemon.c $(LDFLAGS_COMMON) $(CJSON_LIBS)
 
-$(CPU_DAEMON_TARGET): src/dcc-cpu-common.c $(LOG_SRC) $(SECURE_SRC) src/dcc-cpu-daemon.c src/dcc-cpu-common.h $(LOG_HDR) $(SECURE_HDR) VERSION
+$(CPU_DAEMON_TARGET): src/dcc-cpu-common.c $(LOG_SRC) $(SECURE_SRC) src/dcc-cpu-daemon.c src/dcc-cpu-common.h src/dcc-hwmon.h $(LOG_HDR) $(SECURE_HDR) VERSION
 	$(CC) $(CFLAGS) $(CJSON_CFLAGS) -o $@ src/dcc-cpu-common.c $(LOG_SRC) $(SECURE_SRC) src/dcc-cpu-daemon.c $(LDFLAGS_COMMON) $(CJSON_LIBS)
 
 $(GUI_TARGET): $(COMMON_SRC) $(LOG_SRC) src/dcc-gui.c $(COMMON_HDR) $(LOG_HDR) src/dcc-kbd-common.h src/dcc-cpu-common.h VERSION
@@ -297,7 +297,7 @@ TEST_CFLAGS = -g -O1 -fno-omit-frame-pointer -fsanitize=address,undefined -fno-s
 TEST_GROUP := $(shell id -gn)
 FAN_DAEMON_DEPS = src/dcc-fan-daemon.c $(COMMON_SRC) $(COMMON_HDR) $(LOG_SRC) $(LOG_HDR) $(SECURE_SRC) $(SECURE_HDR)
 KBD_DAEMON_DEPS = src/dcc-kbd-daemon.c src/dcc-kbd-common.c src/dcc-kbd-common.h $(COMMON_HDR) $(LOG_SRC) $(LOG_HDR) $(SECURE_SRC) $(SECURE_HDR)
-CPU_DAEMON_DEPS = src/dcc-cpu-daemon.c src/dcc-cpu-common.c src/dcc-cpu-common.h $(LOG_SRC) $(LOG_HDR) $(SECURE_SRC) $(SECURE_HDR)
+CPU_DAEMON_DEPS = src/dcc-cpu-daemon.c src/dcc-cpu-common.c src/dcc-cpu-common.h src/dcc-hwmon.h $(LOG_SRC) $(LOG_HDR) $(SECURE_SRC) $(SECURE_HDR)
 
 TEST_BINS = $(TEST_BUILD)/test_fan_responses $(TEST_BUILD)/test_fan_safety \
             $(TEST_BUILD)/test_secure_allow $(TEST_BUILD)/test_secure_deny \
@@ -328,7 +328,7 @@ $(TEST_BUILD)/test_secure_deny: tests/test_secure.c $(SECURE_SRC) $(SECURE_HDR) 
 	$(CC) $(TEST_CFLAGS) -DDCC_AUTH_GROUP='"dcc-test-no-such-group"' -o $@ tests/test_secure.c $(SECURE_SRC) $(LOG_SRC)
 
 $(TEST_BUILD)/test_fan_backend: tests/test_fan_backend.c $(COMMON_SRC) $(COMMON_HDR) | $(TEST_BUILD)
-	$(CC) $(TEST_CFLAGS) -DDCC_HWMON_DIR='"hwmon"' -DDCC_PCI_DIR='"pci"' -DDCC_NVIDIA_SMI='"./nvidia-smi"' -DDCC_EC_DIRECT_FILE='"ecdirect"' -o $@ tests/test_fan_backend.c $(COMMON_SRC)
+	$(CC) $(TEST_CFLAGS) -DDCC_HWMON_DIR='"hwmon"' -DDCC_PCI_DIR='"pci"' -DDCC_NVIDIA_SMI='"./nvidia-smi"' -DDCC_AMDGPU_IDS='"amdgpu.ids"' -DDCC_EC_DIRECT_FILE='"ecdirect"' -o $@ tests/test_fan_backend.c $(COMMON_SRC)
 
 $(TEST_BUILD)/test_paths: tests/test_paths.c $(SECURE_SRC) $(SECURE_HDR) $(LOG_SRC) | $(TEST_BUILD)
 	$(CC) $(TEST_CFLAGS) -DDCC_USER_FILE='"user"' -o $@ tests/test_paths.c $(SECURE_SRC) $(LOG_SRC)

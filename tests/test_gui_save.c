@@ -880,6 +880,19 @@ int main(int argc, char **argv) {
               gtk_widget_get_visible(ea.manual_row), "O: direct EC access -> shown in Fan Speed, manual row back");
         parse_status(&ea, "STATUS OK\nCPU_TEMP=48\nCPU_FAN_RPM=3000\nAUTO_MODE=1\nEC_ACCESS=module\nGPU_STATE=none\n");
         CHECK(!gtk_widget_get_visible(ea.fan_ec_label) && gtk_widget_get_visible(ea.manual_row), "O: dcc_fan module -> no note");
+        /* AMD GPUs (1.42.0) */
+        parse_status(&ea, "STATUS OK\nCPU_TEMP=48\nAUTO_MODE=1\nEC_ACCESS=module\nGPU_STATE=awake\nGPU_NAME=AMD Radeon 780M Graphics\n"
+                          "GPU_POWER_W=9.0\nGPU_CLOCK_MHZ=800\nGPU_MEM_CLOCK_MHZ=-1\nGPU_UTIL=4\nGPU_VRAM_USED_MB=-1\n"
+                          "GPU_VRAM_TOTAL_MB=-1\nGPU_PSTATE=\n");
+        gchar *want_pw = g_strdup_printf("GPU: %.1f W", 9.0);   /* decimal sign of the locale */
+        CHECK(!strcmp(gtk_label_get_text(GTK_LABEL(ea.gpu_clock_label)), "Clock: 800 MHz") &&
+              !strcmp(gtk_label_get_text(GTK_LABEL(ea.gpu_load_label)), "Load: 4 %") &&
+              !strcmp(gtk_label_get_text(GTK_LABEL(ea.pw_gpu_label)), want_pw),
+              "O: integrated AMD GPU: clock without memory clock, load without power state");
+        g_free(want_pw);
+        parse_status(&ea, "STATUS OK\nCPU_TEMP=48\nAUTO_MODE=1\nEC_ACCESS=module\nGPU_STATE=none\n");
+        CHECK(!strcmp(gtk_label_get_text(GTK_LABEL(ea.gpu_name_label)), "No NVIDIA or AMD GPU"),
+              "O: no supported GPU -> 'No NVIDIA or AMD GPU'");
         gtk_widget_destroy(ew);
 
         /* the warning opens without a nested main loop (it froze the GUI in the 1.41.0 test) */

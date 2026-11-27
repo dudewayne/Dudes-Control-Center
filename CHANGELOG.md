@@ -6,6 +6,19 @@ Programs and services were named `dudes-control-center-*` before 1.19.0 (for exa
 
 ## [Unreleased]
 
+## [1.42.0] - 2026-11-27
+
+### Added
+- **AMD GPUs**: the Status tab, the fan daemon's STATUS and `dcc-fan-cli` show an AMD GPU's temperature, power, clock, memory clock, load and video memory from the `amdgpu` driver's sysfs values, with the marketing name from libdrm's `amdgpu.ids`. Like the NVIDIA GPU, it is only read while it is awake; a powered-down GPU shows "sleeping". A discrete AMD GPU is shown before an integrated one, an NVIDIA GPU before both. Integrated GPUs have no memory clock: the Status tab then shows the clock alone.
+- **AMD CPU temperature everywhere**: the CPU daemon reads the CPU temperature from `coretemp`, `k10temp` or `zenpower` first (AMD laptops often have no CPU thermal zone); `k10temp` uses the `Tdie` sensor where there is one instead of `Tctl`, which can carry an offset.
+- README: a table of the sensors read through standard kernel interfaces.
+- Tests: AMD discrete and integrated GPUs (asleep, awake, without the `amdgpu` driver, name lookup), a sleeping GPU's hwmon not being read, `k10temp` Tdie/Tctl and `zenpower`, the Status tab's GPU lines.
+
+### Changed
+- The GPU temperature scan over `/sys/class/hwmon` skips GPUs that are runtime-suspended, because older `amdgpu` kernels wake a GPU for a hwmon read.
+- The CPU daemon no longer falls back to `hwmon0`'s first sensor for the CPU temperature (on many laptops that is a charger or a battery).
+- Without a supported GPU the Status tab says "No NVIDIA or AMD GPU".
+
 ## [1.41.0] - 2026-11-27
 
 ### Added
@@ -1042,7 +1055,8 @@ Programs and services were named `dudes-control-center-*` before 1.19.0 (for exa
 - Unix socket IPC between GUI and daemon
 - Watchdog timer and fail-safe mode in daemon
 
-[Unreleased]: https://github.com/dudewayne/Dudes-Control-Center/compare/v1.41.0...HEAD
+[Unreleased]: https://github.com/dudewayne/Dudes-Control-Center/compare/v1.42.0...HEAD
+[1.42.0]: https://github.com/dudewayne/Dudes-Control-Center/compare/v1.41.0...v1.42.0
 [1.41.0]: https://github.com/dudewayne/Dudes-Control-Center/compare/v1.40.1...v1.41.0
 [1.40.1]: https://github.com/dudewayne/Dudes-Control-Center/compare/v1.40.0...v1.40.1
 [1.40.0]: https://github.com/dudewayne/Dudes-Control-Center/compare/v1.39.0...v1.40.0

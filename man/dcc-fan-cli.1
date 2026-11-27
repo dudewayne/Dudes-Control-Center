@@ -1,5 +1,5 @@
 .\" SPDX-License-Identifier: GPL-2.0-only
-.TH DCC-FAN-CLI 1 2026-11-26 "Dudes Control Center @VERSION@" "User Commands"
+.TH DCC-FAN-CLI 1 2026-11-27 "Dudes Control Center @VERSION@" "User Commands"
 .nh
 .SH NAME
 dcc-fan-cli \- show and set the notebook fan speed
@@ -21,8 +21,8 @@ dcc-fan-cli \- show and set the notebook fan speed
 Without options,
 .B dcc-fan-cli
 shows the CPU and GPU temperatures, the speed of both fans (duty in percent
-and measured RPM) and, while an NVIDIA GPU is awake, its power, clock and
-load (a powered-down GPU is not woken up).
+and measured RPM) and, while an NVIDIA or AMD GPU is awake, its power, clock
+and load (a powered-down GPU is not woken up).
 .PP
 The status display,
 .B \-\-set
@@ -38,8 +38,8 @@ opt-in
 see
 .BR dcc-component (8)),
 and only if the EC answers like a Clevo EC.
-Without EC access the status shows the CPU temperature from coretemp or
-k10temp and the reason, and
+Without EC access the status shows the CPU temperature from coretemp, k10temp
+or zenpower and the reason, and
 .B \-\-set
 and
 .B \-\-auto

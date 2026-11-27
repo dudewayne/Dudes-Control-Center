@@ -67,7 +67,7 @@ dcc-gui --debug      # more output in GUI.log
 
 | Tab | Contents |
 |---|---|
-| **Status** | Live values in three columns: **Temperatures** (CPU, GPU, SSDs) and **Fan Speed** (each fan's RPM and duty, plus the manual mode switch with +/- in 10% steps from **0% (fans off)** to 100%); **GPU** (clocks, load, power state, video memory, or "sleeping": a powered-down NVIDIA GPU is not woken up) and **Power** (CPU package watts with the sustained limit, GPU watts, the laptop's draw on battery); **Battery** (charge, rate, time left, health) and **Active Profiles**. Below: per-core CPU frequencies (P/E cores marked) next to **System** (model, BIOS, processor, graphics, memory, drives, operating system, kernel). |
+| **Status** | Live values in three columns: **Temperatures** (CPU, GPU, SSDs) and **Fan Speed** (each fan's RPM and duty, plus the manual mode switch with +/- in 10% steps from **0% (fans off)** to 100%); **GPU** (clocks, load, power state, video memory, or "sleeping": a powered-down NVIDIA or AMD GPU is not woken up) and **Power** (CPU package watts with the sustained limit, GPU watts, the laptop's draw on battery); **Battery** (charge, rate, time left, health) and **Active Profiles**. Below: per-core CPU frequencies (P/E cores marked) next to **System** (model, BIOS, processor, graphics, memory, drives, operating system, kernel). |
 | **Fan Profiles** | One dropdown for all fan profiles (the one in use is marked "(Active)"): Create, Rename, Save, Delete, **Activate**, and the graphical temperature-to-fan-speed curve of the selected profile (add, edit, delete points; Save keeps them, unsaved changes are asked about before switching profiles or leaving the tab). Shows a warning with "Disable Manual Mode" while manual mode is on. |
 | **CPU Profiles** | The processor (name, P- and E-cores on hybrid Intel CPUs), power mode (**Performance / Balanced / Power Save**), per-core min/max frequency profiles (Create, Rename, Save, Delete, Activate; unsaved changes are asked about before switching profiles, leaving the tab or closing), the CPU hard limit. |
 | **Keyboard Backlight** | Keyboard profiles, **brightness slider**, backlight off switch, preset and custom colors, **effects** (Breathing, Rainbow, Wave), the **zone editor** (keyboard picture + zone list) for per-key lighting, the LED wizard. |
@@ -229,6 +229,16 @@ make deb-check           # check the built package
 Designed for Clevo-based notebooks with EC access at I/O ports 0x62/0x66 and an ITE 829x keyboard controller. The fan code is based on the open-source [fan-control](https://github.com/steiiin/fan-control) project; the keyboard driver `ite_829x` comes from TUXEDO Computers' [tuxedo-drivers](https://github.com/tuxedocomputers/tuxedo-drivers).
 
 **Tested on:** Clevo X58xWNx (X580WNT-G) with Intel Core Ultra 9, NVIDIA RTX 5090 Mobile, standard Clevo EC layout, Linux Mint.
+
+**Sensors through the standard kernel interfaces** (also without the Clevo parts):
+
+| What | Source |
+|---|---|
+| CPU temperature | `coretemp` (Intel), `k10temp` (AMD, the `Tdie` sensor where there is one) or `zenpower`; without EC access also for the fan daemon |
+| NVIDIA GPU | `nvidia-smi`, only while the GPU is awake |
+| AMD GPU | the `amdgpu` driver's sysfs values (temperature, power, clocks, load, video memory), only while the GPU is awake; the name from libdrm's `amdgpu.ids`. A discrete GPU is shown before an integrated one, an NVIDIA GPU before both |
+
+AMD support is built from the kernel's documented interfaces and tested with simulated sysfs trees, not yet on AMD hardware.
 
 ### EC registers
 

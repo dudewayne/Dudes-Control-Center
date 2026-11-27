@@ -9,6 +9,7 @@
  */
 
 #include "dcc-common.h"
+#include "dcc-hwmon.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -147,31 +148,9 @@ const char *ec_backend_name(void) { return g_kmod[0] ? "module" : g_ports_ok ? "
 const char *ec_init_reason(void) { return g_reason; }
 
 /* CPU package temperature from the standard drivers (coretemp, k10temp,
- * zenpower): used when there is no EC access (1.41.0) */
+ * zenpower): used when there is no EC access (1.41.0); see dcc-hwmon.h */
 int cpu_temp_hwmon(void) {
-    DIR *d = opendir(DCC_HWMON_DIR);
-    if (!d) return -1;
-    struct dirent *de;
-    int t = -1;
-    while (t < 0 && (de = readdir(d)) != NULL) {
-        if (strncmp(de->d_name, "hwmon", 5) != 0) continue;
-        char path[600], name[32] = "";
-        snprintf(path, sizeof path, "%s/%s/name", DCC_HWMON_DIR, de->d_name);
-        FILE *f = fopen(path, "r");
-        if (!f) continue;
-        if (fgets(name, sizeof name, f)) name[strcspn(name, "\n")] = '\0';
-        fclose(f);
-        if (strcmp(name, "coretemp") && strcmp(name, "k10temp") && strcmp(name, "zenpower")) continue;
-        snprintf(path, sizeof path, "%s/%s/temp1_input", DCC_HWMON_DIR, de->d_name);
-        f = fopen(path, "r");
-        if (!f) continue;
-        long mc;
-        if (fscanf(f, "%ld", &mc) == 1 && mc / 1000 >= TEMP_MIN_VALID_C && mc / 1000 <= TEMP_MAX_VALID_C)
-            t = (int)(mc / 1000);
-        fclose(f);
-    }
-    closedir(d);
-    return t;
+    return dcc_cpu_temp_hwmon(DCC_HWMON_DIR, TEMP_MIN_VALID_C, TEMP_MAX_VALID_C);
 }
 
 /* --- EC I/O helper functions --- */
@@ -264,7 +243,7 @@ static int path_exists(const char *path) {
 
 /* Helper: Read GPU temp from sysfs hwmon interface */
 static int gpu_temp_sysfs(void) {
-    DIR *d = opendir("/sys/class/hwmon");
+    DIR *d = opendir(DCC_HWMON_DIR);
     if (!d) return -1;
 
     int best = -1;
@@ -295,6 +274,16 @@ static int gpu_temp_sysfs(void) {
             continue;
         }
 
+        /* A runtime-suspended GPU (discrete AMD) is not read: older
+         * amdgpu kernels wake it for a hwmon read (1.42.0) */
+        int rfd = openat(hwfd, "device/power/runtime_status", O_RDONLY);
+        if (rfd >= 0) {
+            char rs[16] = {0};
+            ssize_t rn = read(rfd, rs, sizeof(rs) - 1);
+            close(rfd);
+            if (rn > 0 && strncmp(rs, "suspend", 7) == 0) { close(hwfd); continue; }
+        }
+
         /* Try temp1_input .. temp10_input */
         for (int i = 1; i <= 10; i++) {
             char fn[32];
@@ -323,7 +312,7 @@ static int gpu_temp_sysfs(void) {
     return best;
 }
 
-/* --- NVIDIA GPU (1.37.0) ---
+/* --- GPU: NVIDIA (1.37.0), AMD (1.42.0) ---
  * nvidia-smi wakes a GPU that the driver has powered down (runtime D3,
  * "on-demand" mode on hybrid laptops). It used to run for the GPU
  * temperature on every control step and STATUS request, so the GPU could
@@ -338,40 +327,131 @@ static int gpu_temp_sysfs(void) {
 #endif
 #define GPU_CACHE_SEC 0.9   /* below the shortest GUI refresh interval (1 s, 1.40.0) */
 
-/* GPU_NONE: no NVIDIA GPU; GPU_SLEEPING: powered down; GPU_AWAKE */
-static int gpu_power_state(void) {
+#ifndef DCC_AMDGPU_IDS
+#define DCC_AMDGPU_IDS "/usr/share/libdrm/amdgpu.ids"
+#endif
+
+enum { GPU_VENDOR_NONE = 0, GPU_VENDOR_NVIDIA, GPU_VENDOR_AMD };
+
+static int read_line_at(const char *path, char *buf, size_t n) {
+    FILE *f = fopen(path, "r");
+    if (!f) { buf[0] = '\0'; return -1; }
+    int ok = fgets(buf, (int)n, f) != NULL;
+    fclose(f);
+    if (!ok) { buf[0] = '\0'; return -1; }
+    buf[strcspn(buf, "\n")] = '\0';
+    return 0;
+}
+
+static long read_long_at(const char *path) {
+    char buf[32];
+    if (read_line_at(path, buf, sizeof buf) != 0) return -1;
+    char *end = NULL;
+    long v = strtol(buf, &end, 10);
+    return end == buf ? -1 : v;
+}
+
+/* The GPU the Status tab shows (1.42.0): an NVIDIA GPU first, then a
+ * discrete AMD GPU, then an integrated AMD GPU (boot_vga 1). Intel GPUs have
+ * no readings here. Returns GPU_NONE, GPU_SLEEPING (runtime-suspended:
+ * nothing is read, reading would wake it) or GPU_AWAKE; dev gets the PCI
+ * device directory. */
+static int gpu_find(char *dev, size_t n, int *vendor) {
     DIR *d = opendir(DCC_PCI_DIR);
+    *vendor = GPU_VENDOR_NONE;
+    dev[0] = '\0';
     if (!d) return GPU_NONE;
-    int state = GPU_NONE;
+    int best = 0, state = GPU_NONE;
     struct dirent *de;
     while ((de = readdir(d)) != NULL) {
         if (de->d_name[0] == '.') continue;
-        char p[512], buf[32] = "";
-        snprintf(p, sizeof p, "%s/%s/vendor", DCC_PCI_DIR, de->d_name);
-        FILE *f = fopen(p, "r");
-        if (!f) continue;
-        int ok = fgets(buf, sizeof buf, f) != NULL;
-        fclose(f);
-        if (!ok || strncmp(buf, "0x10de", 6) != 0) continue;
+        char p[512], buf[32];
         snprintf(p, sizeof p, "%s/%s/class", DCC_PCI_DIR, de->d_name);
-        if (!(f = fopen(p, "r"))) continue;
-        ok = fgets(buf, sizeof buf, f) != NULL;
-        fclose(f);
-        if (!ok || strncmp(buf, "0x03", 4) != 0) continue;      /* display controller */
-        snprintf(p, sizeof p, "%s/%s/power/runtime_status", DCC_PCI_DIR, de->d_name);
-        buf[0] = '\0';
-        if ((f = fopen(p, "r"))) {
-            if (!fgets(buf, sizeof buf, f)) buf[0] = '\0';
-            fclose(f);
-        }
+        if (read_line_at(p, buf, sizeof buf) != 0 || strncmp(buf, "0x03", 4) != 0) continue;  /* display controller */
+        snprintf(p, sizeof p, "%s/%s/vendor", DCC_PCI_DIR, de->d_name);
+        if (read_line_at(p, buf, sizeof buf) != 0) continue;
+        int v, prio;
+        if (!strncmp(buf, "0x10de", 6)) { v = GPU_VENDOR_NVIDIA; prio = 6; }
+        else if (!strncmp(buf, "0x1002", 6)) {
+            v = GPU_VENDOR_AMD;
+            snprintf(p, sizeof p, "%s/%s/boot_vga", DCC_PCI_DIR, de->d_name);
+            prio = read_long_at(p) == 1 ? 2 : 4;          /* integrated : discrete */
+        } else continue;
         /* "suspended"/"suspending": asleep; "active", "resuming" or no
          * runtime PM: awake */
-        int sleeping = strncmp(buf, "suspend", 7) == 0;
-        if (!sleeping) { state = GPU_AWAKE; break; }
-        state = GPU_SLEEPING;
+        snprintf(p, sizeof p, "%s/%s/power/runtime_status", DCC_PCI_DIR, de->d_name);
+        read_line_at(p, buf, sizeof buf);
+        int st = strncmp(buf, "suspend", 7) == 0 ? GPU_SLEEPING : GPU_AWAKE;
+        prio += st == GPU_AWAKE;                          /* same kind: the awake one */
+        if (prio <= best) continue;
+        best = prio;
+        state = st;
+        *vendor = v;
+        snprintf(dev, n, "%s/%s", DCC_PCI_DIR, de->d_name);
     }
     closedir(d);
     return state;
+}
+
+/* Marketing name of an AMD GPU from libdrm's amdgpu.ids
+ * ("15BF,\tC1,\tAMD Radeon 780M Graphics") */
+static void amdgpu_name(const char *dev, char *name, size_t n) {
+    char p[600], dbuf[16], rbuf[16];
+    snprintf(name, n, "AMD Radeon GPU");
+    snprintf(p, sizeof p, "%s/device", dev);
+    if (read_line_at(p, dbuf, sizeof dbuf) != 0) return;
+    snprintf(p, sizeof p, "%s/revision", dev);
+    if (read_line_at(p, rbuf, sizeof rbuf) != 0) rbuf[0] = '\0';
+    unsigned did = (unsigned)strtoul(dbuf, NULL, 16), rev = (unsigned)strtoul(rbuf, NULL, 16);
+    FILE *f = fopen(DCC_AMDGPU_IDS, "r");
+    if (!f) return;
+    char line[256], any[64] = "";
+    while (fgets(line, sizeof line, f)) {
+        if (line[0] == '#') continue;
+        char *save = NULL, *a = strtok_r(line, ",", &save), *b = strtok_r(NULL, ",", &save),
+             *c = strtok_r(NULL, "\n", &save);
+        if (!a || !b || !c) continue;
+        if ((unsigned)strtoul(a, NULL, 16) != did) continue;
+        while (*c == ' ' || *c == '\t') c++;
+        if ((unsigned)strtoul(b, NULL, 16) == rev) { snprintf(name, n, "%s", c); fclose(f); return; }
+        if (!any[0]) snprintf(any, sizeof any, "%s", c);    /* same chip, other revision */
+    }
+    fclose(f);
+    if (any[0]) snprintf(name, n, "%s", any);
+}
+
+/* amdgpu values from sysfs, read only while the GPU is awake: hwmon
+ * (temperature, power, clocks), gpu_busy_percent, mem_info_vram_* */
+static void amdgpu_read(const char *dev, GpuInfo *g) {
+    char p[1000], hd[600], hw[900] = "";
+    amdgpu_name(dev, g->name, sizeof g->name);
+    snprintf(hd, sizeof hd, "%s/hwmon", dev);
+    DIR *d = opendir(hd);
+    if (d) {
+        struct dirent *de;
+        while ((de = readdir(d)) != NULL)
+            if (!strncmp(de->d_name, "hwmon", 5)) { snprintf(hw, sizeof hw, "%s/%s", hd, de->d_name); break; }
+        closedir(d);
+    }
+    if (hw[0]) {
+        long v;
+        snprintf(p, sizeof p, "%s/temp1_input", hw);           /* "edge" */
+        if ((v = read_long_at(p)) > 0 && v / 1000 <= 130) g->temp = (int)(v / 1000);
+        snprintf(p, sizeof p, "%s/power1_average", hw);        /* microwatts */
+        if ((v = read_long_at(p)) < 0) { snprintf(p, sizeof p, "%s/power1_input", hw); v = read_long_at(p); }
+        if (v >= 0) g->power_w = v / 1e6;
+        snprintf(p, sizeof p, "%s/freq1_input", hw);           /* sclk, Hz */
+        if ((v = read_long_at(p)) > 0) g->clock_mhz = (int)(v / 1000000);
+        snprintf(p, sizeof p, "%s/freq2_input", hw);           /* mclk, Hz (discrete only) */
+        if ((v = read_long_at(p)) > 0) g->mem_clock_mhz = (int)(v / 1000000);
+    }
+    long v;
+    snprintf(p, sizeof p, "%s/gpu_busy_percent", dev);
+    if ((v = read_long_at(p)) >= 0 && v <= 100) g->util = (int)v;
+    snprintf(p, sizeof p, "%s/mem_info_vram_used", dev);
+    if ((v = read_long_at(p)) >= 0) g->vram_used_mb = (int)(v / (1024 * 1024));
+    snprintf(p, sizeof p, "%s/mem_info_vram_total", dev);
+    if ((v = read_long_at(p)) > 0) g->vram_total_mb = (int)(v / (1024 * 1024));
 }
 
 static double now_sec(void) {
@@ -398,8 +478,18 @@ int gpu_info_get(GpuInfo *out) {
     memset(&g, 0, sizeof g);
     g.temp = g.clock_mhz = g.mem_clock_mhz = g.util = g.vram_used_mb = g.vram_total_mb = -1;
     g.power_w = -1;
-    g.state = gpu_power_state();
-    if (g.state == GPU_AWAKE && path_exists(DCC_NVIDIA_SMI)) {
+    char dev[512];
+    int vendor;
+    g.state = gpu_find(dev, sizeof dev, &vendor);
+    if (g.state == GPU_AWAKE && vendor == GPU_VENDOR_AMD) {
+        char p[600], drv[600] = "";
+        snprintf(p, sizeof p, "%s/driver", dev);
+        ssize_t l = readlink(p, drv, sizeof drv - 1);
+        if (l > 0) drv[l] = '\0';
+        const char *base = strrchr(drv, '/');
+        if (base && !strcmp(base + 1, "amdgpu")) amdgpu_read(dev, &g);
+        else snprintf(g.name, sizeof g.name, "AMD Radeon GPU");   /* no amdgpu driver: no readings */
+    } else if (g.state == GPU_AWAKE && path_exists(DCC_NVIDIA_SMI)) {
         FILE *p = popen(DCC_NVIDIA_SMI " --query-gpu=name,temperature.gpu,power.draw,clocks.gr,clocks.mem,"
                         "utilization.gpu,memory.used,memory.total,pstate --format=csv,noheader,nounits 2>/dev/null", "r");
         char line[512] = "";

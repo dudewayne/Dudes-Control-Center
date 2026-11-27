@@ -505,6 +505,10 @@ msgid "Clock: %d MHz, memory %d MHz"
 msgstr "Reloj: %d MHz, memoria %d MHz"
 
 #, c-format
+msgid "Clock: %d MHz"
+msgstr "Reloj: %d MHz"
+
+#, c-format
 msgid "Load: %d %% (power state %s)"
 msgstr "Carga: %d %% (estado de energía %s)"
 
@@ -525,8 +529,8 @@ msgstr "No se despierta para leer valores"
 msgid "GPU: sleeping"
 msgstr "GPU: en reposo"
 
-msgid "No NVIDIA GPU"
-msgstr "Sin GPU NVIDIA"
+msgid "No NVIDIA or AMD GPU"
+msgstr "Sin GPU NVIDIA ni AMD"
 
 msgid "CPU Fan"
 msgstr "Ventilador de CPU"

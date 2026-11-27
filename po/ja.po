@@ -502,6 +502,10 @@ msgid "Clock: %d MHz, memory %d MHz"
 msgstr "クロック: %d MHz、メモリ %d MHz"
 
 #, c-format
+msgid "Clock: %d MHz"
+msgstr "クロック: %d MHz"
+
+#, c-format
 msgid "Load: %d %% (power state %s)"
 msgstr "負荷: %d %% (電源状態 %s)"
 
@@ -522,8 +526,8 @@ msgstr "計測のために起こしません"
 msgid "GPU: sleeping"
 msgstr "GPU: スリープ中"
 
-msgid "No NVIDIA GPU"
-msgstr "NVIDIA GPU なし"
+msgid "No NVIDIA or AMD GPU"
+msgstr "NVIDIA または AMD の GPU なし"
 
 msgid "CPU Fan"
 msgstr "CPU ファン"

@@ -92,6 +92,18 @@ int main(void) {
     put("hwmon0", "name", "coretemp\n");
     put("hwmon0", "temp1_input", "47000\n");
     CHECK(cpu_temp_hwmon() == 47 && get_cpu_temp() == 47, "no EC access: CPU temperature from coretemp (v1.41.0)");
+    put("hwmon0", "name", "k10temp\n");             /* AMD (1.42.0): Tdie, not Tctl */
+    put("hwmon0", "temp1_label", "Tctl\n");
+    put("hwmon0", "temp1_input", "72000\n");
+    put("hwmon0", "temp2_label", "Tdie\n");
+    put("hwmon0", "temp2_input", "62000\n");
+    CHECK(cpu_temp_hwmon() == 62, "k10temp: the Tdie sensor is used when it is there");
+    put("hwmon0", "temp2_label", "Tccd1\n");
+    CHECK(cpu_temp_hwmon() == 72, "k10temp without Tdie: temp1 (Tctl)");
+    put("hwmon0", "name", "zenpower\n");
+    CHECK(cpu_temp_hwmon() == 72, "zenpower: temp1");
+    put("hwmon0", "name", "coretemp\n");
+    put("hwmon0", "temp1_input", "47000\n");
     fake_module("hwmon7");
     CHECK(ec_init() == 0 && ec_backend_module() && !strcmp(ec_backend_name(), "module"),
           "dcc_fan hwmon device found and used, no root needed");
@@ -154,6 +166,70 @@ int main(void) {
     usleep(1200000);
     CHECK(gpu_info_get(&g) == GPU_AWAKE && g.temp == -1 && g.power_w < 0 && g.clock_mhz == 300,
           "[N/A] fields read as unknown");
+
+    /* AMD GPU (1.42.0): amdgpu sysfs, nothing read while it sleeps */
+    if (system("rm -rf pci/0000:02:00.0") != 0) return 1;
+    char cwd[512], lnk[700];
+    if (!getcwd(cwd, sizeof cwd)) return 1;
+    mkdir("pci/0000:03:00.0", 0755);                 /* discrete RX 7600S */
+    mkdir("pci/0000:03:00.0/power", 0755);
+    put_abs("pci/0000:03:00.0/vendor", "0x1002\n");
+    put_abs("pci/0000:03:00.0/class", "0x030000\n");
+    put_abs("pci/0000:03:00.0/boot_vga", "0\n");
+    put_abs("pci/0000:03:00.0/device", "0x7480\n");
+    put_abs("pci/0000:03:00.0/revision", "0xc0\n");
+    put_abs("pci/0000:03:00.0/power/runtime_status", "suspended\n");
+    if (symlink("../../drivers/amdgpu", "pci/0000:03:00.0/driver") != 0) return 1;
+    mkdir("pci/0000:03:00.0/hwmon", 0755);
+    mkdir("pci/0000:03:00.0/hwmon/hwmon5", 0755);
+    put_abs("pci/0000:03:00.0/hwmon/hwmon5/name", "amdgpu\n");
+    put_abs("pci/0000:03:00.0/hwmon/hwmon5/temp1_input", "58000\n");
+    put_abs("pci/0000:03:00.0/hwmon/hwmon5/power1_average", "35500000\n");
+    put_abs("pci/0000:03:00.0/hwmon/hwmon5/freq1_input", "2100000000\n");
+    put_abs("pci/0000:03:00.0/hwmon/hwmon5/freq2_input", "1000000000\n");
+    put_abs("pci/0000:03:00.0/gpu_busy_percent", "17\n");
+    put_abs("pci/0000:03:00.0/mem_info_vram_used", "1073741824\n");
+    put_abs("pci/0000:03:00.0/mem_info_vram_total", "8589934592\n");
+    mkdir("pci/0000:05:00.0", 0755);                 /* integrated 780M, awake */
+    put_abs("pci/0000:05:00.0/vendor", "0x1002\n");
+    put_abs("pci/0000:05:00.0/class", "0x038000\n");
+    put_abs("pci/0000:05:00.0/boot_vga", "1\n");
+    put_abs("pci/0000:05:00.0/device", "0x15bf\n");
+    put_abs("pci/0000:05:00.0/revision", "0xc4\n");
+    if (symlink("../../drivers/amdgpu", "pci/0000:05:00.0/driver") != 0) return 1;
+    mkdir("pci/0000:05:00.0/hwmon", 0755);
+    mkdir("pci/0000:05:00.0/hwmon/hwmon6", 0755);
+    put_abs("pci/0000:05:00.0/hwmon/hwmon6/temp1_input", "49000\n");
+    put_abs("pci/0000:05:00.0/hwmon/hwmon6/power1_input", "9000000\n");
+    put_abs("pci/0000:05:00.0/hwmon/hwmon6/freq1_input", "800000000\n");
+    put_abs("pci/0000:05:00.0/gpu_busy_percent", "4\n");
+    put_abs("amdgpu.ids", "# test\n7480,\tC0,\tAMD Radeon RX 7600S\n15BF,\tC1,\tAMD Radeon 780M Graphics\n");
+    /* the discrete GPU's hwmon as /sys/class/hwmon shows it */
+    mkdir("hwmon/hwmon20", 0755);
+    put("hwmon20", "name", "amdgpu\n");
+    put("hwmon20", "temp1_input", "58000\n");
+    snprintf(lnk, sizeof lnk, "%s/pci/0000:03:00.0", cwd);
+    if (symlink(lnk, "hwmon/hwmon20/device") != 0) return 1;
+    usleep(1200000);
+    CHECK(gpu_info_get(&g) == GPU_SLEEPING, "AMD: discrete GPU asleep -> sleeping (not the awake integrated one)");
+    CHECK(get_gpu_temp() != 58, "AMD: a sleeping GPU's hwmon is not read for the GPU temperature");
+    put_abs("pci/0000:03:00.0/power/runtime_status", "active\n");
+    usleep(1200000);
+    CHECK(gpu_info_get(&g) == GPU_AWAKE && !strcmp(g.name, "AMD Radeon RX 7600S") && g.temp == 58 &&
+          g.power_w > 35.4 && g.power_w < 35.6 && g.clock_mhz == 2100 && g.mem_clock_mhz == 1000 &&
+          g.util == 17 && g.vram_used_mb == 1024 && g.vram_total_mb == 8192 && !g.pstate[0],
+          "AMD discrete awake: name from amdgpu.ids, temperature, power, clocks, load, VRAM");
+    CHECK(get_gpu_temp() == 58, "AMD: awake GPU's hwmon gives the GPU temperature");
+    if (system("rm -rf pci/0000:03:00.0 hwmon/hwmon20") != 0) return 1;
+    usleep(1200000);
+    CHECK(gpu_info_get(&g) == GPU_AWAKE && !strcmp(g.name, "AMD Radeon 780M Graphics") && g.temp == 49 &&
+          g.power_w > 8.9 && g.power_w < 9.1 && g.clock_mhz == 800 && g.mem_clock_mhz == -1 && g.util == 4 &&
+          g.vram_total_mb == -1,
+          "AMD integrated: power1_input, no memory clock, name of another revision");
+    unlink("pci/0000:05:00.0/driver");
+    usleep(1200000);
+    CHECK(gpu_info_get(&g) == GPU_AWAKE && !strcmp(g.name, "AMD Radeon GPU") && g.temp == -1 && g.util == -1,
+          "AMD without the amdgpu driver: no readings");
 
     ec_cleanup();
     printf("\n%d failure(s)\n", fails);

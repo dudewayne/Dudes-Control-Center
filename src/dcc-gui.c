@@ -6080,6 +6080,8 @@ static void status_show_gpu(AppData *app, const StatusGpu *g) {
         a[0] = '\0';   /* the name is in the System section (1.39.0) */
         if (g->clock >= 0 && g->mem_clock >= 0)
             snprintf(b, sizeof b, _("Clock: %d MHz, memory %d MHz"), g->clock, g->mem_clock);
+        else if (g->clock >= 0)                   /* integrated AMD GPU: no memory clock (1.42.0) */
+            snprintf(b, sizeof b, _("Clock: %d MHz"), g->clock);
         if (g->util >= 0)
             snprintf(c, sizeof c, g->pstate[0] ? _("Load: %d %% (power state %s)") : _("Load: %d %%"), g->util, g->pstate);
         if (g->vram_used >= 0 && g->vram_total > 0)
@@ -6091,7 +6093,7 @@ static void status_show_gpu(AppData *app, const StatusGpu *g) {
         snprintf(b, sizeof b, "%s", _("Not woken up for readings"));
         snprintf(pw, sizeof pw, "%s", _("GPU: sleeping"));
     } else {
-        snprintf(a, sizeof a, "%s", g->state[0] ? _("No NVIDIA GPU") : "--");
+        snprintf(a, sizeof a, "%s", g->state[0] ? _("No NVIDIA or AMD GPU") : "--");
         snprintf(pw, sizeof pw, "%s", _("GPU: -- W"));
     }
     gtk_label_set_text(GTK_LABEL(app->gpu_name_label), a);

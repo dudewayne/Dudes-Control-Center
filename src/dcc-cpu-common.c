@@ -18,6 +18,11 @@
 #include "dcc-cpu-common.h"
 #include "dcc-log.h"
 #include "dcc-secure.h"
+#include "dcc-hwmon.h"
+
+#ifndef DCC_CPU_HWMON_DIR
+#define DCC_CPU_HWMON_DIR "/sys/class/hwmon"
+#endif
 
 /* --- Global state --- */
 CpuControlState g_cpu_state = {0};
@@ -973,7 +978,12 @@ int is_on_ac_power(void) {
 
 /* Get CPU temperature in degrees Celsius */
 int get_cpu_temperature(void) {
-    /* Try thermal_zone first */
+    /* The CPU drivers first: coretemp, k10temp, zenpower (1.42.0). AMD
+     * laptops often have no CPU thermal zone, only "acpitz". */
+    int hw = dcc_cpu_temp_hwmon(DCC_CPU_HWMON_DIR, 1, 125);
+    if (hw >= 0) return hw;
+
+    /* Then a CPU thermal zone */
     DIR *dir = opendir("/sys/class/thermal");
     if (dir) {
         struct dirent *entry;
@@ -1020,20 +1030,6 @@ int get_cpu_temperature(void) {
         }
         closedir(dir);
         if (max_temp >= 0) return max_temp;
-    }
-
-    /* Fallback: try direct sysfs path for coretemp */
-    FILE *temp_fp = fopen("/sys/devices/platform/coretemp.0/hwmon/temp1_input", "r");
-    if (!temp_fp) {
-        temp_fp = fopen("/sys/class/hwmon/hwmon0/temp1_input", "r");
-    }
-    if (temp_fp) {
-        int temp_milli = 0;
-        if (fscanf(temp_fp, "%d", &temp_milli) == 1) {
-            fclose(temp_fp);
-            return temp_milli / 1000;
-        }
-        fclose(temp_fp);
     }
 
     /* Temperature unavailable */

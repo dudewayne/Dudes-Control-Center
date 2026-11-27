@@ -505,6 +505,10 @@ msgid "Clock: %d MHz, memory %d MHz"
 msgstr "클럭: %d MHz, 메모리 %d MHz"
 
 #, c-format
+msgid "Clock: %d MHz"
+msgstr "클럭: %d MHz"
+
+#, c-format
 msgid "Load: %d %% (power state %s)"
 msgstr "부하: %d %% (전원 상태 %s)"
 
@@ -525,8 +529,8 @@ msgstr "측정을 위해 깨우지 않음"
 msgid "GPU: sleeping"
 msgstr "GPU: 절전 중"
 
-msgid "No NVIDIA GPU"
-msgstr "NVIDIA GPU 없음"
+msgid "No NVIDIA or AMD GPU"
+msgstr "NVIDIA 또는 AMD GPU 없음"
 
 msgid "CPU Fan"
 msgstr "CPU 팬"
