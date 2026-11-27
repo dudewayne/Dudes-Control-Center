@@ -41,6 +41,10 @@ static double num_c(const char *s) { return g_ascii_strtod(s, NULL); }
 
 /* GUI.log at INFO: events; plain g_print() goes to DEBUG (1.34.3) */
 static void gui_event(const char *fmt, ...) G_GNUC_PRINTF(1, 2);
+/* Daemon connection lost / back (1.44.1): never dropped as a repeat, so a
+ * "reconnecting" line always has its "connected" line */
+static void gui_event_conn(const char *fmt, ...) G_GNUC_PRINTF(1, 2);
+static int g_log_keep_repeats;
 
 typedef struct { const char *code, *label; } UiLanguage;
 static const UiLanguage ui_languages[] = {
@@ -497,7 +501,7 @@ static void gui_log_text(LogLevel default_level, const char *text) {
         else if (strncmp(msg, "DEBUG", 5) == 0 || strstr(msg, " DEBUG:")) level = LOG_LEVEL_DEBUG;
 
         if (!log_should_output(level)) continue;
-        if (level > LOG_LEVEL_WARN && gui_log_is_repeat(msg)) continue;  /* never drop errors */
+        if (level > LOG_LEVEL_WARN && !g_log_keep_repeats && gui_log_is_repeat(msg)) continue;  /* never drop errors */
         log_write(level, "%s", msg);
     }
     g_free(copy);
@@ -520,6 +524,17 @@ static void gui_event(const char *fmt, ...) {
     va_end(ap);
     gui_log_text(LOG_LEVEL_INFO, text);
     if (isatty(STDOUT_FILENO)) { fputs(text, stdout); fflush(stdout); }
+    g_free(text);
+}
+
+static void gui_event_conn(const char *fmt, ...) {
+    va_list ap;
+    va_start(ap, fmt);
+    gchar *text = g_strdup_vprintf(fmt, ap);
+    va_end(ap);
+    g_log_keep_repeats = 1;
+    gui_event("%s", text);
+    g_log_keep_repeats = 0;
     g_free(text);
 }
 
@@ -1093,7 +1108,7 @@ static int check_unsaved_changes(AppData *app) {
  * reconnects by itself. Other socket errors stay errors. */
 static void gui_log_lost(const char *daemon, const char *what, int err) {
     if (err == EPIPE || err == ECONNRESET || err == 0) {
-        gui_event("[GUI] %s daemon closed the connection (restarted or stopped) - reconnecting\n", daemon);
+        gui_event_conn("[GUI] %s daemon closed the connection (restarted or stopped) - reconnecting\n", daemon);
         return;
     }
     char ts[32];
@@ -1556,7 +1571,7 @@ static gboolean cpu_refresh_timer_callback(gpointer user_data) {
         connect_to_cpu_daemon(app);
         update_daemon_status_labels(app);
         if (!app->cpu_connected) return G_SOURCE_CONTINUE;
-        gui_event("[GUI] Reconnected to the CPU daemon\n");
+        gui_event_conn("[GUI] Reconnected to the CPU daemon\n");
         cpu_load_initial_data(app);
         load_cpu_custom_profiles_select(app,
             gtk_combo_box_get_active(GTK_COMBO_BOX(app->cpu_custom_profile_combo)));
@@ -4188,7 +4203,7 @@ static void connect_to_daemon(AppData *app) {
     }
 
     app->connected = 1;
-    gui_event("[GUI] Connected to daemon successfully!\n");
+    gui_event_conn("[GUI] Connected to daemon successfully!\n");
 }
 
 /* Disconnect from daemon */
@@ -4236,7 +4251,7 @@ static void connect_to_cpu_daemon(AppData *app) {
 
     app->cpu_connected = 1;
     update_daemon_status_labels(app);
-    gui_event("[GUI] Connected to CPU daemon successfully!\n");
+    gui_event_conn("[GUI] Connected to CPU daemon successfully!\n");
 }
 
 /* Disconnect from CPU daemon */
@@ -4287,7 +4302,7 @@ static void connect_to_keyboard_daemon(AppData *app) {
 
     app->kbd_connected = 1;
     update_daemon_status_labels(app);
-    gui_event("[GUI] Connected to keyboard daemon successfully!\n");
+    gui_event_conn("[GUI] Connected to keyboard daemon successfully!\n");
 
     /* The daemon restores the backlight itself (off, profile colors or
      * white); the GUI only shows that state instead of switching it on */
@@ -4387,8 +4402,7 @@ static int kbd_ensure_connected(AppData *app) {
 static const char *send_keyboard_command(AppData *app, const char *cmd) {
     if (!kbd_ensure_connected(app)) return send_keyboard_command_once(app, cmd);
     const char *r = send_keyboard_command_once(app, cmd);
-    if (!app->kbd_connected) {          /* the send/receive found a dead connection */
-        gui_event("[GUI] Keyboard daemon connection lost - reconnecting\n");
+    if (!app->kbd_connected) {          /* the send/receive found a dead connection (logged there) */
         if (kbd_ensure_connected(app)) r = send_keyboard_command_once(app, cmd);
     }
     return r;

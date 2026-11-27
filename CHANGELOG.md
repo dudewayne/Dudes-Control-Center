@@ -10,6 +10,7 @@ Programs and services were named `dudes-control-center-*` before 1.19.0 (for exa
 
 ### Fixed
 - A daemon restart (for example during a package update) no longer leaves `[ERROR]` lines in the GUI log: a daemon that closed the connection is logged as "… daemon closed the connection (restarted or stopped) - reconnecting" at INFO, and the follow-up "Received error response" line is gone. Other socket errors are still errors.
+- The GUI log shows the reconnect after a daemon restart: "Connected to … successfully!" was dropped as a repeat when the GUI had logged it less than a minute before (for example right after it started). Connection messages are no longer filtered as repeats; the extra "Keyboard daemon connection lost" line is gone.
 - Keyboards without per-key LEDs (one color or a few zones) no longer offer the **Wave** effect and its direction, which only makes sense across a key matrix; a profile with Wave shows Rainbow there.
 
 ## [1.44.0] - 2026-11-27

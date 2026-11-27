@@ -1346,6 +1346,10 @@ int main(int argc, char **argv) {
         gui_log_lost("Fan", "Failed to send command", EPIPE);
         gui_log_lost("Q-test", "Connection closed", 0);   /* EOF */
         gui_log_lost("CPU", "poll failed", EBADF);
+        gui_event_conn("[GUI] Connected to Q-test daemon successfully!\n");
+        gui_event_conn("[GUI] Connected to Q-test daemon successfully!\n");   /* reconnect soon after */
+        gui_event("[GUI] Q-test ordinary line\n");
+        gui_event("[GUI] Q-test ordinary line\n");
         log_cleanup();
         char lp[1100];
         snprintf(lp, sizeof lp, "%s/GUI.log", logdir);
@@ -1356,6 +1360,10 @@ int main(int argc, char **argv) {
               "Q: a daemon that closed the connection (restart) is logged at INFO");
         CHECK(lg && strstr(lg, "[ERROR] [GUI] CPU ERROR: poll failed (Bad file descriptor), marking disconnected"),
               "Q: other socket errors stay errors");
+        int conn = 0, ord = 0;
+        for (char *q = lg; q && (q = strstr(q, "Connected to Q-test daemon")); q++) conn++;
+        for (char *q = lg; q && (q = strstr(q, "Q-test ordinary line")); q++) ord++;
+        CHECK(conn == 2 && ord == 1, "Q: a reconnect soon after is logged again; other repeats are still dropped");
         g_free(lg);
     }
 
