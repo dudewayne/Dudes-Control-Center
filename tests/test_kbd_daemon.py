@@ -87,7 +87,14 @@ try:
           "profiles marked as converted, other sections kept")
 
     def color(i):
-        return open(f"leds/{idx[i]}/multi_intensity").read().split()
+        # The fake LED file is empty for a moment while the daemon rewrites it
+        # (truncate, then write); real sysfs attributes have no such moment.
+        for _ in range(50):
+            v = open(f"leds/{idx[i]}/multi_intensity").read().split()
+            if len(v) == 3:
+                return v
+            time.sleep(0.002)
+        return v
 
     def colors():
         return [tuple(int(x) for x in color(i)) for i in range(NLEDS)]
