@@ -272,6 +272,8 @@ int main(int argc, char *argv[]) {
         if (ec_state == EC_INIT_ERROR)
             fprintf(stderr, "Error: Failed to initialize EC access (%s). Run with sudo, or load the dcc_fan module.\n",
                     ec_init_reason());
+        else if (!isatty(STDERR_FILENO))      /* e.g. ExecStopPost=: one line in the journal */
+            fprintf(stderr, "Fan control not available (%s); nothing written to the EC.\n", ec_init_reason());
         else
             fprintf(stderr, "Error: fan control is not available: %s.\n"
                     "Direct EC access is meant for Clevo laptops without the Clevo WMI interface; on other\n"

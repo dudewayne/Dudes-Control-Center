@@ -136,9 +136,8 @@ static int apply_fan_duty(int pct) {
 static void check_ec_backend(void) {
     if (monitor_only || strcmp(ec_backend_name(), "none")) return;
     monitor_only = 1;
-    LOG_WARN("The dcc_fan module is gone and direct EC access is not available (%s). Monitoring only; "
-             "the laptop's firmware controls the fans. Load the module and restart the daemon to "
-             "control the fans again.", ec_init_reason());
+    LOG_WARN("No fan control any more: %s. Monitoring only; the laptop's firmware controls the fans. "
+             "Load the dcc_fan module and restart the daemon to control the fans again.", ec_init_reason());
 }
 
 /* Fail-safe: Set fans to 100% regardless of mode */
