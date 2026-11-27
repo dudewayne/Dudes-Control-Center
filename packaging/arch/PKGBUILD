@@ -1,0 +1,30 @@
+# SPDX-License-Identifier: GPL-2.0-only
+# Arch Linux package (1.48.0). Builds from the release tarball on GitHub;
+# the files come from "make stage", the same layout as the deb (programs in
+# /usr/local). pkgver must match the VERSION file (the CI checks it).
+# Maintainer: Dudes Control Center <https://github.com/dudewayne/Dudes-Control-Center>
+pkgname=dudes-control-center
+pkgver=1.48.0
+pkgrel=1
+pkgdesc="Fan, CPU and keyboard backlight control for Clevo and other laptops"
+arch=('x86_64')
+url="https://github.com/dudewayne/Dudes-Control-Center"
+license=('GPL-2.0-only' 'GPL-2.0-or-later')
+depends=('gtk3' 'cjson' 'librsvg' 'dkms' 'polkit' 'kmod')
+makedepends=('gcc' 'make' 'pkgconf' 'gettext')
+optdepends=('linux-headers: build the kernel modules for the stock kernel'
+            'linux-lts-headers: build the kernel modules for the LTS kernel')
+install=dudes-control-center.install
+options=('!debug')
+source=("$pkgname-$pkgver.tar.gz::$url/archive/refs/tags/v$pkgver.tar.gz")
+sha256sums=('SKIP')
+
+build() {
+    cd "Dudes-Control-Center-$pkgver"
+    make all
+}
+
+package() {
+    cd "Dudes-Control-Center-$pkgver"
+    make stage STAGE_DIR="$pkgdir"
+}

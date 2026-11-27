@@ -1,0 +1,125 @@
+#!/bin/sh
+# SPDX-License-Identifier: GPL-2.0-only
+# Setup steps shared by the deb, RPM and Arch packages (1.48.0), installed as
+# /usr/local/libexec/dudes-control-center/pkg-setup and called from their
+# install scripts:
+#   pkg-setup configure   after install or upgrade: control group and user,
+#                         DKMS modules, services
+#   pkg-setup remove      before the package is removed: services stopped,
+#                         modules unloaded
+#   pkg-setup purge-dkms  before final removal (RPM, Arch): DKMS modules
+#                         unregistered (the deb does it when purged)
+# @VERSION@ and @GROUP@ are filled in when the package is built.
+set -e
+VERSION=@VERSION@
+GROUP=@GROUP@
+DKMS_MOD=ite_829x
+
+# systemd is not running in containers and chroots: skip the services there
+have_systemd() { [ -d /run/systemd/system ]; }
+
+desktop_user() {
+    if [ -n "${SUDO_USER:-}" ] && [ "$SUDO_USER" != "root" ]; then echo "$SUDO_USER"; return; fi
+    if [ -n "${PKEXEC_UID:-}" ]; then id -nu "$PKEXEC_UID" 2>/dev/null && return; fi
+    # without sudo/pkexec (some package managers clear the environment): the
+    # only user with a login shell, a UID from 1000 and a home in /home
+    users=$(awk -F: '$3 >= 1000 && $3 < 60000 && $6 ~ /^\/home\// && $7 !~ /(nologin|false)$/ {print $1}' /etc/passwd)
+    [ "$(echo "$users" | grep -c .)" = 1 ] && echo "$users"
+    return 0
+}
+
+configure() {
+    # Access control: members of the group may control the daemons
+    groupadd -f --system "$GROUP"
+    DCC_USER=$(desktop_user)
+    if [ -n "$DCC_USER" ]; then
+        usermod -aG "$GROUP" "$DCC_USER" && echo "Added $DCC_USER to group $GROUP"
+        # The daemons use ~/.config/dudes-control-center/profiles.json of this user
+        if [ ! -s /etc/dudes-control-center/user ]; then
+            mkdir -p /etc/dudes-control-center
+            echo "$DCC_USER" > /etc/dudes-control-center/user
+            echo "Profiles of user $DCC_USER (/etc/dudes-control-center/user)"
+        fi
+    else
+        echo "NOTE: add your desktop user to the control group: sudo usermod -aG $GROUP <user>"
+    fi
+    # 1.19.0 renamed the services (dudes-control-center-* -> dcc-*): remove
+    # what may be left of the old ones
+    rm -f /etc/systemd/system/*.wants/dudes-control-center-*.service \
+          /etc/systemd/system/*.wants/dudes-control-center-*.timer \
+          /etc/systemd/system/dudes-control-center-*.service \
+          /etc/systemd/system/dudes-control-center-*.timer
+    have_systemd && systemctl daemon-reload
+    # DKMS: register and build the ite_829x and dcc_fan kernel modules
+    if [ -d "/usr/src/$DKMS_MOD-$VERSION" ] && command -v dkms >/dev/null 2>&1; then
+        # Unregister all other versions, including broken leftovers whose source is gone
+        for d in /var/lib/dkms/$DKMS_MOD/[0-9]*; do
+            [ -d "$d" ] || continue
+            v=${d##*/}
+            [ "$v" = "$VERSION" ] && continue
+            dkms remove -m "$DKMS_MOD" -v "$v" --all >/dev/null 2>&1 || true
+            # dkms remove can report success without removing a broken entry
+            if [ -d "$d" ]; then rm -rf "$d"; fi
+        done
+        dkms add -m "$DKMS_MOD" -v "$VERSION" || true
+        dkms build -m "$DKMS_MOD" -v "$VERSION" || true
+        dkms install --force -m "$DKMS_MOD" -v "$VERSION" || true
+        # Unload the old modules and load the freshly built ones. dcc_fan
+        # (1.36.0) sets the fans to 100% when unloaded; the fan daemon,
+        # restarted below, takes over again.
+        modprobe -r "$DKMS_MOD" 2>/dev/null || true
+        modprobe "$DKMS_MOD" 2>/dev/null || true
+        modprobe -r dcc_fan 2>/dev/null || true
+        modprobe dcc_fan 2>/dev/null || echo "dcc_fan: not loaded (no Clevo WMI interface?) - the fan daemon only monitors"
+        # The keyboard LEDs were recreated: let UPower (the desktop's keyboard
+        # brightness slider) pick up the new devices
+        have_systemd && { systemctl try-restart upower.service 2>/dev/null || true; }
+        echo "ite_829x: $(modinfo -F version "$DKMS_MOD" 2>/dev/null || echo unknown) from $(modinfo -n "$DKMS_MOD" 2>/dev/null)"
+        echo "dcc_fan: $(modinfo -F version dcc_fan 2>/dev/null || echo unknown) from $(modinfo -n dcc_fan 2>/dev/null)"
+    fi
+    if have_systemd; then
+        for s in dcc-fan-daemon dcc-cpu-daemon dcc-kbd-daemon; do
+            systemctl enable "$s"
+            systemctl restart "$s" || systemctl start "$s" || true
+        done
+        systemctl enable dcc-hard-limit-enforcer.timer
+        systemctl start dcc-hard-limit-enforcer.timer || true
+    else
+        echo "NOTE: systemd is not running here - services not enabled"
+    fi
+    update-desktop-database >/dev/null 2>&1 || true
+}
+
+remove() {
+    if have_systemd; then
+        systemctl stop dcc-kbd-daemon 2>/dev/null || true
+        systemctl disable dcc-kbd-daemon 2>/dev/null || true
+    fi
+    rmmod "$DKMS_MOD" 2>/dev/null || true
+    if have_systemd; then
+        systemctl stop dcc-fan-daemon 2>/dev/null || true
+        systemctl disable dcc-fan-daemon 2>/dev/null || true
+    fi
+    # dcc_fan leaves the fans at 100% when unloaded (like the daemon's stop)
+    rmmod dcc_fan 2>/dev/null || true
+    if have_systemd; then
+        systemctl stop dcc-cpu-daemon 2>/dev/null || true
+        systemctl disable dcc-cpu-daemon 2>/dev/null || true
+        systemctl stop dcc-hard-limit-enforcer.timer 2>/dev/null || true
+        systemctl disable dcc-hard-limit-enforcer.timer 2>/dev/null || true
+        systemctl daemon-reload
+    fi
+}
+
+purge_dkms() {
+    command -v dkms >/dev/null 2>&1 && { dkms remove -m "$DKMS_MOD" --all >/dev/null 2>&1 || true; }
+    rm -rf "/var/lib/dkms/$DKMS_MOD"
+}
+
+case "${1:-}" in
+    configure) configure ;;
+    remove) remove ;;
+    purge-dkms) purge_dkms ;;
+    *) echo "Usage: $0 configure|remove|purge-dkms" >&2; exit 2 ;;
+esac
+exit 0

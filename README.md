@@ -11,7 +11,7 @@ A control center for Clevo-based notebooks on Linux: fan control through the Emb
 
 [![Keyboard Backlight tab with the zone editor](docs/screenshots/keyboard-backlight.png)](#screenshots)
 
-> **Requirements:** a Clevo-based notebook with the Embedded Controller at I/O ports 0x62/0x66 (fan control) and an ITE 829x keyboard controller (per-key lighting); a Debian-based distribution on amd64 (Ubuntu, Linux Mint, ...) with systemd and GTK 3. On other hardware the fan and keyboard parts may not work or may misbehave: they can be switched off in the GUI's Settings tab. See [Hardware](#hardware).
+> **Requirements:** a Clevo-based notebook with the Embedded Controller at I/O ports 0x62/0x66 (fan control) and an ITE 829x keyboard controller (per-key lighting); a Linux distribution on amd64 with systemd and GTK 3: a `.deb` for Debian-based ones (Ubuntu, Linux Mint, ...), an `.rpm` for Fedora and an Arch package (1.48.0). On other hardware the fan and keyboard parts may not work or may misbehave: they can be switched off in the GUI's Settings tab. See [Hardware](#hardware).
 
 **Contents:** [Components](#components) · [Installation](#installation) · [Quick start](#quick-start) · [GUI](#gui) · [Screenshots](#screenshots) · [Command line](#command-line) · [Safety features](#safety-features) · [Configuration](#configuration) · [Building from source](#building-from-source) · [Hardware](#hardware) · [Troubleshooting](#troubleshooting) · [Credits](#credits--acknowledgments) · [License](#license)
 
@@ -32,11 +32,15 @@ Commands and services use the short prefix **`dcc-`** (since 1.19.0); folders wi
 
 ## Installation
 
-Download the `.deb` from the [latest release](https://github.com/dudewayne/Dudes-Control-Center/releases/latest) and install it with `sudo` (so the package knows your user name):
+Download the package for your distribution from the [latest release](https://github.com/dudewayne/Dudes-Control-Center/releases/latest) and install it with `sudo` (so the package knows your user name):
 
 ```bash
-sudo dpkg -i dudes-control-center_<version>_amd64.deb
+sudo dpkg -i dudes-control-center_<version>_amd64.deb                 # Debian, Ubuntu, Linux Mint
+sudo dnf install ./dudes-control-center-<version>-1.fc*.x86_64.rpm     # Fedora (pulls dkms, kernel-devel, ...)
+sudo pacman -U dudes-control-center-<version>-1-x86_64.pkg.tar.zst    # Arch, Manjaro, EndeavourOS
 ```
+
+On Arch, `packaging/arch/PKGBUILD` builds the package from the release tarball (`makepkg -si`). The RPM and the Arch package are built and installed in Fedora and Arch containers by the CI, but have not been tested on real Fedora or Arch installations yet; the deb is the tested one. All three use the same layout (programs in `/usr/local`) and the same setup steps (`/usr/local/libexec/dudes-control-center/pkg-setup`). DKMS needs the headers of your kernel (`kernel-devel` on Fedora, `linux-headers` on Arch).
 
 The package:
 - installs the daemons, GUI, CLIs and systemd units, and starts the services
@@ -45,7 +49,7 @@ The package:
 - creates the group `dudes-control-center` and adds your user to it (only its members and root may control the daemons)
 - writes your user name to `/etc/dudes-control-center/user`, so the root daemons use your `~/.config/dudes-control-center/profiles.json` (see [Configuration](#configuration))
 
-Uninstall with `sudo apt remove dudes-control-center`; `sudo apt purge dudes-control-center` also removes the configuration and logs.
+Uninstall with `sudo apt remove dudes-control-center`; `sudo apt purge dudes-control-center` also removes the configuration and logs. On Fedora `sudo dnf remove dudes-control-center`, on Arch `sudo pacman -R dudes-control-center` (both keep the configuration in `/etc/dudes-control-center` and the logs).
 
 Upgrades from versions before 1.19.0 (old `dudes-control-center-*` names) are handled automatically; the old command names still link to the new ones.
 
@@ -232,9 +236,19 @@ make deb -j$(nproc)      # Debian package in build-deb/
 make test -j$(nproc)     # test suite
 make man-check           # man pages render without warnings (needs groff)
 make deb-check           # check the built package
+make stage STAGE_DIR=build-stage/root   # all files of the package in a folder (used by deb, RPM, Arch)
 ```
 
-`make test` builds the tests with AddressSanitizer and UBSan and runs them without root or hardware: the daemons run against a fake sysfs (CPU frequencies, 120 keyboard LEDs) in temporary directories, so it is safe on a machine with the daemons installed. GitHub Actions runs `make all`, `make test`, `make man-check`, `make deb` and `make deb-check` on every push and pull request. Details: [tests/README.md](tests/README.md).
+RPM (Fedora: `gcc make pkgconf-pkg-config gtk3-devel cjson-devel gettext rpm-build`):
+
+```bash
+make stage STAGE_DIR="$PWD/build-stage/root"
+rpmbuild -bb packaging/dudes-control-center.spec --define "_stagedir $PWD/build-stage/root" --define "pkgversion $(cat VERSION)"
+```
+
+Arch: `cd packaging/arch && makepkg -si` (builds from the release tarball of the version in the PKGBUILD).
+
+`make test` builds the tests with AddressSanitizer and UBSan and runs them without root or hardware: the daemons run against a fake sysfs (CPU frequencies, 120 keyboard LEDs) in temporary directories, so it is safe on a machine with the daemons installed. GitHub Actions runs `make all`, `make test`, `make man-check`, `make deb` and `make deb-check` on every push and pull request, and builds the RPM in a Fedora container and the Arch package in an Arch container, installs each with its dependencies and checks it (`tests/check_pkg.sh`). Details: [tests/README.md](tests/README.md).
 
 `sudo make install` installs the programs and systemd units without a package (no DKMS module, no `/etc/dudes-control-center/user`; the daemons then use the first member of the group). The `.deb` is the recommended way.
 

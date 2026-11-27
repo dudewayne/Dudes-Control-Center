@@ -18,6 +18,7 @@ dudes-control-center-daemon
 
 # Build artifacts
 build-deb/
+build-stage/
 build-test/
 build-po/
 

@@ -60,3 +60,76 @@ jobs:
           name: test-work
           path: test-work.tar.gz
           retention-days: 7
+
+  # RPM package (1.48.0): built and installed in a Fedora container. dnf
+  # installs the package's dependencies (dkms, gtk3, ...) and runs its
+  # install script; services and modules stay off (no systemd, no kernel
+  # headers in a container).
+  rpm:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    container: fedora:latest
+    steps:
+      - name: Install build dependencies
+        run: dnf -y install git gcc make pkgconf-pkg-config gtk3-devel cjson-devel gettext gzip rpm-build findutils
+
+      - uses: actions/checkout@v5
+
+      - name: Build RPM
+        run: |
+          make stage STAGE_DIR="$PWD/build-stage/root" EXTRA_CFLAGS=-Werror
+          rpmbuild -bb packaging/dudes-control-center.spec --define "_topdir $PWD/build-rpm" \
+            --define "_stagedir $PWD/build-stage/root" --define "pkgversion $(cat VERSION)"
+
+      - name: Install RPM with its dependencies
+        run: dnf -y install ./build-rpm/RPMS/x86_64/dudes-control-center-*.rpm
+
+      - name: Check installed package
+        run: bash tests/check_pkg.sh "$(cat VERSION)"
+
+      - name: Upload RPM
+        uses: actions/upload-artifact@v6
+        with:
+          name: dudes-control-center-rpm
+          path: build-rpm/RPMS/x86_64/*.rpm
+          retention-days: 14
+
+  # Arch package (1.48.0): makepkg with the PKGBUILD from packaging/arch on
+  # a tarball of this commit (named like the release tarball), installed with
+  # pacman and its dependencies in an Arch container.
+  arch:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    container: archlinux:latest
+    steps:
+      - name: Install build dependencies
+        run: pacman -Syu --noconfirm --needed base-devel git gtk3 cjson gettext pkgconf
+
+      - uses: actions/checkout@v5
+
+      - name: PKGBUILD version matches VERSION
+        run: grep -qx "pkgver=$(cat VERSION)" packaging/arch/PKGBUILD
+
+      - name: Build package
+        run: |
+          git config --global --add safe.directory "$PWD"
+          V=$(cat VERSION)
+          mkdir -p /tmp/pkg
+          cp packaging/arch/PKGBUILD packaging/arch/dudes-control-center.install /tmp/pkg/
+          git archive --prefix="Dudes-Control-Center-$V/" -o "/tmp/pkg/dudes-control-center-$V.tar.gz" HEAD
+          useradd -m builder
+          chown -R builder /tmp/pkg
+          cd /tmp/pkg && sudo -u builder makepkg --nodeps --noconfirm
+
+      - name: Install package with its dependencies
+        run: pacman -U --noconfirm /tmp/pkg/dudes-control-center-*.pkg.tar.zst
+
+      - name: Check installed package
+        run: bash tests/check_pkg.sh "$(cat VERSION)"
+
+      - name: Upload package
+        uses: actions/upload-artifact@v6
+        with:
+          name: dudes-control-center-arch
+          path: /tmp/pkg/*.pkg.tar.zst
+          retention-days: 14

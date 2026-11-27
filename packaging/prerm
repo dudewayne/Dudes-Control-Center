@@ -2,18 +2,7 @@
 # SPDX-License-Identifier: GPL-2.0-only
 set -e
 if [ "$1" = "remove" ]; then
-    systemctl stop dcc-kbd-daemon 2>/dev/null || true
-    systemctl disable dcc-kbd-daemon 2>/dev/null || true
-    # DKMS: unload ite_829x kernel module
-    rmmod ite_829x 2>/dev/null || true
-    systemctl stop dcc-fan-daemon 2>/dev/null || true
-    systemctl disable dcc-fan-daemon 2>/dev/null || true
-    # dcc_fan leaves the fans at 100% when unloaded (like the daemon's stop)
-    rmmod dcc_fan 2>/dev/null || true
-    systemctl stop dcc-cpu-daemon 2>/dev/null || true
-    systemctl disable dcc-cpu-daemon 2>/dev/null || true
-    systemctl stop dcc-hard-limit-enforcer.timer 2>/dev/null || true
-    systemctl disable dcc-hard-limit-enforcer.timer 2>/dev/null || true
-    systemctl daemon-reload
+    # services stopped, modules unloaded (shared with RPM and Arch, 1.48.0)
+    /usr/local/libexec/dudes-control-center/pkg-setup remove
 fi
 exit 0

@@ -110,7 +110,8 @@ done
 check "[ -s \"\$(ls '$R'/usr/src/ite_829x-*/dcc_fan.c)\" ] && grep -q '^obj-m += dcc_fan.o' '$R'/usr/src/ite_829x-*/Kbuild && grep -q 'DCC_FAN_VERSION' '$R'/usr/src/ite_829x-*/Kbuild" "dcc_fan source and Kbuild entry in the DKMS folder"
 check "grep -q 'BUILT_MODULE_NAME\[1\]=\"dcc_fan\"' '$R'/usr/src/ite_829x-*/dkms.conf" "DKMS builds dcc_fan"
 check "[ \"\$(cat '$R/usr/lib/modules-load.d/dudes-control-center.conf')\" = dcc_fan ]" "dcc_fan loaded at boot (modules-load.d)"
-check "grep -q 'modprobe dcc_fan' '$TMP/ctrl/postinst' && grep -q 'rmmod dcc_fan' '$TMP/ctrl/prerm'" "postinst loads dcc_fan, prerm unloads it"
+PS="$R/usr/local/libexec/dudes-control-center/pkg-setup"   # shared setup steps (1.48.0)
+check "grep -q 'modprobe dcc_fan' '$PS' && grep -q 'rmmod dcc_fan' '$PS'" "pkg-setup loads dcc_fan (configure) and unloads it (remove)"
 check "grep -q '^Files: usr/src/ite_829x-\*/dcc_fan.c' '$R/usr/share/doc/dudes-control-center/copyright'" "copyright file lists dcc_fan as project code"
 check "grep -q 'TUXEDO Computers GmbH' '$R'/usr/src/ite_829x-*/ite_829x.c && grep -q 'GNU GENERAL PUBLIC LICENSE' '$R'/usr/src/ite_829x-*/LICENSE" "ite_829x source keeps the TUXEDO copyright and ships the GPL"
 check "grep -q 'TUXEDO Computers GmbH' '$R/usr/share/doc/dudes-control-center/copyright'" "copyright file credits TUXEDO for the driver"
@@ -123,9 +124,13 @@ for s in preinst postinst prerm postrm; do
     check "! grep -q '@[A-Z]*@' '$TMP/ctrl/$s'" "$s has no unfilled placeholders"
 done
 check "grep -q dudes-control-center-fan-daemon.service '$TMP/ctrl/preinst'" "preinst stops the old fan service before the upgrade"
-check "grep -q 'wants/dudes-control-center-' '$TMP/ctrl/postinst'" "postinst removes leftovers of the old services"
-check "grep -q 'systemctl enable dcc-fan-daemon' '$TMP/ctrl/postinst'" "postinst enables the new services"
-check "grep -q 'try-restart upower' '$TMP/ctrl/postinst'" "postinst lets UPower see the reloaded keyboard driver"
+check "grep -q 'pkg-setup configure' '$TMP/ctrl/postinst' && grep -q 'pkg-setup remove' '$TMP/ctrl/prerm'" "postinst and prerm call the shared pkg-setup"
+check "[ -x '$PS' ] && sh -n '$PS' && ! grep -q '@[A-Z]*@' '$PS'" "pkg-setup present, valid shell, placeholders filled"
+check "grep -q 'wants/dudes-control-center-' '$PS'" "pkg-setup removes leftovers of the old services"
+check "grep -q 'for s in dcc-fan-daemon dcc-cpu-daemon dcc-kbd-daemon' '$PS' && grep -q 'systemctl enable \"\$s\"' '$PS'" "pkg-setup enables the services"
+check "grep -q 'try-restart upower' '$PS'" "pkg-setup lets UPower see the reloaded keyboard driver"
+DEBVER=$(dpkg-deb -f "$DEB" Version)
+check "grep -qx 'VERSION=$DEBVER' '$PS'" "pkg-setup registers the package's DKMS version ($DEBVER)"
 
 echo
 echo "$fails failure(s)"

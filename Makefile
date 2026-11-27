@@ -56,7 +56,7 @@ MAN_PAGES = dudes-control-center.7 dcc-gui.1 dcc-fan-cli.1 dcc-cpu-cli.1 dcc-kbd
 DKMS_MODULE_NAME = ite_829x
 DKMS_MODULE_VERSION = $(VERSION)
 
-.PHONY: all clean cli daemon cpu-daemon kbd-daemon gui install uninstall deb help test man-check
+.PHONY: all clean cli daemon cpu-daemon kbd-daemon gui install uninstall deb stage help test man-check
 
 all: $(CLI_TARGET) $(CPU_CLI_TARGET) $(KBD_CLI_TARGET) $(DAEMON_TARGET) $(CPU_DAEMON_TARGET) $(KBD_DAEMON_TARGET) $(GUI_TARGET)
 
@@ -99,69 +99,89 @@ clean:
 	rm -f $(CLI_TARGET) $(CPU_CLI_TARGET) $(KBD_CLI_TARGET) $(DAEMON_TARGET) $(CPU_DAEMON_TARGET) $(KBD_DAEMON_TARGET) $(GUI_TARGET)
 	rm -rf $(TEST_BUILD)
 	rm -f $(DEB_BUILD_DIR)/$(PACKAGE)_*.deb 2>/dev/null || true
+	rm -rf build-stage
 
 # Build .deb package
+# All files of the package in STAGE_DIR (1.48.0): used by the deb, the RPM
+# (packaging/dudes-control-center.spec) and the Arch package (packaging/arch)
+STAGE_DIR ?= build-stage/root
+stage: all
+	@case "$(STAGE_DIR)" in ""|/|/usr|/usr/*|/etc|/home|/home/*/) echo "STAGE_DIR must be a build folder, not '$(STAGE_DIR)'"; exit 1;; esac
+	@rm -rf $(STAGE_DIR)
+	@mkdir -p $(STAGE_DIR)
+	@mkdir -p $(STAGE_DIR)/usr/local/bin
+	@mkdir -p $(STAGE_DIR)/usr/share/applications
+	@mkdir -p $(STAGE_DIR)/usr/share/pixmaps
+	@mkdir -p $(STAGE_DIR)/usr/share/icons/hicolor/256x256/apps
+	@mkdir -p $(STAGE_DIR)/etc/systemd/system
+	@mkdir -p $(STAGE_DIR)/usr/share/doc/dudes-control-center/images
+	@cp $(CLI_TARGET) $(STAGE_DIR)/usr/local/bin/
+	@cp $(CPU_CLI_TARGET) $(STAGE_DIR)/usr/local/bin/
+	@cp $(KBD_CLI_TARGET) $(STAGE_DIR)/usr/local/bin/
+	@cp $(DAEMON_TARGET) $(STAGE_DIR)/usr/local/bin/
+	@cp $(CPU_DAEMON_TARGET) $(STAGE_DIR)/usr/local/bin/
+	@cp $(KBD_DAEMON_TARGET) $(STAGE_DIR)/usr/local/bin/
+	@cp $(GUI_TARGET) $(STAGE_DIR)/usr/local/bin/
+	@cp resources/keyboard_dark.png $(STAGE_DIR)/usr/share/doc/dudes-control-center/images/keyboard_dark.png 2>/dev/null || true
+	@# Keyboard layouts: key positions (keys.csv) and picture (SVG) per layout (1.28.0)
+	@mkdir -p $(STAGE_DIR)/usr/share/dudes-control-center
+	@cp -r resources/layouts $(STAGE_DIR)/usr/share/dudes-control-center/
+	@cp resources/logo_dark.png resources/logo_light.png $(STAGE_DIR)/usr/share/dudes-control-center/
+	@# UI translations (1.31.0)
+	@for l in $(UI_LANGS); do msgfmt -c -o /dev/null po/$$l.po && \
+	  mkdir -p $(STAGE_DIR)/usr/share/locale/$$l/LC_MESSAGES && \
+	  msgfmt -o $(STAGE_DIR)/usr/share/locale/$$l/LC_MESSAGES/dudes-control-center.mo po/$$l.po; done
+	@cp dudes-control-center.desktop $(STAGE_DIR)/usr/share/applications/
+	@cp DudesControlCenter.png $(STAGE_DIR)/usr/share/pixmaps/ 2>/dev/null || true
+	@cp DudesControlCenter.png $(STAGE_DIR)/usr/share/icons/hicolor/256x256/apps/dudes-control-center.png 2>/dev/null || true
+	@# Smaller icon sizes for menus and panels (1.34.4)
+	@for n in 128 64 48; do mkdir -p $(STAGE_DIR)/usr/share/icons/hicolor/$${n}x$${n}/apps && \
+	  cp resources/icons/dudes-control-center_$$n.png $(STAGE_DIR)/usr/share/icons/hicolor/$${n}x$${n}/apps/dudes-control-center.png; done
+	@cp dcc-fan-daemon.service $(STAGE_DIR)/etc/systemd/system/
+	@cp dcc-cpu-daemon.service $(STAGE_DIR)/etc/systemd/system/
+	@cp dcc-kbd-daemon.service $(STAGE_DIR)/etc/systemd/system/
+	@cp dcc-hard-limit-enforcer.service $(STAGE_DIR)/etc/systemd/system/
+	@cp dcc-hard-limit-enforcer.timer $(STAGE_DIR)/etc/systemd/system/
+	@cp scripts/dcc-hard-limit-enforce.sh $(STAGE_DIR)/usr/local/bin/dcc-hard-limit-enforce
+	@# Man pages (1.33.0), compressed, next to the programs in /usr/local
+	@for p in $(MAN_PAGES); do n=$${p##*.}; mkdir -p $(STAGE_DIR)/usr/local/share/man/man$$n && \
+	  sed 's/@VERSION@/$(VERSION)/g' man/$$p | gzip -9n > $(STAGE_DIR)/usr/local/share/man/man$$n/$$p.gz; done
+	@# Settings tab: switch components on/off through pkexec (1.27.0)
+	@mkdir -p $(STAGE_DIR)/usr/local/sbin $(STAGE_DIR)/usr/share/polkit-1/actions
+	@cp scripts/dcc-component.sh $(STAGE_DIR)/usr/local/sbin/dcc-component
+	@chmod 755 $(STAGE_DIR)/usr/local/sbin/dcc-component
+	@cp packaging/org.dudes-control-center.component.policy $(STAGE_DIR)/usr/share/polkit-1/actions/
+	@# DKMS kernel module source
+	@mkdir -p $(STAGE_DIR)/usr/src/$(DKMS_MODULE_NAME)-$(DKMS_MODULE_VERSION)
+	@cp drivers/ite_829x.c drivers/dcc_fan.c $(STAGE_DIR)/usr/src/$(DKMS_MODULE_NAME)-$(DKMS_MODULE_VERSION)/
+	@cp drivers/Kbuild $(STAGE_DIR)/usr/src/$(DKMS_MODULE_NAME)-$(DKMS_MODULE_VERSION)/
+	@printf 'ccflags-y += -DITE829X_VERSION=\\"%s\\" -DDCC_FAN_VERSION=\\"%s\\"\n' '$(DKMS_MODULE_VERSION)' '$(DKMS_MODULE_VERSION)' >> $(STAGE_DIR)/usr/src/$(DKMS_MODULE_NAME)-$(DKMS_MODULE_VERSION)/Kbuild
+	@# dcc_fan has no hardware alias: load it at boot (1.36.0)
+	@mkdir -p $(STAGE_DIR)/usr/lib/modules-load.d
+	@echo dcc_fan > $(STAGE_DIR)/usr/lib/modules-load.d/dudes-control-center.conf
+	@cp drivers/Makefile $(STAGE_DIR)/usr/src/$(DKMS_MODULE_NAME)-$(DKMS_MODULE_VERSION)/
+	@cp drivers/LICENSE $(STAGE_DIR)/usr/src/$(DKMS_MODULE_NAME)-$(DKMS_MODULE_VERSION)/LICENSE
+	@cp packaging/copyright $(STAGE_DIR)/usr/share/doc/dudes-control-center/copyright
+	@cp LICENSE $(STAGE_DIR)/usr/share/doc/dudes-control-center/LICENSE
+	@# Help tab (1.34.0): the GUI shows these uncompressed
+	@cp README.md CHANGELOG.md $(STAGE_DIR)/usr/share/doc/dudes-control-center/
+	@sed 's/^PACKAGE_VERSION=.*/PACKAGE_VERSION="$(DKMS_MODULE_VERSION)"/' drivers/dkms.conf > $(STAGE_DIR)/usr/src/$(DKMS_MODULE_NAME)-$(DKMS_MODULE_VERSION)/dkms.conf
+	@# Old command names (before 1.19.0) keep working for now
+	@for n in gui fan-cli cpu-cli; do ln -s dcc-$$n $(STAGE_DIR)/usr/local/bin/dudes-control-center-$$n; done
+	@# Setup steps shared by the deb, RPM and Arch install scripts (1.48.0)
+	@mkdir -p $(STAGE_DIR)/usr/local/libexec/dudes-control-center
+	@sed -e 's/@VERSION@/$(VERSION)/g' -e 's/@GROUP@/$(DCC_GROUP)/g' packaging/pkg-setup > $(STAGE_DIR)/usr/local/libexec/dudes-control-center/pkg-setup
+	@chmod 755 $(STAGE_DIR)/usr/local/libexec/dudes-control-center/pkg-setup
+	@# Files belong to root and only root may change them: systemd runs the
+	@# daemons as root. Without this the archive kept the build user as owner
+	@# (and the umask's group write), so that user could replace a root daemon.
+	@chmod -R u=rwX,go=rX $(STAGE_DIR)
+
 deb: all
 	@echo "Building .deb package $(PACKAGE) version $(VERSION)..."
 	@rm -rf $(DEB_BUILD_DIR)
-	@mkdir -p $(DEB_BUILD_DIR)/$(PACKAGE)-$(VERSION)/usr/local/bin
-	@mkdir -p $(DEB_BUILD_DIR)/$(PACKAGE)-$(VERSION)/usr/share/applications
-	@mkdir -p $(DEB_BUILD_DIR)/$(PACKAGE)-$(VERSION)/usr/share/pixmaps
-	@mkdir -p $(DEB_BUILD_DIR)/$(PACKAGE)-$(VERSION)/usr/share/icons/hicolor/256x256/apps
-	@mkdir -p $(DEB_BUILD_DIR)/$(PACKAGE)-$(VERSION)/etc/systemd/system
-	@mkdir -p $(DEB_BUILD_DIR)/$(PACKAGE)-$(VERSION)/usr/share/doc/dudes-control-center/images
+	@$(MAKE) --no-print-directory stage STAGE_DIR=$(DEB_BUILD_DIR)/$(PACKAGE)-$(VERSION)
 	@mkdir -p $(DEB_BUILD_DIR)/$(PACKAGE)-$(VERSION)/DEBIAN
-	@cp $(CLI_TARGET) $(DEB_BUILD_DIR)/$(PACKAGE)-$(VERSION)/usr/local/bin/
-	@cp $(CPU_CLI_TARGET) $(DEB_BUILD_DIR)/$(PACKAGE)-$(VERSION)/usr/local/bin/
-	@cp $(KBD_CLI_TARGET) $(DEB_BUILD_DIR)/$(PACKAGE)-$(VERSION)/usr/local/bin/
-	@cp $(DAEMON_TARGET) $(DEB_BUILD_DIR)/$(PACKAGE)-$(VERSION)/usr/local/bin/
-	@cp $(CPU_DAEMON_TARGET) $(DEB_BUILD_DIR)/$(PACKAGE)-$(VERSION)/usr/local/bin/
-	@cp $(KBD_DAEMON_TARGET) $(DEB_BUILD_DIR)/$(PACKAGE)-$(VERSION)/usr/local/bin/
-	@cp $(GUI_TARGET) $(DEB_BUILD_DIR)/$(PACKAGE)-$(VERSION)/usr/local/bin/
-	@cp resources/keyboard_dark.png $(DEB_BUILD_DIR)/$(PACKAGE)-$(VERSION)/usr/share/doc/dudes-control-center/images/keyboard_dark.png 2>/dev/null || true
-	@# Keyboard layouts: key positions (keys.csv) and picture (SVG) per layout (1.28.0)
-	@mkdir -p $(DEB_BUILD_DIR)/$(PACKAGE)-$(VERSION)/usr/share/dudes-control-center
-	@cp -r resources/layouts $(DEB_BUILD_DIR)/$(PACKAGE)-$(VERSION)/usr/share/dudes-control-center/
-	@cp resources/logo_dark.png resources/logo_light.png $(DEB_BUILD_DIR)/$(PACKAGE)-$(VERSION)/usr/share/dudes-control-center/
-	@# UI translations (1.31.0)
-	@for l in $(UI_LANGS); do msgfmt -c -o /dev/null po/$$l.po && \
-	  mkdir -p $(DEB_BUILD_DIR)/$(PACKAGE)-$(VERSION)/usr/share/locale/$$l/LC_MESSAGES && \
-	  msgfmt -o $(DEB_BUILD_DIR)/$(PACKAGE)-$(VERSION)/usr/share/locale/$$l/LC_MESSAGES/dudes-control-center.mo po/$$l.po; done
-	@cp dudes-control-center.desktop $(DEB_BUILD_DIR)/$(PACKAGE)-$(VERSION)/usr/share/applications/
-	@cp DudesControlCenter.png $(DEB_BUILD_DIR)/$(PACKAGE)-$(VERSION)/usr/share/pixmaps/ 2>/dev/null || true
-	@cp DudesControlCenter.png $(DEB_BUILD_DIR)/$(PACKAGE)-$(VERSION)/usr/share/icons/hicolor/256x256/apps/dudes-control-center.png 2>/dev/null || true
-	@# Smaller icon sizes for menus and panels (1.34.4)
-	@for n in 128 64 48; do mkdir -p $(DEB_BUILD_DIR)/$(PACKAGE)-$(VERSION)/usr/share/icons/hicolor/$${n}x$${n}/apps && \
-	  cp resources/icons/dudes-control-center_$$n.png $(DEB_BUILD_DIR)/$(PACKAGE)-$(VERSION)/usr/share/icons/hicolor/$${n}x$${n}/apps/dudes-control-center.png; done
-	@cp dcc-fan-daemon.service $(DEB_BUILD_DIR)/$(PACKAGE)-$(VERSION)/etc/systemd/system/
-	@cp dcc-cpu-daemon.service $(DEB_BUILD_DIR)/$(PACKAGE)-$(VERSION)/etc/systemd/system/
-	@cp dcc-kbd-daemon.service $(DEB_BUILD_DIR)/$(PACKAGE)-$(VERSION)/etc/systemd/system/
-	@cp dcc-hard-limit-enforcer.service $(DEB_BUILD_DIR)/$(PACKAGE)-$(VERSION)/etc/systemd/system/
-	@cp dcc-hard-limit-enforcer.timer $(DEB_BUILD_DIR)/$(PACKAGE)-$(VERSION)/etc/systemd/system/
-	@cp scripts/dcc-hard-limit-enforce.sh $(DEB_BUILD_DIR)/$(PACKAGE)-$(VERSION)/usr/local/bin/dcc-hard-limit-enforce
-	@# Man pages (1.33.0), compressed, next to the programs in /usr/local
-	@for p in $(MAN_PAGES); do n=$${p##*.}; mkdir -p $(DEB_BUILD_DIR)/$(PACKAGE)-$(VERSION)/usr/local/share/man/man$$n && \
-	  sed 's/@VERSION@/$(VERSION)/g' man/$$p | gzip -9n > $(DEB_BUILD_DIR)/$(PACKAGE)-$(VERSION)/usr/local/share/man/man$$n/$$p.gz; done
-	@# Settings tab: switch components on/off through pkexec (1.27.0)
-	@mkdir -p $(DEB_BUILD_DIR)/$(PACKAGE)-$(VERSION)/usr/local/sbin $(DEB_BUILD_DIR)/$(PACKAGE)-$(VERSION)/usr/share/polkit-1/actions
-	@cp scripts/dcc-component.sh $(DEB_BUILD_DIR)/$(PACKAGE)-$(VERSION)/usr/local/sbin/dcc-component
-	@chmod 755 $(DEB_BUILD_DIR)/$(PACKAGE)-$(VERSION)/usr/local/sbin/dcc-component
-	@cp packaging/org.dudes-control-center.component.policy $(DEB_BUILD_DIR)/$(PACKAGE)-$(VERSION)/usr/share/polkit-1/actions/
-	@# DKMS kernel module source
-	@mkdir -p $(DEB_BUILD_DIR)/$(PACKAGE)-$(VERSION)/usr/src/$(DKMS_MODULE_NAME)-$(DKMS_MODULE_VERSION)
-	@cp drivers/ite_829x.c drivers/dcc_fan.c $(DEB_BUILD_DIR)/$(PACKAGE)-$(VERSION)/usr/src/$(DKMS_MODULE_NAME)-$(DKMS_MODULE_VERSION)/
-	@cp drivers/Kbuild $(DEB_BUILD_DIR)/$(PACKAGE)-$(VERSION)/usr/src/$(DKMS_MODULE_NAME)-$(DKMS_MODULE_VERSION)/
-	@printf 'ccflags-y += -DITE829X_VERSION=\\"%s\\" -DDCC_FAN_VERSION=\\"%s\\"\n' '$(DKMS_MODULE_VERSION)' '$(DKMS_MODULE_VERSION)' >> $(DEB_BUILD_DIR)/$(PACKAGE)-$(VERSION)/usr/src/$(DKMS_MODULE_NAME)-$(DKMS_MODULE_VERSION)/Kbuild
-	@# dcc_fan has no hardware alias: load it at boot (1.36.0)
-	@mkdir -p $(DEB_BUILD_DIR)/$(PACKAGE)-$(VERSION)/usr/lib/modules-load.d
-	@echo dcc_fan > $(DEB_BUILD_DIR)/$(PACKAGE)-$(VERSION)/usr/lib/modules-load.d/dudes-control-center.conf
-	@cp drivers/Makefile $(DEB_BUILD_DIR)/$(PACKAGE)-$(VERSION)/usr/src/$(DKMS_MODULE_NAME)-$(DKMS_MODULE_VERSION)/
-	@cp drivers/LICENSE $(DEB_BUILD_DIR)/$(PACKAGE)-$(VERSION)/usr/src/$(DKMS_MODULE_NAME)-$(DKMS_MODULE_VERSION)/LICENSE
-	@cp packaging/copyright $(DEB_BUILD_DIR)/$(PACKAGE)-$(VERSION)/usr/share/doc/dudes-control-center/copyright
-	@cp LICENSE $(DEB_BUILD_DIR)/$(PACKAGE)-$(VERSION)/usr/share/doc/dudes-control-center/LICENSE
-	@# Help tab (1.34.0): the GUI shows these uncompressed
-	@cp README.md CHANGELOG.md $(DEB_BUILD_DIR)/$(PACKAGE)-$(VERSION)/usr/share/doc/dudes-control-center/
-	@sed 's/^PACKAGE_VERSION=.*/PACKAGE_VERSION="$(DKMS_MODULE_VERSION)"/' drivers/dkms.conf > $(DEB_BUILD_DIR)/$(PACKAGE)-$(VERSION)/usr/src/$(DKMS_MODULE_NAME)-$(DKMS_MODULE_VERSION)/dkms.conf
 	@echo 'Package: $(PACKAGE)' > $(DEB_BUILD_DIR)/$(PACKAGE)-$(VERSION)/DEBIAN/control
 	@echo 'Version: $(VERSION)' >> $(DEB_BUILD_DIR)/$(PACKAGE)-$(VERSION)/DEBIAN/control
 	@echo 'Architecture: amd64' >> $(DEB_BUILD_DIR)/$(PACKAGE)-$(VERSION)/DEBIAN/control
@@ -175,8 +195,6 @@ deb: all
 		sed -e 's/@VERSION@/$(VERSION)/g' -e 's/@GROUP@/$(DCC_GROUP)/g' packaging/$$f > $(DEB_BUILD_DIR)/$(PACKAGE)-$(VERSION)/DEBIAN/$$f; \
 		chmod 755 $(DEB_BUILD_DIR)/$(PACKAGE)-$(VERSION)/DEBIAN/$$f; \
 	done
-	@# Old command names (before 1.19.0) keep working for now
-	@for n in gui fan-cli cpu-cli; do ln -s dcc-$$n $(DEB_BUILD_DIR)/$(PACKAGE)-$(VERSION)/usr/local/bin/dudes-control-center-$$n; done
 	@# Files belong to root and only root may change them: systemd runs the
 	@# daemons as root. Without this the archive kept the build user as owner
 	@# (and the umask's group write), so that user could replace a root daemon.

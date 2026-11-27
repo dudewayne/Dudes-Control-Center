@@ -1,0 +1,16 @@
+# SPDX-License-Identifier: GPL-2.0-only
+# Install scripts of the Arch package (1.48.0): the shared setup steps
+SETUP=/usr/local/libexec/dudes-control-center/pkg-setup
+
+post_install() {
+    "$SETUP" configure || true
+}
+
+post_upgrade() {
+    post_install
+}
+
+pre_remove() {
+    "$SETUP" remove || true
+    "$SETUP" purge-dkms || true
+}

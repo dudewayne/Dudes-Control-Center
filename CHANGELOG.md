@@ -6,6 +6,17 @@ Programs and services were named `dudes-control-center-*` before 1.19.0 (for exa
 
 ## [Unreleased]
 
+## [1.48.0] - 2026-11-27
+
+### Added
+- **RPM package** for Fedora (`packaging/dudes-control-center.spec`) and **Arch package** (`packaging/arch/PKGBUILD` with its install file), next to the deb in the releases. Same layout as the deb (programs in `/usr/local`), with dependencies (dkms, gtk3, cjson, librsvg, polkit) and the same setup at install and removal. They are built and installed in Fedora and Arch containers by the CI, but not yet tested on real Fedora or Arch installations.
+- `make stage STAGE_DIR=<folder>`: all files of the package in a folder; the deb, the RPM and the Arch package are built from it.
+- `tests/check_pkg.sh`: checks an installed RPM or Arch package (programs start and find their libraries, group, units, DKMS source, permissions).
+
+### Changed
+- The install steps (control group and user, DKMS modules, services) moved from the deb's postinst and prerm into `/usr/local/libexec/dudes-control-center/pkg-setup`, which the deb, RPM and Arch install scripts call. It skips the services where systemd is not running (containers, chroots), and without sudo it takes the only user with a home folder as the desktop user. A service that fails to start no longer aborts the installation.
+- `make clean` also removes `build-stage`.
+
 ## [1.47.0] - 2026-11-27
 
 ### Added
@@ -1124,7 +1135,8 @@ Programs and services were named `dudes-control-center-*` before 1.19.0 (for exa
 - Unix socket IPC between GUI and daemon
 - Watchdog timer and fail-safe mode in daemon
 
-[Unreleased]: https://github.com/dudewayne/Dudes-Control-Center/compare/v1.47.0...HEAD
+[Unreleased]: https://github.com/dudewayne/Dudes-Control-Center/compare/v1.48.0...HEAD
+[1.48.0]: https://github.com/dudewayne/Dudes-Control-Center/compare/v1.47.0...v1.48.0
 [1.47.0]: https://github.com/dudewayne/Dudes-Control-Center/compare/v1.46.0...v1.47.0
 [1.46.0]: https://github.com/dudewayne/Dudes-Control-Center/compare/v1.45.0...v1.46.0
 [1.45.0]: https://github.com/dudewayne/Dudes-Control-Center/compare/v1.44.1...v1.45.0
