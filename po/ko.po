@@ -16,6 +16,72 @@ msgstr ""
 msgid "System default"
 msgstr "시스템 기본값"
 
+msgid "A maximum frequency is a ceiling, not a target: the CPU picks its own speed below it. Many CPUs do not go below a certain speed once they have work to do, however low the maximum is (an Intel Core Ultra 9 275HX keeps about 2.2 GHz on its P-cores and 1.5 GHz on its E-cores). Maximums below that change little; higher ones are kept exactly."
+msgstr "최대 주파수는 목표가 아니라 상한입니다. CPU는 그 아래에서 스스로 속도를 고릅니다. 많은 CPU는 작업이 있으면 최대값을 아무리 낮춰도 일정 속도 아래로 내려가지 않습니다 (Intel Core Ultra 9 275HX는 P 코어에서 약 2.2 GHz, E 코어에서 약 1.5 GHz를 유지합니다). 그보다 낮은 최대값은 효과가 거의 없고, 더 높은 값은 정확히 지켜집니다."
+
+#, c-format
+msgid "%s daemon connected"
+msgstr "%s 데몬 연결됨"
+
+#, c-format
+msgid "<span foreground='#d9534f' weight='bold'>%s daemon not connected</span>"
+msgstr "<span foreground='#d9534f' weight='bold'>%s 데몬 연결 안 됨</span>"
+
+msgid "Fan"
+msgstr "팬"
+
+msgid "Keyboard"
+msgstr "키보드"
+
+#, c-format
+msgid "<span foreground='#888888'>%s control is switched off (Settings tab)</span>"
+msgstr "<span foreground='#888888'>%s 제어가 꺼져 있습니다 (설정 탭)</span>"
+
+msgid "<span foreground='#888888'>Switched off</span>"
+msgstr "<span foreground='#888888'>꺼짐</span>"
+
+msgid "Running (daemon connected)"
+msgstr "실행 중 (데몬 연결됨)"
+
+msgid "<span foreground='#d9534f'>On, daemon not connected</span>"
+msgstr "<span foreground='#d9534f'>켜짐, 데몬 연결 안 됨</span>"
+
+#, c-format
+msgid "Daemon is not running!\n\nThe socket file does not exist at: %s\n\nTo start the daemon, run in a terminal:\n  sudo dcc-fan-daemon --foreground\n\nOr enable the systemd service:\n  sudo systemctl enable --now dcc-fan-daemon"
+msgstr "데몬이 실행 중이 아닙니다!\n\n소켓 파일이 없습니다: %s\n\n데몬을 시작하려면 터미널에서 다음을 실행하세요:\n  sudo dcc-fan-daemon --foreground\n\n또는 systemd 서비스를 활성화하세요:\n  sudo systemctl enable --now dcc-fan-daemon"
+
+#, c-format
+msgid "Failed to create socket: %s"
+msgstr "소켓을 만들지 못했습니다: %s"
+
+#, c-format
+msgid "Failed to connect to daemon: %s"
+msgstr "데몬에 연결하지 못했습니다: %s"
+
+msgid "Status"
+msgstr "상태"
+
+msgid "Fan Profiles"
+msgstr "팬 프로필"
+
+msgid "CPU Profiles"
+msgstr "CPU 프로필"
+
+msgid "Keyboard Backlight"
+msgstr "키보드 백라이트"
+
+msgid "Settings"
+msgstr "설정"
+
+msgid "Logs"
+msgstr "로그"
+
+msgid "Help"
+msgstr "도움말"
+
+msgid "About"
+msgstr "정보"
+
 msgid "German (DE)"
 msgstr "독일어 (DE)"
 
@@ -31,12 +97,6 @@ msgstr "일본어 (JP)"
 msgid "Korean (KR)"
 msgstr "한국어 (KR)"
 
-msgid "A maximum frequency is a ceiling, not a target: the CPU picks its own speed below it. Many CPUs do not go below a certain speed once they have work to do, however low the maximum is (an Intel Core Ultra 9 275HX keeps about 2.2 GHz on its P-cores and 1.5 GHz on its E-cores). Maximums below that change little; higher ones are kept exactly."
-msgstr "최대 주파수는 목표가 아니라 상한입니다. CPU는 그 아래에서 스스로 속도를 고릅니다. 많은 CPU는 작업이 있으면 최대값을 아무리 낮춰도 일정 속도 아래로 내려가지 않습니다 (Intel Core Ultra 9 275HX는 P 코어에서 약 2.2 GHz, E 코어에서 약 1.5 GHz를 유지합니다). 그보다 낮은 최대값은 효과가 거의 없고, 더 높은 값은 정확히 지켜집니다."
-
-msgid "Unchanged"
-msgstr "변경 안 함"
-
 msgid "<b>Warning:</b> You have unsaved changes to the curve points.\n\nWhat would you like to do?"
 msgstr "<b>경고:</b> 곡선 포인트에 저장되지 않은 변경 사항이 있습니다.\n\n어떻게 하시겠습니까?"
 
@@ -48,120 +108,6 @@ msgstr "변경 사항 버리기(_D)"
 
 msgid "_Save Changes"
 msgstr "변경 사항 저장(_S)"
-
-msgid "N/A"
-msgstr "해당 없음"
-
-#, c-format
-msgid "%s (%d P-cores, %d E-cores)"
-msgstr "%s (P 코어 %d개, E 코어 %d개)"
-
-#, c-format
-msgid "CPU: %.1f W (sustained limit %d W)"
-msgstr "CPU: %.1f W (지속 한도 %d W)"
-
-#, c-format
-msgid "Core %d%s: %s"
-msgstr "코어 %d%s: %s"
-
-msgid "Power mode applied - click Save to keep it in the profile"
-msgstr "전원 모드를 적용했습니다 - 프로필에 유지하려면 저장을 클릭하세요"
-
-msgid "Failed to apply the power mode"
-msgstr "전원 모드를 적용하지 못했습니다"
-
-msgid "Power mode changed - click Save to store it in the profile, Activate to apply it"
-msgstr "전원 모드가 변경되었습니다 - 저장하면 프로필에 저장되고, 활성화하면 적용됩니다"
-
-msgid "Governor applied successfully"
-msgstr "거버너를 적용했습니다"
-
-msgid "Failed to apply governor"
-msgstr "거버너를 적용하지 못했습니다"
-
-msgid "Profile selected - click Activate to use it"
-msgstr "프로필을 선택했습니다 - 사용하려면 활성화를 클릭하세요"
-
-msgid "Create CPU Frequency Profile"
-msgstr "CPU 주파수 프로필 만들기"
-
-msgid "_Create"
-msgstr "만들기(_C)"
-
-msgid "Enter profile name:"
-msgstr "프로필 이름 입력:"
-
-#, c-format
-msgid "A CPU frequency profile with the name '%s' already exists."
-msgstr "'%s' 이름의 CPU 주파수 프로필이 이미 있습니다."
-
-msgid "Created profile: "
-msgstr "프로필을 만들었습니다: "
-
-msgid "No profile selected"
-msgstr "선택된 프로필이 없습니다"
-
-msgid "Could not read profile name"
-msgstr "프로필 이름을 읽을 수 없습니다"
-
-#, c-format
-msgid "Are you sure you want to delete the CPU frequency profile '%s'?"
-msgstr "CPU 주파수 프로필 '%s'을(를) 삭제하시겠습니까?"
-
-msgid "Deleted profile: "
-msgstr "프로필을 삭제했습니다: "
-
-msgid "Rename CPU Frequency Profile"
-msgstr "CPU 주파수 프로필 이름 변경"
-
-msgid "_Rename"
-msgstr "이름 변경(_R)"
-
-msgid "Enter new profile name:"
-msgstr "새 프로필 이름 입력:"
-
-msgid "Renamed profile to: "
-msgstr "프로필 이름을 변경했습니다: "
-
-msgid "Name cannot be empty"
-msgstr "이름은 비워 둘 수 없습니다"
-
-#, c-format
-msgid "Saved profile"
-msgstr "프로필을 저장했습니다"
-
-msgid "<b>Warning:</b> You have unsaved changes to the CPU profile.\n\nWhat would you like to do?"
-msgstr "<b>경고:</b> CPU 프로필에 저장되지 않은 변경 사항이 있습니다.\n\n어떻게 하시겠습니까?"
-
-msgid "Core count not available"
-msgstr "코어 수를 알 수 없습니다"
-
-msgid "Saving..."
-msgstr "저장 중..."
-
-#, c-format
-msgid "Activated profile"
-msgstr "프로필을 활성화했습니다"
-
-msgid "Activating..."
-msgstr "활성화 중..."
-
-#, c-format
-msgid "Hard limit applied: %.2f GHz"
-msgstr "최대 한도를 적용했습니다: %.2f GHz"
-
-msgid "Failed to apply hard limit"
-msgstr "최대 한도를 적용하지 못했습니다"
-
-#, c-format
-msgid "Core %d%s"
-msgstr "코어 %d%s"
-
-msgid "Min (MHz)"
-msgstr "최소 (MHz)"
-
-msgid "Max (MHz)"
-msgstr "최대 (MHz)"
 
 msgid "Fans stopped (0%) - they switch to 100% automatically at 95°C or on a sensor error"
 msgstr "팬 정지 (0%) - 95°C 또는 센서 오류 시 자동으로 100%로 전환됩니다"
@@ -242,44 +188,245 @@ msgstr "삭제할 곡선 포인트를 선택하세요"
 msgid "%s (Active)"
 msgstr "%s (활성)"
 
-#, c-format
-msgid "%s daemon connected"
-msgstr "%s 데몬 연결됨"
+msgid "No profile selected"
+msgstr "선택된 프로필이 없습니다"
+
+msgid "Fan Daemon Status"
+msgstr "팬 데몬 상태"
+
+msgid "Fan daemon not connected"
+msgstr "팬 데몬 연결 안 됨"
+
+msgid "Choose a profile to edit its curve. Activate makes it control the fans; \"(Active)\" marks the profile in use."
+msgstr "곡선을 편집할 프로필을 선택하세요. 활성화하면 해당 프로필이 팬을 제어합니다. \"(활성)\"은 사용 중인 프로필을 나타냅니다."
+
+msgid "<span size='x-large' weight='bold' foreground='#d9534f'>Manual Mode Active!</span>"
+msgstr "<span size='x-large' weight='bold' foreground='#d9534f'>수동 모드 활성!</span>"
+
+msgid "Disable Manual Mode"
+msgstr "수동 모드 끄기"
+
+msgid "Profile:"
+msgstr "프로필:"
+
+msgid "Save"
+msgstr "저장"
+
+msgid "Save the curve points of the selected profile"
+msgstr "선택한 프로필의 곡선 포인트 저장"
+
+msgid "Delete"
+msgstr "삭제"
+
+msgid "Activate"
+msgstr "활성화"
+
+msgid "Temperature Curve Points"
+msgstr "온도 곡선 포인트"
+
+msgid "Temperature"
+msgstr "온도"
+
+msgid "Temperature Curve Graph"
+msgstr "온도 곡선 그래프"
+
+msgid "Add Point"
+msgstr "포인트 추가"
+
+msgid "Delete Point"
+msgstr "포인트 삭제"
+
+msgid "  (Double-click to edit, points are auto-sorted by temperature)"
+msgstr "  (두 번 클릭하여 편집, 포인트는 온도순으로 정렬됩니다)"
+
+msgid "Temperature (°C)"
+msgstr "온도 (°C)"
+
+msgid "Manual mode disabled - returned to auto mode"
+msgstr "수동 모드를 껐습니다 - 자동 모드로 돌아왔습니다"
+
+msgid "Failed to reactivate previous profile"
+msgstr "이전 프로필을 다시 활성화하지 못했습니다"
+
+msgid "Failed to disable manual mode"
+msgstr "수동 모드를 끄지 못했습니다"
+
+msgid "Unchanged"
+msgstr "변경 안 함"
+
+msgid "N/A"
+msgstr "해당 없음"
 
 #, c-format
-msgid "<span foreground='#d9534f' weight='bold'>%s daemon not connected</span>"
-msgstr "<span foreground='#d9534f' weight='bold'>%s 데몬 연결 안 됨</span>"
-
-msgid "Fan"
-msgstr "팬"
-
-msgid "Keyboard"
-msgstr "키보드"
+msgid "%s (%d P-cores, %d E-cores)"
+msgstr "%s (P 코어 %d개, E 코어 %d개)"
 
 #, c-format
-msgid "<span foreground='#888888'>%s control is switched off (Settings tab)</span>"
-msgstr "<span foreground='#888888'>%s 제어가 꺼져 있습니다 (설정 탭)</span>"
-
-msgid "<span foreground='#888888'>Switched off</span>"
-msgstr "<span foreground='#888888'>꺼짐</span>"
-
-msgid "Running (daemon connected)"
-msgstr "실행 중 (데몬 연결됨)"
-
-msgid "<span foreground='#d9534f'>On, daemon not connected</span>"
-msgstr "<span foreground='#d9534f'>켜짐, 데몬 연결 안 됨</span>"
+msgid "CPU: %.1f W (sustained limit %d W)"
+msgstr "CPU: %.1f W (지속 한도 %d W)"
 
 #, c-format
-msgid "Daemon is not running!\n\nThe socket file does not exist at: %s\n\nTo start the daemon, run in a terminal:\n  sudo dcc-fan-daemon --foreground\n\nOr enable the systemd service:\n  sudo systemctl enable --now dcc-fan-daemon"
-msgstr "데몬이 실행 중이 아닙니다!\n\n소켓 파일이 없습니다: %s\n\n데몬을 시작하려면 터미널에서 다음을 실행하세요:\n  sudo dcc-fan-daemon --foreground\n\n또는 systemd 서비스를 활성화하세요:\n  sudo systemctl enable --now dcc-fan-daemon"
+msgid "Core %d%s: %s"
+msgstr "코어 %d%s: %s"
+
+msgid "Power mode applied - click Save to keep it in the profile"
+msgstr "전원 모드를 적용했습니다 - 프로필에 유지하려면 저장을 클릭하세요"
+
+msgid "Failed to apply the power mode"
+msgstr "전원 모드를 적용하지 못했습니다"
+
+msgid "Power mode changed - click Save to store it in the profile, Activate to apply it"
+msgstr "전원 모드가 변경되었습니다 - 저장하면 프로필에 저장되고, 활성화하면 적용됩니다"
+
+msgid "Governor applied successfully"
+msgstr "거버너를 적용했습니다"
+
+msgid "Failed to apply governor"
+msgstr "거버너를 적용하지 못했습니다"
+
+msgid "Profile selected - click Activate to use it"
+msgstr "프로필을 선택했습니다 - 사용하려면 활성화를 클릭하세요"
+
+msgid "Create CPU Frequency Profile"
+msgstr "CPU 주파수 프로필 만들기"
+
+msgid "_Create"
+msgstr "만들기(_C)"
+
+msgid "Enter profile name:"
+msgstr "프로필 이름 입력:"
 
 #, c-format
-msgid "Failed to create socket: %s"
-msgstr "소켓을 만들지 못했습니다: %s"
+msgid "A CPU frequency profile with the name '%s' already exists."
+msgstr "'%s' 이름의 CPU 주파수 프로필이 이미 있습니다."
+
+msgid "Created profile: "
+msgstr "프로필을 만들었습니다: "
+
+msgid "Could not read profile name"
+msgstr "프로필 이름을 읽을 수 없습니다"
 
 #, c-format
-msgid "Failed to connect to daemon: %s"
-msgstr "데몬에 연결하지 못했습니다: %s"
+msgid "Are you sure you want to delete the CPU frequency profile '%s'?"
+msgstr "CPU 주파수 프로필 '%s'을(를) 삭제하시겠습니까?"
+
+msgid "Deleted profile: "
+msgstr "프로필을 삭제했습니다: "
+
+msgid "Rename CPU Frequency Profile"
+msgstr "CPU 주파수 프로필 이름 변경"
+
+msgid "_Rename"
+msgstr "이름 변경(_R)"
+
+msgid "Enter new profile name:"
+msgstr "새 프로필 이름 입력:"
+
+msgid "Renamed profile to: "
+msgstr "프로필 이름을 변경했습니다: "
+
+msgid "Name cannot be empty"
+msgstr "이름은 비워 둘 수 없습니다"
+
+#, c-format
+msgid "Saved profile"
+msgstr "프로필을 저장했습니다"
+
+msgid "<b>Warning:</b> You have unsaved changes to the CPU profile.\n\nWhat would you like to do?"
+msgstr "<b>경고:</b> CPU 프로필에 저장되지 않은 변경 사항이 있습니다.\n\n어떻게 하시겠습니까?"
+
+msgid "Core count not available"
+msgstr "코어 수를 알 수 없습니다"
+
+msgid "Saving..."
+msgstr "저장 중..."
+
+#, c-format
+msgid "Activated profile"
+msgstr "프로필을 활성화했습니다"
+
+msgid "Activating..."
+msgstr "활성화 중..."
+
+#, c-format
+msgid "Hard limit applied: %.2f GHz"
+msgstr "최대 한도를 적용했습니다: %.2f GHz"
+
+msgid "Failed to apply hard limit"
+msgstr "최대 한도를 적용하지 못했습니다"
+
+#, c-format
+msgid "Core %d%s"
+msgstr "코어 %d%s"
+
+msgid "Min (MHz)"
+msgstr "최소 (MHz)"
+
+msgid "Max (MHz)"
+msgstr "최대 (MHz)"
+
+msgid "CPU Daemon Status"
+msgstr "CPU 데몬 상태"
+
+msgid "CPU daemon not connected"
+msgstr "CPU 데몬 연결 안 됨"
+
+msgid "CPU Information"
+msgstr "CPU 정보"
+
+msgid "Processor:"
+msgstr "프로세서:"
+
+msgid "CPU Temperature:"
+msgstr "CPU 온도:"
+
+msgid "CPU Load:"
+msgstr "CPU 부하:"
+
+msgid "Number of CPUs:"
+msgstr "CPU 수:"
+
+msgid "Current Frequency:"
+msgstr "현재 주파수:"
+
+msgid "Min / Max Frequency:"
+msgstr "최소 / 최대 주파수:"
+
+msgid "Active Power Mode:"
+msgstr "활성 전원 모드:"
+
+msgid "Governor Profiles"
+msgstr "거버너 프로필"
+
+msgid "Power mode:"
+msgstr "전원 모드:"
+
+msgid "Firmware power profile:"
+msgstr "펌웨어 전원 프로필:"
+
+msgid "Set by the laptop's firmware (platform_profile) when the frequency profile is applied; Unchanged leaves it as it is. Saved with the frequency profile."
+msgstr "주파수 프로필을 적용할 때 노트북 펌웨어(platform_profile)에 설정됩니다. 변경 안 함은 그대로 둡니다. 주파수 프로필과 함께 저장됩니다."
+
+msgid "Per-Core Frequency Profiles"
+msgstr "코어별 주파수 프로필"
+
+msgid "Frequency Profile:"
+msgstr "주파수 프로필:"
+
+msgid "Apply values to all cores"
+msgstr "모든 코어에 값 적용"
+
+msgid "Hard Frequency Limit"
+msgstr "최대 주파수 한도"
+
+msgid "<span foreground='#e74c3c' weight='bold'>WARNING:</span> This is a safety limit to protect your hardware. Setting it too high may cause CPU instability, overheating, or permanent damage. Only increase this if you know your CPU's safe operating limits."
+msgstr "<span foreground='#e74c3c' weight='bold'>경고:</span> 하드웨어를 보호하기 위한 안전 한도입니다. 너무 높게 설정하면 CPU 불안정, 과열 또는 영구적인 손상이 발생할 수 있습니다. CPU의 안전한 작동 한도를 알고 있는 경우에만 높이세요."
+
+msgid "Hard Limit (GHz):"
+msgstr "최대 한도 (GHz):"
+
+msgid "Apply"
+msgstr "적용"
 
 msgid "The name is empty."
 msgstr "이름이 비어 있습니다."
@@ -526,6 +673,129 @@ msgstr "키보드 색상"
 msgid "Custom color"
 msgstr "사용자 지정 색상"
 
+msgid "Keyboard Daemon Status"
+msgstr "키보드 데몬 상태"
+
+msgid "Keyboard Profiles"
+msgstr "키보드 프로필"
+
+msgid "Backlight"
+msgstr "백라이트"
+
+msgid "Backlight Off:"
+msgstr "백라이트 끄기:"
+
+msgid "Brightness:"
+msgstr "밝기:"
+
+msgid "When ON, overrides all profile settings until disabled."
+msgstr "켜져 있으면 끌 때까지 모든 프로필 설정보다 우선합니다."
+
+msgid "<b>LED Wizard</b>"
+msgstr "<b>LED 마법사</b>"
+
+msgid "Lights one LED after the other; click the matching key on the picture below. Needed once for per-key colors."
+msgstr "LED를 하나씩 켭니다. 아래 그림에서 해당 키를 클릭하세요. 키별 색상을 쓰려면 한 번 필요합니다."
+
+msgid "Preset Colors"
+msgstr "미리 설정된 색상"
+
+msgid "White"
+msgstr "흰색"
+
+msgid "Red"
+msgstr "빨강"
+
+msgid "Green"
+msgstr "초록"
+
+msgid "Blue"
+msgstr "파랑"
+
+msgid "Yellow"
+msgstr "노랑"
+
+msgid "Cyan"
+msgstr "청록"
+
+msgid "Magenta"
+msgstr "자홍"
+
+msgid "Orange"
+msgstr "주황"
+
+msgid "Purple"
+msgstr "보라"
+
+msgid "Custom…"
+msgstr "사용자 지정…"
+
+msgid "Choose any color"
+msgstr "원하는 색상 선택"
+
+msgid "Effect:"
+msgstr "효과:"
+
+msgid "Static"
+msgstr "고정"
+
+msgid "Breathing"
+msgstr "숨쉬기"
+
+msgid "Rainbow"
+msgstr "무지개"
+
+msgid "Animated effect of the selected zone, or of the base color when no zone is selected. Breathing fades the color in and out; Rainbow and Wave use all colors. Runs in the keyboard daemon, also when this window is closed."
+msgstr "선택한 영역의 애니메이션 효과이며, 영역을 선택하지 않으면 기본 색상에 적용됩니다. 숨쉬기는 색을 서서히 밝혔다 어둡게 하고, 무지개와 웨이브는 모든 색을 사용합니다. 이 창을 닫아도 키보드 데몬에서 계속 실행됩니다."
+
+msgid "Speed: slow (left) to fast (right)"
+msgstr "속도: 느림 (왼쪽) ~ 빠름 (오른쪽)"
+
+msgid "Direction of the wave"
+msgstr "웨이브 방향"
+
+msgid "Whole Keyboard"
+msgstr "키보드 전체"
+
+msgid "Stop editing a zone: colors go to the whole keyboard (base color)"
+msgstr "영역 편집 종료: 색상이 키보드 전체(기본 색상)에 적용됩니다"
+
+msgid "Visual Zone Editor"
+msgstr "시각적 영역 편집기"
+
+msgid "LED Wizard"
+msgstr "LED 마법사"
+
+msgid "Skip"
+msgstr "건너뛰기"
+
+msgid "Keep this LED's current key and go to the next LED"
+msgstr "이 LED의 현재 키를 유지하고 다음 LED로"
+
+msgid "No Key"
+msgstr "키 없음"
+
+msgid "This LED lights no key: remove its key and go to the next LED"
+msgstr "이 LED는 어떤 키도 비추지 않습니다: 키를 제거하고 다음 LED로"
+
+msgid "Save & Finish"
+msgstr "저장 후 종료"
+
+msgid "Zones"
+msgstr "영역"
+
+msgid "Color"
+msgstr "색상"
+
+msgid "Zone"
+msgstr "영역"
+
+msgid "LEDs"
+msgstr "LED"
+
+msgid "Save the profile with its zones"
+msgstr "영역을 포함하여 프로필 저장"
+
 #, c-format
 msgid "Clock: %d MHz, memory %d MHz"
 msgstr "클럭: %d MHz, 메모리 %d MHz"
@@ -651,9 +921,6 @@ msgstr "팬 프로필:"
 msgid "CPU profile:"
 msgstr "CPU 프로필:"
 
-msgid "Power mode:"
-msgstr "전원 모드:"
-
 msgid "Keyboard profile:"
 msgstr "키보드 프로필:"
 
@@ -665,9 +932,6 @@ msgstr "시스템"
 
 msgid "Model:"
 msgstr "모델:"
-
-msgid "Processor:"
-msgstr "프로세서:"
 
 msgid "Graphics:"
 msgstr "그래픽:"
@@ -684,65 +948,38 @@ msgstr "운영 체제:"
 msgid "Kernel:"
 msgstr "커널:"
 
-msgid "Fan Daemon Status"
-msgstr "팬 데몬 상태"
+msgid "No fan control on this laptop: the firmware controls the fans."
+msgstr "이 노트북에서는 팬 제어를 할 수 없습니다. 펌웨어가 팬을 제어합니다."
 
-msgid "Fan daemon not connected"
-msgstr "팬 데몬 연결 안 됨"
+msgid "CPU Fan: --"
+msgstr "CPU 팬: --"
 
-msgid "Choose a profile to edit its curve. Activate makes it control the fans; \"(Active)\" marks the profile in use."
-msgstr "곡선을 편집할 프로필을 선택하세요. 활성화하면 해당 프로필이 팬을 제어합니다. \"(활성)\"은 사용 중인 프로필을 나타냅니다."
+msgid "GPU Fan: --"
+msgstr "GPU 팬: --"
 
-msgid "<span size='x-large' weight='bold' foreground='#d9534f'>Manual Mode Active!</span>"
-msgstr "<span size='x-large' weight='bold' foreground='#d9534f'>수동 모드 활성!</span>"
+msgid "Direct EC access (switched on in Settings; only safe on Clevo laptops)"
+msgstr "EC 직접 접근 (설정에서 켬, Clevo 노트북에서만 안전)"
 
-msgid "Disable Manual Mode"
-msgstr "수동 모드 끄기"
+#, c-format
+msgid "Generic fan control: fans of the %s driver (switched on in Settings)"
+msgstr "일반 팬 제어: %s 드라이버의 팬 (설정에서 켜짐)"
 
-msgid "Profile:"
-msgstr "프로필:"
+msgid "Fan control switched off"
+msgstr "팬 제어 꺼짐"
 
-msgid "Save"
-msgstr "저장"
+#, c-format
+msgid "%s (manual mode: %d%%)"
+msgstr "%s (수동 모드: %d%%)"
 
-msgid "Save the curve points of the selected profile"
-msgstr "선택한 프로필의 곡선 포인트 저장"
+msgid "CPU control switched off"
+msgstr "CPU 제어 꺼짐"
 
-msgid "Delete"
-msgstr "삭제"
+#, c-format
+msgid "%s (firmware: %s)"
+msgstr "%s (펌웨어: %s)"
 
-msgid "Activate"
-msgstr "활성화"
-
-msgid "Temperature Curve Points"
-msgstr "온도 곡선 포인트"
-
-msgid "Temperature"
-msgstr "온도"
-
-msgid "Temperature Curve Graph"
-msgstr "온도 곡선 그래프"
-
-msgid "Add Point"
-msgstr "포인트 추가"
-
-msgid "Delete Point"
-msgstr "포인트 삭제"
-
-msgid "  (Double-click to edit, points are auto-sorted by temperature)"
-msgstr "  (두 번 클릭하여 편집, 포인트는 온도순으로 정렬됩니다)"
-
-msgid "Temperature (°C)"
-msgstr "온도 (°C)"
-
-msgid "Manual mode disabled - returned to auto mode"
-msgstr "수동 모드를 껐습니다 - 자동 모드로 돌아왔습니다"
-
-msgid "Failed to reactivate previous profile"
-msgstr "이전 프로필을 다시 활성화하지 못했습니다"
-
-msgid "Failed to disable manual mode"
-msgstr "수동 모드를 끄지 못했습니다"
+msgid "Keyboard backlight switched off"
+msgstr "키보드 백라이트 꺼짐"
 
 msgid "GUI Log"
 msgstr "GUI 로그"
@@ -848,210 +1085,6 @@ msgstr "<b>연락처:</b> <b>Dudemeister</b>  GitHub:"
 msgid "<span size='small'>Licensed under the GNU General Public License version 2. The keyboard driver is GPL-2.0-or-later (TUXEDO Computers).</span>"
 msgstr "<span size='small'>GNU General Public License 버전 2로 배포됩니다. 키보드 드라이버는 GPL-2.0-or-later(TUXEDO Computers)입니다.</span>"
 
-msgid "CPU Daemon Status"
-msgstr "CPU 데몬 상태"
-
-msgid "CPU daemon not connected"
-msgstr "CPU 데몬 연결 안 됨"
-
-msgid "CPU Information"
-msgstr "CPU 정보"
-
-msgid "CPU Temperature:"
-msgstr "CPU 온도:"
-
-msgid "CPU Load:"
-msgstr "CPU 부하:"
-
-msgid "Number of CPUs:"
-msgstr "CPU 수:"
-
-msgid "Current Frequency:"
-msgstr "현재 주파수:"
-
-msgid "Min / Max Frequency:"
-msgstr "최소 / 최대 주파수:"
-
-msgid "Active Power Mode:"
-msgstr "활성 전원 모드:"
-
-msgid "Governor Profiles"
-msgstr "거버너 프로필"
-
-msgid "Firmware power profile:"
-msgstr "펌웨어 전원 프로필:"
-
-msgid "Set by the laptop's firmware (platform_profile) when the frequency profile is applied; Unchanged leaves it as it is. Saved with the frequency profile."
-msgstr "주파수 프로필을 적용할 때 노트북 펌웨어(platform_profile)에 설정됩니다. 변경 안 함은 그대로 둡니다. 주파수 프로필과 함께 저장됩니다."
-
-msgid "Per-Core Frequency Profiles"
-msgstr "코어별 주파수 프로필"
-
-msgid "Frequency Profile:"
-msgstr "주파수 프로필:"
-
-msgid "Apply values to all cores"
-msgstr "모든 코어에 값 적용"
-
-msgid "Hard Frequency Limit"
-msgstr "최대 주파수 한도"
-
-msgid "<span foreground='#e74c3c' weight='bold'>WARNING:</span> This is a safety limit to protect your hardware. Setting it too high may cause CPU instability, overheating, or permanent damage. Only increase this if you know your CPU's safe operating limits."
-msgstr "<span foreground='#e74c3c' weight='bold'>경고:</span> 하드웨어를 보호하기 위한 안전 한도입니다. 너무 높게 설정하면 CPU 불안정, 과열 또는 영구적인 손상이 발생할 수 있습니다. CPU의 안전한 작동 한도를 알고 있는 경우에만 높이세요."
-
-msgid "Hard Limit (GHz):"
-msgstr "최대 한도 (GHz):"
-
-msgid "Apply"
-msgstr "적용"
-
-msgid "Keyboard Daemon Status"
-msgstr "키보드 데몬 상태"
-
-msgid "Keyboard Profiles"
-msgstr "키보드 프로필"
-
-msgid "Backlight"
-msgstr "백라이트"
-
-msgid "Backlight Off:"
-msgstr "백라이트 끄기:"
-
-msgid "Brightness:"
-msgstr "밝기:"
-
-msgid "When ON, overrides all profile settings until disabled."
-msgstr "켜져 있으면 끌 때까지 모든 프로필 설정보다 우선합니다."
-
-msgid "<b>LED Wizard</b>"
-msgstr "<b>LED 마법사</b>"
-
-msgid "Lights one LED after the other; click the matching key on the picture below. Needed once for per-key colors."
-msgstr "LED를 하나씩 켭니다. 아래 그림에서 해당 키를 클릭하세요. 키별 색상을 쓰려면 한 번 필요합니다."
-
-msgid "Preset Colors"
-msgstr "미리 설정된 색상"
-
-msgid "White"
-msgstr "흰색"
-
-msgid "Red"
-msgstr "빨강"
-
-msgid "Green"
-msgstr "초록"
-
-msgid "Blue"
-msgstr "파랑"
-
-msgid "Yellow"
-msgstr "노랑"
-
-msgid "Cyan"
-msgstr "청록"
-
-msgid "Magenta"
-msgstr "자홍"
-
-msgid "Orange"
-msgstr "주황"
-
-msgid "Purple"
-msgstr "보라"
-
-msgid "Custom…"
-msgstr "사용자 지정…"
-
-msgid "Choose any color"
-msgstr "원하는 색상 선택"
-
-msgid "Effect:"
-msgstr "효과:"
-
-msgid "Static"
-msgstr "고정"
-
-msgid "Breathing"
-msgstr "숨쉬기"
-
-msgid "Rainbow"
-msgstr "무지개"
-
-msgid "Animated effect of the selected zone, or of the base color when no zone is selected. Breathing fades the color in and out; Rainbow and Wave use all colors. Runs in the keyboard daemon, also when this window is closed."
-msgstr "선택한 영역의 애니메이션 효과이며, 영역을 선택하지 않으면 기본 색상에 적용됩니다. 숨쉬기는 색을 서서히 밝혔다 어둡게 하고, 무지개와 웨이브는 모든 색을 사용합니다. 이 창을 닫아도 키보드 데몬에서 계속 실행됩니다."
-
-msgid "Speed: slow (left) to fast (right)"
-msgstr "속도: 느림 (왼쪽) ~ 빠름 (오른쪽)"
-
-msgid "Direction of the wave"
-msgstr "웨이브 방향"
-
-msgid "Whole Keyboard"
-msgstr "키보드 전체"
-
-msgid "Stop editing a zone: colors go to the whole keyboard (base color)"
-msgstr "영역 편집 종료: 색상이 키보드 전체(기본 색상)에 적용됩니다"
-
-msgid "Visual Zone Editor"
-msgstr "시각적 영역 편집기"
-
-msgid "LED Wizard"
-msgstr "LED 마법사"
-
-msgid "Skip"
-msgstr "건너뛰기"
-
-msgid "Keep this LED's current key and go to the next LED"
-msgstr "이 LED의 현재 키를 유지하고 다음 LED로"
-
-msgid "No Key"
-msgstr "키 없음"
-
-msgid "This LED lights no key: remove its key and go to the next LED"
-msgstr "이 LED는 어떤 키도 비추지 않습니다: 키를 제거하고 다음 LED로"
-
-msgid "Save & Finish"
-msgstr "저장 후 종료"
-
-msgid "Zones"
-msgstr "영역"
-
-msgid "Color"
-msgstr "색상"
-
-msgid "Zone"
-msgstr "영역"
-
-msgid "LEDs"
-msgstr "LED"
-
-msgid "Save the profile with its zones"
-msgstr "영역을 포함하여 프로필 저장"
-
-msgid "Status"
-msgstr "상태"
-
-msgid "Fan Profiles"
-msgstr "팬 프로필"
-
-msgid "CPU Profiles"
-msgstr "CPU 프로필"
-
-msgid "Keyboard Backlight"
-msgstr "키보드 백라이트"
-
-msgid "Settings"
-msgstr "설정"
-
-msgid "Logs"
-msgstr "로그"
-
-msgid "Help"
-msgstr "도움말"
-
-msgid "About"
-msgstr "정보"
-
 msgid "Component switched on"
 msgstr "구성 요소를 켰습니다"
 
@@ -1122,22 +1155,6 @@ msgstr "이 키보드 배열을 불러오지 못했습니다"
 
 msgid "Keyboard layout changed"
 msgstr "키보드 배열을 변경했습니다"
-
-msgid "No fan control on this laptop: the firmware controls the fans."
-msgstr "이 노트북에서는 팬 제어를 할 수 없습니다. 펌웨어가 팬을 제어합니다."
-
-msgid "CPU Fan: --"
-msgstr "CPU 팬: --"
-
-msgid "GPU Fan: --"
-msgstr "GPU 팬: --"
-
-msgid "Direct EC access (switched on in Settings; only safe on Clevo laptops)"
-msgstr "EC 직접 접근 (설정에서 켬, Clevo 노트북에서만 안전)"
-
-#, c-format
-msgid "Generic fan control: fans of the %s driver (switched on in Settings)"
-msgstr "일반 팬 제어: %s 드라이버의 팬 (설정에서 켜짐)"
 
 msgid "Not needed: dcc_fan module in use"
 msgstr "필요 없음: dcc_fan 모듈 사용 중"
@@ -1361,20 +1378,3 @@ msgstr "알 수 없음"
 
 msgid "Failed to activate CPU profile"
 msgstr "CPU 프로필을 활성화하지 못했습니다"
-
-msgid "Fan control switched off"
-msgstr "팬 제어 꺼짐"
-
-#, c-format
-msgid "%s (manual mode: %d%%)"
-msgstr "%s (수동 모드: %d%%)"
-
-msgid "CPU control switched off"
-msgstr "CPU 제어 꺼짐"
-
-#, c-format
-msgid "%s (firmware: %s)"
-msgstr "%s (펌웨어: %s)"
-
-msgid "Keyboard backlight switched off"
-msgstr "키보드 백라이트 꺼짐"

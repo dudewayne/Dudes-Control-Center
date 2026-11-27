@@ -55,9 +55,6 @@ msgstr "Keyboard Colour"
 msgid "Custom color"
 msgstr "Custom colour"
 
-msgid "Honoring <b>Linus Torvalds</b>, the visionary founder of Linux"
-msgstr "Honouring <b>Linus Torvalds</b>, the visionary founder of Linux"
-
 msgid "Lights one LED after the other; click the matching key on the picture below. Needed once for per-key colors."
 msgstr "Lights one LED after the other; click the matching key on the picture below. Needed once for per-key colours."
 
@@ -75,6 +72,9 @@ msgstr "Stop editing a zone: colours go to the whole keyboard (base colour)"
 
 msgid "Color"
 msgstr "Colour"
+
+msgid "Honoring <b>Linus Torvalds</b>, the visionary founder of Linux"
+msgstr "Honouring <b>Linus Torvalds</b>, the visionary founder of Linux"
 
 msgid "Keyboard daemon, Keyboard Backlight tab, keyboard profiles in the tray menu. The LEDs keep their last colors."
 msgstr "Keyboard daemon, Keyboard Backlight tab, keyboard profiles in the tray menu. The LEDs keep their last colours."

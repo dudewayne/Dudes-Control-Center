@@ -16,6 +16,72 @@ msgstr ""
 msgid "System default"
 msgstr "Predeterminado del sistema"
 
+msgid "A maximum frequency is a ceiling, not a target: the CPU picks its own speed below it. Many CPUs do not go below a certain speed once they have work to do, however low the maximum is (an Intel Core Ultra 9 275HX keeps about 2.2 GHz on its P-cores and 1.5 GHz on its E-cores). Maximums below that change little; higher ones are kept exactly."
+msgstr "Una frecuencia máxima es un límite, no un objetivo: la CPU elige su velocidad por debajo de él. Muchas CPU no bajan de cierta velocidad cuando tienen trabajo, por bajo que sea el máximo (un Intel Core Ultra 9 275HX mantiene unos 2,2 GHz en sus núcleos P y 1,5 GHz en sus núcleos E). Los máximos por debajo de eso cambian poco; los más altos se respetan exactamente."
+
+#, c-format
+msgid "%s daemon connected"
+msgstr "Daemon de %s conectado"
+
+#, c-format
+msgid "<span foreground='#d9534f' weight='bold'>%s daemon not connected</span>"
+msgstr "<span foreground='#d9534f' weight='bold'>Daemon de %s no conectado</span>"
+
+msgid "Fan"
+msgstr "ventiladores"
+
+msgid "Keyboard"
+msgstr "teclado"
+
+#, c-format
+msgid "<span foreground='#888888'>%s control is switched off (Settings tab)</span>"
+msgstr "<span foreground='#888888'>El control de %s está desactivado (pestaña Ajustes)</span>"
+
+msgid "<span foreground='#888888'>Switched off</span>"
+msgstr "<span foreground='#888888'>Desactivado</span>"
+
+msgid "Running (daemon connected)"
+msgstr "En ejecución (daemon conectado)"
+
+msgid "<span foreground='#d9534f'>On, daemon not connected</span>"
+msgstr "<span foreground='#d9534f'>Activado, daemon no conectado</span>"
+
+#, c-format
+msgid "Daemon is not running!\n\nThe socket file does not exist at: %s\n\nTo start the daemon, run in a terminal:\n  sudo dcc-fan-daemon --foreground\n\nOr enable the systemd service:\n  sudo systemctl enable --now dcc-fan-daemon"
+msgstr "¡El daemon no se está ejecutando!\n\nNo existe el archivo de socket: %s\n\nPara iniciar el daemon, ejecute en una terminal:\n  sudo dcc-fan-daemon --foreground\n\nO active el servicio de systemd:\n  sudo systemctl enable --now dcc-fan-daemon"
+
+#, c-format
+msgid "Failed to create socket: %s"
+msgstr "No se pudo crear el socket: %s"
+
+#, c-format
+msgid "Failed to connect to daemon: %s"
+msgstr "No se pudo conectar con el daemon: %s"
+
+msgid "Status"
+msgstr "Estado"
+
+msgid "Fan Profiles"
+msgstr "Perfiles de ventiladores"
+
+msgid "CPU Profiles"
+msgstr "Perfiles de CPU"
+
+msgid "Keyboard Backlight"
+msgstr "Retroiluminación del teclado"
+
+msgid "Settings"
+msgstr "Ajustes"
+
+msgid "Logs"
+msgstr "Registros"
+
+msgid "Help"
+msgstr "Ayuda"
+
+msgid "About"
+msgstr "Acerca de"
+
 msgid "German (DE)"
 msgstr "Alemán (DE)"
 
@@ -31,12 +97,6 @@ msgstr "Japonés (JP)"
 msgid "Korean (KR)"
 msgstr "Coreano (KR)"
 
-msgid "A maximum frequency is a ceiling, not a target: the CPU picks its own speed below it. Many CPUs do not go below a certain speed once they have work to do, however low the maximum is (an Intel Core Ultra 9 275HX keeps about 2.2 GHz on its P-cores and 1.5 GHz on its E-cores). Maximums below that change little; higher ones are kept exactly."
-msgstr "Una frecuencia máxima es un límite, no un objetivo: la CPU elige su velocidad por debajo de él. Muchas CPU no bajan de cierta velocidad cuando tienen trabajo, por bajo que sea el máximo (un Intel Core Ultra 9 275HX mantiene unos 2,2 GHz en sus núcleos P y 1,5 GHz en sus núcleos E). Los máximos por debajo de eso cambian poco; los más altos se respetan exactamente."
-
-msgid "Unchanged"
-msgstr "Sin cambios"
-
 msgid "<b>Warning:</b> You have unsaved changes to the curve points.\n\nWhat would you like to do?"
 msgstr "<b>Atención:</b> Hay cambios sin guardar en los puntos de la curva.\n\n¿Qué desea hacer?"
 
@@ -48,120 +108,6 @@ msgstr "_Descartar cambios"
 
 msgid "_Save Changes"
 msgstr "_Guardar cambios"
-
-msgid "N/A"
-msgstr "N/D"
-
-#, c-format
-msgid "%s (%d P-cores, %d E-cores)"
-msgstr "%s (%d núcleos P, %d núcleos E)"
-
-#, c-format
-msgid "CPU: %.1f W (sustained limit %d W)"
-msgstr "CPU: %.1f W (límite sostenido %d W)"
-
-#, c-format
-msgid "Core %d%s: %s"
-msgstr "Núcleo %d%s: %s"
-
-msgid "Power mode applied - click Save to keep it in the profile"
-msgstr "Modo de energía aplicado: pulse Guardar para conservarlo en el perfil"
-
-msgid "Failed to apply the power mode"
-msgstr "No se pudo aplicar el modo de energía"
-
-msgid "Power mode changed - click Save to store it in the profile, Activate to apply it"
-msgstr "Modo de energía cambiado: Guardar lo almacena en el perfil, Activar lo aplica"
-
-msgid "Governor applied successfully"
-msgstr "Governor aplicado correctamente"
-
-msgid "Failed to apply governor"
-msgstr "No se pudo aplicar el governor"
-
-msgid "Profile selected - click Activate to use it"
-msgstr "Perfil seleccionado: pulse Activar para usarlo"
-
-msgid "Create CPU Frequency Profile"
-msgstr "Crear perfil de frecuencia de CPU"
-
-msgid "_Create"
-msgstr "_Crear"
-
-msgid "Enter profile name:"
-msgstr "Introduzca el nombre del perfil:"
-
-#, c-format
-msgid "A CPU frequency profile with the name '%s' already exists."
-msgstr "Ya existe un perfil de frecuencia de CPU con el nombre '%s'."
-
-msgid "Created profile: "
-msgstr "Perfil creado: "
-
-msgid "No profile selected"
-msgstr "Ningún perfil seleccionado"
-
-msgid "Could not read profile name"
-msgstr "No se pudo leer el nombre del perfil"
-
-#, c-format
-msgid "Are you sure you want to delete the CPU frequency profile '%s'?"
-msgstr "¿Seguro que desea eliminar el perfil de frecuencia de CPU '%s'?"
-
-msgid "Deleted profile: "
-msgstr "Perfil eliminado: "
-
-msgid "Rename CPU Frequency Profile"
-msgstr "Renombrar perfil de frecuencia de CPU"
-
-msgid "_Rename"
-msgstr "_Renombrar"
-
-msgid "Enter new profile name:"
-msgstr "Introduzca el nuevo nombre del perfil:"
-
-msgid "Renamed profile to: "
-msgstr "Perfil renombrado a: "
-
-msgid "Name cannot be empty"
-msgstr "El nombre no puede estar vacío"
-
-#, c-format
-msgid "Saved profile"
-msgstr "Perfil guardado"
-
-msgid "<b>Warning:</b> You have unsaved changes to the CPU profile.\n\nWhat would you like to do?"
-msgstr "<b>Atención:</b> Hay cambios sin guardar en el perfil de CPU.\n\n¿Qué desea hacer?"
-
-msgid "Core count not available"
-msgstr "Número de núcleos no disponible"
-
-msgid "Saving..."
-msgstr "Guardando..."
-
-#, c-format
-msgid "Activated profile"
-msgstr "Perfil activado"
-
-msgid "Activating..."
-msgstr "Activando..."
-
-#, c-format
-msgid "Hard limit applied: %.2f GHz"
-msgstr "Límite máximo aplicado: %.2f GHz"
-
-msgid "Failed to apply hard limit"
-msgstr "No se pudo aplicar el límite máximo"
-
-#, c-format
-msgid "Core %d%s"
-msgstr "Núcleo %d%s"
-
-msgid "Min (MHz)"
-msgstr "Mín. (MHz)"
-
-msgid "Max (MHz)"
-msgstr "Máx. (MHz)"
 
 msgid "Fans stopped (0%) - they switch to 100% automatically at 95°C or on a sensor error"
 msgstr "Ventiladores detenidos (0%): pasan automáticamente al 100% a 95°C o ante un error del sensor"
@@ -242,44 +188,245 @@ msgstr "Seleccione un punto de la curva para eliminarlo"
 msgid "%s (Active)"
 msgstr "%s (activo)"
 
-#, c-format
-msgid "%s daemon connected"
-msgstr "Daemon de %s conectado"
+msgid "No profile selected"
+msgstr "Ningún perfil seleccionado"
+
+msgid "Fan Daemon Status"
+msgstr "Estado del daemon de ventiladores"
+
+msgid "Fan daemon not connected"
+msgstr "Daemon de ventiladores no conectado"
+
+msgid "Choose a profile to edit its curve. Activate makes it control the fans; \"(Active)\" marks the profile in use."
+msgstr "Elija un perfil para editar su curva. Activar hace que controle los ventiladores; \"(activo)\" marca el perfil en uso."
+
+msgid "<span size='x-large' weight='bold' foreground='#d9534f'>Manual Mode Active!</span>"
+msgstr "<span size='x-large' weight='bold' foreground='#d9534f'>¡Modo manual activo!</span>"
+
+msgid "Disable Manual Mode"
+msgstr "Desactivar modo manual"
+
+msgid "Profile:"
+msgstr "Perfil:"
+
+msgid "Save"
+msgstr "Guardar"
+
+msgid "Save the curve points of the selected profile"
+msgstr "Guardar los puntos de la curva del perfil seleccionado"
+
+msgid "Delete"
+msgstr "Eliminar"
+
+msgid "Activate"
+msgstr "Activar"
+
+msgid "Temperature Curve Points"
+msgstr "Puntos de la curva de temperatura"
+
+msgid "Temperature"
+msgstr "Temperatura"
+
+msgid "Temperature Curve Graph"
+msgstr "Gráfico de la curva de temperatura"
+
+msgid "Add Point"
+msgstr "Añadir punto"
+
+msgid "Delete Point"
+msgstr "Eliminar punto"
+
+msgid "  (Double-click to edit, points are auto-sorted by temperature)"
+msgstr "  (Doble clic para editar; los puntos se ordenan por temperatura)"
+
+msgid "Temperature (°C)"
+msgstr "Temperatura (°C)"
+
+msgid "Manual mode disabled - returned to auto mode"
+msgstr "Modo manual desactivado: vuelta al modo automático"
+
+msgid "Failed to reactivate previous profile"
+msgstr "No se pudo reactivar el perfil anterior"
+
+msgid "Failed to disable manual mode"
+msgstr "No se pudo desactivar el modo manual"
+
+msgid "Unchanged"
+msgstr "Sin cambios"
+
+msgid "N/A"
+msgstr "N/D"
 
 #, c-format
-msgid "<span foreground='#d9534f' weight='bold'>%s daemon not connected</span>"
-msgstr "<span foreground='#d9534f' weight='bold'>Daemon de %s no conectado</span>"
-
-msgid "Fan"
-msgstr "ventiladores"
-
-msgid "Keyboard"
-msgstr "teclado"
+msgid "%s (%d P-cores, %d E-cores)"
+msgstr "%s (%d núcleos P, %d núcleos E)"
 
 #, c-format
-msgid "<span foreground='#888888'>%s control is switched off (Settings tab)</span>"
-msgstr "<span foreground='#888888'>El control de %s está desactivado (pestaña Ajustes)</span>"
-
-msgid "<span foreground='#888888'>Switched off</span>"
-msgstr "<span foreground='#888888'>Desactivado</span>"
-
-msgid "Running (daemon connected)"
-msgstr "En ejecución (daemon conectado)"
-
-msgid "<span foreground='#d9534f'>On, daemon not connected</span>"
-msgstr "<span foreground='#d9534f'>Activado, daemon no conectado</span>"
+msgid "CPU: %.1f W (sustained limit %d W)"
+msgstr "CPU: %.1f W (límite sostenido %d W)"
 
 #, c-format
-msgid "Daemon is not running!\n\nThe socket file does not exist at: %s\n\nTo start the daemon, run in a terminal:\n  sudo dcc-fan-daemon --foreground\n\nOr enable the systemd service:\n  sudo systemctl enable --now dcc-fan-daemon"
-msgstr "¡El daemon no se está ejecutando!\n\nNo existe el archivo de socket: %s\n\nPara iniciar el daemon, ejecute en una terminal:\n  sudo dcc-fan-daemon --foreground\n\nO active el servicio de systemd:\n  sudo systemctl enable --now dcc-fan-daemon"
+msgid "Core %d%s: %s"
+msgstr "Núcleo %d%s: %s"
+
+msgid "Power mode applied - click Save to keep it in the profile"
+msgstr "Modo de energía aplicado: pulse Guardar para conservarlo en el perfil"
+
+msgid "Failed to apply the power mode"
+msgstr "No se pudo aplicar el modo de energía"
+
+msgid "Power mode changed - click Save to store it in the profile, Activate to apply it"
+msgstr "Modo de energía cambiado: Guardar lo almacena en el perfil, Activar lo aplica"
+
+msgid "Governor applied successfully"
+msgstr "Governor aplicado correctamente"
+
+msgid "Failed to apply governor"
+msgstr "No se pudo aplicar el governor"
+
+msgid "Profile selected - click Activate to use it"
+msgstr "Perfil seleccionado: pulse Activar para usarlo"
+
+msgid "Create CPU Frequency Profile"
+msgstr "Crear perfil de frecuencia de CPU"
+
+msgid "_Create"
+msgstr "_Crear"
+
+msgid "Enter profile name:"
+msgstr "Introduzca el nombre del perfil:"
 
 #, c-format
-msgid "Failed to create socket: %s"
-msgstr "No se pudo crear el socket: %s"
+msgid "A CPU frequency profile with the name '%s' already exists."
+msgstr "Ya existe un perfil de frecuencia de CPU con el nombre '%s'."
+
+msgid "Created profile: "
+msgstr "Perfil creado: "
+
+msgid "Could not read profile name"
+msgstr "No se pudo leer el nombre del perfil"
 
 #, c-format
-msgid "Failed to connect to daemon: %s"
-msgstr "No se pudo conectar con el daemon: %s"
+msgid "Are you sure you want to delete the CPU frequency profile '%s'?"
+msgstr "¿Seguro que desea eliminar el perfil de frecuencia de CPU '%s'?"
+
+msgid "Deleted profile: "
+msgstr "Perfil eliminado: "
+
+msgid "Rename CPU Frequency Profile"
+msgstr "Renombrar perfil de frecuencia de CPU"
+
+msgid "_Rename"
+msgstr "_Renombrar"
+
+msgid "Enter new profile name:"
+msgstr "Introduzca el nuevo nombre del perfil:"
+
+msgid "Renamed profile to: "
+msgstr "Perfil renombrado a: "
+
+msgid "Name cannot be empty"
+msgstr "El nombre no puede estar vacío"
+
+#, c-format
+msgid "Saved profile"
+msgstr "Perfil guardado"
+
+msgid "<b>Warning:</b> You have unsaved changes to the CPU profile.\n\nWhat would you like to do?"
+msgstr "<b>Atención:</b> Hay cambios sin guardar en el perfil de CPU.\n\n¿Qué desea hacer?"
+
+msgid "Core count not available"
+msgstr "Número de núcleos no disponible"
+
+msgid "Saving..."
+msgstr "Guardando..."
+
+#, c-format
+msgid "Activated profile"
+msgstr "Perfil activado"
+
+msgid "Activating..."
+msgstr "Activando..."
+
+#, c-format
+msgid "Hard limit applied: %.2f GHz"
+msgstr "Límite máximo aplicado: %.2f GHz"
+
+msgid "Failed to apply hard limit"
+msgstr "No se pudo aplicar el límite máximo"
+
+#, c-format
+msgid "Core %d%s"
+msgstr "Núcleo %d%s"
+
+msgid "Min (MHz)"
+msgstr "Mín. (MHz)"
+
+msgid "Max (MHz)"
+msgstr "Máx. (MHz)"
+
+msgid "CPU Daemon Status"
+msgstr "Estado del daemon de CPU"
+
+msgid "CPU daemon not connected"
+msgstr "Daemon de CPU no conectado"
+
+msgid "CPU Information"
+msgstr "Información de la CPU"
+
+msgid "Processor:"
+msgstr "Procesador:"
+
+msgid "CPU Temperature:"
+msgstr "Temperatura de la CPU:"
+
+msgid "CPU Load:"
+msgstr "Carga de la CPU:"
+
+msgid "Number of CPUs:"
+msgstr "Número de CPU:"
+
+msgid "Current Frequency:"
+msgstr "Frecuencia actual:"
+
+msgid "Min / Max Frequency:"
+msgstr "Frecuencia mín. / máx.:"
+
+msgid "Active Power Mode:"
+msgstr "Modo de energía activo:"
+
+msgid "Governor Profiles"
+msgstr "Perfiles de governor"
+
+msgid "Power mode:"
+msgstr "Modo de energía:"
+
+msgid "Firmware power profile:"
+msgstr "Perfil de energía del firmware:"
+
+msgid "Set by the laptop's firmware (platform_profile) when the frequency profile is applied; Unchanged leaves it as it is. Saved with the frequency profile."
+msgstr "Lo establece el firmware del portátil (platform_profile) al aplicar el perfil de frecuencia; Sin cambios lo deja como está. Se guarda con el perfil de frecuencia."
+
+msgid "Per-Core Frequency Profiles"
+msgstr "Perfiles de frecuencia por núcleo"
+
+msgid "Frequency Profile:"
+msgstr "Perfil de frecuencia:"
+
+msgid "Apply values to all cores"
+msgstr "Aplicar los valores a todos los núcleos"
+
+msgid "Hard Frequency Limit"
+msgstr "Límite máximo de frecuencia"
+
+msgid "<span foreground='#e74c3c' weight='bold'>WARNING:</span> This is a safety limit to protect your hardware. Setting it too high may cause CPU instability, overheating, or permanent damage. Only increase this if you know your CPU's safe operating limits."
+msgstr "<span foreground='#e74c3c' weight='bold'>ATENCIÓN:</span> Es un límite de seguridad para proteger el hardware. Un valor demasiado alto puede causar inestabilidad de la CPU, sobrecalentamiento o daños permanentes. Auméntelo solo si conoce los límites seguros de funcionamiento de su CPU."
+
+msgid "Hard Limit (GHz):"
+msgstr "Límite máximo (GHz):"
+
+msgid "Apply"
+msgstr "Aplicar"
 
 msgid "The name is empty."
 msgstr "El nombre está vacío."
@@ -526,6 +673,123 @@ msgstr "Color del teclado"
 msgid "Custom color"
 msgstr "Color personalizado"
 
+msgid "Keyboard Daemon Status"
+msgstr "Estado del daemon del teclado"
+
+msgid "Keyboard Profiles"
+msgstr "Perfiles de teclado"
+
+msgid "Backlight"
+msgstr "Retroiluminación"
+
+msgid "Backlight Off:"
+msgstr "Retroiluminación apagada:"
+
+msgid "Brightness:"
+msgstr "Brillo:"
+
+msgid "When ON, overrides all profile settings until disabled."
+msgstr "Si está ACTIVADO, anula todos los ajustes de perfil hasta que se desactive."
+
+msgid "<b>LED Wizard</b>"
+msgstr "<b>Asistente de LED</b>"
+
+msgid "Lights one LED after the other; click the matching key on the picture below. Needed once for per-key colors."
+msgstr "Enciende un LED tras otro; haga clic en la tecla correspondiente de la imagen inferior. Necesario una vez para los colores por tecla."
+
+msgid "Preset Colors"
+msgstr "Colores predefinidos"
+
+msgid "White"
+msgstr "Blanco"
+
+msgid "Red"
+msgstr "Rojo"
+
+msgid "Green"
+msgstr "Verde"
+
+msgid "Blue"
+msgstr "Azul"
+
+msgid "Yellow"
+msgstr "Amarillo"
+
+msgid "Cyan"
+msgstr "Cian"
+
+msgid "Orange"
+msgstr "Naranja"
+
+msgid "Purple"
+msgstr "Morado"
+
+msgid "Custom…"
+msgstr "Personalizado…"
+
+msgid "Choose any color"
+msgstr "Elegir cualquier color"
+
+msgid "Effect:"
+msgstr "Efecto:"
+
+msgid "Static"
+msgstr "Estático"
+
+msgid "Breathing"
+msgstr "Respiración"
+
+msgid "Rainbow"
+msgstr "Arcoíris"
+
+msgid "Animated effect of the selected zone, or of the base color when no zone is selected. Breathing fades the color in and out; Rainbow and Wave use all colors. Runs in the keyboard daemon, also when this window is closed."
+msgstr "Efecto animado de la zona seleccionada, o del color base si no hay ninguna zona seleccionada. Respiración atenúa y aviva el color; Arcoíris y Ola usan todos los colores. Funciona en el daemon del teclado, también con esta ventana cerrada."
+
+msgid "Speed: slow (left) to fast (right)"
+msgstr "Velocidad: lenta (izquierda) a rápida (derecha)"
+
+msgid "Direction of the wave"
+msgstr "Dirección de la ola"
+
+msgid "Whole Keyboard"
+msgstr "Todo el teclado"
+
+msgid "Stop editing a zone: colors go to the whole keyboard (base color)"
+msgstr "Dejar de editar una zona: los colores van a todo el teclado (color base)"
+
+msgid "Visual Zone Editor"
+msgstr "Editor visual de zonas"
+
+msgid "LED Wizard"
+msgstr "Asistente de LED"
+
+msgid "Skip"
+msgstr "Omitir"
+
+msgid "Keep this LED's current key and go to the next LED"
+msgstr "Conservar la tecla actual de este LED y pasar al siguiente"
+
+msgid "No Key"
+msgstr "Sin tecla"
+
+msgid "This LED lights no key: remove its key and go to the next LED"
+msgstr "Este LED no ilumina ninguna tecla: quitar su tecla y pasar al siguiente"
+
+msgid "Save & Finish"
+msgstr "Guardar y terminar"
+
+msgid "Zones"
+msgstr "Zonas"
+
+msgid "Zone"
+msgstr "Zona"
+
+msgid "LEDs"
+msgstr "LED"
+
+msgid "Save the profile with its zones"
+msgstr "Guardar el perfil con sus zonas"
+
 #, c-format
 msgid "Clock: %d MHz, memory %d MHz"
 msgstr "Reloj: %d MHz, memoria %d MHz"
@@ -651,9 +915,6 @@ msgstr "Perfil de ventiladores:"
 msgid "CPU profile:"
 msgstr "Perfil de CPU:"
 
-msgid "Power mode:"
-msgstr "Modo de energía:"
-
 msgid "Keyboard profile:"
 msgstr "Perfil de teclado:"
 
@@ -665,9 +926,6 @@ msgstr "Sistema"
 
 msgid "Model:"
 msgstr "Modelo:"
-
-msgid "Processor:"
-msgstr "Procesador:"
 
 msgid "Graphics:"
 msgstr "Gráficos:"
@@ -681,65 +939,34 @@ msgstr "Unidades:"
 msgid "Operating system:"
 msgstr "Sistema operativo:"
 
-msgid "Fan Daemon Status"
-msgstr "Estado del daemon de ventiladores"
+msgid "No fan control on this laptop: the firmware controls the fans."
+msgstr "Sin control de ventiladores en este portátil: el firmware controla los ventiladores."
 
-msgid "Fan daemon not connected"
-msgstr "Daemon de ventiladores no conectado"
+msgid "CPU Fan: --"
+msgstr "Ventilador CPU: --"
 
-msgid "Choose a profile to edit its curve. Activate makes it control the fans; \"(Active)\" marks the profile in use."
-msgstr "Elija un perfil para editar su curva. Activar hace que controle los ventiladores; \"(activo)\" marca el perfil en uso."
+msgid "GPU Fan: --"
+msgstr "Ventilador GPU: --"
 
-msgid "<span size='x-large' weight='bold' foreground='#d9534f'>Manual Mode Active!</span>"
-msgstr "<span size='x-large' weight='bold' foreground='#d9534f'>¡Modo manual activo!</span>"
+msgid "Direct EC access (switched on in Settings; only safe on Clevo laptops)"
+msgstr "Acceso directo al EC (activado en Configuración; solo seguro en portátiles Clevo)"
 
-msgid "Disable Manual Mode"
-msgstr "Desactivar modo manual"
+#, c-format
+msgid "Generic fan control: fans of the %s driver (switched on in Settings)"
+msgstr "Control genérico de ventiladores: ventiladores del controlador %s (activado en Ajustes)"
 
-msgid "Profile:"
-msgstr "Perfil:"
+msgid "Fan control switched off"
+msgstr "Control de ventiladores desactivado"
 
-msgid "Save"
-msgstr "Guardar"
+#, c-format
+msgid "%s (manual mode: %d%%)"
+msgstr "%s (modo manual: %d%%)"
 
-msgid "Save the curve points of the selected profile"
-msgstr "Guardar los puntos de la curva del perfil seleccionado"
+msgid "CPU control switched off"
+msgstr "Control de CPU desactivado"
 
-msgid "Delete"
-msgstr "Eliminar"
-
-msgid "Activate"
-msgstr "Activar"
-
-msgid "Temperature Curve Points"
-msgstr "Puntos de la curva de temperatura"
-
-msgid "Temperature"
-msgstr "Temperatura"
-
-msgid "Temperature Curve Graph"
-msgstr "Gráfico de la curva de temperatura"
-
-msgid "Add Point"
-msgstr "Añadir punto"
-
-msgid "Delete Point"
-msgstr "Eliminar punto"
-
-msgid "  (Double-click to edit, points are auto-sorted by temperature)"
-msgstr "  (Doble clic para editar; los puntos se ordenan por temperatura)"
-
-msgid "Temperature (°C)"
-msgstr "Temperatura (°C)"
-
-msgid "Manual mode disabled - returned to auto mode"
-msgstr "Modo manual desactivado: vuelta al modo automático"
-
-msgid "Failed to reactivate previous profile"
-msgstr "No se pudo reactivar el perfil anterior"
-
-msgid "Failed to disable manual mode"
-msgstr "No se pudo desactivar el modo manual"
+msgid "Keyboard backlight switched off"
+msgstr "Retroiluminación del teclado desactivada"
 
 msgid "GUI Log"
 msgstr "Registro de la GUI"
@@ -845,204 +1072,6 @@ msgstr "<b>Contacto:</b> <b>Dudemeister</b>  GitHub:"
 msgid "<span size='small'>Licensed under the GNU General Public License version 2. The keyboard driver is GPL-2.0-or-later (TUXEDO Computers).</span>"
 msgstr "<span size='small'>Licenciado bajo la GNU General Public License versión 2. El controlador del teclado es GPL-2.0-or-later (TUXEDO Computers).</span>"
 
-msgid "CPU Daemon Status"
-msgstr "Estado del daemon de CPU"
-
-msgid "CPU daemon not connected"
-msgstr "Daemon de CPU no conectado"
-
-msgid "CPU Information"
-msgstr "Información de la CPU"
-
-msgid "CPU Temperature:"
-msgstr "Temperatura de la CPU:"
-
-msgid "CPU Load:"
-msgstr "Carga de la CPU:"
-
-msgid "Number of CPUs:"
-msgstr "Número de CPU:"
-
-msgid "Current Frequency:"
-msgstr "Frecuencia actual:"
-
-msgid "Min / Max Frequency:"
-msgstr "Frecuencia mín. / máx.:"
-
-msgid "Active Power Mode:"
-msgstr "Modo de energía activo:"
-
-msgid "Governor Profiles"
-msgstr "Perfiles de governor"
-
-msgid "Firmware power profile:"
-msgstr "Perfil de energía del firmware:"
-
-msgid "Set by the laptop's firmware (platform_profile) when the frequency profile is applied; Unchanged leaves it as it is. Saved with the frequency profile."
-msgstr "Lo establece el firmware del portátil (platform_profile) al aplicar el perfil de frecuencia; Sin cambios lo deja como está. Se guarda con el perfil de frecuencia."
-
-msgid "Per-Core Frequency Profiles"
-msgstr "Perfiles de frecuencia por núcleo"
-
-msgid "Frequency Profile:"
-msgstr "Perfil de frecuencia:"
-
-msgid "Apply values to all cores"
-msgstr "Aplicar los valores a todos los núcleos"
-
-msgid "Hard Frequency Limit"
-msgstr "Límite máximo de frecuencia"
-
-msgid "<span foreground='#e74c3c' weight='bold'>WARNING:</span> This is a safety limit to protect your hardware. Setting it too high may cause CPU instability, overheating, or permanent damage. Only increase this if you know your CPU's safe operating limits."
-msgstr "<span foreground='#e74c3c' weight='bold'>ATENCIÓN:</span> Es un límite de seguridad para proteger el hardware. Un valor demasiado alto puede causar inestabilidad de la CPU, sobrecalentamiento o daños permanentes. Auméntelo solo si conoce los límites seguros de funcionamiento de su CPU."
-
-msgid "Hard Limit (GHz):"
-msgstr "Límite máximo (GHz):"
-
-msgid "Apply"
-msgstr "Aplicar"
-
-msgid "Keyboard Daemon Status"
-msgstr "Estado del daemon del teclado"
-
-msgid "Keyboard Profiles"
-msgstr "Perfiles de teclado"
-
-msgid "Backlight"
-msgstr "Retroiluminación"
-
-msgid "Backlight Off:"
-msgstr "Retroiluminación apagada:"
-
-msgid "Brightness:"
-msgstr "Brillo:"
-
-msgid "When ON, overrides all profile settings until disabled."
-msgstr "Si está ACTIVADO, anula todos los ajustes de perfil hasta que se desactive."
-
-msgid "<b>LED Wizard</b>"
-msgstr "<b>Asistente de LED</b>"
-
-msgid "Lights one LED after the other; click the matching key on the picture below. Needed once for per-key colors."
-msgstr "Enciende un LED tras otro; haga clic en la tecla correspondiente de la imagen inferior. Necesario una vez para los colores por tecla."
-
-msgid "Preset Colors"
-msgstr "Colores predefinidos"
-
-msgid "White"
-msgstr "Blanco"
-
-msgid "Red"
-msgstr "Rojo"
-
-msgid "Green"
-msgstr "Verde"
-
-msgid "Blue"
-msgstr "Azul"
-
-msgid "Yellow"
-msgstr "Amarillo"
-
-msgid "Cyan"
-msgstr "Cian"
-
-msgid "Orange"
-msgstr "Naranja"
-
-msgid "Purple"
-msgstr "Morado"
-
-msgid "Custom…"
-msgstr "Personalizado…"
-
-msgid "Choose any color"
-msgstr "Elegir cualquier color"
-
-msgid "Effect:"
-msgstr "Efecto:"
-
-msgid "Static"
-msgstr "Estático"
-
-msgid "Breathing"
-msgstr "Respiración"
-
-msgid "Rainbow"
-msgstr "Arcoíris"
-
-msgid "Animated effect of the selected zone, or of the base color when no zone is selected. Breathing fades the color in and out; Rainbow and Wave use all colors. Runs in the keyboard daemon, also when this window is closed."
-msgstr "Efecto animado de la zona seleccionada, o del color base si no hay ninguna zona seleccionada. Respiración atenúa y aviva el color; Arcoíris y Ola usan todos los colores. Funciona en el daemon del teclado, también con esta ventana cerrada."
-
-msgid "Speed: slow (left) to fast (right)"
-msgstr "Velocidad: lenta (izquierda) a rápida (derecha)"
-
-msgid "Direction of the wave"
-msgstr "Dirección de la ola"
-
-msgid "Whole Keyboard"
-msgstr "Todo el teclado"
-
-msgid "Stop editing a zone: colors go to the whole keyboard (base color)"
-msgstr "Dejar de editar una zona: los colores van a todo el teclado (color base)"
-
-msgid "Visual Zone Editor"
-msgstr "Editor visual de zonas"
-
-msgid "LED Wizard"
-msgstr "Asistente de LED"
-
-msgid "Skip"
-msgstr "Omitir"
-
-msgid "Keep this LED's current key and go to the next LED"
-msgstr "Conservar la tecla actual de este LED y pasar al siguiente"
-
-msgid "No Key"
-msgstr "Sin tecla"
-
-msgid "This LED lights no key: remove its key and go to the next LED"
-msgstr "Este LED no ilumina ninguna tecla: quitar su tecla y pasar al siguiente"
-
-msgid "Save & Finish"
-msgstr "Guardar y terminar"
-
-msgid "Zones"
-msgstr "Zonas"
-
-msgid "Zone"
-msgstr "Zona"
-
-msgid "LEDs"
-msgstr "LED"
-
-msgid "Save the profile with its zones"
-msgstr "Guardar el perfil con sus zonas"
-
-msgid "Status"
-msgstr "Estado"
-
-msgid "Fan Profiles"
-msgstr "Perfiles de ventiladores"
-
-msgid "CPU Profiles"
-msgstr "Perfiles de CPU"
-
-msgid "Keyboard Backlight"
-msgstr "Retroiluminación del teclado"
-
-msgid "Settings"
-msgstr "Ajustes"
-
-msgid "Logs"
-msgstr "Registros"
-
-msgid "Help"
-msgstr "Ayuda"
-
-msgid "About"
-msgstr "Acerca de"
-
 msgid "Component switched on"
 msgstr "Componente activado"
 
@@ -1113,22 +1142,6 @@ msgstr "No se pudo cargar esta distribución de teclado"
 
 msgid "Keyboard layout changed"
 msgstr "Distribución de teclado cambiada"
-
-msgid "No fan control on this laptop: the firmware controls the fans."
-msgstr "Sin control de ventiladores en este portátil: el firmware controla los ventiladores."
-
-msgid "CPU Fan: --"
-msgstr "Ventilador CPU: --"
-
-msgid "GPU Fan: --"
-msgstr "Ventilador GPU: --"
-
-msgid "Direct EC access (switched on in Settings; only safe on Clevo laptops)"
-msgstr "Acceso directo al EC (activado en Configuración; solo seguro en portátiles Clevo)"
-
-#, c-format
-msgid "Generic fan control: fans of the %s driver (switched on in Settings)"
-msgstr "Control genérico de ventiladores: ventiladores del controlador %s (activado en Ajustes)"
 
 msgid "Not needed: dcc_fan module in use"
 msgstr "No necesario: módulo dcc_fan en uso"
@@ -1352,16 +1365,3 @@ msgstr "Desconocido"
 
 msgid "Failed to activate CPU profile"
 msgstr "No se pudo activar el perfil de CPU"
-
-msgid "Fan control switched off"
-msgstr "Control de ventiladores desactivado"
-
-#, c-format
-msgid "%s (manual mode: %d%%)"
-msgstr "%s (modo manual: %d%%)"
-
-msgid "CPU control switched off"
-msgstr "Control de CPU desactivado"
-
-msgid "Keyboard backlight switched off"
-msgstr "Retroiluminación del teclado desactivada"

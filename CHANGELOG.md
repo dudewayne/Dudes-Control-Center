@@ -6,6 +6,11 @@ Programs and services were named `dudes-control-center-*` before 1.19.0 (for exa
 
 ## [Unreleased]
 
+## [1.48.1] - 2026-11-27
+
+### Changed
+- The GUI's source is split up: `src/dcc-gui.c` (12,400 lines) keeps the shared parts (data, daemon connections, main window, `main`) and includes one file per tab from `src/gui/` (Status, Fan, CPU, Keyboard, Logs, Help/About, Settings, tray, appearance, keyboard layouts). It is still one translation unit, so the code itself is unchanged: preprocessed, the old and the new source contain the same definitions; only one prototype was added. Nothing changes for users; the translations are the same, only their order in the template follows the files.
+
 ## [1.48.0] - 2026-11-27
 
 ### Added
@@ -1135,7 +1140,8 @@ Programs and services were named `dudes-control-center-*` before 1.19.0 (for exa
 - Unix socket IPC between GUI and daemon
 - Watchdog timer and fail-safe mode in daemon
 
-[Unreleased]: https://github.com/dudewayne/Dudes-Control-Center/compare/v1.48.0...HEAD
+[Unreleased]: https://github.com/dudewayne/Dudes-Control-Center/compare/v1.48.1...HEAD
+[1.48.1]: https://github.com/dudewayne/Dudes-Control-Center/compare/v1.48.0...v1.48.1
 [1.48.0]: https://github.com/dudewayne/Dudes-Control-Center/compare/v1.47.0...v1.48.0
 [1.47.0]: https://github.com/dudewayne/Dudes-Control-Center/compare/v1.46.0...v1.47.0
 [1.46.0]: https://github.com/dudewayne/Dudes-Control-Center/compare/v1.45.0...v1.46.0

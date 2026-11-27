@@ -23,6 +23,11 @@ COMMON_HDR = src/dcc-common.h src/dcc-hwmon.h
 # System report (1.45.0): dcc-fan-cli --report and the GUI
 REPORT_SRC = src/dcc-report.c
 REPORT_HDR = src/dcc-report.h
+# The GUI (1.48.1): dcc-gui.c #includes one file per tab from src/gui/ (one
+# translation unit); listed in that order for xgettext
+GUI_PARTS = src/gui/gui-kbd-layout.c src/gui/gui-fan.c src/gui/gui-cpu.c src/gui/gui-keyboard.c \
+            src/gui/gui-status.c src/gui/gui-logs.c src/gui/gui-help.c src/gui/gui-settings.c \
+            src/gui/gui-tray.c src/gui/gui-appearance.c
 LOG_SRC = src/dcc-log.c
 LOG_HDR = src/dcc-log.h
 # Socket authorization + safe user-file I/O for the root daemons
@@ -69,7 +74,7 @@ $(DAEMON_TARGET): $(COMMON_SRC) $(LOG_SRC) $(SECURE_SRC) src/dcc-fan-daemon.c $(
 $(CPU_DAEMON_TARGET): src/dcc-cpu-common.c $(LOG_SRC) $(SECURE_SRC) src/dcc-cpu-daemon.c src/dcc-cpu-common.h src/dcc-hwmon.h $(LOG_HDR) $(SECURE_HDR) VERSION
 	$(CC) $(CFLAGS) $(CJSON_CFLAGS) -o $@ src/dcc-cpu-common.c $(LOG_SRC) $(SECURE_SRC) src/dcc-cpu-daemon.c $(LDFLAGS_COMMON) $(CJSON_LIBS)
 
-$(GUI_TARGET): $(COMMON_SRC) $(REPORT_SRC) $(LOG_SRC) src/dcc-gui.c $(COMMON_HDR) $(REPORT_HDR) $(LOG_HDR) src/dcc-kbd-common.h src/dcc-cpu-common.h VERSION
+$(GUI_TARGET): $(COMMON_SRC) $(REPORT_SRC) $(LOG_SRC) src/dcc-gui.c $(GUI_PARTS) $(COMMON_HDR) $(REPORT_HDR) $(LOG_HDR) src/dcc-kbd-common.h src/dcc-cpu-common.h VERSION
 	$(CC) $(CFLAGS) $(GTK_CFLAGS) $(CJSON_CFLAGS) -DAPP_VERSION="\"$(VERSION)\"" -o $@ $(COMMON_SRC) $(REPORT_SRC) src/dcc-log.c src/dcc-gui.c $(LDFLAGS_COMMON) $(GTK_LIBS) $(CJSON_LIBS)
 
 cli: $(CLI_TARGET)
@@ -309,7 +314,7 @@ mo: $(MO_FILES)
 # regenerate the .pot and the .po files after GUI texts changed
 po-update:
 	xgettext --language=C --from-code=UTF-8 --keyword=_ --keyword=N_ --add-comments=TRANSLATORS \
-	  --package-name=dudes-control-center -o po/dudes-control-center.pot src/dcc-gui.c
+	  --package-name=dudes-control-center -o po/dudes-control-center.pot src/dcc-gui.c $(GUI_PARTS)
 	python3 po/tools/make_po.py
 
 TEST_BUILD = build-test
@@ -372,7 +377,7 @@ $(TEST_BUILD)/kbdd_test: $(KBD_DAEMON_DEPS) | $(TEST_BUILD)
 	  -DKBD_LEDS_DIR='"leds"' -DKBD_STATE_DIR='"state"' -DMAIN_PROFILES_PATH='"cfg/profiles.json"' -DDCC_AUTH_GROUP='"$(TEST_GROUP)"' \
 	  -o $@ src/dcc-kbd-daemon.c src/dcc-kbd-common.c $(LOG_SRC) $(SECURE_SRC) $(CJSON_LIBS)
 
-$(TEST_BUILD)/test_gui_save: tests/test_gui_save.c src/dcc-gui.c $(COMMON_SRC) $(REPORT_SRC) $(REPORT_HDR) $(LOG_SRC) $(LOG_HDR) | $(TEST_BUILD)
+$(TEST_BUILD)/test_gui_save: tests/test_gui_save.c src/dcc-gui.c $(GUI_PARTS) $(COMMON_SRC) $(REPORT_SRC) $(REPORT_HDR) $(LOG_SRC) $(LOG_HDR) | $(TEST_BUILD)
 	$(CC) $(TEST_CFLAGS) -w $(GTK_CFLAGS) $(CJSON_CFLAGS) -DAPP_VERSION='"$(VERSION)"' \
 	  -DSOCKET_PATH='"fan.sock"' -DCPU_SOCKET_PATH='"cpu.sock"' -DKBD_SOCKET_PATH='"kbd.sock"' \
 	  -DREPORT_FAN_SOCKET='"fan.sock"' -DREPORT_CPU_SOCKET='"cpu.sock"' -DREPORT_KBD_SOCKET='"kbd.sock"' -DDCC_SYSROOT='"reportroot"' \

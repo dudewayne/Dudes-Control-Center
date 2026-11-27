@@ -16,6 +16,72 @@ msgstr ""
 msgid "System default"
 msgstr "システムの既定"
 
+msgid "A maximum frequency is a ceiling, not a target: the CPU picks its own speed below it. Many CPUs do not go below a certain speed once they have work to do, however low the maximum is (an Intel Core Ultra 9 275HX keeps about 2.2 GHz on its P-cores and 1.5 GHz on its E-cores). Maximums below that change little; higher ones are kept exactly."
+msgstr "最大周波数は目標ではなく上限です。CPU はその範囲内で自分で速度を選びます。多くの CPU は処理があると、最大値をどれだけ低くしても一定の速度より下がりません(Intel Core Ultra 9 275HX では P コアで約 2.2 GHz、E コアで約 1.5 GHz)。それより低い最大値はほとんど効果がなく、高い値は正確に守られます。"
+
+#, c-format
+msgid "%s daemon connected"
+msgstr "%s デーモン接続済み"
+
+#, c-format
+msgid "<span foreground='#d9534f' weight='bold'>%s daemon not connected</span>"
+msgstr "<span foreground='#d9534f' weight='bold'>%s デーモン未接続</span>"
+
+msgid "Fan"
+msgstr "ファン"
+
+msgid "Keyboard"
+msgstr "キーボード"
+
+#, c-format
+msgid "<span foreground='#888888'>%s control is switched off (Settings tab)</span>"
+msgstr "<span foreground='#888888'>%s 制御はオフです (設定タブ)</span>"
+
+msgid "<span foreground='#888888'>Switched off</span>"
+msgstr "<span foreground='#888888'>オフ</span>"
+
+msgid "Running (daemon connected)"
+msgstr "実行中 (デーモン接続済み)"
+
+msgid "<span foreground='#d9534f'>On, daemon not connected</span>"
+msgstr "<span foreground='#d9534f'>オン、デーモン未接続</span>"
+
+#, c-format
+msgid "Daemon is not running!\n\nThe socket file does not exist at: %s\n\nTo start the daemon, run in a terminal:\n  sudo dcc-fan-daemon --foreground\n\nOr enable the systemd service:\n  sudo systemctl enable --now dcc-fan-daemon"
+msgstr "デーモンが実行されていません!\n\nソケットファイルが存在しません: %s\n\nデーモンを起動するには、端末で次を実行してください:\n  sudo dcc-fan-daemon --foreground\n\nまたは systemd サービスを有効にしてください:\n  sudo systemctl enable --now dcc-fan-daemon"
+
+#, c-format
+msgid "Failed to create socket: %s"
+msgstr "ソケットを作成できませんでした: %s"
+
+#, c-format
+msgid "Failed to connect to daemon: %s"
+msgstr "デーモンに接続できませんでした: %s"
+
+msgid "Status"
+msgstr "状態"
+
+msgid "Fan Profiles"
+msgstr "ファンプロファイル"
+
+msgid "CPU Profiles"
+msgstr "CPU プロファイル"
+
+msgid "Keyboard Backlight"
+msgstr "キーボードバックライト"
+
+msgid "Settings"
+msgstr "設定"
+
+msgid "Logs"
+msgstr "ログ"
+
+msgid "Help"
+msgstr "ヘルプ"
+
+msgid "About"
+msgstr "情報"
+
 msgid "German (DE)"
 msgstr "ドイツ語 (DE)"
 
@@ -31,12 +97,6 @@ msgstr "日本語 (JP)"
 msgid "Korean (KR)"
 msgstr "韓国語 (KR)"
 
-msgid "A maximum frequency is a ceiling, not a target: the CPU picks its own speed below it. Many CPUs do not go below a certain speed once they have work to do, however low the maximum is (an Intel Core Ultra 9 275HX keeps about 2.2 GHz on its P-cores and 1.5 GHz on its E-cores). Maximums below that change little; higher ones are kept exactly."
-msgstr "最大周波数は目標ではなく上限です。CPU はその範囲内で自分で速度を選びます。多くの CPU は処理があると、最大値をどれだけ低くしても一定の速度より下がりません(Intel Core Ultra 9 275HX では P コアで約 2.2 GHz、E コアで約 1.5 GHz)。それより低い最大値はほとんど効果がなく、高い値は正確に守られます。"
-
-msgid "Unchanged"
-msgstr "変更しない"
-
 msgid "<b>Warning:</b> You have unsaved changes to the curve points.\n\nWhat would you like to do?"
 msgstr "<b>警告:</b> カーブポイントに未保存の変更があります。\n\nどうしますか?"
 
@@ -48,117 +108,6 @@ msgstr "変更を破棄(_D)"
 
 msgid "_Save Changes"
 msgstr "変更を保存(_S)"
-
-#, c-format
-msgid "%s (%d P-cores, %d E-cores)"
-msgstr "%s (P コア %d、E コア %d)"
-
-#, c-format
-msgid "CPU: %.1f W (sustained limit %d W)"
-msgstr "CPU: %.1f W (持続上限 %d W)"
-
-#, c-format
-msgid "Core %d%s: %s"
-msgstr "コア %d%s: %s"
-
-msgid "Power mode applied - click Save to keep it in the profile"
-msgstr "電源モードを適用しました - プロファイルに残すには「保存」をクリック"
-
-msgid "Failed to apply the power mode"
-msgstr "電源モードを適用できませんでした"
-
-msgid "Power mode changed - click Save to store it in the profile, Activate to apply it"
-msgstr "電源モードを変更しました - 「保存」でプロファイルに保存、「有効化」で適用"
-
-msgid "Governor applied successfully"
-msgstr "ガバナーを適用しました"
-
-msgid "Failed to apply governor"
-msgstr "ガバナーを適用できませんでした"
-
-msgid "Profile selected - click Activate to use it"
-msgstr "プロファイルを選択しました - 使用するには「有効化」をクリック"
-
-msgid "Create CPU Frequency Profile"
-msgstr "CPU 周波数プロファイルを作成"
-
-msgid "_Create"
-msgstr "作成(_C)"
-
-msgid "Enter profile name:"
-msgstr "プロファイル名を入力:"
-
-#, c-format
-msgid "A CPU frequency profile with the name '%s' already exists."
-msgstr "「%s」という名前の CPU 周波数プロファイルは既に存在します。"
-
-msgid "Created profile: "
-msgstr "プロファイルを作成しました: "
-
-msgid "No profile selected"
-msgstr "プロファイルが選択されていません"
-
-msgid "Could not read profile name"
-msgstr "プロファイル名を読み取れませんでした"
-
-#, c-format
-msgid "Are you sure you want to delete the CPU frequency profile '%s'?"
-msgstr "CPU 周波数プロファイル「%s」を削除してもよろしいですか?"
-
-msgid "Deleted profile: "
-msgstr "プロファイルを削除しました: "
-
-msgid "Rename CPU Frequency Profile"
-msgstr "CPU 周波数プロファイルの名前を変更"
-
-msgid "_Rename"
-msgstr "名前を変更(_R)"
-
-msgid "Enter new profile name:"
-msgstr "新しいプロファイル名を入力:"
-
-msgid "Renamed profile to: "
-msgstr "プロファイル名を変更しました: "
-
-msgid "Name cannot be empty"
-msgstr "名前を空にすることはできません"
-
-#, c-format
-msgid "Saved profile"
-msgstr "プロファイルを保存しました"
-
-msgid "<b>Warning:</b> You have unsaved changes to the CPU profile.\n\nWhat would you like to do?"
-msgstr "<b>警告:</b> CPU プロファイルに未保存の変更があります。\n\nどうしますか?"
-
-msgid "Core count not available"
-msgstr "コア数を取得できません"
-
-msgid "Saving..."
-msgstr "保存中..."
-
-#, c-format
-msgid "Activated profile"
-msgstr "プロファイルを有効化しました"
-
-msgid "Activating..."
-msgstr "有効化中..."
-
-#, c-format
-msgid "Hard limit applied: %.2f GHz"
-msgstr "上限を適用しました: %.2f GHz"
-
-msgid "Failed to apply hard limit"
-msgstr "上限を適用できませんでした"
-
-#, c-format
-msgid "Core %d%s"
-msgstr "コア %d%s"
-
-msgid "Min (MHz)"
-msgstr "最小 (MHz)"
-
-msgid "Max (MHz)"
-msgstr "最大 (MHz)"
 
 msgid "Fans stopped (0%) - they switch to 100% automatically at 95°C or on a sensor error"
 msgstr "ファン停止 (0%) - 95°C またはセンサーエラーで自動的に 100% になります"
@@ -239,44 +188,242 @@ msgstr "削除するカーブポイントを選択してください"
 msgid "%s (Active)"
 msgstr "%s (有効)"
 
-#, c-format
-msgid "%s daemon connected"
-msgstr "%s デーモン接続済み"
+msgid "No profile selected"
+msgstr "プロファイルが選択されていません"
+
+msgid "Fan Daemon Status"
+msgstr "ファンデーモンの状態"
+
+msgid "Fan daemon not connected"
+msgstr "ファンデーモン未接続"
+
+msgid "Choose a profile to edit its curve. Activate makes it control the fans; \"(Active)\" marks the profile in use."
+msgstr "カーブを編集するプロファイルを選択します。「有効化」でそのプロファイルがファンを制御します。\"(有効)\" は使用中のプロファイルを示します。"
+
+msgid "<span size='x-large' weight='bold' foreground='#d9534f'>Manual Mode Active!</span>"
+msgstr "<span size='x-large' weight='bold' foreground='#d9534f'>手動モード有効!</span>"
+
+msgid "Disable Manual Mode"
+msgstr "手動モードを解除"
+
+msgid "Profile:"
+msgstr "プロファイル:"
+
+msgid "Save"
+msgstr "保存"
+
+msgid "Save the curve points of the selected profile"
+msgstr "選択したプロファイルのカーブポイントを保存"
+
+msgid "Delete"
+msgstr "削除"
+
+msgid "Activate"
+msgstr "有効化"
+
+msgid "Temperature Curve Points"
+msgstr "温度カーブのポイント"
+
+msgid "Temperature"
+msgstr "温度"
+
+msgid "Temperature Curve Graph"
+msgstr "温度カーブのグラフ"
+
+msgid "Add Point"
+msgstr "ポイントを追加"
+
+msgid "Delete Point"
+msgstr "ポイントを削除"
+
+msgid "  (Double-click to edit, points are auto-sorted by temperature)"
+msgstr "  (ダブルクリックで編集。ポイントは温度順に並びます)"
+
+msgid "Temperature (°C)"
+msgstr "温度 (°C)"
+
+msgid "Manual mode disabled - returned to auto mode"
+msgstr "手動モードを解除しました - 自動モードに戻りました"
+
+msgid "Failed to reactivate previous profile"
+msgstr "前のプロファイルを再度有効化できませんでした"
+
+msgid "Failed to disable manual mode"
+msgstr "手動モードを解除できませんでした"
+
+msgid "Unchanged"
+msgstr "変更しない"
 
 #, c-format
-msgid "<span foreground='#d9534f' weight='bold'>%s daemon not connected</span>"
-msgstr "<span foreground='#d9534f' weight='bold'>%s デーモン未接続</span>"
-
-msgid "Fan"
-msgstr "ファン"
-
-msgid "Keyboard"
-msgstr "キーボード"
+msgid "%s (%d P-cores, %d E-cores)"
+msgstr "%s (P コア %d、E コア %d)"
 
 #, c-format
-msgid "<span foreground='#888888'>%s control is switched off (Settings tab)</span>"
-msgstr "<span foreground='#888888'>%s 制御はオフです (設定タブ)</span>"
-
-msgid "<span foreground='#888888'>Switched off</span>"
-msgstr "<span foreground='#888888'>オフ</span>"
-
-msgid "Running (daemon connected)"
-msgstr "実行中 (デーモン接続済み)"
-
-msgid "<span foreground='#d9534f'>On, daemon not connected</span>"
-msgstr "<span foreground='#d9534f'>オン、デーモン未接続</span>"
+msgid "CPU: %.1f W (sustained limit %d W)"
+msgstr "CPU: %.1f W (持続上限 %d W)"
 
 #, c-format
-msgid "Daemon is not running!\n\nThe socket file does not exist at: %s\n\nTo start the daemon, run in a terminal:\n  sudo dcc-fan-daemon --foreground\n\nOr enable the systemd service:\n  sudo systemctl enable --now dcc-fan-daemon"
-msgstr "デーモンが実行されていません!\n\nソケットファイルが存在しません: %s\n\nデーモンを起動するには、端末で次を実行してください:\n  sudo dcc-fan-daemon --foreground\n\nまたは systemd サービスを有効にしてください:\n  sudo systemctl enable --now dcc-fan-daemon"
+msgid "Core %d%s: %s"
+msgstr "コア %d%s: %s"
+
+msgid "Power mode applied - click Save to keep it in the profile"
+msgstr "電源モードを適用しました - プロファイルに残すには「保存」をクリック"
+
+msgid "Failed to apply the power mode"
+msgstr "電源モードを適用できませんでした"
+
+msgid "Power mode changed - click Save to store it in the profile, Activate to apply it"
+msgstr "電源モードを変更しました - 「保存」でプロファイルに保存、「有効化」で適用"
+
+msgid "Governor applied successfully"
+msgstr "ガバナーを適用しました"
+
+msgid "Failed to apply governor"
+msgstr "ガバナーを適用できませんでした"
+
+msgid "Profile selected - click Activate to use it"
+msgstr "プロファイルを選択しました - 使用するには「有効化」をクリック"
+
+msgid "Create CPU Frequency Profile"
+msgstr "CPU 周波数プロファイルを作成"
+
+msgid "_Create"
+msgstr "作成(_C)"
+
+msgid "Enter profile name:"
+msgstr "プロファイル名を入力:"
 
 #, c-format
-msgid "Failed to create socket: %s"
-msgstr "ソケットを作成できませんでした: %s"
+msgid "A CPU frequency profile with the name '%s' already exists."
+msgstr "「%s」という名前の CPU 周波数プロファイルは既に存在します。"
+
+msgid "Created profile: "
+msgstr "プロファイルを作成しました: "
+
+msgid "Could not read profile name"
+msgstr "プロファイル名を読み取れませんでした"
 
 #, c-format
-msgid "Failed to connect to daemon: %s"
-msgstr "デーモンに接続できませんでした: %s"
+msgid "Are you sure you want to delete the CPU frequency profile '%s'?"
+msgstr "CPU 周波数プロファイル「%s」を削除してもよろしいですか?"
+
+msgid "Deleted profile: "
+msgstr "プロファイルを削除しました: "
+
+msgid "Rename CPU Frequency Profile"
+msgstr "CPU 周波数プロファイルの名前を変更"
+
+msgid "_Rename"
+msgstr "名前を変更(_R)"
+
+msgid "Enter new profile name:"
+msgstr "新しいプロファイル名を入力:"
+
+msgid "Renamed profile to: "
+msgstr "プロファイル名を変更しました: "
+
+msgid "Name cannot be empty"
+msgstr "名前を空にすることはできません"
+
+#, c-format
+msgid "Saved profile"
+msgstr "プロファイルを保存しました"
+
+msgid "<b>Warning:</b> You have unsaved changes to the CPU profile.\n\nWhat would you like to do?"
+msgstr "<b>警告:</b> CPU プロファイルに未保存の変更があります。\n\nどうしますか?"
+
+msgid "Core count not available"
+msgstr "コア数を取得できません"
+
+msgid "Saving..."
+msgstr "保存中..."
+
+#, c-format
+msgid "Activated profile"
+msgstr "プロファイルを有効化しました"
+
+msgid "Activating..."
+msgstr "有効化中..."
+
+#, c-format
+msgid "Hard limit applied: %.2f GHz"
+msgstr "上限を適用しました: %.2f GHz"
+
+msgid "Failed to apply hard limit"
+msgstr "上限を適用できませんでした"
+
+#, c-format
+msgid "Core %d%s"
+msgstr "コア %d%s"
+
+msgid "Min (MHz)"
+msgstr "最小 (MHz)"
+
+msgid "Max (MHz)"
+msgstr "最大 (MHz)"
+
+msgid "CPU Daemon Status"
+msgstr "CPU デーモンの状態"
+
+msgid "CPU daemon not connected"
+msgstr "CPU デーモン未接続"
+
+msgid "CPU Information"
+msgstr "CPU 情報"
+
+msgid "Processor:"
+msgstr "プロセッサ:"
+
+msgid "CPU Temperature:"
+msgstr "CPU 温度:"
+
+msgid "CPU Load:"
+msgstr "CPU 負荷:"
+
+msgid "Number of CPUs:"
+msgstr "CPU の数:"
+
+msgid "Current Frequency:"
+msgstr "現在の周波数:"
+
+msgid "Min / Max Frequency:"
+msgstr "最小 / 最大周波数:"
+
+msgid "Active Power Mode:"
+msgstr "有効な電源モード:"
+
+msgid "Governor Profiles"
+msgstr "ガバナープロファイル"
+
+msgid "Power mode:"
+msgstr "電源モード:"
+
+msgid "Firmware power profile:"
+msgstr "ファームウェアの電源プロファイル:"
+
+msgid "Set by the laptop's firmware (platform_profile) when the frequency profile is applied; Unchanged leaves it as it is. Saved with the frequency profile."
+msgstr "周波数プロファイルを適用すると、ノートPCのファームウェア (platform_profile) に設定されます。「変更しない」はそのままにします。周波数プロファイルと一緒に保存されます。"
+
+msgid "Per-Core Frequency Profiles"
+msgstr "コアごとの周波数プロファイル"
+
+msgid "Frequency Profile:"
+msgstr "周波数プロファイル:"
+
+msgid "Apply values to all cores"
+msgstr "すべてのコアに値を適用"
+
+msgid "Hard Frequency Limit"
+msgstr "周波数の上限"
+
+msgid "<span foreground='#e74c3c' weight='bold'>WARNING:</span> This is a safety limit to protect your hardware. Setting it too high may cause CPU instability, overheating, or permanent damage. Only increase this if you know your CPU's safe operating limits."
+msgstr "<span foreground='#e74c3c' weight='bold'>警告:</span> これはハードウェアを保護するための安全上の上限です。高くしすぎると CPU の不安定化、過熱、または恒久的な損傷を招くおそれがあります。CPU の安全な動作範囲を把握している場合にのみ上げてください。"
+
+msgid "Hard Limit (GHz):"
+msgstr "上限 (GHz):"
+
+msgid "Apply"
+msgstr "適用"
 
 msgid "The name is empty."
 msgstr "名前が空です。"
@@ -523,6 +670,129 @@ msgstr "キーボードの色"
 msgid "Custom color"
 msgstr "カスタムカラー"
 
+msgid "Keyboard Daemon Status"
+msgstr "キーボードデーモンの状態"
+
+msgid "Keyboard Profiles"
+msgstr "キーボードプロファイル"
+
+msgid "Backlight"
+msgstr "バックライト"
+
+msgid "Backlight Off:"
+msgstr "バックライト オフ:"
+
+msgid "Brightness:"
+msgstr "明るさ:"
+
+msgid "When ON, overrides all profile settings until disabled."
+msgstr "オンの間は、解除するまですべてのプロファイル設定より優先されます。"
+
+msgid "<b>LED Wizard</b>"
+msgstr "<b>LED ウィザード</b>"
+
+msgid "Lights one LED after the other; click the matching key on the picture below. Needed once for per-key colors."
+msgstr "LED を 1 つずつ点灯させます。下の画像で対応するキーをクリックしてください。キーごとの色設定に一度だけ必要です。"
+
+msgid "Preset Colors"
+msgstr "プリセットカラー"
+
+msgid "White"
+msgstr "白"
+
+msgid "Red"
+msgstr "赤"
+
+msgid "Green"
+msgstr "緑"
+
+msgid "Blue"
+msgstr "青"
+
+msgid "Yellow"
+msgstr "黄"
+
+msgid "Cyan"
+msgstr "シアン"
+
+msgid "Magenta"
+msgstr "マゼンタ"
+
+msgid "Orange"
+msgstr "オレンジ"
+
+msgid "Purple"
+msgstr "紫"
+
+msgid "Custom…"
+msgstr "カスタム…"
+
+msgid "Choose any color"
+msgstr "任意の色を選択"
+
+msgid "Effect:"
+msgstr "エフェクト:"
+
+msgid "Static"
+msgstr "固定"
+
+msgid "Breathing"
+msgstr "ブリージング"
+
+msgid "Rainbow"
+msgstr "レインボー"
+
+msgid "Animated effect of the selected zone, or of the base color when no zone is selected. Breathing fades the color in and out; Rainbow and Wave use all colors. Runs in the keyboard daemon, also when this window is closed."
+msgstr "選択したゾーン、またはゾーンを選択していない場合はベースカラーのアニメーション効果です。ブリージングは色をフェードイン・アウトし、レインボーとウェーブはすべての色を使います。このウィンドウを閉じてもキーボードデーモンで動作します。"
+
+msgid "Speed: slow (left) to fast (right)"
+msgstr "速度: 遅い (左) から速い (右)"
+
+msgid "Direction of the wave"
+msgstr "ウェーブの方向"
+
+msgid "Whole Keyboard"
+msgstr "キーボード全体"
+
+msgid "Stop editing a zone: colors go to the whole keyboard (base color)"
+msgstr "ゾーンの編集を終了: 色はキーボード全体 (ベースカラー) に適用されます"
+
+msgid "Visual Zone Editor"
+msgstr "ビジュアルゾーンエディター"
+
+msgid "LED Wizard"
+msgstr "LED ウィザード"
+
+msgid "Skip"
+msgstr "スキップ"
+
+msgid "Keep this LED's current key and go to the next LED"
+msgstr "この LED の現在のキーを保持して次の LED へ"
+
+msgid "No Key"
+msgstr "キーなし"
+
+msgid "This LED lights no key: remove its key and go to the next LED"
+msgstr "この LED はどのキーも照らしません: キーを外して次の LED へ"
+
+msgid "Save & Finish"
+msgstr "保存して終了"
+
+msgid "Zones"
+msgstr "ゾーン"
+
+msgid "Color"
+msgstr "色"
+
+msgid "Zone"
+msgstr "ゾーン"
+
+msgid "LEDs"
+msgstr "LED"
+
+msgid "Save the profile with its zones"
+msgstr "ゾーンを含めてプロファイルを保存"
+
 #, c-format
 msgid "Clock: %d MHz, memory %d MHz"
 msgstr "クロック: %d MHz、メモリ %d MHz"
@@ -648,9 +918,6 @@ msgstr "ファンプロファイル:"
 msgid "CPU profile:"
 msgstr "CPU プロファイル:"
 
-msgid "Power mode:"
-msgstr "電源モード:"
-
 msgid "Keyboard profile:"
 msgstr "キーボードプロファイル:"
 
@@ -662,9 +929,6 @@ msgstr "システム"
 
 msgid "Model:"
 msgstr "モデル:"
-
-msgid "Processor:"
-msgstr "プロセッサ:"
 
 msgid "Graphics:"
 msgstr "グラフィックス:"
@@ -681,65 +945,38 @@ msgstr "オペレーティングシステム:"
 msgid "Kernel:"
 msgstr "カーネル:"
 
-msgid "Fan Daemon Status"
-msgstr "ファンデーモンの状態"
+msgid "No fan control on this laptop: the firmware controls the fans."
+msgstr "このノートPCではファン制御はできません。ファームウェアがファンを制御します。"
 
-msgid "Fan daemon not connected"
-msgstr "ファンデーモン未接続"
+msgid "CPU Fan: --"
+msgstr "CPU ファン: --"
 
-msgid "Choose a profile to edit its curve. Activate makes it control the fans; \"(Active)\" marks the profile in use."
-msgstr "カーブを編集するプロファイルを選択します。「有効化」でそのプロファイルがファンを制御します。\"(有効)\" は使用中のプロファイルを示します。"
+msgid "GPU Fan: --"
+msgstr "GPU ファン: --"
 
-msgid "<span size='x-large' weight='bold' foreground='#d9534f'>Manual Mode Active!</span>"
-msgstr "<span size='x-large' weight='bold' foreground='#d9534f'>手動モード有効!</span>"
+msgid "Direct EC access (switched on in Settings; only safe on Clevo laptops)"
+msgstr "EC への直接アクセス (設定でオン。Clevo ノートPCでのみ安全)"
 
-msgid "Disable Manual Mode"
-msgstr "手動モードを解除"
+#, c-format
+msgid "Generic fan control: fans of the %s driver (switched on in Settings)"
+msgstr "汎用ファン制御: %s ドライバーのファン (設定でオン)"
 
-msgid "Profile:"
-msgstr "プロファイル:"
+msgid "Fan control switched off"
+msgstr "ファン制御はオフです"
 
-msgid "Save"
-msgstr "保存"
+#, c-format
+msgid "%s (manual mode: %d%%)"
+msgstr "%s (手動モード: %d%%)"
 
-msgid "Save the curve points of the selected profile"
-msgstr "選択したプロファイルのカーブポイントを保存"
+msgid "CPU control switched off"
+msgstr "CPU 制御はオフです"
 
-msgid "Delete"
-msgstr "削除"
+#, c-format
+msgid "%s (firmware: %s)"
+msgstr "%s (ファームウェア: %s)"
 
-msgid "Activate"
-msgstr "有効化"
-
-msgid "Temperature Curve Points"
-msgstr "温度カーブのポイント"
-
-msgid "Temperature"
-msgstr "温度"
-
-msgid "Temperature Curve Graph"
-msgstr "温度カーブのグラフ"
-
-msgid "Add Point"
-msgstr "ポイントを追加"
-
-msgid "Delete Point"
-msgstr "ポイントを削除"
-
-msgid "  (Double-click to edit, points are auto-sorted by temperature)"
-msgstr "  (ダブルクリックで編集。ポイントは温度順に並びます)"
-
-msgid "Temperature (°C)"
-msgstr "温度 (°C)"
-
-msgid "Manual mode disabled - returned to auto mode"
-msgstr "手動モードを解除しました - 自動モードに戻りました"
-
-msgid "Failed to reactivate previous profile"
-msgstr "前のプロファイルを再度有効化できませんでした"
-
-msgid "Failed to disable manual mode"
-msgstr "手動モードを解除できませんでした"
+msgid "Keyboard backlight switched off"
+msgstr "キーボードバックライトはオフです"
 
 msgid "GUI Log"
 msgstr "GUI ログ"
@@ -845,210 +1082,6 @@ msgstr "<b>連絡先:</b> <b>Dudemeister</b>  GitHub:"
 msgid "<span size='small'>Licensed under the GNU General Public License version 2. The keyboard driver is GPL-2.0-or-later (TUXEDO Computers).</span>"
 msgstr "<span size='small'>GNU General Public License バージョン 2 でライセンスされています。キーボードドライバーは GPL-2.0-or-later (TUXEDO Computers) です。</span>"
 
-msgid "CPU Daemon Status"
-msgstr "CPU デーモンの状態"
-
-msgid "CPU daemon not connected"
-msgstr "CPU デーモン未接続"
-
-msgid "CPU Information"
-msgstr "CPU 情報"
-
-msgid "CPU Temperature:"
-msgstr "CPU 温度:"
-
-msgid "CPU Load:"
-msgstr "CPU 負荷:"
-
-msgid "Number of CPUs:"
-msgstr "CPU の数:"
-
-msgid "Current Frequency:"
-msgstr "現在の周波数:"
-
-msgid "Min / Max Frequency:"
-msgstr "最小 / 最大周波数:"
-
-msgid "Active Power Mode:"
-msgstr "有効な電源モード:"
-
-msgid "Governor Profiles"
-msgstr "ガバナープロファイル"
-
-msgid "Firmware power profile:"
-msgstr "ファームウェアの電源プロファイル:"
-
-msgid "Set by the laptop's firmware (platform_profile) when the frequency profile is applied; Unchanged leaves it as it is. Saved with the frequency profile."
-msgstr "周波数プロファイルを適用すると、ノートPCのファームウェア (platform_profile) に設定されます。「変更しない」はそのままにします。周波数プロファイルと一緒に保存されます。"
-
-msgid "Per-Core Frequency Profiles"
-msgstr "コアごとの周波数プロファイル"
-
-msgid "Frequency Profile:"
-msgstr "周波数プロファイル:"
-
-msgid "Apply values to all cores"
-msgstr "すべてのコアに値を適用"
-
-msgid "Hard Frequency Limit"
-msgstr "周波数の上限"
-
-msgid "<span foreground='#e74c3c' weight='bold'>WARNING:</span> This is a safety limit to protect your hardware. Setting it too high may cause CPU instability, overheating, or permanent damage. Only increase this if you know your CPU's safe operating limits."
-msgstr "<span foreground='#e74c3c' weight='bold'>警告:</span> これはハードウェアを保護するための安全上の上限です。高くしすぎると CPU の不安定化、過熱、または恒久的な損傷を招くおそれがあります。CPU の安全な動作範囲を把握している場合にのみ上げてください。"
-
-msgid "Hard Limit (GHz):"
-msgstr "上限 (GHz):"
-
-msgid "Apply"
-msgstr "適用"
-
-msgid "Keyboard Daemon Status"
-msgstr "キーボードデーモンの状態"
-
-msgid "Keyboard Profiles"
-msgstr "キーボードプロファイル"
-
-msgid "Backlight"
-msgstr "バックライト"
-
-msgid "Backlight Off:"
-msgstr "バックライト オフ:"
-
-msgid "Brightness:"
-msgstr "明るさ:"
-
-msgid "When ON, overrides all profile settings until disabled."
-msgstr "オンの間は、解除するまですべてのプロファイル設定より優先されます。"
-
-msgid "<b>LED Wizard</b>"
-msgstr "<b>LED ウィザード</b>"
-
-msgid "Lights one LED after the other; click the matching key on the picture below. Needed once for per-key colors."
-msgstr "LED を 1 つずつ点灯させます。下の画像で対応するキーをクリックしてください。キーごとの色設定に一度だけ必要です。"
-
-msgid "Preset Colors"
-msgstr "プリセットカラー"
-
-msgid "White"
-msgstr "白"
-
-msgid "Red"
-msgstr "赤"
-
-msgid "Green"
-msgstr "緑"
-
-msgid "Blue"
-msgstr "青"
-
-msgid "Yellow"
-msgstr "黄"
-
-msgid "Cyan"
-msgstr "シアン"
-
-msgid "Magenta"
-msgstr "マゼンタ"
-
-msgid "Orange"
-msgstr "オレンジ"
-
-msgid "Purple"
-msgstr "紫"
-
-msgid "Custom…"
-msgstr "カスタム…"
-
-msgid "Choose any color"
-msgstr "任意の色を選択"
-
-msgid "Effect:"
-msgstr "エフェクト:"
-
-msgid "Static"
-msgstr "固定"
-
-msgid "Breathing"
-msgstr "ブリージング"
-
-msgid "Rainbow"
-msgstr "レインボー"
-
-msgid "Animated effect of the selected zone, or of the base color when no zone is selected. Breathing fades the color in and out; Rainbow and Wave use all colors. Runs in the keyboard daemon, also when this window is closed."
-msgstr "選択したゾーン、またはゾーンを選択していない場合はベースカラーのアニメーション効果です。ブリージングは色をフェードイン・アウトし、レインボーとウェーブはすべての色を使います。このウィンドウを閉じてもキーボードデーモンで動作します。"
-
-msgid "Speed: slow (left) to fast (right)"
-msgstr "速度: 遅い (左) から速い (右)"
-
-msgid "Direction of the wave"
-msgstr "ウェーブの方向"
-
-msgid "Whole Keyboard"
-msgstr "キーボード全体"
-
-msgid "Stop editing a zone: colors go to the whole keyboard (base color)"
-msgstr "ゾーンの編集を終了: 色はキーボード全体 (ベースカラー) に適用されます"
-
-msgid "Visual Zone Editor"
-msgstr "ビジュアルゾーンエディター"
-
-msgid "LED Wizard"
-msgstr "LED ウィザード"
-
-msgid "Skip"
-msgstr "スキップ"
-
-msgid "Keep this LED's current key and go to the next LED"
-msgstr "この LED の現在のキーを保持して次の LED へ"
-
-msgid "No Key"
-msgstr "キーなし"
-
-msgid "This LED lights no key: remove its key and go to the next LED"
-msgstr "この LED はどのキーも照らしません: キーを外して次の LED へ"
-
-msgid "Save & Finish"
-msgstr "保存して終了"
-
-msgid "Zones"
-msgstr "ゾーン"
-
-msgid "Color"
-msgstr "色"
-
-msgid "Zone"
-msgstr "ゾーン"
-
-msgid "LEDs"
-msgstr "LED"
-
-msgid "Save the profile with its zones"
-msgstr "ゾーンを含めてプロファイルを保存"
-
-msgid "Status"
-msgstr "状態"
-
-msgid "Fan Profiles"
-msgstr "ファンプロファイル"
-
-msgid "CPU Profiles"
-msgstr "CPU プロファイル"
-
-msgid "Keyboard Backlight"
-msgstr "キーボードバックライト"
-
-msgid "Settings"
-msgstr "設定"
-
-msgid "Logs"
-msgstr "ログ"
-
-msgid "Help"
-msgstr "ヘルプ"
-
-msgid "About"
-msgstr "情報"
-
 msgid "Component switched on"
 msgstr "コンポーネントをオンにしました"
 
@@ -1119,22 +1152,6 @@ msgstr "このキーボード配列を読み込めませんでした"
 
 msgid "Keyboard layout changed"
 msgstr "キーボード配列を変更しました"
-
-msgid "No fan control on this laptop: the firmware controls the fans."
-msgstr "このノートPCではファン制御はできません。ファームウェアがファンを制御します。"
-
-msgid "CPU Fan: --"
-msgstr "CPU ファン: --"
-
-msgid "GPU Fan: --"
-msgstr "GPU ファン: --"
-
-msgid "Direct EC access (switched on in Settings; only safe on Clevo laptops)"
-msgstr "EC への直接アクセス (設定でオン。Clevo ノートPCでのみ安全)"
-
-#, c-format
-msgid "Generic fan control: fans of the %s driver (switched on in Settings)"
-msgstr "汎用ファン制御: %s ドライバーのファン (設定でオン)"
 
 msgid "Not needed: dcc_fan module in use"
 msgstr "不要: dcc_fan モジュールを使用中"
@@ -1358,20 +1375,3 @@ msgstr "不明"
 
 msgid "Failed to activate CPU profile"
 msgstr "CPU プロファイルを有効化できませんでした"
-
-msgid "Fan control switched off"
-msgstr "ファン制御はオフです"
-
-#, c-format
-msgid "%s (manual mode: %d%%)"
-msgstr "%s (手動モード: %d%%)"
-
-msgid "CPU control switched off"
-msgstr "CPU 制御はオフです"
-
-#, c-format
-msgid "%s (firmware: %s)"
-msgstr "%s (ファームウェア: %s)"
-
-msgid "Keyboard backlight switched off"
-msgstr "キーボードバックライトはオフです"

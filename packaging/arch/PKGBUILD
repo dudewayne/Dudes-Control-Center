@@ -4,7 +4,7 @@
 # /usr/local). pkgver must match the VERSION file (the CI checks it).
 # Maintainer: Dudes Control Center <https://github.com/dudewayne/Dudes-Control-Center>
 pkgname=dudes-control-center
-pkgver=1.48.0
+pkgver=1.48.1
 pkgrel=1
 pkgdesc="Fan, CPU and keyboard backlight control for Clevo and other laptops"
 arch=('x86_64')

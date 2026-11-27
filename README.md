@@ -250,6 +250,8 @@ Arch: `cd packaging/arch && makepkg -si` (builds from the release tarball of the
 
 `make test` builds the tests with AddressSanitizer and UBSan and runs them without root or hardware: the daemons run against a fake sysfs (CPU frequencies, 120 keyboard LEDs) in temporary directories, so it is safe on a machine with the daemons installed. GitHub Actions runs `make all`, `make test`, `make man-check`, `make deb` and `make deb-check` on every push and pull request, and builds the RPM in a Fedora container and the Arch package in an Arch container, installs each with its dependencies and checks it (`tests/check_pkg.sh`). Details: [tests/README.md](tests/README.md).
 
+Source layout: the daemons and CLIs are one file each in `src/` with shared code in `dcc-common.c`, `dcc-cpu-common.c` and `dcc-kbd-common.c`; the GUI is `src/dcc-gui.c` (shared data, daemon connections, main window) with one file per tab in `src/gui/`, which `dcc-gui.c` includes (one translation unit, so the tabs share its static functions); `drivers/` holds the kernel modules, `packaging/` the deb, RPM and Arch files.
+
 `sudo make install` installs the programs and systemd units without a package (no DKMS module, no `/etc/dudes-control-center/user`; the daemons then use the first member of the group). The `.deb` is the recommended way.
 
 ## Hardware
