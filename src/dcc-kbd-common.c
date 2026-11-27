@@ -882,10 +882,7 @@ int zone_assign_leds(const int *leds, int num_leds, uint8_t r, uint8_t g, uint8_
 int profile_apply(const char *name) {
     LOG_INFO("[KBD] Applying profile '%s'...", name);
 
-    if (kbd_profile_load_json(name) != 0) {
-        LOG_ERROR("[KBD] Failed to load profile '%s'", name);
-        return -1;
-    }
+    if (kbd_profile_load_json(name) != 0) return -1;   /* logged there */
 
     /* Persist the active profile index to profiles.json */
     kbd_profiles_save_json();
