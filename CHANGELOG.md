@@ -6,6 +6,12 @@ Programs and services were named `dudes-control-center-*` before 1.19.0 (for exa
 
 ## [Unreleased]
 
+## [1.48.2] - 2026-11-28
+
+### Fixed
+- Fan Profiles: changing a curve point's **temperature** in the edit dialog had no effect; only the fan speed was taken over. Both are now applied, and the point moves to its place in the list and the graph. A value typed into the dialog without pressing Enter is taken over as well.
+- Test: editing a curve point (temperature, re-sorting, fan speed only, a new point).
+
 ## [1.48.1] - 2026-11-27
 
 ### Changed
@@ -1140,7 +1146,8 @@ Programs and services were named `dudes-control-center-*` before 1.19.0 (for exa
 - Unix socket IPC between GUI and daemon
 - Watchdog timer and fail-safe mode in daemon
 
-[Unreleased]: https://github.com/dudewayne/Dudes-Control-Center/compare/v1.48.1...HEAD
+[Unreleased]: https://github.com/dudewayne/Dudes-Control-Center/compare/v1.48.2...HEAD
+[1.48.2]: https://github.com/dudewayne/Dudes-Control-Center/compare/v1.48.1...v1.48.2
 [1.48.1]: https://github.com/dudewayne/Dudes-Control-Center/compare/v1.48.0...v1.48.1
 [1.48.0]: https://github.com/dudewayne/Dudes-Control-Center/compare/v1.47.0...v1.48.0
 [1.47.0]: https://github.com/dudewayne/Dudes-Control-Center/compare/v1.46.0...v1.47.0

@@ -1399,6 +1399,39 @@ int main(int argc, char **argv) {
         g_object_unref(page);
     }
 
+    /* Curve editor: editing a curve point changes its temperature too (1.48.2) */
+    {
+        static AppData ca;
+        ca.curve_store = gtk_list_store_new(2, G_TYPE_STRING, G_TYPE_INT);
+        int t0[] = { 20, 50, 70 }, f0[] = { 20, 50, 80 };
+        for (int i = 0; i < 3; i++) {
+            GtkTreeIter it; char ts[16];
+            g_snprintf(ts, sizeof ts, "%d°C", t0[i]);
+            gtk_list_store_append(ca.curve_store, &it);
+            gtk_list_store_set(ca.curve_store, &it, 0, ts, 1, f0[i], -1);
+        }
+        char got[128];
+        #define CURVE_ROWS(buf) do { GtkTreeIter it; size_t o = 0; (buf)[0] = 0; \
+            if (gtk_tree_model_get_iter_first(GTK_TREE_MODEL(ca.curve_store), &it)) do { \
+                gchar *t; int f; gtk_tree_model_get(GTK_TREE_MODEL(ca.curve_store), &it, 0, &t, 1, &f, -1); \
+                o += (size_t)g_snprintf((buf) + o, sizeof(buf) - o, "%d:%d ", atoi(t), f); g_free(t); \
+            } while (gtk_tree_model_iter_next(GTK_TREE_MODEL(ca.curve_store), &it)); } while (0)
+        curve_point_apply(&ca, 1, 60, 50);              /* 50 degC -> 60 degC */
+        CURVE_ROWS(got);
+        CHECK(!strcmp(got, "20:20 60:50 70:80 "), "Curve: a curve point's temperature changes when edited");
+        curve_point_apply(&ca, 1, 90, 55);              /* past the next point: sorted again */
+        CURVE_ROWS(got);
+        CHECK(!strcmp(got, "20:20 70:80 90:55 "), "Curve: an edited point is sorted by its new temperature");
+        curve_point_apply(&ca, 0, 20, 35);              /* fan speed only */
+        CURVE_ROWS(got);
+        CHECK(!strcmp(got, "20:35 70:80 90:55 "), "Curve: changing only the fan speed keeps the temperature");
+        curve_point_apply(&ca, -1, 40, 30);             /* new point */
+        CURVE_ROWS(got);
+        CHECK(!strcmp(got, "20:35 40:30 70:80 90:55 "), "Curve: a new point is added in temperature order");
+        #undef CURVE_ROWS
+        g_object_unref(ca.curve_store);
+    }
+
     /* Q: a daemon restart is not an error in the GUI log (1.44.1) */
     {
         log_init("GUI", LOG_LEVEL_INFO, logdir);

@@ -481,6 +481,49 @@ static int has_duplicate_temperature(AppData *app, int temp, gint index_to_exclu
     return 0; /* No duplicate */
 }
 
+/* Add a point (edit_index < 0) or change the point in row edit_index - its
+ * temperature and fan speed - and show the points sorted by temperature.
+ * Editing used to keep the old temperature, so a changed temperature did
+ * nothing (fixed in 1.48.2). */
+static void curve_point_apply(AppData *app, gint edit_index, int temp, int fan_pct) {
+    CurvePoint all_points[MAX_CURVE_POINTS];
+    int point_count = 0;
+    GtkTreeIter iter;
+    if (gtk_tree_model_get_iter_first(GTK_TREE_MODEL(app->curve_store), &iter)) {
+        do {
+            gchar *temp_str;
+            int fpct;
+            gtk_tree_model_get(GTK_TREE_MODEL(app->curve_store), &iter, 0, &temp_str, 1, &fpct, -1);
+            if (point_count < MAX_CURVE_POINTS) {
+                all_points[point_count].temp = atoi(temp_str);
+                all_points[point_count].fan_pct = fpct;
+                point_count++;
+            }
+            g_free(temp_str);
+        } while (gtk_tree_model_iter_next(GTK_TREE_MODEL(app->curve_store), &iter));
+    }
+
+    if (edit_index >= 0 && edit_index < point_count) {
+        all_points[edit_index].temp = temp;
+        all_points[edit_index].fan_pct = fan_pct;
+    } else if (edit_index < 0 && point_count < MAX_CURVE_POINTS) {
+        all_points[point_count].temp = temp;
+        all_points[point_count].fan_pct = fan_pct;
+        point_count++;
+    }
+
+    if (point_count > 1)
+        qsort(all_points, point_count, sizeof(CurvePoint), compare_curve_points_asc);
+
+    gtk_list_store_clear(GTK_LIST_STORE(app->curve_store));
+    for (int i = 0; i < point_count; i++) {
+        char temp_str[16];
+        snprintf(temp_str, sizeof(temp_str), "%d°C", all_points[i].temp);
+        gtk_list_store_append(GTK_LIST_STORE(app->curve_store), &iter);
+        gtk_list_store_set(GTK_LIST_STORE(app->curve_store), &iter, 0, temp_str, 1, all_points[i].fan_pct, -1);
+    }
+}
+
 /* Callback: Add or edit curve point via dialog */
 static void show_curve_point_dialog(AppData *app, GtkTreeIter *edit_iter, int edit_temp, int edit_fan_pct) {
     GtkWidget *dialog = gtk_dialog_new_with_buttons(
@@ -529,7 +572,10 @@ static void show_curve_point_dialog(AppData *app, GtkTreeIter *edit_iter, int ed
         return;
     }
 
-    /* User clicked Add/Update - proceed with the operation */
+    /* User clicked Add/Update - proceed with the operation. A value typed
+     * without Enter is taken over first. */
+    gtk_spin_button_update(GTK_SPIN_BUTTON(temp_entry));
+    gtk_spin_button_update(GTK_SPIN_BUTTON(fan_entry));
     int temp = gtk_spin_button_get_value_as_int(GTK_SPIN_BUTTON(temp_entry));
     int fan_pct = gtk_spin_button_get_value_as_int(GTK_SPIN_BUTTON(fan_entry));
 
@@ -559,60 +605,7 @@ static void show_curve_point_dialog(AppData *app, GtkTreeIter *edit_iter, int ed
         return;
     }
 
-    /* Collect all existing points plus the new/edited point */
-    CurvePoint all_points[MAX_CURVE_POINTS];
-    int point_count = 0;
-
-    GtkTreeIter iter;
-    if (gtk_tree_model_get_iter_first(GTK_TREE_MODEL(app->curve_store), &iter)) {
-        do {
-            gchar *temp_str;
-            int fpct;
-            gtk_tree_model_get(GTK_TREE_MODEL(app->curve_store), &iter,
-                              0, &temp_str, 1, &fpct, -1);
-            if (point_count < MAX_CURVE_POINTS) {
-                all_points[point_count].temp = atoi(temp_str);
-                all_points[point_count].fan_pct = fpct;
-                point_count++;
-            }
-            g_free(temp_str);
-        } while (gtk_tree_model_iter_next(GTK_TREE_MODEL(app->curve_store), &iter));
-    }
-
-    /* If editing, update the existing point; otherwise add new point */
-    if (edit_iter) {
-        /* Find and update the edited point in our array */
-        for (int i = 0; i < point_count; i++) {
-            if (all_points[i].temp == edit_temp) {
-                all_points[i].fan_pct = fan_pct;
-                break;
-            }
-        }
-    } else {
-        /* Add new point */
-        if (point_count < MAX_CURVE_POINTS) {
-            all_points[point_count].temp = temp;
-            all_points[point_count].fan_pct = fan_pct;
-            point_count++;
-        }
-    }
-
-    /* Sort by temperature ascending */
-    if (point_count > 1) {
-        qsort(all_points, point_count, sizeof(CurvePoint), compare_curve_points_asc);
-    }
-
-    /* Clear and repopulate the tree view with sorted points */
-    gtk_list_store_clear(GTK_LIST_STORE(app->curve_store));
-    for (int i = 0; i < point_count; i++) {
-        char temp_str[16];
-        snprintf(temp_str, sizeof(temp_str), "%d°C", all_points[i].temp);
-        gtk_list_store_append(GTK_LIST_STORE(app->curve_store), &iter);
-        gtk_list_store_set(GTK_LIST_STORE(app->curve_store), &iter,
-                          0, temp_str,
-                          1, all_points[i].fan_pct,
-                          -1);
-    }
+    curve_point_apply(app, edit_index, temp, fan_pct);
 
     if (edit_iter) {
         show_status(app, _("Curve point updated (click Save to keep it)"));
