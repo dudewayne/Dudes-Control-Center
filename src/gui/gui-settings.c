@@ -546,6 +546,16 @@ static void settings_update_hw(AppData *app) {
 
 /* Settings: the direct EC access switch follows the opt-in file; the label
  * says whether it is used */
+/* The sidebar marks the "Other laptops" page while direct EC access is
+ * switched on (1.49.0) */
+static void settings_other_mark(AppData *app, int on) {
+    if (!app->settings_stack || !app->settings_other_page || app->settings_other_warn == on + 1) return;
+    gchar *title = on ? g_strdup_printf("%s \u26a0", _("Other laptops")) : g_strdup(_("Other laptops"));
+    gtk_container_child_set(GTK_CONTAINER(app->settings_stack), app->settings_other_page, "title", title, NULL);
+    g_free(title);
+    app->settings_other_warn = on + 1;
+}
+
 static void settings_update_ec(AppData *app) {
     if (!app->settings_ec_switch) return;
     int on = ec_direct_allowed();
@@ -565,6 +575,7 @@ static void settings_update_ec(AppData *app) {
     else t = on ? _("On") : _("Off");
     label_set_changed(app->settings_ec_state, t);
     tooltip_set_changed(app->settings_ec_state, app->ec_reason[0] ? app->ec_reason : NULL);
+    settings_other_mark(app, on);
     settings_update_hw(app);
 }
 
@@ -845,9 +856,43 @@ static void on_settings_bat_changed(GtkComboBox *combo, gpointer user_data) {
     g_free(msg);
 }
 
+/* One page of the Settings stack (1.49.0): a scrolled window holding a
+ * vertical box; returns the box to fill */
+static GtkWidget *settings_stack_page(AppData *app, const char *name, const char *title) {
+    GtkWidget *box = gtk_box_new(GTK_ORIENTATION_VERTICAL, 10);
+    gtk_container_set_border_width(GTK_CONTAINER(box), 12);
+    GtkWidget *scrolled = gtk_scrolled_window_new(NULL, NULL);
+    gtk_scrolled_window_set_policy(GTK_SCROLLED_WINDOW(scrolled), GTK_POLICY_NEVER, GTK_POLICY_AUTOMATIC);
+    gtk_container_add(GTK_CONTAINER(scrolled), box);
+    gtk_stack_add_titled(GTK_STACK(app->settings_stack), scrolled, name, title);
+    return box;
+}
+
+/* The page shown is remembered in config.json ("settings_page") */
+static void on_settings_page_changed(GObject *stack, GParamSpec *pspec, gpointer user_data) {
+    (void)pspec;
+    (void)user_data;
+    const char *name = gtk_stack_get_visible_child_name(GTK_STACK(stack));
+    if (!name) return;
+    cJSON *json = config_read();
+    cJSON *v = cJSON_GetObjectItem(json, "settings_page");
+    if (!cJSON_IsString(v) || strcmp(v->valuestring, name)) {
+        cJSON_DeleteItemFromObject(json, "settings_page");
+        cJSON_AddStringToObject(json, "settings_page", name);
+        config_write(json);
+    }
+    cJSON_Delete(json);
+}
+
 static GtkWidget *create_settings_page(AppData *app) {
-    GtkWidget *vbox = gtk_box_new(GTK_ORIENTATION_VERTICAL, 10);
-    gtk_container_set_border_width(GTK_CONTAINER(vbox), 12);
+    /* Four pages with a sidebar (1.49.0); each page scrolls on its own */
+    app->settings_stack = gtk_stack_new();
+    gtk_stack_set_transition_type(GTK_STACK(app->settings_stack), GTK_STACK_TRANSITION_TYPE_CROSSFADE);
+    GtkWidget *pg_general = settings_stack_page(app, "general", _("General"));
+    GtkWidget *pg_components = settings_stack_page(app, "components", _("Components"));
+    GtkWidget *pg_hardware = settings_stack_page(app, "hardware", _("Hardware"));
+    GtkWidget *pg_other = settings_stack_page(app, "other", _("Other laptops"));
+    app->settings_other_page = gtk_widget_get_parent(gtk_widget_get_parent(pg_other));   /* the stack child */
 
     GtkWidget *frame = gtk_frame_new(_("Components"));
     GtkWidget *grid = gtk_grid_new();
@@ -894,15 +939,34 @@ static GtkWidget *create_settings_page(AppData *app) {
         gtk_label_set_xalign(GTK_LABEL(app->settings_state[c]), 0.0);
         gtk_grid_attach(GTK_GRID(grid), app->settings_state[c], 2, row, 1, 1);
     }
+    gtk_grid_attach(GTK_GRID(grid), settings_note(_("Switching asks for the administrator password and takes effect right away. "
+                                                    "The setting applies to the whole system and stays after reboots and updates.")),
+                    0, COMP_COUNT, 3, 1);
+    gtk_container_add(GTK_CONTAINER(frame), grid);
+    gtk_box_pack_start(GTK_BOX(pg_components), frame, FALSE, FALSE, 0);
+
+    /* Other laptops (1.49.0): generic fan control and direct EC access on
+     * their own page, so nobody switches them on by the way */
+    GtkWidget *other_intro = gtk_label_new(_("Only for laptops without the Clevo interface (no dcc_fan module). On Clevo "
+                                             "laptops with the module, nothing here is needed."));
+    gtk_label_set_xalign(GTK_LABEL(other_intro), 0.0);
+    gtk_label_set_line_wrap(GTK_LABEL(other_intro), TRUE);
+    gtk_label_set_max_width_chars(GTK_LABEL(other_intro), 110);
+    gtk_box_pack_start(GTK_BOX(pg_other), other_intro, FALSE, FALSE, 0);
+    frame = gtk_frame_new(_("Fan control"));
+    grid = gtk_grid_new();
+    gtk_container_set_border_width(GTK_CONTAINER(grid), 10);
+    gtk_grid_set_row_spacing(GTK_GRID(grid), 14);
+    gtk_grid_set_column_spacing(GTK_GRID(grid), 14);
     /* Generic fan control (1.43.0): off by default, short warning */
     {
         app->settings_hw_switch = gtk_switch_new();
         gtk_widget_set_valign(app->settings_hw_switch, GTK_ALIGN_START);
         app->settings_hw_sig = g_signal_connect(app->settings_hw_switch, "state-set", G_CALLBACK(on_settings_hw_switch), app);
-        gtk_grid_attach(GTK_GRID(grid), app->settings_hw_switch, 0, COMP_COUNT, 1, 1);
+        gtk_grid_attach(GTK_GRID(grid), app->settings_hw_switch, 0, 0, 1, 1);
         GtkWidget *box = gtk_box_new(GTK_ORIENTATION_VERTICAL, 2);
         GtkWidget *title = gtk_label_new(NULL);
-        gchar *m = g_markup_printf_escaped("<b>%s</b>", _("Generic fan control (other laptops)"));
+        gchar *m = g_markup_printf_escaped("<b>%s</b>", _("Generic fan control"));
         gtk_label_set_markup(GTK_LABEL(title), m);
         g_free(m);
         gtk_label_set_xalign(GTK_LABEL(title), 0.0);
@@ -915,18 +979,18 @@ static GtkWidget *create_settings_page(AppData *app) {
         gtk_box_pack_start(GTK_BOX(box), title, FALSE, FALSE, 0);
         gtk_box_pack_start(GTK_BOX(box), text, FALSE, FALSE, 0);
         gtk_widget_set_hexpand(box, TRUE);
-        gtk_grid_attach(GTK_GRID(grid), box, 1, COMP_COUNT, 1, 1);
+        gtk_grid_attach(GTK_GRID(grid), box, 1, 0, 1, 1);
         app->settings_hw_state = gtk_label_new("");
         gtk_widget_set_valign(app->settings_hw_state, GTK_ALIGN_START);
         gtk_label_set_xalign(GTK_LABEL(app->settings_hw_state), 0.0);
-        gtk_grid_attach(GTK_GRID(grid), app->settings_hw_state, 2, COMP_COUNT, 1, 1);
+        gtk_grid_attach(GTK_GRID(grid), app->settings_hw_state, 2, 0, 1, 1);
     }
     /* Direct EC access (1.41.0): off by default, with a warning */
     {
         app->settings_ec_switch = gtk_switch_new();
         gtk_widget_set_valign(app->settings_ec_switch, GTK_ALIGN_START);
         app->settings_ec_sig = g_signal_connect(app->settings_ec_switch, "state-set", G_CALLBACK(on_settings_ec_switch), app);
-        gtk_grid_attach(GTK_GRID(grid), app->settings_ec_switch, 0, COMP_COUNT + 1, 1, 1);
+        gtk_grid_attach(GTK_GRID(grid), app->settings_ec_switch, 0, 1, 1, 1);
         GtkWidget *box = gtk_box_new(GTK_ORIENTATION_VERTICAL, 2);
         GtkWidget *title = gtk_label_new(NULL);
         gchar *m = g_markup_printf_escaped("<b>%s</b>", _("Direct EC access (unsupported hardware)"));
@@ -942,24 +1006,24 @@ static GtkWidget *create_settings_page(AppData *app) {
         gtk_box_pack_start(GTK_BOX(box), title, FALSE, FALSE, 0);
         gtk_box_pack_start(GTK_BOX(box), text, FALSE, FALSE, 0);
         gtk_widget_set_hexpand(box, TRUE);
-        gtk_grid_attach(GTK_GRID(grid), box, 1, COMP_COUNT + 1, 1, 1);
+        gtk_grid_attach(GTK_GRID(grid), box, 1, 1, 1, 1);
         app->settings_ec_state = gtk_label_new("");
         gtk_widget_set_valign(app->settings_ec_state, GTK_ALIGN_START);
         gtk_label_set_xalign(GTK_LABEL(app->settings_ec_state), 0.0);
-        gtk_grid_attach(GTK_GRID(grid), app->settings_ec_state, 2, COMP_COUNT + 1, 1, 1);
+        gtk_grid_attach(GTK_GRID(grid), app->settings_ec_state, 2, 1, 1, 1);
     }
 
     /* The note belongs to the switches above (1.40.1: was at the bottom of the page) */
     gtk_grid_attach(GTK_GRID(grid), settings_note(_("Switching asks for the administrator password and takes effect right away. "
                                                     "The setting applies to the whole system and stays after reboots and updates.")),
-                    0, COMP_COUNT + 2, 3, 1);
+                    0, 2, 3, 1);
     gtk_container_add(GTK_CONTAINER(frame), grid);
-    gtk_box_pack_start(GTK_BOX(vbox), frame, FALSE, FALSE, 0);
+    gtk_box_pack_start(GTK_BOX(pg_other), frame, FALSE, FALSE, 0);
 
     /* Language & Display (1.40.1): language (1.31.0), keyboard layout
      * (1.28.0) and dark/light mode (1.29.0) in one grid, labels aligned */
     {
-        GtkWidget *dframe = gtk_frame_new(_("Language & Display"));
+        GtkWidget *dframe = gtk_frame_new(_("Language & Display"));   /* General page */
         GtkWidget *g = settings_grid();
         int r = 0;
 
@@ -985,14 +1049,6 @@ static GtkWidget *create_settings_page(AppData *app) {
         app->settings_language_note = settings_note("");
         settings_grid_row(g, &r, _("Language:"), lrow, app->settings_language_note);
 
-        app->settings_layout_combo = gtk_combo_box_text_new();
-        for (int i = 0; i < KBD_NUM_LAYOUTS; i++)
-            gtk_combo_box_text_append(GTK_COMBO_BOX_TEXT(app->settings_layout_combo), kbd_layouts[i].code, _(kbd_layouts[i].label));
-        gtk_combo_box_set_active_id(GTK_COMBO_BOX(app->settings_layout_combo), kbd_layout_code);
-        g_signal_connect(app->settings_layout_combo, "changed", G_CALLBACK(on_settings_layout_changed), app);
-        app->settings_layout_note = settings_note("");
-        settings_grid_row(g, &r, _("Keyboard layout:"), app->settings_layout_combo, app->settings_layout_note);
-
         app->settings_appearance_combo = gtk_combo_box_text_new();
         gtk_combo_box_text_append(GTK_COMBO_BOX_TEXT(app->settings_appearance_combo), "system", _("Follow the system"));
         gtk_combo_box_text_append(GTK_COMBO_BOX_TEXT(app->settings_appearance_combo), "dark", _("Dark"));
@@ -1003,9 +1059,8 @@ static GtkWidget *create_settings_page(AppData *app) {
         settings_grid_row(g, &r, _("Mode:"), app->settings_appearance_combo, app->settings_appearance_note);
 
         gtk_container_add(GTK_CONTAINER(dframe), g);
-        gtk_box_pack_start(GTK_BOX(vbox), dframe, FALSE, FALSE, 0);
+        gtk_box_pack_start(GTK_BOX(pg_general), dframe, FALSE, FALSE, 0);
         settings_update_language_note(app);
-        settings_update_layout_note(app);
         settings_update_appearance_note(app);
     }
 
@@ -1040,10 +1095,10 @@ static GtkWidget *create_settings_page(AppData *app) {
                                           "power. The daemons control fans and CPU on their own schedule.")));
 
         gtk_container_add(GTK_CONTAINER(bframe), g);
-        gtk_box_pack_start(GTK_BOX(vbox), bframe, FALSE, FALSE, 0);
+        gtk_box_pack_start(GTK_BOX(pg_general), bframe, FALSE, FALSE, 0);
     }
 
-    /* Battery (1.46.0): charge limit through the CPU daemon */
+    /* Battery (1.46.0): charge limit through the CPU daemon (Hardware page) */
     {
         GtkWidget *bframe = gtk_frame_new(_("Battery"));
         GtkWidget *g = settings_grid();
@@ -1062,11 +1117,45 @@ static GtkWidget *create_settings_page(AppData *app) {
         app->settings_bat_note = settings_note("");   /* filled by settings_update_battery() */
         settings_grid_row(g, &r, _("Charge limit:"), app->settings_bat_combo, app->settings_bat_note);
         gtk_container_add(GTK_CONTAINER(bframe), g);
-        gtk_box_pack_start(GTK_BOX(vbox), bframe, FALSE, FALSE, 0);
+        gtk_box_pack_start(GTK_BOX(pg_hardware), bframe, FALSE, FALSE, 0);
         if (!app->bat_limit_seen) app->bat_limit = -2;
         settings_update_battery(app);
     }
 
+    /* Keyboard layout (1.28.0): describes the keyboard, so on the Hardware page (1.49.0) */
+    {
+        GtkWidget *kframe = gtk_frame_new(_("Keyboard"));
+        GtkWidget *g = settings_grid();
+        int r = 0;
+        app->settings_layout_combo = gtk_combo_box_text_new();
+        for (int i = 0; i < KBD_NUM_LAYOUTS; i++)
+            gtk_combo_box_text_append(GTK_COMBO_BOX_TEXT(app->settings_layout_combo), kbd_layouts[i].code, _(kbd_layouts[i].label));
+        gtk_combo_box_set_active_id(GTK_COMBO_BOX(app->settings_layout_combo), kbd_layout_code);
+        g_signal_connect(app->settings_layout_combo, "changed", G_CALLBACK(on_settings_layout_changed), app);
+        app->settings_layout_note = settings_note("");
+        settings_grid_row(g, &r, _("Keyboard layout:"), app->settings_layout_combo, app->settings_layout_note);
+        gtk_container_add(GTK_CONTAINER(kframe), g);
+        gtk_box_pack_start(GTK_BOX(pg_hardware), kframe, FALSE, FALSE, 0);
+        settings_update_layout_note(app);
+    }
+
+    /* sidebar | pages; the page last shown comes back */
+    GtkWidget *sidebar = gtk_stack_sidebar_new();
+    gtk_stack_sidebar_set_stack(GTK_STACK_SIDEBAR(sidebar), GTK_STACK(app->settings_stack));
+    gtk_widget_set_size_request(sidebar, 170, -1);
+    GtkWidget *hbox = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 0);
+    gtk_box_pack_start(GTK_BOX(hbox), sidebar, FALSE, FALSE, 0);
+    gtk_box_pack_start(GTK_BOX(hbox), app->settings_stack, TRUE, TRUE, 0);
+    gtk_widget_show_all(hbox);                       /* a stack shows only visible children */
+    {
+        cJSON *json = config_read();
+        cJSON *v = cJSON_GetObjectItem(json, "settings_page");
+        if (cJSON_IsString(v) && gtk_stack_get_child_by_name(GTK_STACK(app->settings_stack), v->valuestring))
+            gtk_stack_set_visible_child_name(GTK_STACK(app->settings_stack), v->valuestring);
+        cJSON_Delete(json);
+    }
+    g_signal_connect(app->settings_stack, "notify::visible-child-name", G_CALLBACK(on_settings_page_changed), app);
+
     settings_sync_switches(app);
-    return vbox;
+    return hbox;
 }

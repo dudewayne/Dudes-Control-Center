@@ -1,5 +1,5 @@
 .\" SPDX-License-Identifier: GPL-2.0-only
-.TH DCC-GUI 1 2026-11-27 "Dudes Control Center @VERSION@" "User Commands"
+.TH DCC-GUI 1 2026-11-28 "Dudes Control Center @VERSION@" "User Commands"
 .nh
 .SH NAME
 dcc-gui \- desktop application of Dudes Control Center
@@ -46,12 +46,16 @@ Wave) per zone or for the base color, brightness, on/off and the LED wizard
 that maps keys to LEDs.
 .TP
 .B Settings
-Language, appearance (system, dark, light), refresh interval of the live
-values (1, 2, 3, 5 or 10 seconds), start minimized to the tray or with the
-window open, keyboard layout, and switching
-the fan, CPU or keyboard part on or off, generic fan control and direct EC
-access for laptops without the Clevo interface (asks for the administrator
-password, see
+Four pages, chosen in a list on the left; the page shown last comes back.
+General: language, appearance (system, dark, light), start minimized to the
+tray or with the window open, refresh interval of the live values (1, 2, 3,
+5 or 10 seconds).
+Components: switching the fan, CPU or keyboard part on or off.
+Hardware: the battery charge limit and the keyboard layout.
+Other laptops: generic fan control and direct EC access for laptops without
+the Clevo interface, marked in the list while direct EC access is on.
+Switching components and the two options for other laptops asks for the
+administrator password (see
 .BR dcc-component (8)).
 .TP
 .B Logs

@@ -1145,6 +1145,9 @@ msgstr "Ein, aber kein Lüfter mit manuellem Modus gefunden"
 msgid "Off: no fan with a manual mode found"
 msgstr "Aus: kein Lüfter mit manuellem Modus gefunden"
 
+msgid "Other laptops"
+msgstr "Andere Laptops"
+
 msgid "On, in use"
 msgstr "Ein, in Verwendung"
 
@@ -1221,6 +1224,9 @@ msgstr "Nicht geändert: %s"
 msgid "no answer from the CPU daemon"
 msgstr "keine Antwort vom CPU-Daemon"
 
+msgid "General"
+msgstr "Allgemein"
+
 msgid "Components"
 msgstr "Komponenten"
 
@@ -1243,8 +1249,11 @@ msgstr "CPU-Daemon und Hardlimit-Timer, Tab CPU-Profile, CPU-Profile im Tray-Men
 msgid "Keyboard daemon, Keyboard Backlight tab, keyboard profiles in the tray menu. The LEDs keep their last colors."
 msgstr "Tastatur-Daemon, Tab Tastaturbeleuchtung, Tastaturprofile im Tray-Menü. Die LEDs behalten ihre letzten Farben."
 
-msgid "Generic fan control (other laptops)"
-msgstr "Allgemeine Lüftersteuerung (andere Laptops)"
+msgid "Switching asks for the administrator password and takes effect right away. The setting applies to the whole system and stays after reboots and updates."
+msgstr "Das Umschalten fragt nach dem Administratorpasswort und wirkt sofort. Die Einstellung gilt systemweit und bleibt nach Neustarts und Updates erhalten."
+
+msgid "Only for laptops without the Clevo interface (no dcc_fan module). On Clevo laptops with the module, nothing here is needed."
+msgstr "Nur für Laptops ohne die Clevo-Schnittstelle (kein dcc_fan-Modul). Auf Clevo-Laptops mit dem Modul wird hier nichts gebraucht."
 
 msgid "For laptops without the Clevo interface whose fan driver offers a manual mode (for example ThinkPad, Dell): the fan daemon sets the fan speed through the kernel's standard interface. Off: the driver controls the fans."
 msgstr "Für Laptops ohne die Clevo-Schnittstelle, deren Lüftertreiber einen manuellen Modus bietet (zum Beispiel ThinkPad, Dell): Der Lüfter-Daemon stellt die Lüfterdrehzahl über die Standardschnittstelle des Kernels ein. Aus: Der Treiber steuert die Lüfter."
@@ -1255,9 +1264,6 @@ msgstr "Direkter EC-Zugriff (nicht unterstützte Hardware)"
 msgid "Only for Clevo-based laptops where the dcc_fan module does not load. The fan daemon then writes directly to the Embedded Controller; on other laptops this can damage the hardware. Off: without the module, the firmware controls the fans."
 msgstr "Nur für Clevo-basierte Laptops, auf denen das dcc_fan-Modul nicht lädt. Der Lüfter-Daemon schreibt dann direkt in den Embedded Controller; auf anderen Laptops kann das die Hardware beschädigen. Aus: Ohne das Modul steuert die Firmware die Lüfter."
 
-msgid "Switching asks for the administrator password and takes effect right away. The setting applies to the whole system and stays after reboots and updates."
-msgstr "Das Umschalten fragt nach dem Administratorpasswort und wirkt sofort. Die Einstellung gilt systemweit und bleibt nach Neustarts und Updates erhalten."
-
 msgid "Language & Display"
 msgstr "Sprache & Anzeige"
 
@@ -1266,9 +1272,6 @@ msgstr "Jetzt neu starten"
 
 msgid "Language:"
 msgstr "Sprache:"
-
-msgid "Keyboard layout:"
-msgstr "Tastaturlayout:"
 
 msgid "Follow the system"
 msgstr "System folgen"
@@ -1309,6 +1312,9 @@ msgstr "Aus (lädt bis 100 %)"
 
 msgid "Charge limit:"
 msgstr "Ladegrenze:"
+
+msgid "Keyboard layout:"
+msgstr "Tastaturlayout:"
 
 msgid "Show Application"
 msgstr "Anwendung anzeigen"

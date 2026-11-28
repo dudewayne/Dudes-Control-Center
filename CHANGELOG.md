@@ -6,6 +6,18 @@ Programs and services were named `dudes-control-center-*` before 1.19.0 (for exa
 
 ## [Unreleased]
 
+## [1.49.0] - 2026-11-28
+
+### Changed
+- **Settings tab with four pages**, chosen in a list on the left instead of one long column:
+  - **General**: language, dark/light mode, start minimized, refresh interval;
+  - **Components**: CPU control, fan control, keyboard backlight;
+  - **Hardware**: battery charge limit, keyboard layout;
+  - **Other laptops**: generic fan control and direct EC access, with a note that they are only for laptops without the Clevo interface, so nobody switches them on while looking for something else. While direct EC access is on, the page is marked with ⚠ in the list.
+- The Settings tab shows the page that was open last (`settings_page` in `config.json`). Each page scrolls on its own.
+- "Generic fan control (other laptops)" is now just "Generic fan control", since it is on the Other laptops page.
+- Tests: every Settings row on its page, the remembered page, the warning mark.
+
 ## [1.48.2] - 2026-11-28
 
 ### Fixed
@@ -1146,7 +1158,8 @@ Programs and services were named `dudes-control-center-*` before 1.19.0 (for exa
 - Unix socket IPC between GUI and daemon
 - Watchdog timer and fail-safe mode in daemon
 
-[Unreleased]: https://github.com/dudewayne/Dudes-Control-Center/compare/v1.48.2...HEAD
+[Unreleased]: https://github.com/dudewayne/Dudes-Control-Center/compare/v1.49.0...HEAD
+[1.49.0]: https://github.com/dudewayne/Dudes-Control-Center/compare/v1.48.2...v1.49.0
 [1.48.2]: https://github.com/dudewayne/Dudes-Control-Center/compare/v1.48.1...v1.48.2
 [1.48.1]: https://github.com/dudewayne/Dudes-Control-Center/compare/v1.48.0...v1.48.1
 [1.48.0]: https://github.com/dudewayne/Dudes-Control-Center/compare/v1.47.0...v1.48.0

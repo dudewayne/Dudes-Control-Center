@@ -76,6 +76,20 @@ static const char *SEED =
     "\"keyboard_profiles\":{\"active_profile_index\":0,\"profiles\":[{\"name\":\"MyKeyboard\",\"zones\":[]}]},"
     "\"custom_key\":42}";
 
+/* Name of the Settings page a widget is on (1.49.0) */
+static const char *settings_page_of(GtkWidget *stack, GtkWidget *w) {
+    static gchar name[32];
+    while (w && gtk_widget_get_parent(w) != stack) w = gtk_widget_get_parent(w);
+    name[0] = 0;
+    if (w) {
+        gchar *n = NULL;
+        gtk_container_child_get(GTK_CONTAINER(stack), w, "name", &n, NULL);
+        g_strlcpy(name, n ? n : "", sizeof name);
+        g_free(n);
+    }
+    return name;
+}
+
 int main(int argc, char **argv) {
     (void)argc;
     const char *home = argv[1];
@@ -943,6 +957,41 @@ int main(int argc, char **argv) {
         CHECK(!strcmp(gtk_label_get_text(GTK_LABEL(sa.settings_hw_state)), "On, in use: thinkpad") &&
               !strcmp(gtk_label_get_text(GTK_LABEL(sa.settings_ec_state)), "Not needed: generic fan control in use"),
               "O: generic fan control in use: both rows say so");
+        /* Settings pages (1.49.0): every row on its page, page remembered, warning mark */
+        {
+            #define PAGE_OF(w) settings_page_of(sa.settings_stack, (w))
+            CHECK(!strcmp(PAGE_OF(sa.settings_language_combo), "general") &&
+                  !strcmp(PAGE_OF(sa.settings_appearance_combo), "general") &&
+                  !strcmp(PAGE_OF(sa.settings_minimized_switch), "general") &&
+                  !strcmp(PAGE_OF(sa.settings_refresh_combo), "general"),
+                  "O: settings: language, mode, start minimized, refresh interval on General");
+            CHECK(!strcmp(PAGE_OF(sa.settings_switch[COMP_CPU]), "components") &&
+                  !strcmp(PAGE_OF(sa.settings_switch[COMP_FAN]), "components") &&
+                  !strcmp(PAGE_OF(sa.settings_switch[COMP_KEYBOARD]), "components"),
+                  "O: settings: the three component switches on Components");
+            CHECK(!strcmp(PAGE_OF(sa.settings_bat_combo), "hardware") && !strcmp(PAGE_OF(sa.settings_layout_combo), "hardware"),
+                  "O: settings: charge limit and keyboard layout on Hardware");
+            CHECK(!strcmp(PAGE_OF(sa.settings_hw_switch), "other") && !strcmp(PAGE_OF(sa.settings_ec_switch), "other"),
+                  "O: settings: generic fan control and direct EC access on Other laptops");
+            #undef PAGE_OF
+            gchar *t0 = NULL, *t1 = NULL;
+            settings_other_mark(&sa, 1);
+            gtk_container_child_get(GTK_CONTAINER(sa.settings_stack), sa.settings_other_page, "title", &t1, NULL);
+            settings_other_mark(&sa, 0);
+            gtk_container_child_get(GTK_CONTAINER(sa.settings_stack), sa.settings_other_page, "title", &t0, NULL);
+            CHECK(t1 && g_str_has_suffix(t1, "\u26a0") && t0 && !strcmp(t0, "Other laptops"),
+                  "O: settings: Other laptops marked while direct EC access is on");
+            gtk_stack_set_visible_child_name(GTK_STACK(sa.settings_stack), "hardware");
+            static AppData sb;
+            sb.socket_fd = sb.cpu_socket_fd = sb.kbd_socket_fd = -1;
+            GtkWidget *sp2 = create_settings_page(&sb);
+            g_object_ref_sink(sp2);
+            CHECK(!g_strcmp0(gtk_stack_get_visible_child_name(GTK_STACK(sb.settings_stack)), "hardware"),
+                  "O: settings: the page shown last comes back");
+            gtk_stack_set_visible_child_name(GTK_STACK(sb.settings_stack), "general");   /* leave the default for later tests */
+            g_object_unref(sp2);
+            g_free(t0); g_free(t1);
+        }
         gtk_widget_destroy(sa.window);
 
         /* Keyboard tab per kind of keyboard backlight (1.44.0) */

@@ -463,6 +463,9 @@ typedef struct {
     GtkWidget *settings_layout_note;
     int refresh_sec;                   /* refresh interval of the live values (1.40.0) */
     GtkWidget *settings_refresh_combo;
+    /* Settings pages (1.49.0) */
+    GtkWidget *settings_stack, *settings_other_page;
+    int settings_other_warn;           /* sidebar title state: 0 unset, 1 plain, 2 with warning sign */
     /* Battery charge limit (1.46.0), from the CPU daemon's STATUS */
     int bat_limit;                     /* 0-100, -1 not offered, -2 unknown (no answer yet) */
     char bat_limit_dev[64];
@@ -1462,11 +1465,7 @@ GtkWidget *page4 = create_log_page(app);
     gtk_scrolled_window_set_policy(GTK_SCROLLED_WINDOW(kbd_scrolled), GTK_POLICY_NEVER, GTK_POLICY_AUTOMATIC);
     gtk_container_add(GTK_CONTAINER(kbd_scrolled), kbd_page);
 
-    GtkWidget *settings_inner = create_settings_page(app);
-    /* scrollable since the Battery section (1.46.0) made it taller */
-    GtkWidget *settings_page = gtk_scrolled_window_new(NULL, NULL);
-    gtk_scrolled_window_set_policy(GTK_SCROLLED_WINDOW(settings_page), GTK_POLICY_NEVER, GTK_POLICY_AUTOMATIC);
-    gtk_container_add(GTK_CONTAINER(settings_page), settings_inner);
+    GtkWidget *settings_page = create_settings_page(app);   /* pages scroll themselves (1.49.0) */
     app->page_widgets[PAGE_STATUS] = page1;
     app->page_widgets[PAGE_FAN] = page2;
     app->page_widgets[PAGE_CPU] = cpu_scrolled;

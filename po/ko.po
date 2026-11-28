@@ -1177,6 +1177,9 @@ msgstr "켜짐, 하지만 수동 모드가 있는 팬을 찾지 못함"
 msgid "Off: no fan with a manual mode found"
 msgstr "꺼짐: 수동 모드가 있는 팬을 찾지 못함"
 
+msgid "Other laptops"
+msgstr "다른 노트북"
+
 msgid "On, in use"
 msgstr "켜짐, 사용 중"
 
@@ -1253,8 +1256,14 @@ msgstr "변경되지 않음: %s"
 msgid "no answer from the CPU daemon"
 msgstr "CPU 데몬의 응답 없음"
 
+msgid "General"
+msgstr "일반"
+
 msgid "Components"
 msgstr "구성 요소"
+
+msgid "Hardware"
+msgstr "하드웨어"
 
 msgid "Fan control"
 msgstr "팬 제어"
@@ -1275,8 +1284,11 @@ msgstr "CPU 데몬과 최대 한도 타이머, CPU 프로필 탭, 트레이 메�
 msgid "Keyboard daemon, Keyboard Backlight tab, keyboard profiles in the tray menu. The LEDs keep their last colors."
 msgstr "키보드 데몬, 키보드 백라이트 탭, 트레이 메뉴의 키보드 프로필. LED는 마지막 색상을 유지합니다."
 
-msgid "Generic fan control (other laptops)"
-msgstr "일반 팬 제어 (다른 노트북)"
+msgid "Switching asks for the administrator password and takes effect right away. The setting applies to the whole system and stays after reboots and updates."
+msgstr "전환할 때 관리자 암호를 묻고 즉시 적용됩니다. 이 설정은 시스템 전체에 적용되며 재부팅과 업데이트 후에도 유지됩니다."
+
+msgid "Only for laptops without the Clevo interface (no dcc_fan module). On Clevo laptops with the module, nothing here is needed."
+msgstr "Clevo 인터페이스가 없는 노트북 전용입니다 (dcc_fan 모듈 없음). 모듈이 있는 Clevo 노트북에서는 여기서 필요한 것이 없습니다."
 
 msgid "For laptops without the Clevo interface whose fan driver offers a manual mode (for example ThinkPad, Dell): the fan daemon sets the fan speed through the kernel's standard interface. Off: the driver controls the fans."
 msgstr "Clevo 인터페이스가 없고 팬 드라이버가 수동 모드를 제공하는 노트북(예: ThinkPad, Dell)용: 팬 데몬이 커널의 표준 인터페이스를 통해 팬 속도를 설정합니다. 꺼짐: 드라이버가 팬을 제어합니다."
@@ -1287,9 +1299,6 @@ msgstr "EC 직접 접근 (지원되지 않는 하드웨어)"
 msgid "Only for Clevo-based laptops where the dcc_fan module does not load. The fan daemon then writes directly to the Embedded Controller; on other laptops this can damage the hardware. Off: without the module, the firmware controls the fans."
 msgstr "dcc_fan 모듈이 로드되지 않는 Clevo 기반 노트북 전용입니다. 팬 데몬이 Embedded Controller에 직접 씁니다. 다른 노트북에서는 하드웨어가 손상될 수 있습니다. 꺼짐: 모듈이 없으면 펌웨어가 팬을 제어합니다."
 
-msgid "Switching asks for the administrator password and takes effect right away. The setting applies to the whole system and stays after reboots and updates."
-msgstr "전환할 때 관리자 암호를 묻고 즉시 적용됩니다. 이 설정은 시스템 전체에 적용되며 재부팅과 업데이트 후에도 유지됩니다."
-
 msgid "Language & Display"
 msgstr "언어 및 표시"
 
@@ -1298,9 +1307,6 @@ msgstr "지금 다시 시작"
 
 msgid "Language:"
 msgstr "언어:"
-
-msgid "Keyboard layout:"
-msgstr "키보드 레이아웃:"
 
 msgid "Follow the system"
 msgstr "시스템 따르기"
@@ -1341,6 +1347,9 @@ msgstr "끄기 (100%까지 충전)"
 
 msgid "Charge limit:"
 msgstr "충전 한도:"
+
+msgid "Keyboard layout:"
+msgstr "키보드 레이아웃:"
 
 msgid "Show Application"
 msgstr "애플리케이션 표시"

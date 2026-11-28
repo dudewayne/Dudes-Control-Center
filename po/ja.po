@@ -1174,6 +1174,9 @@ msgstr "オン、ただし手動モードのあるファンが見つかりませ
 msgid "Off: no fan with a manual mode found"
 msgstr "オフ: 手動モードのあるファンが見つかりません"
 
+msgid "Other laptops"
+msgstr "その他のノートPC"
+
 msgid "On, in use"
 msgstr "オン、使用中"
 
@@ -1250,8 +1253,14 @@ msgstr "変更されていません: %s"
 msgid "no answer from the CPU daemon"
 msgstr "CPU デーモンから応答がありません"
 
+msgid "General"
+msgstr "一般"
+
 msgid "Components"
 msgstr "コンポーネント"
+
+msgid "Hardware"
+msgstr "ハードウェア"
 
 msgid "Fan control"
 msgstr "ファン制御"
@@ -1272,8 +1281,11 @@ msgstr "CPU デーモンと上限タイマー、CPU プロファイルタブ、�
 msgid "Keyboard daemon, Keyboard Backlight tab, keyboard profiles in the tray menu. The LEDs keep their last colors."
 msgstr "キーボードデーモン、キーボードバックライトタブ、トレイメニューのキーボードプロファイル。LED は最後の色のままです。"
 
-msgid "Generic fan control (other laptops)"
-msgstr "汎用ファン制御 (他のノートPC)"
+msgid "Switching asks for the administrator password and takes effect right away. The setting applies to the whole system and stays after reboots and updates."
+msgstr "切り替えには管理者パスワードが必要で、すぐに反映されます。この設定はシステム全体に適用され、再起動や更新後も保持されます。"
+
+msgid "Only for laptops without the Clevo interface (no dcc_fan module). On Clevo laptops with the module, nothing here is needed."
+msgstr "Clevo インターフェースのないノートPC 専用です (dcc_fan モジュールなし)。モジュールのある Clevo ノートPC では、ここは必要ありません。"
 
 msgid "For laptops without the Clevo interface whose fan driver offers a manual mode (for example ThinkPad, Dell): the fan daemon sets the fan speed through the kernel's standard interface. Off: the driver controls the fans."
 msgstr "Clevo インターフェイスがなく、ファンドライバーが手動モードを提供するノートPC (例: ThinkPad、Dell) 向け: ファンデーモンがカーネルの標準インターフェイス経由でファン速度を設定します。オフ: ドライバーがファンを制御します。"
@@ -1284,9 +1296,6 @@ msgstr "EC への直接アクセス (非対応ハードウェア)"
 msgid "Only for Clevo-based laptops where the dcc_fan module does not load. The fan daemon then writes directly to the Embedded Controller; on other laptops this can damage the hardware. Off: without the module, the firmware controls the fans."
 msgstr "dcc_fan モジュールが読み込まれない Clevo ベースのノートPC専用です。ファンデーモンは Embedded Controller に直接書き込みます。他のノートPCではハードウェアが損傷するおそれがあります。オフ: モジュールがなければファームウェアがファンを制御します。"
 
-msgid "Switching asks for the administrator password and takes effect right away. The setting applies to the whole system and stays after reboots and updates."
-msgstr "切り替えには管理者パスワードが必要で、すぐに反映されます。この設定はシステム全体に適用され、再起動や更新後も保持されます。"
-
 msgid "Language & Display"
 msgstr "言語と表示"
 
@@ -1295,9 +1304,6 @@ msgstr "今すぐ再起動"
 
 msgid "Language:"
 msgstr "言語:"
-
-msgid "Keyboard layout:"
-msgstr "キーボードレイアウト:"
 
 msgid "Follow the system"
 msgstr "システムに従う"
@@ -1338,6 +1344,9 @@ msgstr "オフ (100 % まで充電)"
 
 msgid "Charge limit:"
 msgstr "充電上限:"
+
+msgid "Keyboard layout:"
+msgstr "キーボードレイアウト:"
 
 msgid "Show Application"
 msgstr "アプリケーションを表示"

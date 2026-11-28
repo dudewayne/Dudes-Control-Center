@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: dudes-control-center\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-11-27 21:43+0100\n"
+"POT-Creation-Date: 2026-11-28 15:04+0100\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -21,7 +21,7 @@ msgstr ""
 msgid "System default"
 msgstr ""
 
-#: src/dcc-gui.c:541
+#: src/dcc-gui.c:544
 msgid ""
 "A maximum frequency is a ceiling, not a target: the CPU picks its own speed "
 "below it. Many CPUs do not go below a certain speed once they have work to "
@@ -30,47 +30,47 @@ msgid ""
 "little; higher ones are kept exactly."
 msgstr ""
 
-#: src/dcc-gui.c:919
+#: src/dcc-gui.c:922
 #, c-format
 msgid "%s daemon connected"
 msgstr ""
 
-#: src/dcc-gui.c:920
+#: src/dcc-gui.c:923
 #, c-format
 msgid "<span foreground='#d9534f' weight='bold'>%s daemon not connected</span>"
 msgstr ""
 
-#: src/dcc-gui.c:927 src/dcc-gui.c:933
+#: src/dcc-gui.c:930 src/dcc-gui.c:936
 msgid "Fan"
 msgstr ""
 
-#: src/dcc-gui.c:928 src/dcc-gui.c:933
+#: src/dcc-gui.c:931 src/dcc-gui.c:936
 msgid "CPU"
 msgstr ""
 
-#: src/dcc-gui.c:929 src/dcc-gui.c:933
+#: src/dcc-gui.c:932 src/dcc-gui.c:936 src/gui/gui-settings.c:1127
 msgid "Keyboard"
 msgstr ""
 
-#: src/dcc-gui.c:936
+#: src/dcc-gui.c:939
 #, c-format
 msgid ""
 "<span foreground='#888888'>%s control is switched off (Settings tab)</span>"
 msgstr ""
 
-#: src/dcc-gui.c:944
+#: src/dcc-gui.c:947
 msgid "<span foreground='#888888'>Switched off</span>"
 msgstr ""
 
-#: src/dcc-gui.c:945
+#: src/dcc-gui.c:948
 msgid "Running (daemon connected)"
 msgstr ""
 
-#: src/dcc-gui.c:946
+#: src/dcc-gui.c:949
 msgid "<span foreground='#d9534f'>On, daemon not connected</span>"
 msgstr ""
 
-#: src/dcc-gui.c:966
+#: src/dcc-gui.c:969
 #, c-format
 msgid ""
 "Daemon is not running!\n"
@@ -84,49 +84,49 @@ msgid ""
 "  sudo systemctl enable --now dcc-fan-daemon"
 msgstr ""
 
-#: src/dcc-gui.c:991
+#: src/dcc-gui.c:994
 #, c-format
 msgid "Failed to create socket: %s"
 msgstr ""
 
-#: src/dcc-gui.c:1008
+#: src/dcc-gui.c:1011
 #, c-format
 msgid "Failed to connect to daemon: %s"
 msgstr ""
 
-#: src/dcc-gui.c:1424
+#: src/dcc-gui.c:1427
 msgid "Dudes Control Center"
 msgstr ""
 
-#: src/dcc-gui.c:1478
+#: src/dcc-gui.c:1477
 msgid "Status"
 msgstr ""
 
-#: src/dcc-gui.c:1479 src/gui/gui-tray.c:153
+#: src/dcc-gui.c:1478 src/gui/gui-tray.c:153
 msgid "Fan Profiles"
 msgstr ""
 
-#: src/dcc-gui.c:1480 src/gui/gui-tray.c:93
+#: src/dcc-gui.c:1479 src/gui/gui-tray.c:93
 msgid "CPU Profiles"
 msgstr ""
 
-#: src/dcc-gui.c:1481
+#: src/dcc-gui.c:1480
 msgid "Keyboard Backlight"
 msgstr ""
 
-#: src/dcc-gui.c:1482
+#: src/dcc-gui.c:1481
 msgid "Settings"
 msgstr ""
 
-#: src/dcc-gui.c:1483
+#: src/dcc-gui.c:1482
 msgid "Logs"
 msgstr ""
 
-#: src/dcc-gui.c:1484
+#: src/dcc-gui.c:1483
 msgid "Help"
 msgstr ""
 
-#: src/dcc-gui.c:1485
+#: src/dcc-gui.c:1484
 msgid "About"
 msgstr ""
 
@@ -159,7 +159,7 @@ msgstr ""
 
 #: src/gui/gui-fan.c:36 src/gui/gui-cpu.c:851 src/gui/gui-cpu.c:1091
 #: src/gui/gui-cpu.c:1292 src/gui/gui-keyboard.c:270 src/gui/gui-keyboard.c:553
-#: src/gui/gui-settings.c:621 src/gui/gui-settings.c:699
+#: src/gui/gui-settings.c:632 src/gui/gui-settings.c:710
 msgid "_Cancel"
 msgstr ""
 
@@ -185,12 +185,12 @@ msgstr ""
 msgid "Create New Profile"
 msgstr ""
 
-#: src/gui/gui-fan.c:262 src/gui/gui-fan.c:411 src/gui/gui-fan.c:490
+#: src/gui/gui-fan.c:262 src/gui/gui-fan.c:411 src/gui/gui-fan.c:533
 #: src/gui/gui-keyboard.c:2068
 msgid "Cancel"
 msgstr ""
 
-#: src/gui/gui-fan.c:263 src/gui/gui-fan.c:1276 src/gui/gui-cpu.c:1961
+#: src/gui/gui-fan.c:263 src/gui/gui-fan.c:1269 src/gui/gui-cpu.c:1961
 #: src/gui/gui-keyboard.c:1884 src/gui/gui-keyboard.c:2126
 msgid "Create"
 msgstr ""
@@ -225,155 +225,155 @@ msgstr ""
 msgid "Rename Profile"
 msgstr ""
 
-#: src/gui/gui-fan.c:412 src/gui/gui-fan.c:1280 src/gui/gui-cpu.c:1965
+#: src/gui/gui-fan.c:412 src/gui/gui-fan.c:1273 src/gui/gui-cpu.c:1965
 #: src/gui/gui-keyboard.c:1888 src/gui/gui-keyboard.c:2128
 msgid "Rename"
 msgstr ""
 
-#: src/gui/gui-fan.c:487
+#: src/gui/gui-fan.c:530
 msgid "Edit Curve Point"
 msgstr ""
 
-#: src/gui/gui-fan.c:487
+#: src/gui/gui-fan.c:530
 msgid "Add Curve Point"
 msgstr ""
 
-#: src/gui/gui-fan.c:491
+#: src/gui/gui-fan.c:534
 msgid "Update"
 msgstr ""
 
-#: src/gui/gui-fan.c:491
+#: src/gui/gui-fan.c:534
 msgid "Add"
 msgstr ""
 
-#: src/gui/gui-fan.c:500
+#: src/gui/gui-fan.c:543
 msgid "Temperature (°C):"
 msgstr ""
 
-#: src/gui/gui-fan.c:504 src/gui/gui-fan.c:1329 src/gui/gui-fan.c:1489
+#: src/gui/gui-fan.c:547 src/gui/gui-fan.c:1322 src/gui/gui-fan.c:1482
 msgid "Fan Speed (%)"
 msgstr ""
 
-#: src/gui/gui-fan.c:554
+#: src/gui/gui-fan.c:600
 #, c-format
 msgid ""
 "A curve point with temperature %d°C already exists. Please use a different "
 "temperature."
 msgstr ""
 
-#: src/gui/gui-fan.c:618
+#: src/gui/gui-fan.c:611
 msgid "Curve point updated (click Save to keep it)"
 msgstr ""
 
-#: src/gui/gui-fan.c:620
+#: src/gui/gui-fan.c:613
 msgid "Curve point added (click Save to keep it)"
 msgstr ""
 
-#: src/gui/gui-fan.c:690
+#: src/gui/gui-fan.c:683
 msgid "Curve point deleted (click Save to keep it)"
 msgstr ""
 
-#: src/gui/gui-fan.c:698
+#: src/gui/gui-fan.c:691
 msgid "Please select a curve point to delete"
 msgstr ""
 
-#: src/gui/gui-fan.c:839 src/gui/gui-tray.c:114 src/gui/gui-tray.c:163
+#: src/gui/gui-fan.c:832 src/gui/gui-tray.c:114 src/gui/gui-tray.c:163
 #: src/gui/gui-tray.c:212
 #, c-format
 msgid "%s (Active)"
 msgstr ""
 
-#: src/gui/gui-fan.c:1210 src/gui/gui-fan.c:1597 src/gui/gui-cpu.c:1000
+#: src/gui/gui-fan.c:1203 src/gui/gui-fan.c:1590 src/gui/gui-cpu.c:1000
 #: src/gui/gui-cpu.c:1068 src/gui/gui-cpu.c:1337 src/gui/gui-cpu.c:1401
 #: src/gui/gui-keyboard.c:657 src/gui/gui-keyboard.c:685
 #: src/gui/gui-keyboard.c:716 src/gui/gui-keyboard.c:726
 msgid "No profile selected"
 msgstr ""
 
-#: src/gui/gui-fan.c:1235
+#: src/gui/gui-fan.c:1228
 msgid "Fan Daemon Status"
 msgstr ""
 
-#: src/gui/gui-fan.c:1237 src/gui/gui-status.c:824
+#: src/gui/gui-fan.c:1230 src/gui/gui-status.c:824
 msgid "Fan daemon not connected"
 msgstr ""
 
-#: src/gui/gui-fan.c:1245
+#: src/gui/gui-fan.c:1238
 msgid ""
 "Choose a profile to edit its curve. Activate makes it control the fans; "
 "\"(Active)\" marks the profile in use."
 msgstr ""
 
-#: src/gui/gui-fan.c:1253
+#: src/gui/gui-fan.c:1246
 msgid ""
 "<span size='x-large' weight='bold' foreground='#d9534f'>Manual Mode Active!</"
 "span>"
 msgstr ""
 
-#: src/gui/gui-fan.c:1257
+#: src/gui/gui-fan.c:1250
 msgid "Disable Manual Mode"
 msgstr ""
 
-#: src/gui/gui-fan.c:1265 src/gui/gui-keyboard.c:1864
+#: src/gui/gui-fan.c:1258 src/gui/gui-keyboard.c:1864
 #: src/gui/gui-keyboard.c:1865
 msgid "Profile:"
 msgstr ""
 
-#: src/gui/gui-fan.c:1286 src/gui/gui-cpu.c:1970 src/gui/gui-keyboard.c:1890
+#: src/gui/gui-fan.c:1279 src/gui/gui-cpu.c:1970 src/gui/gui-keyboard.c:1890
 #: src/gui/gui-keyboard.c:2130
 msgid "Save"
 msgstr ""
 
-#: src/gui/gui-fan.c:1287
+#: src/gui/gui-fan.c:1280
 msgid "Save the curve points of the selected profile"
 msgstr ""
 
-#: src/gui/gui-fan.c:1291 src/gui/gui-cpu.c:1975 src/gui/gui-keyboard.c:1886
+#: src/gui/gui-fan.c:1284 src/gui/gui-cpu.c:1975 src/gui/gui-keyboard.c:1886
 #: src/gui/gui-keyboard.c:2133
 msgid "Delete"
 msgstr ""
 
-#: src/gui/gui-fan.c:1296 src/gui/gui-cpu.c:1980 src/gui/gui-keyboard.c:1892
+#: src/gui/gui-fan.c:1289 src/gui/gui-cpu.c:1980 src/gui/gui-keyboard.c:1892
 msgid "Activate"
 msgstr ""
 
-#: src/gui/gui-fan.c:1306
+#: src/gui/gui-fan.c:1299
 msgid "Temperature Curve Points"
 msgstr ""
 
-#: src/gui/gui-fan.c:1321
+#: src/gui/gui-fan.c:1314
 msgid "Temperature"
 msgstr ""
 
-#: src/gui/gui-fan.c:1342
+#: src/gui/gui-fan.c:1335
 msgid "Temperature Curve Graph"
 msgstr ""
 
-#: src/gui/gui-fan.c:1357
+#: src/gui/gui-fan.c:1350
 msgid "Add Point"
 msgstr ""
 
-#: src/gui/gui-fan.c:1361
+#: src/gui/gui-fan.c:1354
 msgid "Delete Point"
 msgstr ""
 
-#: src/gui/gui-fan.c:1365
+#: src/gui/gui-fan.c:1358
 msgid "  (Double-click to edit, points are auto-sorted by temperature)"
 msgstr ""
 
-#: src/gui/gui-fan.c:1488
+#: src/gui/gui-fan.c:1481
 msgid "Temperature (°C)"
 msgstr ""
 
-#: src/gui/gui-fan.c:1666
+#: src/gui/gui-fan.c:1659
 msgid "Manual mode disabled - returned to auto mode"
 msgstr ""
 
-#: src/gui/gui-fan.c:1668
+#: src/gui/gui-fan.c:1661
 msgid "Failed to reactivate previous profile"
 msgstr ""
 
-#: src/gui/gui-fan.c:1675
+#: src/gui/gui-fan.c:1668
 msgid "Failed to disable manual mode"
 msgstr ""
 
@@ -1318,7 +1318,7 @@ msgstr ""
 msgid "Power"
 msgstr ""
 
-#: src/gui/gui-status.c:719 src/gui/gui-settings.c:1048
+#: src/gui/gui-status.c:719 src/gui/gui-settings.c:1103
 msgid "Battery"
 msgstr ""
 
@@ -1587,11 +1587,11 @@ msgstr ""
 msgid "Component switched off"
 msgstr ""
 
-#: src/gui/gui-settings.c:103 src/gui/gui-settings.c:596
+#: src/gui/gui-settings.c:103 src/gui/gui-settings.c:607
 msgid "Not changed: authentication was cancelled or failed"
 msgstr ""
 
-#: src/gui/gui-settings.c:104 src/gui/gui-settings.c:597
+#: src/gui/gui-settings.c:104 src/gui/gui-settings.c:608
 msgid "Could not change the component (see the GUI log)"
 msgstr ""
 
@@ -1607,11 +1607,11 @@ msgid ""
 "back to it earlier)."
 msgstr ""
 
-#: src/gui/gui-settings.c:137 src/gui/gui-settings.c:641
+#: src/gui/gui-settings.c:137 src/gui/gui-settings.c:652
 msgid "Could not run pkexec"
 msgstr ""
 
-#: src/gui/gui-settings.c:148 src/gui/gui-settings.c:654
+#: src/gui/gui-settings.c:148 src/gui/gui-settings.c:665
 msgid "Waiting for authentication..."
 msgstr ""
 
@@ -1689,7 +1689,7 @@ msgstr ""
 msgid "Keyboard layout changed"
 msgstr ""
 
-#: src/gui/gui-settings.c:537 src/gui/gui-settings.c:561
+#: src/gui/gui-settings.c:537 src/gui/gui-settings.c:571
 msgid "Not needed: dcc_fan module in use"
 msgstr ""
 
@@ -1716,51 +1716,55 @@ msgstr ""
 msgid "Off: no fan with a manual mode found"
 msgstr ""
 
-#: src/gui/gui-settings.c:562
+#: src/gui/gui-settings.c:553 src/gui/gui-settings.c:894
+msgid "Other laptops"
+msgstr ""
+
+#: src/gui/gui-settings.c:572
 msgid "On, in use"
 msgstr ""
 
-#: src/gui/gui-settings.c:563
+#: src/gui/gui-settings.c:573
 msgid "Not needed: generic fan control in use"
 msgstr ""
 
-#: src/gui/gui-settings.c:564
+#: src/gui/gui-settings.c:574
 msgid "On, refused: the EC check failed"
 msgstr ""
 
-#: src/gui/gui-settings.c:564
+#: src/gui/gui-settings.c:574
 msgid "Off: no fan control"
 msgstr ""
 
-#: src/gui/gui-settings.c:565
+#: src/gui/gui-settings.c:575
 msgid "On"
 msgstr ""
 
-#: src/gui/gui-settings.c:565
+#: src/gui/gui-settings.c:575
 msgid "Off"
 msgstr ""
 
-#: src/gui/gui-settings.c:584
+#: src/gui/gui-settings.c:595
 msgid "Generic fan control switched on - the fan daemon was restarted"
 msgstr ""
 
-#: src/gui/gui-settings.c:585
+#: src/gui/gui-settings.c:596
 msgid "Generic fan control switched off - the fans are back in automatic mode"
 msgstr ""
 
-#: src/gui/gui-settings.c:587
+#: src/gui/gui-settings.c:598
 msgid "Direct EC access switched on - the fan daemon was restarted"
 msgstr ""
 
-#: src/gui/gui-settings.c:588
+#: src/gui/gui-settings.c:599
 msgid "Direct EC access switched off - the fan daemon was restarted"
 msgstr ""
 
-#: src/gui/gui-settings.c:612
+#: src/gui/gui-settings.c:623
 msgid "Switch on direct EC access?"
 msgstr ""
 
-#: src/gui/gui-settings.c:614
+#: src/gui/gui-settings.c:625
 msgid ""
 "<b>This can damage your laptop.</b> The fan daemon would then write directly "
 "to the Embedded Controller through the I/O ports 0x62/0x66, using the "
@@ -1775,23 +1779,23 @@ msgid ""
 "You use it at your own risk."
 msgstr ""
 
-#: src/gui/gui-settings.c:622 src/gui/gui-settings.c:700
+#: src/gui/gui-settings.c:633 src/gui/gui-settings.c:711
 msgid "Switch on"
 msgstr ""
 
-#: src/gui/gui-settings.c:625
+#: src/gui/gui-settings.c:636
 msgid "I understand the risk and use this on a Clevo-based laptop"
 msgstr ""
 
-#: src/gui/gui-settings.c:630
+#: src/gui/gui-settings.c:641
 msgid "Direct EC access"
 msgstr ""
 
-#: src/gui/gui-settings.c:693
+#: src/gui/gui-settings.c:704
 msgid "Switch on generic fan control?"
 msgstr ""
 
-#: src/gui/gui-settings.c:695
+#: src/gui/gui-settings.c:706
 #, c-format
 msgid ""
 "The fan daemon then sets the speed of the %s driver's fans through the "
@@ -1803,26 +1807,26 @@ msgid ""
 "mode."
 msgstr ""
 
-#: src/gui/gui-settings.c:702
+#: src/gui/gui-settings.c:713 src/gui/gui-settings.c:969
 msgid "Generic fan control"
 msgstr ""
 
-#: src/gui/gui-settings.c:785
+#: src/gui/gui-settings.c:796
 #, c-format
 msgid "Charge limit: %d %%"
 msgstr ""
 
-#: src/gui/gui-settings.c:796
+#: src/gui/gui-settings.c:807
 msgid "Needs the CPU daemon (CPU control in Components)."
 msgstr ""
 
-#: src/gui/gui-settings.c:798
+#: src/gui/gui-settings.c:809
 msgid ""
 "This laptop's battery driver offers no charge limit "
 "(charge_control_end_threshold)."
 msgstr ""
 
-#: src/gui/gui-settings.c:800
+#: src/gui/gui-settings.c:811
 #, c-format
 msgid ""
 "Stops charging %s at this level, which is easier on a battery that is "
@@ -1830,37 +1834,45 @@ msgid ""
 "drivers only take certain values."
 msgstr ""
 
-#: src/gui/gui-settings.c:813 src/gui/gui-settings.c:1055
+#: src/gui/gui-settings.c:824 src/gui/gui-settings.c:1110
 #, c-format
 msgid "%d %%"
 msgstr ""
 
-#: src/gui/gui-settings.c:836
+#: src/gui/gui-settings.c:847
 #, c-format
 msgid "Not changed: %s"
 msgstr ""
 
-#: src/gui/gui-settings.c:836
+#: src/gui/gui-settings.c:847
 msgid "no answer from the CPU daemon"
 msgstr ""
 
-#: src/gui/gui-settings.c:852
+#: src/gui/gui-settings.c:891
+msgid "General"
+msgstr ""
+
+#: src/gui/gui-settings.c:892 src/gui/gui-settings.c:897
 msgid "Components"
 msgstr ""
 
-#: src/gui/gui-settings.c:857
+#: src/gui/gui-settings.c:893
+msgid "Hardware"
+msgstr ""
+
+#: src/gui/gui-settings.c:902 src/gui/gui-settings.c:956
 msgid "Fan control"
 msgstr ""
 
-#: src/gui/gui-settings.c:857
+#: src/gui/gui-settings.c:902
 msgid "CPU control"
 msgstr ""
 
-#: src/gui/gui-settings.c:857
+#: src/gui/gui-settings.c:902
 msgid "Keyboard backlight"
 msgstr ""
 
-#: src/gui/gui-settings.c:860
+#: src/gui/gui-settings.c:905
 #, no-c-format
 msgid ""
 "Fan daemon, Status and Fan Profiles tabs, fan profiles in the tray menu. "
@@ -1868,34 +1880,42 @@ msgid ""
 "laptop's firmware controls them."
 msgstr ""
 
-#: src/gui/gui-settings.c:862
+#: src/gui/gui-settings.c:907
 msgid ""
 "CPU daemon and hard-limit timer, CPU Profiles tab, CPU profiles in the tray "
 "menu. Governor and frequencies stay as they were last set."
 msgstr ""
 
-#: src/gui/gui-settings.c:864
+#: src/gui/gui-settings.c:909
 msgid ""
 "Keyboard daemon, Keyboard Backlight tab, keyboard profiles in the tray menu. "
 "The LEDs keep their last colors."
 msgstr ""
 
-#: src/gui/gui-settings.c:905
-msgid "Generic fan control (other laptops)"
+#: src/gui/gui-settings.c:942 src/gui/gui-settings.c:1017
+msgid ""
+"Switching asks for the administrator password and takes effect right away. "
+"The setting applies to the whole system and stays after reboots and updates."
 msgstr ""
 
-#: src/gui/gui-settings.c:909
+#: src/gui/gui-settings.c:950
+msgid ""
+"Only for laptops without the Clevo interface (no dcc_fan module). On Clevo "
+"laptops with the module, nothing here is needed."
+msgstr ""
+
+#: src/gui/gui-settings.c:973
 msgid ""
 "For laptops without the Clevo interface whose fan driver offers a manual "
 "mode (for example ThinkPad, Dell): the fan daemon sets the fan speed through "
 "the kernel's standard interface. Off: the driver controls the fans."
 msgstr ""
 
-#: src/gui/gui-settings.c:932
+#: src/gui/gui-settings.c:996
 msgid "Direct EC access (unsupported hardware)"
 msgstr ""
 
-#: src/gui/gui-settings.c:936
+#: src/gui/gui-settings.c:1000
 msgid ""
 "Only for Clevo-based laptops where the dcc_fan module does not load. The fan "
 "daemon then writes directly to the Embedded Controller; on other laptops "
@@ -1903,84 +1923,78 @@ msgid ""
 "the fans."
 msgstr ""
 
-#: src/gui/gui-settings.c:953
-msgid ""
-"Switching asks for the administrator password and takes effect right away. "
-"The setting applies to the whole system and stays after reboots and updates."
-msgstr ""
-
-#: src/gui/gui-settings.c:962
+#: src/gui/gui-settings.c:1026
 msgid "Language & Display"
 msgstr ""
 
-#: src/gui/gui-settings.c:982
+#: src/gui/gui-settings.c:1046
 msgid "Restart now"
 msgstr ""
 
-#: src/gui/gui-settings.c:986
+#: src/gui/gui-settings.c:1050
 msgid "Language:"
 msgstr ""
 
-#: src/gui/gui-settings.c:994
-msgid "Keyboard layout:"
-msgstr ""
-
-#: src/gui/gui-settings.c:997
+#: src/gui/gui-settings.c:1053
 msgid "Follow the system"
 msgstr ""
 
-#: src/gui/gui-settings.c:998
+#: src/gui/gui-settings.c:1054
 msgid "Dark"
 msgstr ""
 
-#: src/gui/gui-settings.c:999
+#: src/gui/gui-settings.c:1055
 msgid "Light"
 msgstr ""
 
-#: src/gui/gui-settings.c:1003
+#: src/gui/gui-settings.c:1059
 msgid "Mode:"
 msgstr ""
 
-#: src/gui/gui-settings.c:1014
+#: src/gui/gui-settings.c:1069
 msgid "Behavior"
 msgstr ""
 
-#: src/gui/gui-settings.c:1022
+#: src/gui/gui-settings.c:1077
 msgid "Start minimized to tray:"
 msgstr ""
 
-#: src/gui/gui-settings.c:1023
+#: src/gui/gui-settings.c:1078
 msgid ""
 "On: the GUI starts as a tray icon; off: it opens its window. The menu entry "
 "and your startup applications get the option <tt>--minimized</tt> to match. "
 "Starting it again while it runs opens its window."
 msgstr ""
 
-#: src/gui/gui-settings.c:1030
+#: src/gui/gui-settings.c:1085
 msgid "1 second"
 msgstr ""
 
-#: src/gui/gui-settings.c:1031
+#: src/gui/gui-settings.c:1086
 #, c-format
 msgid "%d seconds"
 msgstr ""
 
-#: src/gui/gui-settings.c:1038
+#: src/gui/gui-settings.c:1093
 msgid "Refresh interval:"
 msgstr ""
 
-#: src/gui/gui-settings.c:1039
+#: src/gui/gui-settings.c:1094
 msgid ""
 "How often the window shows new temperatures, fan speeds, frequencies and "
 "power. The daemons control fans and CPU on their own schedule."
 msgstr ""
 
-#: src/gui/gui-settings.c:1054
+#: src/gui/gui-settings.c:1109
 msgid "Off (charges to 100 %)"
 msgstr ""
 
-#: src/gui/gui-settings.c:1063
+#: src/gui/gui-settings.c:1118
 msgid "Charge limit:"
+msgstr ""
+
+#: src/gui/gui-settings.c:1136
+msgid "Keyboard layout:"
 msgstr ""
 
 #: src/gui/gui-tray.c:81

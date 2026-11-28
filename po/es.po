@@ -1164,6 +1164,9 @@ msgstr "Activado, pero no se encontró ningún ventilador con modo manual"
 msgid "Off: no fan with a manual mode found"
 msgstr "Desactivado: no se encontró ningún ventilador con modo manual"
 
+msgid "Other laptops"
+msgstr "Otros portátiles"
+
 msgid "On, in use"
 msgstr "Activado, en uso"
 
@@ -1262,8 +1265,11 @@ msgstr "Daemon de CPU y temporizador del límite máximo, pestaña Perfiles de C
 msgid "Keyboard daemon, Keyboard Backlight tab, keyboard profiles in the tray menu. The LEDs keep their last colors."
 msgstr "Daemon del teclado, pestaña Retroiluminación del teclado, perfiles de teclado en el menú de la bandeja. Los LED conservan sus últimos colores."
 
-msgid "Generic fan control (other laptops)"
-msgstr "Control genérico de ventiladores (otros portátiles)"
+msgid "Switching asks for the administrator password and takes effect right away. The setting applies to the whole system and stays after reboots and updates."
+msgstr "Al cambiar se pide la contraseña de administrador y el cambio se aplica de inmediato. El ajuste afecta a todo el sistema y se mantiene tras reinicios y actualizaciones."
+
+msgid "Only for laptops without the Clevo interface (no dcc_fan module). On Clevo laptops with the module, nothing here is needed."
+msgstr "Solo para portátiles sin la interfaz de Clevo (sin módulo dcc_fan). En portátiles Clevo con el módulo, aquí no se necesita nada."
 
 msgid "For laptops without the Clevo interface whose fan driver offers a manual mode (for example ThinkPad, Dell): the fan daemon sets the fan speed through the kernel's standard interface. Off: the driver controls the fans."
 msgstr "Para portátiles sin la interfaz de Clevo cuyo controlador de ventiladores ofrece un modo manual (por ejemplo ThinkPad, Dell): el demonio de ventiladores ajusta la velocidad mediante la interfaz estándar del kernel. Desactivado: el controlador gestiona los ventiladores."
@@ -1274,9 +1280,6 @@ msgstr "Acceso directo al EC (hardware no compatible)"
 msgid "Only for Clevo-based laptops where the dcc_fan module does not load. The fan daemon then writes directly to the Embedded Controller; on other laptops this can damage the hardware. Off: without the module, the firmware controls the fans."
 msgstr "Solo para portátiles basados en Clevo en los que el módulo dcc_fan no se carga. El servicio de ventiladores escribe entonces directamente en el Embedded Controller; en otros portátiles esto puede dañar el hardware. Desactivado: sin el módulo, el firmware controla los ventiladores."
 
-msgid "Switching asks for the administrator password and takes effect right away. The setting applies to the whole system and stays after reboots and updates."
-msgstr "Al cambiar se pide la contraseña de administrador y el cambio se aplica de inmediato. El ajuste afecta a todo el sistema y se mantiene tras reinicios y actualizaciones."
-
 msgid "Language & Display"
 msgstr "Idioma y pantalla"
 
@@ -1285,9 +1288,6 @@ msgstr "Reiniciar ahora"
 
 msgid "Language:"
 msgstr "Idioma:"
-
-msgid "Keyboard layout:"
-msgstr "Distribución del teclado:"
 
 msgid "Follow the system"
 msgstr "Seguir al sistema"
@@ -1328,6 +1328,9 @@ msgstr "Desactivado (carga hasta el 100 %)"
 
 msgid "Charge limit:"
 msgstr "Límite de carga:"
+
+msgid "Keyboard layout:"
+msgstr "Distribución del teclado:"
 
 msgid "Show Application"
 msgstr "Mostrar aplicación"
